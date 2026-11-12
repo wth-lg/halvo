@@ -77,6 +77,18 @@ export function pressDialog(pid, which) {
   return parsePressed(run(['press', String(pid), which])[0]);
 }
 
+export function parseList(line) {
+  if (!/^list (trusted=(yes|no) )?windows=\d+ (titled=\d+ )?buttons=\d+ reject_named=\d+ allow_named=\d+ classes=[A-Za-z0-9_#,-]+$/.test(line ?? '')) {
+    throw new Error('the dialog reader gave no list');
+  }
+  return line;
+}
+
+/** Counts of the windows of the process `pid` and of their buttons, for a trace line. */
+export function listDialog(pid) {
+  return parseList(run(['list', String(pid)])[0]);
+}
+
 /** Prepares the reader once, so that the first read of a cell does not wait for a build. */
 export function prepare() {
   if (process.platform === 'darwin') macosReader();

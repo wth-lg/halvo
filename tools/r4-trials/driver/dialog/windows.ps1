@@ -1,9 +1,9 @@
 # The reader of the trial's native dialog on Windows, through UI Automation and MSAA; run by dialog.mjs.
-# usage: windows.ps1 -Mode read -Id <pid> | -Mode press -Id <pid> -Press <close|allow|reject>
+# usage: windows.ps1 -Mode read -Id <pid> | -Mode list -Id <pid> | -Mode press -Id <pid> -Press <close|allow|reject>
 # read prints `dialog found=<yes|no> trusted=yes text=<same|differ|-> default=<reject|allow|none|other|unread|-> cancel=<reject|allow|none|other|via_close|unread|-> close=<yes|no|unread|->`;
-# press prints `pressed=<yes|no>`. It posts no input event: a control is pressed by its Invoke pattern.
+# list prints counts of the process's visible top-level windows, those titled as the dialog, and their buttons; press prints `pressed=<yes|no>`. It posts no input event: a control is pressed by its Invoke pattern.
 param(
-  [Parameter(Mandatory = $true)][ValidateSet('read', 'press')][string]$Mode,
+  [Parameter(Mandatory = $true)][ValidateSet('read', 'list', 'press')][string]$Mode,
   [Parameter(Mandatory = $true)][int]$Id,
   [ValidateSet('close', 'allow', 'reject')][string]$Press = 'reject'
 )
@@ -13,9 +13,35 @@ Add-Type -AssemblyName UIAutomationTypes
 $Accessibility = (Add-Type -AssemblyName Accessibility -PassThru | Select-Object -First 1).Assembly.Location
 Add-Type -ReferencedAssemblies $Accessibility -TypeDefinition @'
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text;
 using Accessibility;
 public static class R4Msaa {
+  delegate bool EnumProc(IntPtr hwnd, IntPtr param);
+  [DllImport("user32.dll")]
+  static extern bool EnumWindows(EnumProc proc, IntPtr param);
+  [DllImport("user32.dll")]
+  static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+  [DllImport("user32.dll")]
+  static extern bool IsWindowVisible(IntPtr hwnd);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int count);
+  public static IntPtr[] Windows(uint owner) {
+    List<IntPtr> found = new List<IntPtr>();
+    EnumWindows((hwnd, param) => {
+      uint pid;
+      GetWindowThreadProcessId(hwnd, out pid);
+      if (pid == owner && IsWindowVisible(hwnd)) { found.Add(hwnd); }
+      return true;
+    }, IntPtr.Zero);
+    return found.ToArray();
+  }
+  public static string Text(IntPtr hwnd) {
+    StringBuilder text = new StringBuilder(512);
+    GetWindowText(hwnd, text, 512);
+    return text.ToString();
+  }
   [DllImport("user32.dll")]
   static extern int GetWindowLong(IntPtr hwnd, int index);
   public static bool HasSystemMenu(IntPtr hwnd) { return (GetWindowLong(hwnd, -16) & 0x80000) != 0; }
@@ -44,9 +70,12 @@ $Text = New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeP
 
 function Get-Buttons($window) { return @($window.FindAll($Scope::Descendants, $Button)) }
 
+function Get-Windows {
+  return @([R4Msaa]::Windows([uint32]$Id) | ForEach-Object { $AE::FromHandle($_) })
+}
+
 function Find-Dialog {
-  $mine = New-Object System.Windows.Automation.PropertyCondition($AE::ProcessIdProperty, $Id)
-  foreach ($window in $AE::RootElement.FindAll($Scope::Children, $mine)) {
+  foreach ($window in $(Get-Windows)) {
     $names = @(Get-Buttons $window | ForEach-Object { $_.Current.Name })
     if ($names -contains $RejectLabel -and $names -contains $AllowLabel) { return $window }
   }
@@ -114,4 +143,16 @@ function Press-Control {
   }
 }
 
-if ($Mode -eq 'read') { Read-Dialog } else { Press-Control }
+function List-Windows {
+  $handles = @([R4Msaa]::Windows([uint32]$Id))
+  $titled = @($handles | Where-Object { [R4Msaa]::Text($_) -eq $Title }).Count
+  $windows = @(Get-Windows)
+  $buttons = @($windows | ForEach-Object { Get-Buttons $_ })
+  $reject = @($buttons | Where-Object { $_.Current.Name -eq $RejectLabel }).Count
+  $allow = @($buttons | Where-Object { $_.Current.Name -eq $AllowLabel }).Count
+  $classes = (@($windows | ForEach-Object { $_.Current.ClassName -replace '[^A-Za-z0-9_#]', '_' }) -join ',')
+  if ($classes -eq '') { $classes = '-' }
+  "list windows=$($windows.Count) titled=$titled buttons=$($buttons.Count) reject_named=$reject allow_named=$allow classes=$classes"
+}
+
+if ($Mode -eq 'read') { Read-Dialog } elseif ($Mode -eq 'list') { List-Windows } else { Press-Control }

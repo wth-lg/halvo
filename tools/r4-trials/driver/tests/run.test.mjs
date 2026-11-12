@@ -5,9 +5,9 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { parsePressed, parseRead } from '../dialog.mjs';
+import { parseList, parsePressed, parseRead } from '../dialog.mjs';
 import {
-  cancelOf, dialogCell, driverCell, engineOf, machineOf, parseArgs, Refused, sessionCounts,
+  readUntilFound, UNREAD, cancelOf, dialogCell, driverCell, engineOf, machineOf, parseArgs, Refused, sessionCounts,
 } from '../run.mjs';
 import { ELEMENT, elementId } from '../webdriver.mjs';
 
@@ -151,4 +151,25 @@ test('the readers pin the attributes and values that name the default, cancel an
     'AccessibleObjectFromWindow(hwnd, 0xFFFFFFFC, ref iid, out found)', '[System.Windows.Automation.InvokePattern]::Pattern']) {
     assert.ok(ps.includes(text), `windows.ps1: ${text}`);
   }
+});
+
+test('the list line of a reader holds counts and class names alone', () => {
+  assert.equal(parseList('list windows=2 buttons=2 reject_named=1 allow_named=1 classes=#32770,Tao_Thread_Event_Target'),
+    'list windows=2 buttons=2 reject_named=1 allow_named=1 classes=#32770,Tao_Thread_Event_Target');
+  assert.equal(parseList('list windows=1 titled=1 buttons=0 reject_named=0 allow_named=0 classes=#32770').length > 0, true);
+  assert.equal(parseList('list trusted=yes windows=0 buttons=0 reject_named=0 allow_named=0 classes=-').length > 0, true);
+  for (const bad of [undefined, '', 'list windows=1', "list windows=1 buttons=2 reject_named=1 allow_named=1 classes=Don't pay"]) {
+    assert.throws(() => parseList(bad), String(bad));
+  }
+});
+
+test('a reader that fails counts as a dialog not reached, and a found dialog ends the wait', async () => {
+  assert.deepEqual(await readUntilFound(1, () => { throw new Error('exit 1'); }, 1), UNREAD);
+  let calls = 0;
+  const read = await readUntilFound(1, () => {
+    calls += 1;
+    return { found: calls < 3 ? 'no' : 'yes' };
+  }, 1);
+  assert.equal(read.found, 'yes');
+  assert.equal(calls, 3);
 });

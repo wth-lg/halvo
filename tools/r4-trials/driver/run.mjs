@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { Control, launch, stop } from '../app/selfcheck.mjs';
 import { readTree, readWindow } from '../app/system/system.mjs';
-import { prepare, pressDialog, readDialog } from './dialog.mjs';
+import { listDialog, prepare, pressDialog, readDialog } from './dialog.mjs';
 import * as wd from './webdriver.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -220,13 +220,19 @@ async function driverCells(machine, name) {
   return true;
 }
 
-async function readUntilFound(pid) {
+export const UNREAD = Object.freeze({ found: 'no', trusted: '-', text: '-', default: '-', cancel: '-', close: '-', error: 'yes' });
+
+export async function readUntilFound(pid, read1 = readDialog, waitMs = 500) {
   const until = Date.now() + FIND_MS;
   let read;
   do {
-    read = readDialog(pid);
+    try {
+      read = read1(pid);
+    } catch {
+      return UNREAD;
+    }
     if (read.found === 'yes') return read;
-    await sleep(500);
+    await sleep(waitMs);
   } while (Date.now() < until);
   return read;
 }
@@ -237,7 +243,13 @@ async function answerOf(machine, form, app, n, press) {
   const read = await readUntilFound(app.pid);
   if (read.found !== 'yes') return { read, answer: null };
   const which = typeof press === 'function' ? press(read) : press;
-  if (!pressDialog(app.pid, which)) return { read, answer: 'miss', which };
+  let pressed = false;
+  try {
+    pressed = pressDialog(app.pid, which);
+  } catch {
+    pressed = false;
+  }
+  if (!pressed) return { read, answer: 'miss', which };
   const answer = await waitLine(app, (line) => line.startsWith(`dialog answer form=${form} n=${n} `), ANSWER_MS);
   if (!answer) throw new Miss(`miss trial=dialog machine=${machine} form=${form} run=1 step=${which}`);
   return { read, answer: /result=(allow|reject)$/.exec(answer)[1], which };
@@ -251,6 +263,14 @@ async function dialogCellOf(machine, form, bin) {
     control = await Control.connect(app.port);
     const first = await answerOf(machine, form, app, 1, (read) => (read.close === 'yes' ? 'close' : 'reject'));
     if (first.answer === null) {
+      const lines = app.lines.filter((line) => /^dialog (show|answer) /.test(line)).length;
+      let list = 'list=error';
+      try {
+        list = listDialog(app.pid).replace(/^list /, '');
+      } catch {
+        list = 'list=error';
+      }
+      console.log(`trace trial=dialog machine=${machine} form=${form} app_dialog_lines=${lines} reader_error=${first.read.error ?? 'no'} ${list}`);
       stop(app);
       return null;
     }
