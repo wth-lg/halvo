@@ -574,11 +574,12 @@ mod system {
     use std::ffi::OsString;
     use std::os::windows::ffi::OsStringExt;
 
+    use windows::core::{GUID, HRESULT, PWSTR};
     use windows::Win32::Foundation::{CloseHandle, HANDLE};
     use windows::Win32::Security::{TOKEN_IMPERSONATE, TOKEN_QUERY};
     use windows::Win32::System::Com::CoTaskMemFree;
     use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
-    use windows::Win32::UI::Shell::{FOLDERID_LocalAppData, SHGetKnownFolderPath, KF_FLAG_DEFAULT};
+    use windows::Win32::UI::Shell::{FOLDERID_LocalAppData, KF_FLAG_DEFAULT};
 
     use super::PathError;
 
@@ -587,6 +588,16 @@ mod system {
     impl Drop for Token {
         fn drop(&mut self) {
             let _ = unsafe { CloseHandle(self.0) };
+        }
+    }
+
+    /// The buffer of SHGetKnownFolderPath, which the caller frees whether the call
+    /// succeeds or not.
+    struct TaskMem(PWSTR);
+
+    impl Drop for TaskMem {
+        fn drop(&mut self) {
+            unsafe { CoTaskMemFree(Some(self.0 .0 as *const _)) };
         }
     }
 
@@ -601,12 +612,19 @@ mod system {
         }
         .map_err(|e| PathError::Lookup(e.code().0))?;
         let token = Token(token);
-        let path =
-            unsafe { SHGetKnownFolderPath(&FOLDERID_LocalAppData, KF_FLAG_DEFAULT, Some(token.0)) }
-                .map_err(|e| PathError::Lookup(e.code().0))?;
-        let text = OsString::from_wide(unsafe { path.as_wide() });
-        unsafe { CoTaskMemFree(Some(path.0 as *const _)) };
-        Ok(Some(text))
+        windows::core::link!("shell32.dll" "system" fn SHGetKnownFolderPath(rfid: *const GUID, dwflags: u32, htoken: HANDLE, ppszpath: *mut PWSTR) -> HRESULT);
+        let mut path = TaskMem(PWSTR::null());
+        unsafe {
+            SHGetKnownFolderPath(
+                &FOLDERID_LocalAppData,
+                KF_FLAG_DEFAULT.0 as u32,
+                token.0,
+                &mut path.0,
+            )
+        }
+        .ok()
+        .map_err(|e| PathError::Lookup(e.code().0))?;
+        Ok(Some(OsString::from_wide(unsafe { path.0.as_wide() })))
     }
 
     pub fn user_temp_dir() -> Result<Option<super::DarwinUserTempDir>, PathError> {
