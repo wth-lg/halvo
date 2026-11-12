@@ -1,0 +1,3 @@
+self-test kept: good fine: PASS as expected
+self-test kept: bad broken: FAIL as expected
+SKIP left-out: left out by --except 20-left-out

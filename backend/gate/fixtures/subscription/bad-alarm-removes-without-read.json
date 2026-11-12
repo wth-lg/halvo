@@ -1,0 +1,14 @@
+{
+  "about": "the alarm removes a due pending checkout without reading the provider",
+  "edits": [
+    {
+      "file": "src/do/entries.ts",
+      "find": "      const answer = await host.port.readSession(sessionId);",
+      "replace": "      const answer = { kind: \"expired\" as const };"
+    }
+  ],
+  "line": [
+    "dropped-at-bound=0",
+    "account-from-read=0"
+  ]
+}

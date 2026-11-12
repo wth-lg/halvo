@@ -1,0 +1,13 @@
+{
+  "about": "the prompt budget gives the wallet prompt another source",
+  "edits": [
+    {
+      "file": "gate/prompt-budget.json",
+      "find": "        \"type\": \"docs\",\n        \"rows\": [\n          \"r5#104\",\n          \"r5#105\"\n        ]",
+      "replace": "        \"type\": \"docs\",\n        \"rows\": [\n          \"r5#104\"\n        ]"
+    }
+  ],
+  "line": [
+    "wallet-prompt=differs"
+  ]
+}

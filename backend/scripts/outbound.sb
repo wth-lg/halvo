@@ -1,0 +1,27 @@
+(version 1)
+(allow default)
+
+(define (ps-is-setuid-so-stack-sh-runs-it-outside-the-sandbox)
+  (allow process-exec (literal "/bin/ps") (with no-sandbox)))
+(ps-is-setuid-so-stack-sh-runs-it-outside-the-sandbox)
+
+(define (kill-so-macos-logs-the-denial)
+  (deny network* (with send-signal SIGKILL) (with message (param "TAG"))))
+(kill-so-macos-logs-the-denial)
+(define loopback-and-fe80-1-on-any-interface "localhost:*")
+(allow network-bind (local ip loopback-and-fe80-1-on-any-interface))
+(allow network-inbound (local ip loopback-and-fe80-1-on-any-interface))
+(allow network-outbound (remote ip loopback-and-fe80-1-on-any-interface))
+(define (no-path-meets-the-kill-because-a-hard-link-asks-every-rule-about-both-of-its-names)
+  (allow network* (subpath "/")))
+(no-path-meets-the-kill-because-a-hard-link-asks-every-rule-about-both-of-its-names)
+
+(deny network-outbound
+  (remote unix-socket (path-literal "/private/var/run/mDNSResponder"))
+  (with send-signal SIGKILL)
+  (with message (param "TAG")))
+
+(define (deny-the-dns-mach-service-with-a-record-and-without-the-kill)
+  (deny mach-lookup (global-name "com.apple.dnssd.service") (with message (param "TAG"))))
+(deny-the-dns-mach-service-with-a-record-and-without-the-kill)
+(deny lsopen (with send-signal SIGKILL) (with message (param "TAG")))

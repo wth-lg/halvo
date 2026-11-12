@@ -4,8 +4,9 @@ use crate::guard::Table;
 use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
 use crate::schedule::{self, stop_run, Board, Move, Report, Stop};
 use crate::types::{
-    Agent, AgentId, Answer, Body, Cause, ConfigView, Decision, Doing, Event, HandbackResult,
-    Limits, Live, Outcome, Reply, RunEnd, RunId, RunItem, RunSpec, Workflow, WorkflowId,
+    Agent, AgentId, Answer, BindResult, Body, Cause, ConfigView, Decision, Doing, Event,
+    HandbackResult, Limits, Live, Outcome, Reply, RunEnd, RunId, RunItem, RunSpec, Workflow,
+    WorkflowId,
 };
 use std::cell::RefCell;
 
@@ -197,6 +198,10 @@ impl<P: Runs> Runs for Watch<'_, P> {
 
     fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {
         self.ports.answer_handback(run, result)
+    }
+
+    fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError> {
+        self.ports.answer_bind(run, result)
     }
 
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {

@@ -1,0 +1,13 @@
+{
+  "about": "the adapter answers the cancel of an ended subscription as a failure",
+  "edits": [
+    {
+      "file": "src/billing/stripe/adapter.ts",
+      "find": "      if (isUnknownId(read) || ended(read)) return { kind: \"nothing-to-cancel\" };",
+      "replace": "      if (isUnknownId(read)) return { kind: \"nothing-to-cancel\" };"
+    }
+  ],
+  "line": [
+    "deleted-after-cancel=0"
+  ]
+}

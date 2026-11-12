@@ -1,0 +1,3 @@
+self-test here: good fine: PASS as expected
+self-test here: bad broken: FAIL as expected
+self-test gone: FAILED: no file 20-gone.sh in the checks directory

@@ -1,0 +1,13 @@
+{
+  "about": "checkout start accepts an id that holds a cancelled account",
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "      return accountRow(sql) === null ? \"pending\" : \"account\";",
+      "replace": "      return accountRow(sql) === null ? \"pending\" : accountRow(sql)?.state === \"cancelled\" ? \"nothing\" : \"account\";"
+    }
+  ],
+  "line": [
+    "start-refused=0"
+  ]
+}

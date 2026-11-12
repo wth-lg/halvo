@@ -121,33 +121,58 @@ impl Name {
     }
 }
 
-/// An origin `<scheme>://<host>:<port>` in lower case with the port always written (A-A7.4).
+/// An origin `<scheme>://<host>:<port>` in lower case with the port always written (A-A7.4), in
+/// the form that the agent-setup run's schema takes and in that form alone (I0.5, ruling IG-21).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Origin(String);
 
 impl Origin {
-    /// Reads an origin of that form, which has one written form for one origin: a scheme and a
-    /// host of lower-case letters, digits, `.`, `-` and `+`, the host holding a letter or a
-    /// digit, and a port from 0 to 65535 with no leading zero; anything else is `malformed`.
+    /// Reads an origin as `WebOrigin::parse` of the agent-setup run's schema reads it at b8e367e:
+    /// the scheme `http` or `https`; a host of 1 to 253 bytes of labels split by `.`, each of 1 to
+    /// 63 bytes of `a` to `z`, `0` to `9` and `-` that neither begins nor ends with `-`; and a port
+    /// from 1 to 65,535 with no leading zero. Anything else is `malformed`.
     pub fn parse(text: &str) -> Result<Origin, Cause> {
         let (scheme, rest) = text.split_once("://").ok_or(Cause::Malformed)?;
         let (host, port) = rest.rsplit_once(':').ok_or(Cause::Malformed)?;
-        let word = |s: &str, extra: &[u8]| {
-            !s.is_empty()
-                && s.bytes()
-                    .all(|b| matches!(b, b'a'..=b'z' | b'0'..=b'9') || extra.contains(&b))
+        let label = |l: &str| {
+            (1..=63).contains(&l.len())
+                && !l.starts_with('-')
+                && !l.ends_with('-')
+                && l.bytes()
+                    .all(|b| matches!(b, b'a'..=b'z' | b'0'..=b'9' | b'-'))
         };
+        let host_ok = (1..=253).contains(&host.len()) && host.split('.').all(label);
         let port_ok = !port.is_empty()
+            && !port.starts_with('0')
             && port.len() <= 5
-            && (port == "0" || !port.starts_with('0'))
             && port.bytes().all(|b| b.is_ascii_digit())
-            && port.parse::<u32>().is_ok_and(|p| p <= 65_535);
-        let host_ok = word(host, b".-") && host.bytes().any(|b| b.is_ascii_alphanumeric());
-        if word(scheme, b"+.-") && host_ok && port_ok {
+            && port.parse::<u32>().is_ok_and(|p| (1..=65_535).contains(&p));
+        if matches!(scheme, "http" | "https") && host_ok && port_ok {
             Ok(Origin(text.to_owned()))
         } else {
             Err(Cause::Malformed)
         }
+    }
+
+    fn parts(&self) -> (&str, &str, &str) {
+        let (scheme, rest) = self.0.split_once("://").unwrap_or(("", &self.0));
+        let (host, port) = rest.rsplit_once(':').unwrap_or((rest, ""));
+        (scheme, host, port)
+    }
+
+    /// The scheme: `http` or `https`.
+    pub fn scheme(&self) -> &str {
+        self.parts().0
+    }
+
+    /// The host.
+    pub fn host(&self) -> &str {
+        self.parts().1
+    }
+
+    /// The port, from 1 to 65,535.
+    pub fn port(&self) -> u16 {
+        self.parts().2.parse().unwrap_or(0)
     }
 
     /// The origin's text.

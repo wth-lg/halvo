@@ -1,0 +1,11 @@
+{
+  "edits": [
+    {
+      "file": "src/ledger/ledger.ts",
+      "find": "const counted = totals === null ? 0 : totals.reported + totals.unreported + totals.open;",
+      "replace": "const counted = totals === null ? 0 : totals.reported + totals.unreported;"
+    }
+  ],
+  "cells": "^usage-last@200$",
+  "line": ["FAIL concurrency: ", "first failure: ledger-usage-last-at-200-"]
+}

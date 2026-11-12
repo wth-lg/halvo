@@ -1,0 +1,7 @@
+{
+  "expect": "@sentry/node@9.0.0 is an error-tracking, analytics or crash-upload package",
+  "packages": [
+    { "id": "plain@1.0.0", "license": "MIT" },
+    { "id": "@sentry/node@9.0.0", "license": "MIT" }
+  ]
+}

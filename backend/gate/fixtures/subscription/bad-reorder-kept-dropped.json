@@ -1,0 +1,14 @@
+{
+  "about": "complete gives the account nothing of a kept subscription event",
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "  const keptRows = sql.exec(\"SELECT subscription_id, state, period_start, period_end, provider_time, kept_order FROM kept_event\");",
+      "replace": "  const keptRows: Row[] = [];"
+    }
+  ],
+  "line": [
+    "reordered=3 of 4",
+    "the completed event with the subscription event of the same payment"
+  ]
+}

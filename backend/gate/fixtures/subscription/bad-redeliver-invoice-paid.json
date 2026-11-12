@@ -1,0 +1,14 @@
+{
+  "about": "invoice.paid is reduced to a subscription event under a new id and the receipt clock",
+  "edits": [
+    {
+      "file": "src/billing/stripe/reduce.ts",
+      "find": "  return { kind: \"ignored\" };\n}",
+      "replace": "  if (type === \"invoice.paid\") {\n    const accountId = isFields(object.parent) && isFields(object.parent.subscription_details) && isFields(object.parent.subscription_details.metadata) ? accountIdOf(object.parent.subscription_details.metadata[ACCOUNT_METADATA_KEY]) : null;\n    const subscriptionId = isFields(object.parent) && isFields(object.parent.subscription_details) ? nonEmpty(object.parent.subscription_details.subscription) : null;\n    const customerId = idOf(object.customer);\n    if (accountId !== null && subscriptionId !== null && customerId !== null) {\n      return { kind: \"subscription\", eventId: `${eventId}:${Date.now()}`, providerTime: Date.now(), accountId, subscriptionId, customerId, state: \"active\", period: null };\n    }\n  }\n  return { kind: \"ignored\" };\n}"
+    }
+  ],
+  "line": [
+    "redelivered=7 of 8",
+    "a second delivery of invoice.paid"
+  ]
+}

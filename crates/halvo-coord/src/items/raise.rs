@@ -1,7 +1,8 @@
+use crate::guard::Table;
 use crate::types::{
-    Answered, Category, CheckAnswer, Choice, Class, Cleared, ConfirmAsk, Doing, Facts, HandbackAsk,
-    HandbackReason, HandbackResult, ItemId, ItemKind, Limits, Live, OwnItemKind, Param, Raised,
-    RunEnd, RunEvent, RunId, RunItemKind, What,
+    Answered, BindAsk, Category, CheckAnswer, Choice, Class, Cleared, ConfirmAsk, Doing, Facts,
+    HandbackAsk, HandbackReason, HandbackResult, ItemId, ItemKind, Limits, Live, OwnItemKind,
+    Param, Raised, RunEnd, RunEvent, RunId, RunItemKind, What,
 };
 
 /// The six classes that a confirm request may name (A-A4.1, I3.1).
@@ -22,6 +23,8 @@ pub enum Source<'a> {
     Confirm(&'a ConfirmAsk),
     /// A handback request of the live run.
     Handback(&'a HandbackAsk),
+    /// The second step of a `sign_in` item of the live run, the run's event `Bind`.
+    Bind(&'a BindAsk),
     /// A request of a type that A-A6.2 does not list.
     Other,
     /// The first run of an agent in the mode `compile`, in path B of the agent-setup run.
@@ -41,6 +44,7 @@ impl<'a> Source<'a> {
         match event {
             RunEvent::Confirm(ask) => Some(Source::Confirm(ask)),
             RunEvent::Handback(ask) => Some(Source::Handback(ask)),
+            RunEvent::Bind(ask) => Some(Source::Bind(ask)),
             RunEvent::Other => Some(Source::Other),
             RunEvent::Hello | RunEvent::Progress(_) | RunEvent::Ended(_) => None,
         }
@@ -129,6 +133,7 @@ fn run_of(source: &Source<'_>) -> Option<RunId> {
     match source {
         Source::Confirm(ask) => Some(ask.run().clone()),
         Source::Handback(ask) => Some(ask.run.clone()),
+        Source::Bind(ask) => Some(ask.run.clone()),
         Source::Show(run) => Some((*run).clone()),
         Source::Other | Source::Check | Source::Setup | Source::Ready => None,
     }
@@ -173,7 +178,8 @@ fn answered_check<C>(facts: &Facts<C>, run: &RunId) -> Option<CheckAnswer> {
 /// What a source does to the agent of `facts` (I3.1 to I3.3), first that fits. A request of a
 /// run is refused with `state` unless the run is `working`; the run ends with `kind` for a
 /// request of a type that A-A6.2 does not list, a confirm request that names a class outside
-/// the six of A-A4.1, and a request while its run waits for an open item; a handback
+/// the six of A-A4.1, a handback `account_link` with no origin, whose item could not show its
+/// site (I3.4; A-A6.4 fills it), and a request while its run waits for an open item; a handback
 /// `effect_unknown` after the person answered the check of that run or of the agent's last run
 /// is answered from that answer; a request after the run raised `items_per_run` items ends the
 /// run with `budget`. A source of the coordinator's own is refused with `state` while the agent
@@ -185,7 +191,11 @@ pub fn raise_step<C>(facts: &Facts<C>, source: Source<'_>, limits: &Limits) -> R
         Source::Check => Some(OwnItemKind::Check),
         Source::Setup => Some(OwnItemKind::Setup),
         Source::Ready => Some(OwnItemKind::Ready),
-        Source::Confirm(_) | Source::Handback(_) | Source::Other | Source::Show(_) => None,
+        Source::Confirm(_)
+        | Source::Handback(_)
+        | Source::Bind(_)
+        | Source::Other
+        | Source::Show(_) => None,
     };
     if let Some(kind) = own {
         if facts.doing.item().is_some() || matches!(facts.doing, Doing::Live(_)) {
@@ -218,7 +228,13 @@ pub fn raise_step<C>(facts: &Facts<C>, source: Source<'_>, limits: &Limits) -> R
             }
             RunItemKind::Confirm
         }
+        Source::Handback(ask)
+            if ask.reason == HandbackReason::AccountLink && ask.origin.is_none() =>
+        {
+            return Raise::End(RunEnd::Kind)
+        }
         Source::Handback(ask) => handback_kind(ask.reason),
+        Source::Bind(_) => RunItemKind::SignIn,
         Source::Show(_) => RunItemKind::Show,
         Source::Other | Source::Check | Source::Setup | Source::Ready => {
             return Raise::End(RunEnd::Kind)
@@ -241,4 +257,26 @@ pub fn raise_step<C>(facts: &Facts<C>, source: Source<'_>, limits: &Limits) -> R
         return Raise::End(RunEnd::Budget);
     }
     Raise::Run(kind)
+}
+
+/// What a confirm request does to the agent of `facts` (I3.1, I4.7): `raise_step`, with the rule
+/// of ruling IG-32 among the requests outside the closed list, before the budget: a request
+/// that names an effect that has begun, or whose newest released decision is `reject_once`, in
+/// `table`, the guard's table of this life (`Table::asks_too_late`), shows no card and ends the
+/// run with `kind`.
+pub fn raise_confirm<C>(
+    facts: &Facts<C>,
+    table: &Table,
+    ask: &ConfirmAsk,
+    limits: &Limits,
+) -> Raise {
+    let raise = raise_step(facts, Source::Confirm(ask), limits);
+    let late = ask
+        .effects()
+        .iter()
+        .any(|e| table.asks_too_late(ask.run(), &e.effect));
+    match raise {
+        Raise::Run(_) | Raise::End(RunEnd::Budget) if late => Raise::End(RunEnd::Kind),
+        other => other,
+    }
 }

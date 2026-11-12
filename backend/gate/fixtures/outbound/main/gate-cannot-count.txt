@@ -1,0 +1,3 @@
+outbound: mode gate, files in .tmp/outbound.fixture
+outbound: command exit 0
+outbound: cannot count: the system log dropped messages during the run

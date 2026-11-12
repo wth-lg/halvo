@@ -1,0 +1,12 @@
+outbound: mode control, files in .tmp/outbound.fixture
+outbound: command exit 1
+outbound: system log: 2 denied
+outbound:   node(4243) deny(1) network-outbound /private/var/run/mDNSResponder
+outbound:   node(4244) deny(1) network-outbound /private/var/run/mDNSResponder
+outbound: node record: 2 denied
+outbound:   pid 4243 connect workers.cloudflare.com
+outbound:   pid 4244 connect workers.cloudflare.com
+outbound: killed with no record: 0
+outbound: lsof: 2 samples of the process tree; sockets outside loopback:
+outbound:   none
+outbound: denied=4

@@ -1,0 +1,14 @@
+{
+  "about": "of two events of the same second the later delivery wins",
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "  if (event.state !== stored.state) return RANK[event.state] > RANK[stored.state];\n  if (event.periodEnd === null) return false;\n  return stored.periodEnd === null || event.periodEnd > stored.periodEnd;",
+      "replace": "  return RANK[event.state] >= 0;"
+    }
+  ],
+  "line": [
+    "reordered=3 of 4",
+    "payment failed with active of the same second"
+  ]
+}

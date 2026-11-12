@@ -1,0 +1,1 @@
+export const PROVIDER_CALL_TIMEOUT_MS = 10_000;

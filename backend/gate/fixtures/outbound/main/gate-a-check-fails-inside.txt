@@ -1,0 +1,14 @@
+outbound: mode gate, files in .tmp/outbound.fixture
+outbound: command exit 0
+outbound: inside: FAIL model: stub, not built yet (P4)
+outbound: inside: FAIL setuid-step: the step could not run here
+outbound: inside: FAIL late-step: the step could not run here
+outbound: inside: PASS licenses: packages=231 exceptions=26 bundled=0
+outbound: system log: 0 denied
+outbound: node record: 0 denied
+outbound: killed with no record: 0
+outbound: browser: system log: 0 denied
+outbound: browser: net log: 0 attempts outside loopback in 6 events, 0 left out as probes of IPv6
+outbound: lsof: 20 samples of the process tree; sockets outside loopback:
+outbound:   none
+outbound: denied=0

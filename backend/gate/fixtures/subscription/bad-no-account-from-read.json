@@ -1,0 +1,13 @@
+{
+  "about": "the alarm makes no account from a read that shows the session complete",
+  "edits": [
+    {
+      "file": "src/do/entries.ts",
+      "find": "        if (answer.kind === \"complete\") {\n          const made = accounts.complete(open.sql, answer.session);\n          if (made.kind === \"account-made\") {",
+      "replace": "        if (answer.kind === \"complete\" && answer.kind !== \"complete\") {\n          const made = accounts.complete(open.sql, answer.session);\n          if (made.kind === \"account-made\") {"
+    }
+  ],
+  "line": [
+    "account-from-read=0"
+  ]
+}
