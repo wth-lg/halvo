@@ -294,7 +294,8 @@ fn log_at<P: Owner, C>(
 
 /// Whether the owner's events, of which those from `before` on came with the read after a
 /// refusal `seq`, already hold what `what` would store (I7.2, ruling XB-31): an open item raised
-/// as `what` raises it, an item that `what` would close and that they close, or the same event.
+/// as `what` raises it, an item that `what` would close and that they close, an end of the run
+/// whose `run_ended` `what` is, whatever its cause (ruling RD-34), or the same event.
 fn covered(events: &[Event], before: usize, what: &What) -> bool {
     let read = &events[before.min(events.len())..];
     match what {
@@ -304,6 +305,7 @@ fn covered(events: &[Event], before: usize, what: &What) -> bool {
         What::ItemAnswered { item, .. } | What::ItemLapsed { item, .. } => {
             item_closed(events, item)
         }
+        What::RunEnded { run, .. } => holds_end(events, run),
         other => read.iter().any(|e| &e.what == other),
     }
 }
@@ -383,7 +385,7 @@ where
     C: ConfigView,
 {
     let (day, at) = (board.day, instant(cx.now));
-    match log_end(cx, board, i, run, cause, day, at) {
+    match log_end(cx, board, i, run, cause, day, at, false) {
         Ok(()) => {}
         Err(e) if gone_refusal(&e) => {}
         Err(_) => {
@@ -403,6 +405,10 @@ where
     }
 }
 
+/// Logs the `run_ended` of a run, with `hold_set` of `failures` where the end makes the streak.
+/// A debt logs through `log_at`, so that a refusal `seq` comes back to `send_owed`, whose read
+/// pays it when the owner's events hold the run's end; the end of a move logs through `store_at`
+/// (ruling RD-34).
 fn log_end<P: Owner, C>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -411,6 +417,7 @@ fn log_end<P: Owner, C>(
     cause: RunEnd,
     day: u32,
     at: i64,
+    debt: bool,
 ) -> Result<(), PortError>
 where
     C: ConfigView,
@@ -441,7 +448,11 @@ where
             cause: HoldSetCause::Failures,
         });
     }
-    store_at(cx, board, i, whats, day, at)?;
+    if debt {
+        log_at(cx, board, i, &whats, day, at)?;
+    } else {
+        store_at(cx, board, i, whats, day, at)?;
+    }
     if pause {
         send_state(cx, &board.members[i].facts, AgentState::Paused);
     }
@@ -707,7 +718,7 @@ fn send_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, owed
             if holds_end(&board.members[i].facts.events, run) {
                 return true;
             }
-            match log_end(cx, board, i, run, *cause, *day, *at) {
+            match log_end(cx, board, i, run, *cause, *day, *at, true) {
                 Ok(()) => true,
                 Err(e) if seq_refusal(&e) => resync_end(cx, board, i, run),
                 Err(e) => gone_refusal(&e),
@@ -729,7 +740,7 @@ fn send_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, owed
                 item: item.clone(),
                 lapsed: *lapsed,
             };
-            match store_at(cx, board, i, vec![what], *day, *at) {
+            match log_at(cx, board, i, &[what], *day, *at) {
                 Ok(()) => true,
                 Err(e) if seq_refusal(&e) => {
                     let facts = &mut board.members[i].facts;
@@ -1297,8 +1308,8 @@ where
 /// read after a refusal `seq` brought in (ruling RD-11). Every log of a move that the owner
 /// refuses with `seq` reads the owner's events of the agent after the last one that the board
 /// holds, logs nothing of what they already hold (the same event, an open item of the same kind,
-/// an item that they close), takes the agent's open item from them, and logs the rest once more;
-/// a second refusal waits for the next move (I7.2, ruling XB-31).
+/// an item that they close, an end of the run), takes the agent's open item from them, and logs
+/// the rest once more; a second refusal waits for the next move (I7.2, ruling XB-31).
 pub fn drive<P>(
     ports: &P,
     board: &mut Board<P::Config>,

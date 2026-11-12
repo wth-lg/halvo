@@ -363,3 +363,100 @@ fn a_queued_agent_that_adopts_a_revealed_ready_item_stays_queued() {
     assert!(w.board.queue.holds(&agent(0)));
     agree(&w, 0);
 }
+
+fn stored_by_another_writer(w: &World, n: usize, what: What) {
+    let last = owner_events(w, n).last().map_or(0, |e| e.seq.get());
+    w.ports.events.borrow_mut().push(Event {
+        workflow: support::flow(n),
+        agent: agent(n),
+        seq: std::num::NonZeroU32::new(last + 1).unwrap(),
+        day: DAY,
+        at: 0,
+        what,
+    });
+}
+
+fn owe_run_ended(w: &mut World, run: &RunId) {
+    w.board.owed.push(halvo_coord::schedule::Owed {
+        agent: agent(0),
+        workflow: support::flow(0),
+        what: halvo_coord::schedule::Owing::RunEnded {
+            run: run.clone(),
+            cause: halvo_coord::types::RunEnd::Completed,
+            day: DAY,
+            at: 0,
+        },
+    });
+}
+
+fn ends_of(w: &World, run: &RunId) -> usize {
+    count(
+        w,
+        0,
+        |what| matches!(what, What::RunEnded { run: r, .. } if r == run),
+    )
+}
+
+#[test]
+fn an_owed_run_ended_whose_log_meets_seq_is_read_then_logged_at_the_next_tick() {
+    let mut w = world(&[MANUAL]);
+    let run = RunId::parse(&format!("{:032x}", 0xe701)).unwrap();
+    owe_run_ended(&mut w, &run);
+    stored_by_another_writer(&w, 0, What::SlotSkipped { slot: None });
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(
+        ends_of(&w, &run),
+        0,
+        "the debt's log meets seq; its read holds no end of the run, so the debt stays owed"
+    );
+    assert_eq!(w.board.owed.len(), 1);
+    w.set_clock(T0 + 20_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(ends_of(&w, &run), 1);
+    assert!(w.board.owed.is_empty());
+    agree(&w, 0);
+}
+
+#[test]
+fn an_owed_run_ended_whose_run_the_read_shows_ended_with_another_cause_is_not_logged_again() {
+    let mut w = world(&[MANUAL]);
+    let run = RunId::parse(&format!("{:032x}", 0xe702)).unwrap();
+    owe_run_ended(&mut w, &run);
+    stored_by_another_writer(
+        &w,
+        0,
+        What::RunEnded {
+            run: run.clone(),
+            cause: halvo_coord::types::RunEnd::Interrupted,
+        },
+    );
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(ends_of(&w, &run), 1, "the run ends once (I7.2)");
+    assert!(w.board.owed.is_empty());
+    agree(&w, 0);
+}
+
+#[test]
+fn the_end_of_a_run_whose_log_meets_seq_logs_nothing_when_the_read_shows_the_run_ended() {
+    let mut w = world(&[MANUAL]);
+    let start = w.act(Act::Start { agent: agent(0) });
+    let run = start.report.run.unwrap();
+    w.ports.end_runner(&run);
+    stored_by_another_writer(
+        &w,
+        0,
+        What::RunEnded {
+            run: run.clone(),
+            cause: halvo_coord::types::RunEnd::Interrupted,
+        },
+    );
+    w.act(Act::End {
+        run: run.clone(),
+        outcome: Some(halvo_coord::types::Outcome::Completed),
+    });
+    assert_eq!(ends_of(&w, &run), 1, "the run ends once (I7.2)");
+    assert!(w.board.owed.is_empty());
+    agree(&w, 0);
+}
