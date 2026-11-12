@@ -327,15 +327,24 @@ impl Events {
             }
             match self.0.recv_timeout(deadline - now) {
                 Ok(event) => events.push(event),
-                Err(_) => break,
+                Err(RecvTimeoutError::Timeout) => break,
+                Err(RecvTimeoutError::Disconnected) => sink_closed(),
             }
         }
         events
     }
 
     fn first_within(&self, limit: Duration) -> Option<CaptureStreamEvent> {
-        self.0.recv_timeout(limit).ok()
+        match self.0.recv_timeout(limit) {
+            Ok(event) => Some(event),
+            Err(RecvTimeoutError::Timeout) => None,
+            Err(RecvTimeoutError::Disconnected) => sink_closed(),
+        }
     }
+}
+
+fn sink_closed() -> ! {
+    panic!("INCONCLUSIVE: the sink closed while the test still held a handle to it")
 }
 
 fn forward(writer: SinkWriter) -> Events {
@@ -2181,6 +2190,24 @@ mod known_defect {
         rx
     }
 
+    fn answer<T>(rx: &mpsc::Receiver<T>, limit: Duration, what: &str) -> Option<T> {
+        match rx.recv_timeout(limit) {
+            Ok(value) => Some(value),
+            Err(RecvTimeoutError::Timeout) => None,
+            Err(RecvTimeoutError::Disconnected) => {
+                panic!("INCONCLUSIVE: {what} ended without an answer")
+            }
+        }
+    }
+
+    fn watch_woke(rx: &mpsc::Receiver<Result<(), String>>, limit: Duration, what: &str) -> bool {
+        match answer(rx, limit, what) {
+            Some(Ok(())) => true,
+            Some(Err(e)) => panic!("INCONCLUSIVE: {what} returned an error: {e}"),
+            None => false,
+        }
+    }
+
     #[test]
     #[ignore = "known defect: needs an interactive Windows desktop"]
     fn x1_keystrokes_typed_into_a_password_field() {
@@ -2642,7 +2669,7 @@ mod known_defect {
             );
 
             let first = arm_watcher();
-            let spurious = first.recv_timeout(Duration::from_secs(1)).is_ok();
+            let spurious = watch_woke(&first, Duration::from_secs(1), "the first watch");
             let probe_path = format!(r"{UNINSTALL}\{PROBE_KEY}");
             let (probe, _) = hkcu
                 .create_subkey(&probe_path)
@@ -2653,13 +2680,13 @@ mod known_defect {
                     &format!("Halvo Verify Probe {}", std::process::id()),
                 )
                 .expect("probe name");
-            let first_woke = first.recv_timeout(Duration::from_secs(5)).is_ok();
+            let first_woke = watch_woke(&first, Duration::from_secs(5), "the first watch");
 
             let second = arm_watcher();
             probe
                 .set_value("DisplayVersion", &"9.9.10")
                 .expect("probe version change");
-            let second_woke = second.recv_timeout(Duration::from_secs(5)).is_ok();
+            let second_woke = watch_woke(&second, Duration::from_secs(5), "the second watch");
 
             drop(probe);
             hkcu.delete_subkey_all(&probe_path)
@@ -2727,34 +2754,44 @@ mod known_defect {
     fn stop_with_a_full_sink() {
         with_deadline("full-sink", Duration::from_secs(60), || {
             env_report("full-sink");
+            source_built_by_test("full-sink", "keyboard");
             let (sink, writer) = channel(1);
-            let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
-            let start = pointer.start(sink.clone());
-            let accepted = move_pointer(3);
+            let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+            let start = keyboard.start(sink.clone());
+            let accepted = press_keys(3);
             std::thread::sleep(Duration::from_millis(500));
             let (done, returned) = mpsc::channel();
             let began = Instant::now();
             std::thread::Builder::new()
                 .name("tf-full-sink-stop".to_string())
                 .spawn(move || {
-                    pointer.stop();
+                    keyboard.stop();
                     let _ = done.send(());
                 })
                 .expect("spawn the stop thread");
-            let stopped = returned.recv_timeout(FULL_SINK_STOP_DEADLINE).is_ok();
+            let stopped = answer(&returned, FULL_SINK_STOP_DEADLINE, "the stop thread").is_some();
+            let waited_ms = began.elapsed().as_millis();
+            let events = forward(writer);
+            let delivered = count(
+                &events.drain_for(Duration::from_secs(1)),
+                Modality::Keystroke,
+            );
             say(
                 "full-sink",
                 format!(
-                    "pointer_start={} sink_capacity=1 sendinput_move_events_accepted={accepted} \
-                     waited_ms={}",
+                    "keyboard_start={} sink_capacity=1 sendinput_key_events_accepted={accepted} \
+                     waited_ms={waited_ms} keystroke_events_delivered_after_the_wait={delivered}",
                     show(&start),
-                    began.elapsed().as_millis(),
                 ),
             );
-            assert!(start.is_ok(), "the pointer source must start");
+            assert!(start.is_ok(), "the keyboard source must start");
             assert_eq!(
-                accepted, 3,
-                "INCONCLUSIVE: SendInput did not insert the three moves"
+                accepted, 6,
+                "INCONCLUSIVE: SendInput did not insert the three key presses"
+            );
+            assert!(
+                delivered >= 2,
+                "INCONCLUSIVE: fewer than two keystrokes reached the sink, so it was not full when stop was called"
             );
             defect!(
                 "RR-windows-11",
@@ -2764,7 +2801,6 @@ mod known_defect {
                     FULL_SINK_STOP_DEADLINE.as_secs()
                 )
             );
-            drop(writer);
         });
     }
 
