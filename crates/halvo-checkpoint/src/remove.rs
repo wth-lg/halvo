@@ -4,7 +4,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::walk::{is_loop, no_follow, same_file, Root, Walk};
+use crate::walk::{is_loop, no_follow, open_regular, same_file, Root, Walk};
 use crate::{checkpoint_name, digest, LockError, Locks, RunId, Sha256, FILE_MAX};
 
 /// What a row of the list of checkpoints names (contracts.md A7.4): the folder that `prepare`
@@ -133,9 +133,9 @@ pub fn remove(locks: &Locks, row: &Row<'_>) -> Result<Removal, Undecided> {
         Err(answer) => Err(answer),
     };
     let answer = match walked_again.and_then(|()| checked(&dir, &name, last, row.expect)) {
-        Ok((file, seen)) => {
+        Ok((file, seen, held)) => {
             drop(file);
-            aside(&dir, &name, &seen)
+            aside(&dir, &name, &seen, held)
         }
         Err(answer) => Ok(answer),
     };
@@ -165,7 +165,7 @@ fn checked(
     name: &OsStr,
     workbook: &OsStr,
     expect: Expect,
-) -> Result<(File, Metadata), Removal> {
+) -> Result<(File, Metadata, (Sha256, u64)), Removal> {
     let path = dir.join(name);
     let (file, seen) = opened(&path)?;
     if !own_entry(dir, name)? {
@@ -199,12 +199,17 @@ fn checked(
     if !same_file(&seen, &now) {
         return Err(Removal::Left(Left::Changed));
     }
-    Ok((file, seen))
+    Ok((file, seen, (sha256, bytes)))
 }
 
 static ASIDE: AtomicU64 = AtomicU64::new(0);
 
-fn aside(dir: &Path, name: &OsStr, seen: &Metadata) -> Result<Removal, Undecided> {
+fn aside(
+    dir: &Path,
+    name: &OsStr,
+    seen: &Metadata,
+    held: (Sha256, u64),
+) -> Result<Removal, Undecided> {
     let path = dir.join(name);
     let mut moved = name.to_os_string();
     let count = ASIDE.fetch_add(1, Ordering::Relaxed);
@@ -223,7 +228,11 @@ fn aside(dir: &Path, name: &OsStr, seen: &Metadata) -> Result<Removal, Undecided
         Err(error) => return Err(Undecided::Remove(error.kind())),
     }
     let still = fs::symlink_metadata(&moved)
-        .is_ok_and(|now| !now.file_type().is_symlink() && now.is_file() && same_file(seen, &now));
+        .is_ok_and(|now| !now.file_type().is_symlink() && now.is_file() && same_file(seen, &now))
+        && open_regular(&moved)
+            .ok()
+            .and_then(|file| digest::read(&file, FILE_MAX).ok())
+            .is_some_and(|read| read == held);
     if !still {
         put_back(&moved, &path);
         return Ok(Removal::Left(Left::Changed));

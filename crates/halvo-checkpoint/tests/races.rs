@@ -236,6 +236,7 @@ mod swapped_before_the_removal {
     }
 }
 
+#[cfg(unix)]
 mod link_in_place_of_agents_locks {
     use std::fs;
     use std::time::Duration;
@@ -336,5 +337,41 @@ mod agents_locks_replaced_by_a_directory {
              lock file in the new agents/locks: {made:?}"
         );
         drop(first);
+    }
+}
+
+#[cfg(windows)]
+mod agents_locks_held_on_windows {
+    use std::fs;
+    use std::time::Duration;
+
+    use super::common::{link_dir, Scratch};
+    use halvo_checkpoint::{LockError, Locks};
+
+    #[test]
+    fn agents_locks_cannot_be_moved_while_a_lock_is_held_and_a_link_there_is_refused_after() {
+        let scratch = Scratch::new("races-windows-agents-locks");
+        let data = scratch.path("data");
+        fs::create_dir_all(&data).expect("make the data directory");
+        let folder = scratch.path("folder");
+        fs::create_dir_all(&folder).expect("make the workbook's directory");
+        let locks = Locks::open(&data, Duration::from_millis(200)).expect("the locks open");
+        let held = locks
+            .hold(&folder)
+            .expect("the first holder takes the lock");
+        let agents = data.join("agents");
+        let moved = fs::rename(agents.join("locks"), agents.join("locks-moved"));
+        assert!(
+            moved.is_err(),
+            "the system keeps agents/locks while a lock in it is held"
+        );
+        assert_eq!(locks.hold(&folder).err(), Some(LockError::Busy));
+        drop(held);
+        fs::rename(agents.join("locks"), agents.join("locks-moved")).expect("move once free");
+        let fresh = scratch.path("elsewhere");
+        fs::create_dir_all(&fresh).expect("make another directory");
+        link_dir(&fresh, &agents.join("locks"));
+        assert_eq!(locks.hold(&folder).err(), Some(LockError::Link));
+        assert!(scratch.names("elsewhere").is_empty());
     }
 }
