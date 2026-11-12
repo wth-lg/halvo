@@ -916,17 +916,26 @@ mod login_item_tests {
     }
 
     #[test]
-    fn a_directory_at_a_dead_install_s_name_is_kept_and_stops_no_install_or_remove() {
+    fn a_directory_or_a_link_at_a_dead_install_s_name_is_kept_and_stops_no_install_or_remove() {
         let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
         let home = tempfile::tempdir().unwrap();
         let dir = agents(home.path());
         std::fs::create_dir_all(dir.path()).unwrap();
         let spec = login_item();
-        let mut child = std::process::Command::new("/usr/bin/true").spawn().unwrap();
-        let dead = child.id();
-        child.wait().unwrap();
-        let odd = dir.path().join(format!(".{}.{dead}.tmp", spec.file_name()));
+        let dead = || {
+            let mut child = std::process::Command::new("/usr/bin/true").spawn().unwrap();
+            let pid = child.id();
+            child.wait().unwrap();
+            pid
+        };
+        let odd = dir
+            .path()
+            .join(format!(".{}.{}.tmp", spec.file_name(), dead()));
         std::fs::create_dir(&odd).unwrap();
+        let link = dir
+            .path()
+            .join(format!(".{}.{}.tmp", spec.file_name(), dead()));
+        std::os::unix::fs::symlink(home.path(), &link).unwrap();
         assert_eq!(
             install_login_item(&spec, &dir).unwrap(),
             InstallOutcome::Written
@@ -937,6 +946,24 @@ mod login_item_tests {
         );
         assert!(!login_item_path(&spec, &dir).exists());
         assert!(odd.is_dir());
+        assert!(std::fs::symlink_metadata(&link).unwrap().is_symlink());
+    }
+
+    #[test]
+    fn a_remove_that_cannot_take_the_file_away_says_so() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let home = tempfile::tempdir().unwrap();
+        let dir = agents(home.path());
+        let spec = login_item();
+        install_login_item(&spec, &dir).unwrap();
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o555)).unwrap();
+        let removed = remove_login_item(&spec, &dir);
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(
+            removed.map_err(|e| e.kind()),
+            Err(std::io::ErrorKind::PermissionDenied)
+        );
+        assert!(login_item_path(&spec, &dir).exists());
     }
 
     #[test]

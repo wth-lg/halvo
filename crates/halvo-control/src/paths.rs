@@ -860,6 +860,25 @@ mod tests {
     }
 
     #[test]
+    fn a_scratch_value_holds_the_path_that_it_resolves_to() {
+        #[cfg(unix)]
+        use std::os::unix::fs::symlink as symlink_dir;
+        #[cfg(windows)]
+        use std::os::windows::fs::symlink_dir;
+
+        let guard = tempfile::tempdir().unwrap();
+        let real = guard.path().join("real");
+        std::fs::create_dir(&real).unwrap();
+        let link = guard.path().join("link");
+        symlink_dir(&real, &link).unwrap();
+        let data = DataDir::from_flag(guard.path().join("data")).unwrap();
+        assert_eq!(
+            ScratchDir::new(&link, &data).unwrap().path(),
+            real.canonicalize().unwrap()
+        );
+    }
+
+    #[test]
     fn a_scratch_directory_is_refused_when_its_given_or_its_resolved_path_is_in_the_data_directory()
     {
         #[cfg(unix)]

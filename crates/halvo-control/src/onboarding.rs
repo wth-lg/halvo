@@ -823,6 +823,12 @@ mod tests {
                 serde_json::from_str::<T>(&format!("{{\"{text}\":null}}")).is_err(),
                 "the map form of {text} was read"
             );
+            for other in [text.to_uppercase(), format!("{text}x"), format!(" {text}")] {
+                assert!(
+                    serde_json::from_str::<T>(&format!("\"{other}\"")).is_err(),
+                    "{other} was read"
+                );
+            }
         }
         assert!(serde_json::from_str::<T>("\"unknown\"").is_err());
     }
