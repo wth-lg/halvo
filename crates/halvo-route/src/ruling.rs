@@ -1,4 +1,9 @@
 //! The ruling of contract T1.5: the owner's word on what may leave the machine, held as one line.
+//!
+//! This file is pinned whole, its test module included, as lib.rs, leave.rs and tier.rs are: the
+//! test `pinned_files_hold_their_hashes` of tests/no_grant_in_release.rs holds its SHA-256. A pin
+//! stops no change. It makes each change of the file come with a new hash line in the same commit,
+//! where the reviewer of that commit reads it.
 
 use crate::tier::Tier;
 
@@ -12,13 +17,24 @@ impl RulingError {
     }
 }
 
-/// What the owner has ruled. Every build that is not a test build of this crate has the one
-/// value `None`: no tier but `on_device` may be picked and no origin may be reached.
+/// What the owner has ruled. Every build that does not set `cfg(test)` has the one value `None`:
+/// no tier but `on_device` may be picked and no origin may be reached. A build that sets
+/// `cfg(test)` also has the test value `TestHosted`, which the crate's own code alone can make,
+/// whatever flags the build sets: its payload has a private field and no public maker, and its
+/// maker is private to the crate.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum Ruling {
     None,
     #[cfg(test)]
-    TestHosted(Vec<String>),
+    TestHosted(TestOrigins),
+}
+
+/// The payload of the test value: the origins that it allows. Its one field is private and it has
+/// no public maker, so no code outside this crate can make one.
+#[cfg(test)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct TestOrigins {
+    origins: Vec<String>,
 }
 
 impl Ruling {
@@ -45,13 +61,15 @@ impl Ruling {
         match self {
             Ruling::None => &[],
             #[cfg(test)]
-            Ruling::TestHosted(origins) => origins,
+            Ruling::TestHosted(test) => &test.origins,
         }
     }
 
     #[cfg(test)]
-    pub fn test_hosted(origins: &[&str]) -> Ruling {
-        Ruling::TestHosted(origins.iter().map(|origin| (*origin).to_owned()).collect())
+    pub(crate) fn test_hosted(origins: &[&str]) -> Ruling {
+        Ruling::TestHosted(TestOrigins {
+            origins: origins.iter().map(|origin| (*origin).to_owned()).collect(),
+        })
     }
 }
 
@@ -91,9 +109,11 @@ mod tests {
     fn ruling_test_value() {
         let given = [
             "https://a.example",
+            "https://a.example",
             "https://A.example",
             "https://a.example/",
             "",
+            "127.0.0.1:1",
         ];
         let test = Ruling::test_hosted(&given);
         assert_eq!(test.allowed(), &Tier::ALL);
