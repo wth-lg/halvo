@@ -77,50 +77,103 @@ pub(crate) fn segment_path(store_dir: &Path, segment_id: Uuid) -> PathBuf {
         .join(format!("{id}.{SEGMENT_EXT}"))
 }
 
+/// A regular file at `segments/SHARD/NAME` whose name is one that the store
+/// writes.
 pub(crate) enum SegmentFile {
     Segment { id: Uuid, path: PathBuf },
-    Other(PathBuf),
+    Partial(PathBuf),
 }
 
 impl SegmentFile {
     pub(crate) fn path(&self) -> &Path {
         match self {
-            SegmentFile::Segment { path, .. } | SegmentFile::Other(path) => path,
+            SegmentFile::Segment { path, .. } | SegmentFile::Partial(path) => path,
         }
     }
 
-    fn classify(path: PathBuf) -> Self {
-        let id = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .and_then(|n| n.strip_suffix(&format!(".{SEGMENT_EXT}")))
-            .and_then(|stem| Uuid::parse_str(stem).ok());
-        match id {
-            Some(id) => SegmentFile::Segment { id, path },
-            None => SegmentFile::Other(path),
+    fn named(shard: &str, name: &str, path: PathBuf) -> Option<Self> {
+        let (stem, partial) = match name.strip_suffix(&format!(".{PARTIAL_EXT}")) {
+            Some(stem) => (stem, true),
+            None => (name.strip_suffix(&format!(".{SEGMENT_EXT}"))?, false),
+        };
+        if !is_lower_hex(stem, 32) || !stem.starts_with(shard) {
+            return None;
         }
+        let id = Uuid::parse_str(stem).ok()?;
+        Some(if partial {
+            SegmentFile::Partial(path)
+        } else {
+            SegmentFile::Segment { id, path }
+        })
     }
 }
 
-pub(crate) fn segment_files(store_dir: &Path) -> StoreResult<Vec<SegmentFile>> {
-    let mut files = Vec::new();
-    let mut stack = vec![segments_root(store_dir)];
-    while let Some(dir) = stack.pop() {
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(entries) => entries,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
-            Err(e) => return Err(io_error(e)),
+fn is_lower_hex(text: &str, len: usize) -> bool {
+    text.len() == len && text.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+/// What the walk of `segments/` found: the files with the store's names, and
+/// the count of every other entry, which the walk leaves where it is.
+pub(crate) struct SegmentWalk {
+    pub(crate) files: Vec<SegmentFile>,
+    pub(crate) left: u64,
+}
+
+/// Fails [`StoreError::Corrupt`] when `segments/` is a link: the store follows
+/// no link out of its directory.
+pub(crate) fn refuse_a_linked_segments_root(store_dir: &Path) -> StoreResult<()> {
+    match std::fs::symlink_metadata(segments_root(store_dir)) {
+        Ok(meta) if meta.file_type().is_symlink() => Err(StoreError::Corrupt(
+            "the segments directory of the store is a link".to_string(),
+        )),
+        Ok(_) => Ok(()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(io_error(e)),
+    }
+}
+
+/// Walk `segments/SHARD/NAME` and nothing deeper, by the type of each entry
+/// itself, so no link is followed.
+pub(crate) fn segment_files(store_dir: &Path) -> StoreResult<SegmentWalk> {
+    refuse_a_linked_segments_root(store_dir)?;
+    let mut walk = SegmentWalk {
+        files: Vec::new(),
+        left: 0,
+    };
+    let shards = match std::fs::read_dir(segments_root(store_dir)) {
+        Ok(shards) => shards,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(walk),
+        Err(e) => return Err(io_error(e)),
+    };
+    for shard in shards {
+        let shard = shard.map_err(io_error)?;
+        let name = shard.file_name();
+        let shard_name = match name.to_str() {
+            Some(name)
+                if shard.file_type().map_err(io_error)?.is_dir() && is_lower_hex(name, 2) =>
+            {
+                name
+            }
+            _ => {
+                walk.left += 1;
+                continue;
+            }
         };
-        for entry in entries {
-            let path = entry.map_err(io_error)?.path();
-            if path.is_dir() {
-                stack.push(path);
-            } else {
-                files.push(SegmentFile::classify(path));
+        for entry in std::fs::read_dir(shard.path()).map_err(io_error)? {
+            let entry = entry.map_err(io_error)?;
+            let named = match entry.file_name().to_str() {
+                Some(name) if entry.file_type().map_err(io_error)?.is_file() => {
+                    SegmentFile::named(shard_name, name, entry.path())
+                }
+                _ => None,
+            };
+            match named {
+                Some(file) => walk.files.push(file),
+                None => walk.left += 1,
             }
         }
     }
-    Ok(files)
+    Ok(walk)
 }
 
 pub(crate) struct SegmentHeader {

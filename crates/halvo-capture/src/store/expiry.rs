@@ -11,15 +11,22 @@ use super::{SegmentExpiry, ShredReport, StoreError, StoreResult};
 
 const STORE_KEY_COUNT: u64 = 1;
 
+/// What one sweep of the keyless segment files did: the files it removed, and
+/// the entries under `segments/` that carry no name of the store, which it
+/// left in place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sweep {
+    pub removed: u64,
+    pub left: u64,
+}
+
 fn segment_id_column(row: &Row<'_>) -> rusqlite::Result<String> {
     row.get(0)
 }
 
 fn parse_segment_id(text: &str) -> StoreResult<Uuid> {
-    Uuid::parse_str(text).map_err(|e| {
-        StoreError::Corrupt(format!(
-            "segment_keys holds a corrupt segment id {text}: {e}"
-        ))
+    Uuid::parse_str(text).map_err(|_| {
+        StoreError::Corrupt("segment_keys holds a segment id that does not parse".to_string())
     })
 }
 
@@ -73,24 +80,28 @@ impl EncryptedStore {
         Ok(())
     }
 
-    pub(crate) fn remove_keyless_files(&self) -> StoreResult<u64> {
+    pub(crate) fn remove_keyless_files(&self) -> StoreResult<Sweep> {
         let live: HashSet<Uuid> = self.segment_ids_with_keys(None)?.into_iter().collect();
-        let mut removed = 0u64;
+        let walk = segment::segment_files(self.dir())?;
+        let mut sweep = Sweep {
+            removed: 0,
+            left: walk.left,
+        };
         let mut failures = Vec::new();
-        for file in segment::segment_files(self.dir())? {
+        for file in walk.files {
             if let SegmentFile::Segment { id, .. } = &file {
                 if live.contains(id) {
                     continue;
                 }
             }
             match segment::remove_segment_file(self.fs(), file.path()) {
-                Ok(()) => removed += 1,
+                Ok(()) => sweep.removed += 1,
                 Err(e) => failures.push(e),
             }
         }
         match failures.into_iter().next() {
             Some(first) => Err(first),
-            None => Ok(removed),
+            None => Ok(sweep),
         }
     }
 

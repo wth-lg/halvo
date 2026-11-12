@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use zeroize::Zeroizing;
 
 use super::dev_fallback::{aead_open, aead_seal, fill_random, store_key_from};
-use crate::store::durable::{self, OsFs};
 use super::{CustodyError, RootId, StoreKey, WrappedKey};
+use crate::store::durable::{self, OsFs};
 
 const ROOT_EXT: &str = "root";
 const PARTIAL_EXT: &str = "root.tmp";

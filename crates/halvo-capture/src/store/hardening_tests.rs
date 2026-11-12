@@ -506,9 +506,12 @@ fn a_shred_clears_the_key_durably_before_it_removes_the_file_and_syncs_the_shard
         );
         RecordingFs::observed_by(move |call| {
             if *call == Call::RemoveFile(path.clone()) {
-                let in_main_file =
-                    wrapped_key_in_copy_of_main_file_without_wal(&dir, &store_key, expired.segment_id)
-                        .unwrap();
+                let in_main_file = wrapped_key_in_copy_of_main_file_without_wal(
+                    &dir,
+                    &store_key,
+                    expired.segment_id,
+                )
+                .unwrap();
                 at_removal.lock().unwrap().push((
                     recoverable(&cipher, &store_key, in_main_file),
                     wal_len(&dir),
@@ -678,6 +681,246 @@ fn a_truncated_segment_yields_no_plaintext_and_reports_corruption() {
     assert_eq!(out, plaintext);
 }
 
+fn keyless_name() -> String {
+    format!("{}.seg", Uuid::now_v7().simple())
+}
+
+fn another_shard_than(segment_id: Uuid) -> &'static str {
+    if segment_id.simple().to_string().starts_with("ff") {
+        "fe"
+    } else {
+        "ff"
+    }
+}
+
+fn files_in(dir: &Path) -> usize {
+    std::fs::read_dir(dir).unwrap().count()
+}
+
+#[cfg(unix)]
+fn link_dir(target: &Path, link: &Path) {
+    std::os::unix::fs::symlink(target, link).unwrap();
+}
+
+#[cfg(windows)]
+fn link_dir(target: &Path, link: &Path) {
+    let made = Command::new("cmd")
+        .arg("/C")
+        .arg("mklink")
+        .arg("/J")
+        .arg(link)
+        .arg(target)
+        .stdout(Stdio::null())
+        .status()
+        .unwrap();
+    assert!(made.success(), "mklink /J failed");
+}
+
+#[test]
+fn the_keyless_sweep_does_not_follow_a_shard_that_links_out_of_the_store() {
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path().join("store").as_path());
+    let (live, _) = store.write_segment(&mut Cursor::new(b"live")).unwrap();
+    let shard = another_shard_than(live.segment_id);
+    let victim_name = format!("{shard}{}.seg", &Uuid::now_v7().simple().to_string()[2..]);
+    std::fs::write(outside.path().join(&victim_name), b"victim").unwrap();
+    std::fs::write(outside.path().join("notes.txt"), b"victim").unwrap();
+    link_dir(
+        outside.path(),
+        &segment::segments_root(store.dir()).join(shard),
+    );
+
+    let pass = store.crypto_shred_expired();
+
+    assert_eq!(
+        files_in(outside.path()),
+        2,
+        "the pass ({pass:?}) removed files outside the store through a linked shard"
+    );
+}
+
+#[test]
+fn the_keyless_sweep_does_not_follow_a_directory_link_inside_a_shard() {
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path().join("store").as_path());
+    let (live, _) = store.write_segment(&mut Cursor::new(b"live")).unwrap();
+    std::fs::write(outside.path().join(keyless_name()), b"outside").unwrap();
+    std::fs::write(outside.path().join(keyless_name()), b"outside").unwrap();
+    let shard = segment_path(store.dir(), live.segment_id)
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    link_dir(outside.path(), &shard.join(keyless_name()));
+
+    let pass = store.crypto_shred_expired();
+
+    assert_eq!(
+        files_in(outside.path()),
+        2,
+        "the pass ({pass:?}) removed files outside the store through a link in a shard"
+    );
+    assert!(segment_path(store.dir(), live.segment_id).exists());
+}
+
+#[test]
+fn the_keyless_sweep_leaves_the_store_files_when_a_shard_links_to_the_store_directory() {
+    let dir = tempfile::tempdir().unwrap();
+    let root_id = RootId::fresh();
+    let mut store = EncryptedStore::create(
+        dir.path(),
+        Box::new(DevFallbackCustody::new(root_id)),
+        DEFAULT_RETENTION,
+    )
+    .unwrap();
+    let (live, _) = store.write_segment(&mut Cursor::new(b"live")).unwrap();
+    link_dir(
+        dir.path(),
+        &segment::segments_root(dir.path()).join(another_shard_than(live.segment_id)),
+    );
+
+    let pass = store.crypto_shred_expired();
+    drop(store);
+
+    let left: Vec<bool> = ["store.key", "store.db", "writer.lock"]
+        .iter()
+        .map(|name| dir.path().join(name).exists())
+        .collect();
+    let reopened = EncryptedStore::open(dir.path(), DEFAULT_RETENTION).map(|store| {
+        let read = store.read_segment(live.segment_id, &mut Vec::new());
+        read.is_ok()
+    });
+    DevFallbackCustody::new(root_id).destroy_root().unwrap();
+    assert_eq!(
+        left,
+        [true, true, true],
+        "the pass ({pass:?}) removed store.key, store.db or writer.lock through a link"
+    );
+    assert!(
+        matches!(reopened, Ok(true)),
+        "the store did not reopen with its live segment: {reopened:?}"
+    );
+}
+
+#[test]
+fn the_keyless_sweep_removes_nothing_through_a_segments_directory_that_is_a_link() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    store
+        .db()
+        .unwrap()
+        .connection()
+        .execute(
+            "UPDATE segment_keys SET wrapped_key = NULL WHERE segment_id = ?1",
+            [segment_id.simple().to_string()],
+        )
+        .unwrap();
+    let segments = segment::segments_root(&store_dir);
+    let shard_name = segment_id.simple().to_string()[..2].to_string();
+    std::fs::rename(segments.join(&shard_name), target.path().join(&shard_name)).unwrap();
+    std::fs::remove_dir(&segments).unwrap();
+    std::fs::write(
+        target.path().join(&shard_name).join(keyless_name()),
+        b"foreign",
+    )
+    .unwrap();
+    std::fs::write(
+        target.path().join(&shard_name).join("notes.txt"),
+        b"foreign",
+    )
+    .unwrap();
+    link_dir(target.path(), &segments);
+    let before = files_under(target.path()).len();
+
+    let pass = store.crypto_shred_expired();
+    drop(store);
+    let reopened = open_over_file_root(&store_dir, &roots_dir, root_id).map(drop);
+
+    assert_eq!(before, 3);
+    assert_eq!(
+        files_under(target.path()).len(),
+        3,
+        "the pass ({pass:?}) removed files through a segments directory that is a link"
+    );
+    assert!(
+        reopened.is_err(),
+        "a store whose segments directory is a link opened"
+    );
+}
+
+#[test]
+fn the_keyless_sweep_removes_only_the_names_of_the_store_and_counts_the_rest() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let (live, _) = store.write_segment(&mut Cursor::new(b"live")).unwrap();
+    let shard = segment_path(dir.path(), live.segment_id)
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let keyless = shard.join(format!(
+        "{}{}.seg",
+        &live.segment_id.simple().to_string()[..2],
+        &Uuid::now_v7().simple().to_string()[2..]
+    ));
+    let temp = keyless.with_extension("seg.tmp");
+    std::fs::write(&keyless, b"keyless").unwrap();
+    std::fs::write(&temp, b"half-written").unwrap();
+    let id = Uuid::now_v7();
+    let foreign = [
+        shard.join("notes.txt"),
+        shard.join(format!("{}.seg", id.hyphenated())),
+        shard.join(format!("{}.seg", id.simple().to_string().to_uppercase())),
+        shard.join(format!("{}.seg.bak", id.simple())),
+        segment::segments_root(dir.path()).join("stray.seg"),
+        segment::segments_root(dir.path())
+            .join("zz")
+            .join(format!("{}.seg", id.simple())),
+    ];
+    for path in &foreign {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, b"not a name of the store").unwrap();
+    }
+
+    let sweep = store.remove_keyless_files().unwrap();
+
+    assert!(!keyless.exists(), "the sweep left a keyless segment file");
+    assert!(!temp.exists(), "the sweep left a temp file");
+    let kept: Vec<bool> = foreign.iter().map(|path| path.exists()).collect();
+    assert_eq!(
+        kept, [true; 6],
+        "the sweep removed a file that is no name of the store"
+    );
+    assert_eq!((sweep.removed, sweep.left), (2, 6), "{sweep:?}");
+    assert!(segment_path(dir.path(), live.segment_id).exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn delete_all_unlinks_a_store_key_that_is_a_link_and_writes_nothing_through_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let precious = outside.path().join("precious");
+    std::fs::write(&precious, b"bytes that the store does not own").unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    std::fs::remove_file(KeyFile::path(dir.path())).unwrap();
+    std::os::unix::fs::symlink(&precious, KeyFile::path(dir.path())).unwrap();
+
+    let deleted = store.crypto_shred_all();
+
+    assert_eq!(
+        std::fs::read(&precious).unwrap(),
+        b"bytes that the store does not own",
+        "delete-all ({deleted:?}) wrote through a store.key that is a link"
+    );
+    assert!(
+        std::fs::symlink_metadata(KeyFile::path(dir.path())).is_err(),
+        "delete-all left the link at store.key"
+    );
+}
+
 #[test]
 fn keyless_segment_files_and_stray_temp_files_are_removed_by_the_next_pass() {
     let dir = tempfile::tempdir().unwrap();
@@ -809,7 +1052,9 @@ fn answers_after_damage(cases: &[(&str, DamageToTheDatabase)], expected: &str) -
         };
         let after = files_and_lengths(&store_dir);
         if answer != expected {
-            problems.push(format!("{case}: open answered {answer} in place of {expected}"));
+            problems.push(format!(
+                "{case}: open answered {answer} in place of {expected}"
+            ));
         }
         if after != before {
             problems.push(format!(
@@ -853,7 +1098,9 @@ fn open_answers_a_database_that_its_key_does_not_open_as_database_unreadable() {
                     use base64::Engine;
 
                     let custody = file_root_custody(roots_dir, TestProtector::new(0x5a).0, root_id);
-                    let another = custody.wrap_store_key(&StoreKey::random().unwrap()).unwrap();
+                    let another = custody
+                        .wrap_store_key(&StoreKey::random().unwrap())
+                        .unwrap();
                     let mut key_file = KeyFile::read(store_dir).unwrap();
                     key_file.wrapped_store_key_b64 = STANDARD.encode(&another.0);
                     std::fs::write(
@@ -1853,7 +2100,10 @@ fn an_open_store_draws_its_random_bytes_from_the_os_entropy_hook_of_the_pinned_c
         halvo_sqlcipher::os_entropy_hook_installed(),
         "LibTomCrypt's random source is not the OS entropy hook"
     );
-    assert_eq!(store.db().unwrap().cipher_provider().unwrap(), "libtomcrypt");
+    assert_eq!(
+        store.db().unwrap().cipher_provider().unwrap(),
+        "libtomcrypt"
+    );
 }
 
 #[test]

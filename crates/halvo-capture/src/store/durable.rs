@@ -235,9 +235,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (temp, target) = (dir.path().join("file.tmp"), dir.path().join("file"));
         let fs = RecordingFs::new();
-        let written = write_durably(&fs, &temp, &target, |e| e, |_| Ok(()), |out| {
-            out.write_all(b"durable bytes").map(|()| 13)
-        });
+        let written = write_durably(
+            &fs,
+            &temp,
+            &target,
+            |e| e,
+            |_| Ok(()),
+            |out| out.write_all(b"durable bytes").map(|()| 13),
+        );
         assert_eq!(written.unwrap(), 13);
         assert_eq!(
             fs.calls(),
@@ -259,15 +264,23 @@ mod tests {
             let (temp, target) = (dir.path().join("file.tmp"), dir.path().join("file"));
             let fs = RecordingFs::new();
             fs.fail(kind);
-            let written = write_durably(&fs, &temp, &target, |e| e, |_| Ok(()), |out| {
-                out.write_all(b"bytes")
-            });
+            let written = write_durably(
+                &fs,
+                &temp,
+                &target,
+                |e| e,
+                |_| Ok(()),
+                |out| out.write_all(b"bytes"),
+            );
             assert_eq!(
                 written.map_err(|e| e.kind()),
                 Err(std::io::ErrorKind::StorageFull),
                 "{kind:?}"
             );
-            assert!(!target.exists(), "a write that failed at {kind:?} published the file");
+            assert!(
+                !target.exists(),
+                "a write that failed at {kind:?} published the file"
+            );
         }
     }
 
@@ -276,9 +289,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (temp, target) = (dir.path().join("file.tmp"), dir.path().join("file"));
         std::fs::write(&temp, b"left by another writer").unwrap();
-        let written = write_durably(&OsFs, &temp, &target, |e| e, |_| Ok(()), |out| {
-            out.write_all(b"new")
-        });
+        let written = write_durably(
+            &OsFs,
+            &temp,
+            &target,
+            |e| e,
+            |_| Ok(()),
+            |out| out.write_all(b"new"),
+        );
         assert_eq!(
             written.map_err(|e| e.kind()),
             Err(std::io::ErrorKind::AlreadyExists)

@@ -73,7 +73,13 @@ impl KeyFile {
     pub(crate) fn destroy(store_dir: &Path) -> StoreResult<()> {
         failpoint::hit("key_file_destroy")?;
         let path = Self::path(store_dir);
-        match File::options().write(true).open(&path) {
+        match std::fs::symlink_metadata(&path) {
+            Ok(meta) if !meta.is_file() => return remove_if_present(&path),
+            Ok(_) => {}
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(io_error(e)),
+        }
+        match no_follow(File::options().write(true)).open(&path) {
             Ok(mut file) => {
                 let len = file.metadata().map_err(io_error)?.len() as usize;
                 file.write_all(&vec![0u8; len]).map_err(io_error)?;
@@ -89,6 +95,17 @@ impl KeyFile {
 fn io_error(e: std::io::Error) -> StoreError {
     StoreError::Io(e.kind())
 }
+
+fn no_follow(options: &mut std::fs::OpenOptions) -> &mut std::fs::OpenOptions {
+    #[cfg(target_os = "macos")]
+    std::os::unix::fs::OpenOptionsExt::custom_flags(options, libc::O_NOFOLLOW);
+    #[cfg(windows)]
+    std::os::windows::fs::OpenOptionsExt::custom_flags(options, FILE_FLAG_OPEN_REPARSE_POINT);
+    options
+}
+
+#[cfg(windows)]
+const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 
 #[cfg(test)]
 pub(crate) mod failpoint {
@@ -511,7 +528,9 @@ fn verify_key(conn: &Connection, store_dir: &Path) -> StoreResult<()> {
     })
     .map(|_| ())
     .map_err(|e| match e.sqlite_error_code() {
-        Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt) => StoreError::DatabaseUnreadable,
+        Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt) => {
+            StoreError::DatabaseUnreadable
+        }
         Some(ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked) => {
             StoreError::Locked(store_dir.to_path_buf())
         }
@@ -521,7 +540,9 @@ fn verify_key(conn: &Connection, store_dir: &Path) -> StoreResult<()> {
 
 fn unreadable_or_db_error(e: rusqlite::Error) -> StoreError {
     match e.sqlite_error_code() {
-        Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt) => StoreError::DatabaseUnreadable,
+        Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt) => {
+            StoreError::DatabaseUnreadable
+        }
         _ => db_error(e),
     }
 }
@@ -744,6 +765,7 @@ impl EncryptedStore {
         let _writer_lock = WriterLock::take(dir)?;
         let key_file = KeyFile::read(dir)?;
         let wrapped = key_file.wrapped_store_key()?;
+        segment::refuse_a_linked_segments_root(dir)?;
         Db::refuse_a_live_holder(dir)?;
         let custody = custody_for(key_file.custody_kind, key_file.root_id)?;
         let store_key = custody.unwrap_store_key(&wrapped)?;
@@ -1103,9 +1125,7 @@ mod tests {
         assert_eq!(db.fts_secure_delete().unwrap(), 1);
         assert_eq!(db.pragma_int("checkpoint_fullfsync").unwrap(), 1);
         let text = |pragma: &str| -> String {
-            db.connection()
-                .query_row(pragma, [], |r| r.get(0))
-                .unwrap()
+            db.connection().query_row(pragma, [], |r| r.get(0)).unwrap()
         };
         assert_eq!(text("PRAGMA journal_mode"), "wal");
         assert_eq!(text("PRAGMA main.locking_mode"), "exclusive");
@@ -1126,9 +1146,24 @@ mod tests {
         let cases = [
             ("libtomcrypt", "4.19.0 community", true, None),
             ("openssl", "4.19.0 community", true, Some("cipher_provider")),
-            ("libtomcrypt", "4.6.1 community", true, Some("cipher_version")),
-            ("libtomcrypt", "4.19.01 community", true, Some("cipher_version")),
-            ("libtomcrypt", "4.19.0 community", false, Some("os_entropy_hook")),
+            (
+                "libtomcrypt",
+                "4.6.1 community",
+                true,
+                Some("cipher_version"),
+            ),
+            (
+                "libtomcrypt",
+                "4.19.01 community",
+                true,
+                Some("cipher_version"),
+            ),
+            (
+                "libtomcrypt",
+                "4.19.0 community",
+                false,
+                Some("os_entropy_hook"),
+            ),
         ];
         for (provider, version, hook, refused) in cases {
             let answer = cipher_in_effect(provider, version, hook);
