@@ -344,6 +344,37 @@ test("after the peer resets the connection behind an answer, no idle-close line 
   assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200]);
 });
 
+test("for a client that pipelines and reads nothing, the stub stops reading at the bound and serves the rest once the client reads", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir });
+  const count = 10000;
+  const one = "GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n";
+  const socket = connect({ host: "127.0.0.1", port: portOf(stub.app) });
+  const got = [];
+  const closed = new Promise((resolve) => socket.on("close", resolve));
+  socket.on("data", (chunk) => got.push(chunk));
+  socket.on("error", () => {});
+  await new Promise((resolve) => socket.on("connect", resolve));
+  socket.pause();
+  socket.write(one.repeat(count - 1) + request("GET", "/v1/done").toString("latin1"));
+  let held = -1;
+  for (let waited = 0; waited < 20000; waited += 500) {
+    await pause(500);
+    const now = lines(dir).length;
+    if (now === held) break;
+    held = now;
+  }
+  await pause(1000);
+  assert.equal(lines(dir).length, held, "the record grows no more while the client reads nothing");
+  assert.ok(held < count / 2, `${held} of ${count} requests were answered while the client read nothing`);
+  socket.resume();
+  assert.equal(await within(closed, 40000), true, "the stub serves the rest and closes after the last request");
+  const record = lines(dir);
+  assert.equal(record.length, count);
+  assert.equal(record.filter((line) => line.status === 200).length, count);
+  assert.equal(Buffer.concat(got).toString("latin1").split("HTTP/1.1 200 ").length - 1, count, "every 200 of the record reached the client");
+});
+
 test("a client that reads slowly and ends inside a request gets every answer that the record holds and the 400", async () => {
   const dir = fresh();
   const stub = await startStub({ record: dir });

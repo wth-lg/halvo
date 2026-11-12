@@ -61,10 +61,28 @@ function closes({ version, headers }) {
 
 function serve(socket, connection, app, record, idleMs) {
   let timer = null;
+  let held = false;
+  let ended = false;
   const quiet = () => clearTimeout(timer);
-  const onData = (chunk) => {
+  const settle = () => {
+    if (socket.writableEnded) return;
+    if (socket.writableNeedDrain) {
+      held = true;
+      quiet();
+      socket.pause();
+      return;
+    }
+    if (ended) {
+      reader.end();
+      stop();
+      return;
+    }
+    socket.resume();
     arm();
+  };
+  const onData = (chunk) => {
     reader.feed(chunk);
+    settle();
   };
   const stop = (last) => {
     if (socket.writableEnded) return;
@@ -90,6 +108,7 @@ function serve(socket, connection, app, record, idleMs) {
       record.refused({ connection, error: cause });
       stop(answerBytes("", app.malformed(), true));
     },
+    full: () => socket.writableNeedDrain,
   });
   function arm() {
     quiet();
@@ -102,9 +121,15 @@ function serve(socket, connection, app, record, idleMs) {
   arm();
   socket.on("data", onData);
   socket.on("close", quiet);
+  socket.on("drain", () => {
+    if (!held || socket.writableEnded) return;
+    held = false;
+    reader.resume();
+    settle();
+  });
   socket.on("end", () => {
-    reader.end();
-    stop();
+    ended = true;
+    if (!held) settle();
   });
   socket.on("error", () => {});
 }

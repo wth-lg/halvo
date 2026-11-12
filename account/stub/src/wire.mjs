@@ -60,9 +60,10 @@ const values = (list, name) => list.filter(([key]) => key.toLowerCase() === name
  * and false to stop. For bytes that are no request it calls `malformed(cause)` once and reads nothing more; the cause
  * is one of `head-too-large`, `request-line`, `field-line`, `framing`, `content-length`, `transfer-encoding`,
  * `chunk`, `incomplete`, `idle`. `idle()` says that the peer sent nothing for the idle limit: inside a request it
- * calls `malformed("idle")` and returns true, and with no byte of a request read it returns false.
+ * calls `malformed("idle")` and returns true, and with no byte of a request read it returns false. Before it reads
+ * the head of each request it asks `full()`; while that is true it holds the bytes and reads on at `resume()`.
  */
-export function makeReader({ request, malformed }) {
+export function makeReader({ request, malformed, full = () => false }) {
   let buffer = Buffer.alloc(0);
   let state = "head";
   let message = null;
@@ -143,7 +144,7 @@ export function makeReader({ request, malformed }) {
   function step() {
     for (;;) {
       if (state === "head") {
-        if (!head()) return;
+        if (full() || !head()) return;
       } else if (state === "length" || state === "data") {
         if (buffer.length === 0) return;
         const part = take(remaining);
@@ -187,6 +188,9 @@ export function makeReader({ request, malformed }) {
       if (state === "done") return;
       buffer = buffer.length === 0 ? chunk : Buffer.concat([buffer, chunk]);
       step();
+    },
+    resume() {
+      if (state !== "done") step();
     },
     idle() {
       if (state === "done") return false;

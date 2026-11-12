@@ -181,6 +181,25 @@ test("a head with bare LF ends is held to HEAD_MAX as with CRLF", () => {
   assert.deepEqual(read([`${head}${"a".repeat(4)}`], { end: false }).causes, ["head-too-large"]);
 });
 
+test("while full() is true the reader reads no further head, and resume() reads on from where it held", () => {
+  let full = false;
+  const messages = [];
+  const reader = makeReader({
+    request: (message) => (messages.push(message.target), true),
+    malformed: (cause) => assert.fail(cause),
+    full: () => full,
+  });
+  reader.feed(Buffer.from("GET /a HTTP/1.1\r\n\r\nGET /b HTTP/1.1\r\n\r\nGET /c HTTP/1.1\r\n\r\n"));
+  assert.deepEqual(messages, ["/a", "/b", "/c"]);
+  full = true;
+  reader.feed(Buffer.from("GET /d HTTP/1.1\r\n\r\nGET /e HTTP/1.1\r\n\r\n"));
+  reader.resume();
+  assert.deepEqual(messages, ["/a", "/b", "/c"]);
+  full = false;
+  reader.resume();
+  assert.deepEqual(messages, ["/a", "/b", "/c", "/d", "/e"]);
+});
+
 test("a head that grows past HEAD_MAX with no end is refused before its end arrives", () => {
   assert.deepEqual(read([`GET / HTTP/1.1\r\nx: ${"a".repeat(HEAD_MAX)}`], { end: false }).causes, ["head-too-large"]);
 });
