@@ -71,7 +71,7 @@ enum Fault {
     IgnoresTheByteBound,
     RepeatsAtAStop,
     SkipsAtAStop,
-    LoadCutsSetC,
+    LoadCutsSetC(usize),
     DropsTheLastRecordOfSetC,
     KeepsServingAfterTheReplace,
     StoreChangedOnReadNamesTheOldId,
@@ -87,6 +87,7 @@ enum Fault {
     ReopenByIdGetsClosed,
     StoreChangedNamesAnAlias,
     LeavesOutTheFirstRecordAfterStoreChanged,
+    EndsEachBatchAtASegmentEnd,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -199,6 +200,7 @@ struct Proxy {
     alias_open: bool,
     changed: Option<StoreId>,
     skip_first: bool,
+    last_open: Option<OpenCursor>,
 }
 
 impl Proxy {
@@ -226,6 +228,7 @@ impl Proxy {
         self.open_w = b.watermark;
         self.reads = 0;
         self.stop = None;
+        self.last_open = Some(open.clone());
         self.renamed =
             (self.fault == OpenNamesAnotherStore && open.store().is_some()) || self.alias_open;
         self.skip_first = self.fault == LeavesOutTheFirstRecordAfterStoreChanged
@@ -328,6 +331,28 @@ impl Proxy {
             ServerMessage::Error(e) => return self.refused(e.cause().clone(), None, true),
             other => return other,
         };
+        if self.fault == EndsEachBatchAtASegmentEnd {
+            if let (Some(seg), Some(open)) = (b.records.first().map(|e| e.pos.seg), &self.last_open)
+            {
+                if b.records.iter().any(|e| e.pos.seg != seg) {
+                    b.records.retain(|e| e.pos.seg == seg);
+                    b.expiry.retain(|x| x.seg == seg);
+                    b.next = Position {
+                        seg: seg + 1,
+                        idx: 0,
+                    };
+                    let again = OpenCursor::at(
+                        b.store.clone(),
+                        b.next,
+                        open.kinds().cloned(),
+                        open.range(),
+                    )
+                    .unwrap();
+                    t.handle(&ClientMessage::Close);
+                    t.handle(&ClientMessage::OpenCursor(again));
+                }
+            }
+        }
         if self.skip_first && !b.records.is_empty() {
             b.records.remove(0);
             self.skip_first = false;
@@ -505,12 +530,15 @@ impl Subject for Control {
         }
         self.set_a = batch_files == conformance::SET_A;
         self.set_c = batch_files == conformance::SET_C;
-        let cut_c = self.fault == LoadCutsSetC && batch_files == conformance::SET_C;
+        let cut_c = match self.fault {
+            LoadCutsSetC(lines) if batch_files == conformance::SET_C => Some(lines),
+            _ => None,
+        };
         self.files = Vec::new();
         for (i, text) in batch_files.iter().enumerate() {
             let mut text = text.to_string();
-            if cut_c {
-                text = text.split_inclusive('\n').take(20).collect();
+            if let Some(lines) = cut_c {
+                text = text.split_inclusive('\n').take(lines).collect();
             }
             if self.fault == LoadDropsALine && i == 1 {
                 let cut = text[..text.len() - 1].rfind('\n').map_or(0, |p| p + 1);
@@ -554,6 +582,7 @@ impl Subject for Control {
             alias_open: false,
             changed: None,
             skip_first: false,
+            last_open: None,
         };
         let (mut requests_in, requests_out) = io::pipe().map_err(|e| e.to_string())?;
         let (replies_in, mut replies_out) = io::pipe().map_err(|e| e.to_string())?;
@@ -1079,7 +1108,7 @@ fn control_a_server_that_skips_the_record_at_a_stop() {
 #[test]
 fn control_a_set_c_too_short_to_stop_a_batch() {
     check(
-        LoadCutsSetC,
+        LoadCutsSetC(20),
         [
             Pass,
             Pass,
@@ -1087,6 +1116,24 @@ fn control_a_set_c_too_short_to_stop_a_batch() {
             Fail("the read of set C ended 0 Batches before the store ended; want at least 2"),
         ],
     );
+}
+
+#[test]
+fn control_a_set_c_that_stops_one_batch_before_its_end() {
+    check(
+        LoadCutsSetC(264),
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the read of set C ended 1 Batches before the store ended; want at least 2"),
+        ],
+    );
+}
+
+#[test]
+fn a_server_that_ends_each_batch_at_a_segment_end_passes() {
+    check(EndsEachBatchAtASegmentEnd, [Pass, Pass, Pass, Pass]);
 }
 
 #[test]

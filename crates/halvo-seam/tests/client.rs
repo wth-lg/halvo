@@ -818,6 +818,45 @@ fn after_bad_position_the_position_of_the_open_stays_readable() {
 }
 
 #[test]
+fn after_store_changed_to_an_open_the_position_of_the_open_stays_readable() {
+    let w = pos(3, 0);
+    let mut client = scripted(&[
+        opened(STORE, w, pos(0, 0)),
+        batch_json(STORE, w, &[], pos(2, 0)),
+        "{\"msg\":\"closed\"}".to_owned(),
+        error_json("store-changed", Some(OTHER)),
+    ]);
+    client.open(OpenCursor::fresh(None, None)).unwrap();
+    client.read().unwrap();
+    client.close().unwrap();
+    let got = client.open(OpenCursor::at(store(), pos(1, 4), None, None).unwrap());
+    assert_eq!(
+        got,
+        Err(ClientError::Refused(Cause::StoreChanged(
+            StoreId::parse(OTHER).unwrap()
+        )))
+    );
+    assert_eq!(client.position(), Some(pos(1, 4)));
+}
+
+#[test]
+fn after_store_error_to_an_open_the_position_of_the_open_stays_readable() {
+    let w = pos(3, 0);
+    let mut client = scripted(&[
+        opened(STORE, w, pos(0, 0)),
+        batch_json(STORE, w, &[], pos(2, 0)),
+        "{\"msg\":\"closed\"}".to_owned(),
+        error_json("store-error", None),
+    ]);
+    client.open(OpenCursor::fresh(None, None)).unwrap();
+    client.read().unwrap();
+    client.close().unwrap();
+    let got = client.open(OpenCursor::at(store(), pos(2, 1), None, None).unwrap());
+    assert_eq!(got, Err(ClientError::Refused(Cause::StoreError)));
+    assert_eq!(client.position(), Some(pos(2, 1)));
+}
+
+#[test]
 fn a_reply_to_open_cursor_with_an_expiry_entry_stops_the_client() {
     let reply = format!(
         r#"{{"msg":"batch","store":"{STORE}","watermark":{{"seg":3,"idx":0}},"records":[],"expiry":[{{"seg":1,"at":{DAY}}}],"next":{{"seg":0,"idx":0}}}}"#
