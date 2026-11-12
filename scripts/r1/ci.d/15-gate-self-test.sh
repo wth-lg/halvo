@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: The self-tests of the R1 gate pass, each rejects at least one failing fixture, and each check script passes its self-test under dash.
+# rule: The last record of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate or the bounds file, the self-tests of the R1 gate pass, each rejects at least one failing fixture, and each check script passes its self-test under dash.
 set -u
 name=15-gate-self-test
 nl='
@@ -32,7 +32,56 @@ self_tested() {
   esac
 }
 
+record_defect() {
+  record_tree=$(sed -n 's/^gate head=[0-9a-f]* tree=\([0-9a-f]*\) .*/\1/p' "$1/docs/baseline/r1-gate-main.txt" 2>/dev/null | tail -n 1)
+  [ -n "$record_tree" ] || { printf 'docs/baseline/r1-gate-main.txt holds no line gate head=... tree=...\n'; return 1; }
+  record_commit=$(git -C "$1" log -1 --format=%H -- scripts/r1-gate docs/baseline/r1-gate-bounds.txt) || { printf 'git log could not read the history of scripts/r1-gate\n'; return 1; }
+  [ -n "$record_commit" ] || { printf 'no commit changed scripts/r1-gate or the bounds file\n'; return 1; }
+  record_want=$(GATE_ROOT=$1 sh -c '. "$0"; tree_id "$GATE_ROOT" "$1"' "$1/scripts/r1-gate/lib.sh" "$record_commit") || { printf 'tree_id of lib.sh could not read %s\n' "$record_commit"; return 1; }
+  record_bounds=$(sed -n 's/^gate head=[0-9a-f]* tree=[0-9a-f]* bounds=\([0-9a-f]*\) .*/\1/p' "$1/docs/baseline/r1-gate-main.txt" 2>/dev/null | tail -n 1)
+  record_blob=$(git -C "$1" rev-parse -q --verify "$record_commit:docs/baseline/r1-gate-bounds.txt") || record_blob=none
+  [ "$record_bounds" = "$record_blob" ] || { printf 'the last record of docs/baseline/r1-gate-main.txt names bounds %s, and the bounds file of the last commit that changed scripts/r1-gate or the bounds file is %s: make the record again\n' "${record_bounds:-absent}" "$record_blob"; return 1; }
+  [ "$record_tree" = "$record_want" ] && return 0
+  record_short=$(printf '%s' "$record_commit" | cut -c1-12)
+  printf 'the last record of docs/baseline/r1-gate-main.txt names tree %s, and %s, the last commit that changed scripts/r1-gate or the bounds file, has tree %s: make the record again\n' "$record_tree" "$record_short" "$record_want"
+  return 1
+}
+
+fixture_commit() {
+  git -C "$1" add -A >/dev/null 2>&1 || exit 2
+  fixture_tree=$(git -C "$1" write-tree) || exit 2
+  fixture_parent=''
+  if git -C "$1" rev-parse -q --verify HEAD >/dev/null 2>&1; then fixture_parent="parent $(git -C "$1" rev-parse HEAD)
+"; fi
+  fixture_new=$(printf 'tree %s\n%sauthor gate fixture <fixture@example.invalid> 1 +0000\ncommitter gate fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' "$fixture_tree" "$fixture_parent" | git -C "$1" hash-object -t commit -w --stdin) || exit 2
+  git -C "$1" update-ref HEAD "$fixture_new" || exit 2
+}
+
+record_case() {
+  repo=$work/record-$1
+  mkdir -p "$repo/scripts/r1-gate" "$repo/docs/baseline" || exit 2
+  git init -q "$repo" >/dev/null 2>&1 || exit 2
+  cp "$CI_D_REPO/scripts/r1-gate/lib.sh" "$repo/scripts/r1-gate/lib.sh" || exit 2
+  printf 'x=1\n' >"$repo/docs/baseline/r1-gate-bounds.txt"
+  fixture_commit "$repo"
+  recorded=$(GATE_ROOT=$repo sh -c '. "$0"; tree_id "$GATE_ROOT" HEAD' "$repo/scripts/r1-gate/lib.sh") || exit 2
+  recorded_blob=$(git -C "$repo" rev-parse HEAD:docs/baseline/r1-gate-bounds.txt) || exit 2
+  printf 'gate head=0 tree=%s bounds=%s state=clean input=none machine=host\n' "$recorded" "$recorded_blob" >"$repo/docs/baseline/r1-gate-main.txt"
+  fixture_commit "$repo"
+  case $1 in
+    stale) printf '# a later change\n' >>"$repo/scripts/r1-gate/lib.sh"; fixture_commit "$repo" ;;
+    bounds-changed) printf 'x=2\n' >"$repo/docs/baseline/r1-gate-bounds.txt"; fixture_commit "$repo" ;;
+    other-file-changed) printf 'notes\n' >"$repo/README.md"; fixture_commit "$repo" ;;
+  esac
+  got=PASS
+  record_defect "$repo" >/dev/null || got=FAIL
+  printf 'case %s/record-%s want=%s got=%s\n' "$name" "$1" "$2" "$got"
+  if [ "$got" != "$2" ]; then wrong="$wrong record-$1"; elif [ "$2" = FAIL ]; then rejected=$((rejected + 1)); fi
+}
+
 measure() {
+  found=$(record_defect "$CI_D_REPO") || fail "$found"
+  printf 'record: the last gate line of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate or the bounds file\n'
   gate=$CI_D_REPO/scripts/r1-gate
   if ! command -v dash >/dev/null 2>&1; then
     printf 'SKIP %s (dash is not installed)\n' "$name"
@@ -135,6 +184,10 @@ self_test() {
   cp -R "$CI_D_REPO/docs/baseline" "$work/check-script-renamed/docs/" || exit 2
   mv "$work/check-script-renamed/scripts/r1-gate/check-store.sh" "$work/check-script-renamed/scripts/r1-gate/check-store-old.sh" || exit 2
   check check-script-renamed FAIL 'FAIL self-test:run (check-store.sh is missing from'
+  record_case matches PASS
+  record_case other-file-changed PASS
+  record_case stale FAIL
+  record_case bounds-changed FAIL
   gate dash-missing "$pass" store "$pass"
   path=$work/no-tools
   check dash-missing SKIP 'SKIP 15-gate-self-test (dash is not installed)'
