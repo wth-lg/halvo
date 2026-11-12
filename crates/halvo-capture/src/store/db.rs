@@ -126,35 +126,7 @@ fn no_follow(options: &mut std::fs::OpenOptions) -> &mut std::fs::OpenOptions {
 #[cfg(windows)]
 const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 
-#[cfg(test)]
-pub(crate) mod failpoint {
-    use std::cell::Cell;
-
-    use super::{StoreError, StoreResult};
-
-    thread_local! {
-        static ARMED: Cell<Option<&'static str>> = const { Cell::new(None) };
-    }
-
-    pub(crate) fn arm(name: &'static str) {
-        ARMED.with(|armed| armed.set(Some(name)));
-    }
-
-    pub(crate) fn hit(name: &'static str) -> StoreResult<()> {
-        if ARMED.with(|armed| armed.get()) == Some(name) {
-            ARMED.with(|armed| armed.set(None));
-            return Err(StoreError::Io(std::io::ErrorKind::Other));
-        }
-        Ok(())
-    }
-}
-
-#[cfg(not(test))]
-mod failpoint {
-    pub(super) fn hit(_name: &'static str) -> super::StoreResult<()> {
-        Ok(())
-    }
-}
+pub(crate) use super::failpoint;
 
 pub(crate) fn db_error(e: rusqlite::Error) -> StoreError {
     match e {
@@ -990,40 +962,43 @@ pub(crate) mod test_support {
 
     use super::EncryptedStore;
     use crate::custody::dev_fallback::DevFallbackCustody;
-    use crate::custody::RootId;
+    use crate::store::roots::RootGuard;
     use crate::store::DEFAULT_RETENTION;
 
-    pub(crate) struct TestStore(EncryptedStore);
+    pub(crate) struct TestStore {
+        store: EncryptedStore,
+        _root: RootGuard,
+    }
 
     impl Deref for TestStore {
         type Target = EncryptedStore;
         fn deref(&self) -> &EncryptedStore {
-            &self.0
+            &self.store
         }
     }
 
     impl DerefMut for TestStore {
         fn deref_mut(&mut self) -> &mut EncryptedStore {
-            &mut self.0
-        }
-    }
-
-    impl Drop for TestStore {
-        fn drop(&mut self) {
-            self.0
-                .destroy_root()
-                .expect("the test store's platform root is destroyed when the test ends");
+            &mut self.store
         }
     }
 
     pub(crate) fn make_store(dir: &Path) -> TestStore {
-        let custody = DevFallbackCustody::new(RootId::fresh());
-        TestStore(EncryptedStore::create(dir, Box::new(custody), DEFAULT_RETENTION).unwrap())
+        let root = RootGuard::fresh();
+        let custody = DevFallbackCustody::new(root.id());
+        TestStore {
+            store: EncryptedStore::create(dir, Box::new(custody), DEFAULT_RETENTION).unwrap(),
+            _root: root,
+        }
     }
 
     #[cfg(unix)]
     pub(crate) fn duplicate_writer_lock_descriptor(store: &EncryptedStore) -> std::fs::File {
         store._writer_lock.file.try_clone().unwrap()
+    }
+
+    pub(crate) fn key_statement(key: &[u8; 32]) -> zeroize::Zeroizing<String> {
+        super::key_pragma(key)
     }
 }
 
@@ -1033,6 +1008,7 @@ mod tests {
     use super::*;
     use crate::custody::dev_fallback::DevFallbackCustody;
     use crate::event::{CapturedAt, Modality, MonotonicSequence};
+    use crate::store::roots::RootGuard;
     use crate::store::{SegmentStore, DEFAULT_RETENTION};
 
     #[test]
@@ -1249,6 +1225,7 @@ mod tests {
     fn a_second_writer_on_the_same_directory_is_refused() {
         let dir = tempfile::tempdir().unwrap();
         let (first, root_id) = persistent_store(dir.path());
+        let _root = RootGuard::new(root_id);
         assert!(matches!(
             EncryptedStore::open(dir.path(), DEFAULT_RETENTION),
             Err(StoreError::Locked(_))
@@ -1307,6 +1284,7 @@ mod tests {
     fn open_reports_a_missing_root_as_root_missing() {
         let dir = tempfile::tempdir().unwrap();
         let (store, root_id) = persistent_store(dir.path());
+        let _root = RootGuard::new(root_id);
         drop(store);
         DevFallbackCustody::new(root_id).destroy_root().unwrap();
         assert!(matches!(
@@ -1318,7 +1296,8 @@ mod tests {
     #[test]
     fn open_rebuilds_the_custody_from_the_key_file() {
         let dir = tempfile::tempdir().unwrap();
-        let (mut store, _) = persistent_store(dir.path());
+        let (mut store, root_id) = persistent_store(dir.path());
+        let _root = RootGuard::new(root_id);
         let (seg_ref, _) = store
             .write_segment(&mut std::io::Cursor::new(b"persisted"))
             .unwrap();

@@ -394,6 +394,7 @@ pub(crate) fn decrypt_segment_bytes(file_bytes: &[u8], key: &SegmentKey) -> Stor
 }
 
 pub(crate) fn remove_segment_file(fs: &dyn DurableFs, path: &Path) -> StoreResult<()> {
+    super::failpoint::hit("segment_file_remove")?;
     durable::remove_durably(fs, path).map_err(io_error)
 }
 

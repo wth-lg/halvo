@@ -639,7 +639,8 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn mac_wrap_unwrap_roundtrips_with_no_prompt() {
-        let custody = DevFallbackCustody::new(RootId::fresh());
+        let root = crate::store::roots::RootGuard::fresh();
+        let custody = DevFallbackCustody::new(root.id());
         let key = StoreKey::from_bytes([42u8; 32]);
         let wrapped = custody.wrap_store_key(&key).unwrap();
         let unwrapped = custody.unwrap_store_key(&wrapped).unwrap();

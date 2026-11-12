@@ -15,13 +15,10 @@ use crate::custody::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, Wr
 
 use super::db::test_support::pages;
 use super::db::{EncryptedStore, KeyFile};
+use super::roots::RootGuard;
 use super::segment::tests::{BODY, CIPHER_CHUNK_LEN, HEADER, TAG_LEN};
 use super::segment::{self, segment_path, CHUNK};
 use super::{SegmentExpiry, SegmentStore, StoreError, StoreResult, DEFAULT_RETENTION};
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
-}
 
 fn wal_len(dir: &Path) -> u64 {
     std::fs::metadata(dir.join("store.db-wal"))
@@ -37,7 +34,7 @@ fn wrapped_key_in_copy_of_main_file_without_wal(
     let copy = tempfile::tempdir().unwrap();
     std::fs::copy(dir.join("store.db"), copy.path().join("store.db")).unwrap();
     let conn = Connection::open(copy.path().join("store.db"))?;
-    conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex(store_key)))?;
+    conn.execute_batch(&super::db::test_support::key_statement(store_key))?;
     match conn.query_row(
         "SELECT wrapped_key FROM segment_keys WHERE segment_id = ?1",
         [segment_id.simple().to_string()],
@@ -130,7 +127,7 @@ fn shred_under_a_concurrent_reader_leaves_nothing_recoverable() {
     let reader = Connection::open(dir.path().join("store.db")).unwrap();
     reader.busy_timeout(Duration::ZERO).unwrap();
     reader
-        .execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex(&store_key)))
+        .execute_batch(&super::db::test_support::key_statement(&store_key))
         .unwrap();
     let snapshot = reader.unchecked_transaction().ok().filter(|tx| {
         tx.query_row("SELECT count(*) FROM segment_keys", [], |r| {
@@ -176,6 +173,7 @@ fn shred_under_a_concurrent_reader_leaves_nothing_recoverable() {
 fn a_second_process_is_refused_even_after_the_lock_file_is_unlinked() {
     let dir = tempfile::tempdir().unwrap();
     let root_id = RootId::fresh();
+    let _root_id_guard = RootGuard::new(root_id);
     drop(
         EncryptedStore::create(
             dir.path(),
@@ -205,6 +203,7 @@ fn a_second_process_is_refused_even_after_the_lock_file_is_unlinked() {
 fn a_held_store_answers_locked_before_its_custody_is_called() {
     let dir = tempfile::tempdir().unwrap();
     let root_id = RootId::fresh();
+    let _root_id_guard = RootGuard::new(root_id);
     drop(
         EncryptedStore::create(
             dir.path(),
@@ -377,6 +376,7 @@ fn wait_for(marker: &Path, child: &mut Child) {
 fn delete_all_survives_a_transient_root_destroy_failure() {
     let dir = tempfile::tempdir().unwrap();
     let root_id = RootId::fresh();
+    let _root_id_guard = RootGuard::new(root_id);
     let (custody, destroy_calls) = FlakyCustody::new(root_id, 1);
     let mut store =
         EncryptedStore::create(dir.path(), Box::new(custody), DEFAULT_RETENTION).unwrap();
@@ -442,6 +442,7 @@ fn a_create_that_cannot_clear_its_directory_fails_and_makes_no_root() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir(dir.path().join("store.db")).unwrap();
     let root_id = RootId::fresh();
+    let _root_id_guard = RootGuard::new(root_id);
     let (custody, _) = FlakyCustody::new(root_id, 0);
 
     let result = EncryptedStore::create(dir.path(), Box::new(custody), DEFAULT_RETENTION);
@@ -461,6 +462,7 @@ fn a_create_that_cannot_clear_its_directory_fails_and_makes_no_root() {
 fn a_create_that_fails_after_wrapping_destroys_the_root_it_made() {
     let dir = tempfile::tempdir().unwrap();
     let root_id = RootId::fresh();
+    let _root_id_guard = RootGuard::new(root_id);
     let (custody, _) = FlakyCustody::new(root_id, 0);
     let custody = WrapThenFail(custody);
 
@@ -507,55 +509,90 @@ impl KeyCustody for WrapThenFail {
     }
 }
 
-#[cfg(unix)]
 #[test]
-fn a_shred_whose_file_removal_fails_still_destroys_the_key_and_the_next_pass_removes_the_file() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let dir = tempfile::tempdir().unwrap();
-    let mut store = super::db::test_support::make_store(dir.path());
+fn fail_segment_removal_for_parent() {
+    let Ok(dir) = std::env::var("HALVO_TEST_FAILED_REMOVAL_DIR") else {
+        println!("fail_segment_removal_for_parent: HALVO_TEST_FAILED_REMOVAL_DIR is not set, so no parent asked for a failed removal");
+        return;
+    };
+    let dir = PathBuf::from(dir);
+    let (store_dir, roots_dir, root_id, _) = file_root_store(&dir);
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
     let (expired, _) = store
         .write_segment_with_expiry(&mut Cursor::new(b"orphan-bytes"), 0, 1)
         .unwrap();
-    let path = segment_path(dir.path(), expired.segment_id);
+    let path = segment_path(&store_dir, expired.segment_id);
     let cipher = std::fs::read(&path).unwrap();
     let store_key = *store.store_key().unwrap().expose();
-    let shard = path.parent().unwrap().to_path_buf();
     store.db().unwrap().checkpoint_truncate().unwrap();
     let before =
-        wrapped_key_in_copy_of_main_file_without_wal(dir.path(), &store_key, expired.segment_id)
+        wrapped_key_in_copy_of_main_file_without_wal(&store_dir, &store_key, expired.segment_id)
             .unwrap();
     assert!(
         recoverable(&cipher, &store_key, before),
         "the probe does not find the live key in store.db, so it cannot see one left behind"
     );
-    std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o500)).unwrap();
 
     let first = store.crypto_shred_expired();
 
     let from_main_file =
-        wrapped_key_in_copy_of_main_file_without_wal(dir.path(), &store_key, expired.segment_id);
-    let wal_after_the_failed_pass = wal_len(dir.path());
-    std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o700)).unwrap();
-    let from_main_file = from_main_file.unwrap();
-    assert!(path.exists(), "the fixture did not block the removal");
-    assert!(
+        wrapped_key_in_copy_of_main_file_without_wal(&store_dir, &store_key, expired.segment_id)
+            .unwrap();
+    println!();
+    println!(
+        "FAILED-REMOVAL first_pass_failed={} file_left={} wal_bytes={} key_in_main_file={} \
+         live_key_rows={} segment={}",
         first.is_err(),
-        "the pass reported success with the file still present"
+        path.exists(),
+        wal_len(&store_dir),
+        recoverable(&cipher, &store_key, from_main_file),
+        live_key_rows(&store),
+        expired.segment_id.simple()
     );
-    assert_eq!(
-        wal_after_the_failed_pass, 0,
-        "the failed pass left frames in the WAL"
-    );
-    assert!(
-        !recoverable(&cipher, &store_key, from_main_file),
-        "the key of a segment whose file removal failed is still in store.db"
-    );
-    assert_eq!(live_key_rows(&store), 0);
+}
 
+#[test]
+fn a_shred_whose_file_removal_fails_still_destroys_the_key_and_the_next_pass_removes_the_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "store::hardening_tests::fail_segment_removal_for_parent",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("HALVO_TEST_FAILED_REMOVAL_DIR", dir.path())
+        .env(
+            super::failpoint::FROM_THE_ENVIRONMENT,
+            "segment_file_remove",
+        )
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "the child failed: {text}");
+    let line = text
+        .lines()
+        .find(|line| line.starts_with("FAILED-REMOVAL "))
+        .unwrap_or_else(|| panic!("the child printed no FAILED-REMOVAL line: {text}"));
+    let segment_id = line
+        .rsplit_once(" segment=")
+        .and_then(|(_, id)| Uuid::parse_str(id).ok())
+        .unwrap_or_else(|| panic!("the child named no segment: {line}"));
+    let (head, _) = line.rsplit_once(" segment=").unwrap();
+    assert_eq!(
+        head,
+        "FAILED-REMOVAL first_pass_failed=true file_left=true wal_bytes=0 key_in_main_file=false \
+         live_key_rows=1",
+        "a pass whose file removal failed: the pass must fail, leave the file, leave no frame in \
+         the WAL and no key of the segment in store.db"
+    );
+
+    let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+    let root_id = KeyFile::read(&store_dir).unwrap().root_id;
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
     store.crypto_shred_expired().unwrap();
     assert!(
-        !path.exists(),
+        !segment_path(&store_dir, segment_id).exists(),
         "the next pass did not remove the orphan file"
     );
 }
@@ -689,7 +726,7 @@ fn files_under(dir: &Path) -> Vec<PathBuf> {
 fn a_failed_write_commits_no_key_and_leaves_no_readable_file() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = super::db::test_support::make_store(dir.path());
-    let before = store.size_bytes().unwrap();
+    let before = super::db::dir_size(dir.path()).unwrap();
 
     let result = store.write_segment(&mut DyingReader {
         remaining: CHUNK * 2 + 17,
@@ -706,7 +743,7 @@ fn a_failed_write_commits_no_key_and_leaves_no_readable_file() {
         leftovers.is_empty(),
         "a failed write left files: {leftovers:?}"
     );
-    let grown = store.size_bytes().unwrap() - before;
+    let grown = super::db::dir_size(dir.path()).unwrap() - before;
     assert!(
         grown < CHUNK as u64,
         "the store grew by {grown} bytes after a failed write of two chunks; only the \
@@ -846,6 +883,7 @@ fn the_keyless_sweep_does_not_follow_a_directory_link_inside_a_shard() {
 fn the_keyless_sweep_leaves_the_store_files_when_a_shard_links_to_the_store_directory() {
     let dir = tempfile::tempdir().unwrap();
     let root_id = RootId::fresh();
+    let _root_id_guard = RootGuard::new(root_id);
     let mut store = EncryptedStore::create(
         dir.path(),
         Box::new(DevFallbackCustody::new(root_id)),
@@ -1113,6 +1151,39 @@ fn delete_all_unlinks_a_store_key_that_is_a_link_and_writes_nothing_through_it()
     );
 }
 
+#[derive(Default)]
+struct LargestWrite {
+    largest: usize,
+    total: u64,
+}
+
+impl Write for LargestWrite {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.largest = self.largest.max(buf.len());
+        self.total += buf.len() as u64;
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn a_segment_read_hands_its_sink_at_most_one_chunk_at_a_time() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let plaintext = vec![0x5au8; CHUNK * 4 + 17];
+    let (segment, _) = store.write_segment(&mut Cursor::new(&plaintext)).unwrap();
+    let mut sink = LargestWrite::default();
+    store.read_segment(segment.segment_id, &mut sink).unwrap();
+    assert_eq!(sink.total, plaintext.len() as u64);
+    assert!(
+        sink.largest <= CHUNK,
+        "a read handed its sink {} bytes at once, more than one chunk of {CHUNK}",
+        sink.largest
+    );
+}
+
 #[test]
 fn keyless_segment_files_and_stray_temp_files_are_removed_by_the_next_pass() {
     let dir = tempfile::tempdir().unwrap();
@@ -1167,6 +1238,7 @@ fn a_wrong_store_key_opens_as_database_unreadable_and_a_shredded_segment_reads_a
 
     let other = tempfile::tempdir().unwrap();
     let other_root = RootId::fresh();
+    let _other_root_guard = RootGuard::new(other_root);
     drop(
         EncryptedStore::create(
             other.path(),
@@ -1595,6 +1667,7 @@ fn peak_rss_stays_bounded_for_a_512_mib_segment() {
 fn a_dropped_store_releases_the_writer_lock_while_a_duplicate_of_its_descriptor_stays_open() {
     let dir = tempfile::tempdir().unwrap();
     let root_id = RootId::fresh();
+    let _root_id_guard = RootGuard::new(root_id);
     let store = EncryptedStore::create(
         dir.path(),
         Box::new(DevFallbackCustody::new(root_id)),
@@ -1626,6 +1699,7 @@ fn no_open_is_refused_as_locked_while_other_threads_spawn_children() {
 
     let dir = tempfile::tempdir().unwrap();
     let root_id = RootId::fresh();
+    let _root_id_guard = RootGuard::new(root_id);
     drop(
         EncryptedStore::create(
             dir.path(),
@@ -2995,6 +3069,7 @@ fn a_dropped_store_key_leaves_zeros_in_its_heap_block() {
 
     let dir = tempfile::tempdir().unwrap();
     let root_id = RootId::fresh();
+    let _root_id_guard = RootGuard::new(root_id);
     let store = EncryptedStore::create(
         dir.path(),
         Box::new(DevFallbackCustody::new(root_id)),
@@ -3019,6 +3094,7 @@ fn a_dropped_store_key_leaves_zeros_in_its_heap_block() {
 fn no_file_of_a_dropped_store_holds_its_raw_store_key() {
     let dir = tempfile::tempdir().unwrap();
     let root_id = RootId::fresh();
+    let _root_id_guard = RootGuard::new(root_id);
     let mut store = EncryptedStore::create(
         dir.path(),
         Box::new(DevFallbackCustody::new(root_id)),
@@ -3155,6 +3231,7 @@ fn a_create_never_takes_the_root_of_another_store() {
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     {
         let root_id = RootId::fresh();
+        let _root_id_guard = RootGuard::new(root_id);
         a_second_create_with_one_root_id_fails_and_leaves_the_first_store_readable(&|| {
             Box::new(DevFallbackCustody::new(root_id))
         });

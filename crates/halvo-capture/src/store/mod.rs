@@ -3,6 +3,14 @@
 pub mod db;
 pub(crate) mod durable;
 pub mod expiry;
+#[cfg(test)]
+pub(crate) mod failpoint;
+#[cfg(not(test))]
+pub(crate) mod failpoint {
+    pub(crate) fn hit(_name: &'static str) -> super::StoreResult<()> {
+        Ok(())
+    }
+}
 pub mod segment;
 pub mod verify;
 
@@ -13,6 +21,9 @@ mod hardening_tests;
 #[cfg(test)]
 #[path = "test_support/pages.rs"]
 pub(crate) mod pages;
+#[cfg(test)]
+#[path = "test_support/roots.rs"]
+pub(crate) mod roots;
 
 use std::io::Read;
 use std::path::PathBuf;
