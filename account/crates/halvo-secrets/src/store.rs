@@ -1,4 +1,6 @@
 use crate::answer::{Delete, Read, StoreKind, Write};
+#[cfg(feature = "keychain")]
+use crate::keychain::{system::SystemKeychain, KeychainItem};
 use crate::place::{Item, Plain, Rules};
 use crate::unix::UnixFs;
 use crate::{Directory, Name, Secret};
@@ -14,14 +16,30 @@ pub struct Store {
 
 enum Place {
     File(Item<UnixFs, Plain>),
+    #[cfg(feature = "keychain")]
+    Keychain(KeychainItem<SystemKeychain>),
 }
 
 impl Store {
     /// The store that this build keeps the secret `name` in: the file `name` in `dir`, or
     /// with the feature `keychain` the Keychain item of `service` and `name`.
     pub fn new(dir: Directory, service: Name, name: Name) -> Store {
-        let _ = service;
-        Store::file(dir, name)
+        #[cfg(feature = "keychain")]
+        {
+            let _ = dir;
+            Store {
+                place: Place::Keychain(KeychainItem {
+                    keychain: SystemKeychain,
+                    service,
+                    account: name,
+                }),
+            }
+        }
+        #[cfg(not(feature = "keychain"))]
+        {
+            let _ = service;
+            Store::file(dir, name)
+        }
     }
 
     /// Debug builds only: the file `name` in `dir`, whatever the features, so that a gate
@@ -31,6 +49,7 @@ impl Store {
         Store::file(dir, name)
     }
 
+    #[cfg_attr(feature = "keychain", allow(dead_code))]
     fn file(dir: Directory, name: Name) -> Store {
         Store {
             place: Place::File(Item {
@@ -47,6 +66,8 @@ impl Store {
     pub fn kind(&self) -> StoreKind {
         match &self.place {
             Place::File(_) => StoreKind::File,
+            #[cfg(feature = "keychain")]
+            Place::Keychain(_) => StoreKind::Keychain,
         }
     }
 
@@ -54,6 +75,8 @@ impl Store {
     pub fn read(&self) -> Read {
         match &self.place {
             Place::File(item) => item.read(),
+            #[cfg(feature = "keychain")]
+            Place::Keychain(item) => item.read(),
         }
     }
 
@@ -61,6 +84,8 @@ impl Store {
     pub fn write(&self, secret: &Secret) -> Write {
         match &self.place {
             Place::File(item) => item.write(secret),
+            #[cfg(feature = "keychain")]
+            Place::Keychain(item) => item.write(secret),
         }
     }
 
@@ -68,6 +93,8 @@ impl Store {
     pub fn delete(&self) -> Delete {
         match &self.place {
             Place::File(item) => item.delete(),
+            #[cfg(feature = "keychain")]
+            Place::Keychain(item) => item.delete(),
         }
     }
 }

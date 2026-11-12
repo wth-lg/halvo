@@ -6,4 +6,7 @@ edition = "2021"
 publish = false
 
 [features]
-keychain = []
+keychain = ["dep:security-framework"]
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = { version = "=3.7.0", default-features = false, optional = true }
