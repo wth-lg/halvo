@@ -1670,6 +1670,7 @@ mod driver {
         let_through: bool,
         channel: Channel,
         relay: bool,
+        round2: bool,
     }
 
     fn child_args(argv: &[String]) -> Result<ChildArgs, String> {
@@ -1681,6 +1682,7 @@ mod driver {
         let mut let_through = None;
         let mut channel = None;
         let mut relay = None;
+        let mut round2 = false;
         let mut i = 0;
         while i < argv.len() {
             let value = argv
@@ -1695,6 +1697,7 @@ mod driver {
                 "--allow" => allow.push(value),
                 "--let-through" => let_through = Some(value == "yes"),
                 "--relay" => relay = Some(value == "yes"),
+                "--round2" => round2 = value == "yes",
                 "--channel" => {
                     channel = Some(match value.as_str() {
                         "pipe" => Channel::Pipe,
@@ -1715,6 +1718,7 @@ mod driver {
             let_through: let_through.ok_or("--let-through is required")?,
             channel: channel.ok_or("--channel is required")?,
             relay: relay.ok_or("--relay is required")?,
+            round2,
         })
     }
 
@@ -1750,6 +1754,13 @@ mod driver {
             match rt.block_on(Relay::start()) {
                 Ok(r) => {
                     flags.extend(relay_flags(r.port));
+                    if a.round2 {
+                        let list: Vec<HostPort> = [&a.page, &a.target]
+                            .iter()
+                            .filter_map(|u| r3_web::cdp::host_port(&r3_web::cdp::split_url(u).0))
+                            .collect();
+                        r.handle().set_list(Some(list));
+                    }
                     Some(r)
                 }
                 Err(e) => {
@@ -1760,6 +1771,9 @@ mod driver {
         } else {
             None
         };
+        if a.round2 {
+            flags.extend(ROUND2_FLAGS.iter().map(|f| f.to_string()));
+        }
         let code = match a.channel {
             Channel::Port => rt.block_on(port_child(&a, flags)),
             Channel::Pipe => pipe_child(&a, flags),
@@ -1776,7 +1790,12 @@ mod driver {
             flags,
             debug_port: None,
         };
-        let mut ex = match Executor::start(&opts).await {
+        let started = if a.round2 {
+            Executor::start_settled(&opts).await
+        } else {
+            Executor::start(&opts).await
+        };
+        let mut ex = match started {
             Ok(ex) => ex,
             Err(f) => {
                 eprintln!("driver start cause={} detail={}", f.0, printable(&f.1));
@@ -1833,6 +1852,10 @@ mod driver {
         let temp = PathBuf::from(temp);
         if std::fs::create_dir(&a.profile).is_err() || std::fs::create_dir(&temp).is_err() {
             eprintln!("driver pipe dirs");
+            return ExitCode::from(1);
+        }
+        if a.round2 && r3_web::cdp::write_agent_settings(&a.profile).is_err() {
+            eprintln!("driver pipe settings");
             return ExitCode::from(1);
         }
         flags.push("--headless=new".into());
@@ -2065,7 +2088,9 @@ mod driver {
                 "port"
             })
             .arg("--relay")
-            .arg(if form.relay { "yes" } else { "no" });
+            .arg(if form.relay { "yes" } else { "no" })
+            .arg("--round2")
+            .arg(if ctx.round2 { "yes" } else { "no" });
         for a in &allow {
             cmd.arg("--allow").arg(a);
         }
@@ -2237,6 +2262,12 @@ mod driver {
         } else {
             String::new()
         };
+        out(&format!(
+            "kill machine={} form={} kills={runs} arrived={}",
+            ctx.machine,
+            name.trim_start_matches("driver_killed_"),
+            runs - ok
+        ));
         out(&format!(
             "cell {head} major={major} step={name} ok={ok} of={runs} median_ms={}{miss_bytes}",
             median(&mut gone)

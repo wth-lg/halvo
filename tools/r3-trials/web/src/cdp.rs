@@ -35,6 +35,7 @@ use tokio::task::JoinHandle;
 mod session;
 mod wire;
 pub use session::{cookie_param, domain_matches, host_of, OriginStorage, SessionState, Stopped};
+pub use wire::host_port;
 
 pub const STEP_TIMEOUT: Duration = Duration::from_secs(15);
 const POLL: Duration = Duration::from_millis(50);
@@ -203,6 +204,12 @@ fn start_failed(opts: &StartOptions, e: CdpError) -> Fault {
         "browser_start",
         format!("stderr_kept_bytes_{}", stderr.len()),
     )
+}
+
+/// Writes the agent's settings of U0.7b into a new profile directory: `Local State` and
+/// `Default/Preferences` (`crate::AGENT_LOCAL_STATE`, `crate::AGENT_PREFERENCES`).
+pub fn write_agent_settings(profile: &Path) -> Res<()> {
+    write_settings(profile)
 }
 
 fn write_settings(profile: &Path) -> Res<()> {
