@@ -26,11 +26,18 @@ measure() {
   cd "$CI_D_REPO" || exit 2
   cargo test --workspace --locked --no-run || fail "the test build failed: cargo test --no-run exited $?"
   scratch=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/$name.XXXXXX") || fail "mktemp failed"
+  output=$(mktemp -d "${TMPDIR:-/tmp}/$name-output.XXXXXX") || fail "mktemp failed"
   keychain_items before
-  TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo test --workspace --locked
-  code=$?
+  {
+    TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo test --workspace --locked 2>&1
+    printf '%s\n' "$?" >"$output/code"
+  } | tee "$output/cargo-test.txt"
+  code=
+  [ ! -s "$output/code" ] || read -r code <"$output/code"
   keychain_items after
-  [ "$code" -eq 0 ] || fail "cargo test exited $code"
+  tr -d '\r' <"$output/cargo-test.txt" | grep -E '^ *(Running|Doc-tests) |^test .* \.\.\. (ok|FAILED|ignored)' >"$CI_D_ARTIFACTS/tests.txt" ||
+    fail "the list of the tests that cargo test ran cannot be written to its artifacts directory"
+  [ "$code" = 0 ] || fail "cargo test exited ${code:-without a status}"
 
   left=$(ls -A "$scratch") || fail "the temp directory of the test run cannot be listed"
   total=0
