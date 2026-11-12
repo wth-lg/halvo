@@ -122,6 +122,34 @@ fn reap_answers_alive_for_a_runner_that_lives_and_cannot_be_ended_and_keeps_its_
     assert!(rig.mark(&run).is_some_and(|m| m.is_complete()));
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+fn a_line_whose_process_is_no_longer_in_the_line_group_gets_no_signal_to_that_group() {
+    let rig = Rig::new("reap-line-left-group");
+    let (s, s_created) = sleeper("browser", true);
+    let (b, b_created) = sleeper("browser", true);
+    let (sp, bp) = (s.0.id(), b.0.id());
+    let run = common::run_id();
+    write_mark(
+        &rig,
+        &run,
+        &[
+            ("runner", line(sp, later(s_created, 1), sp)),
+            ("browser", line(bp, b_created, sp)),
+        ],
+    );
+    let answers = rig.sup.reap().unwrap();
+    assert_eq!(answers.len(), 1);
+    assert_eq!(answers[0].answer, Reaped::Gone);
+    std::thread::sleep(Duration::from_millis(300));
+    assert!(
+        process::is_running(sp, s_created),
+        "the group of another process was signalled"
+    );
+    assert!(process::is_running(bp, b_created));
+    drop((s, b));
+}
+
 #[test]
 fn a_group_whose_leader_number_another_process_has_taken_gets_no_signal() {
     let rig = Rig::new("reap-reused");
