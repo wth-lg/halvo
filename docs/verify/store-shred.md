@@ -1049,7 +1049,7 @@ takes the lock 1,000,000 times from five threads while another thread
 unlinks the file every 1 ms. Without the retry 7 takes answered
 `Io(NotFound)`, the first at take 182,838; with it, none. Check 2 alone:
 4 failed runs in 376 before the fix, none in 300 after it, at a 1-minute
-load of 46 to 95. The row `lock-file-open-not-retried` of
+load of 41 to 95. The row `lock-file-open-not-retried` of
 `store/mutants.rows` takes the retry out, and that test then fails. On
 Windows a delete of the name while a holder keeps it open leaves it
 delete-pending, and the open answers access denied, not "no such file", so
