@@ -179,6 +179,30 @@ impl Listener {
         parse_host_counts(&line).ok_or_else(|| "answer form".to_string())
     }
 
+    /// Starts `ws-listener.mjs`, the listener of the row `ws_allowed`, with the certificate and
+    /// the key of its two TLS listeners.
+    pub fn start_ws(program: &Path, cert: &Path, key: &Path) -> Result<Listener, String> {
+        Listener::spawn(
+            program,
+            &[
+                "--cert".as_ref(),
+                cert.as_os_str(),
+                "--key".as_ref(),
+                key.as_os_str(),
+            ],
+        )
+    }
+
+    /// Asks a listener whose count line is `count <json>` for it and waits at most `ANSWER_WAIT`.
+    pub fn json_counts(&mut self) -> Result<serde_json::Value, String> {
+        let line = self.count_line()?;
+        let rest = line
+            .trim()
+            .strip_prefix("count ")
+            .ok_or_else(|| "answer form".to_string())?;
+        serde_json::from_str(rest).map_err(|_| "answer form".to_string())
+    }
+
     /// Starts `record-listener.mjs` for the request path `path`.
     pub fn start_record(program: &Path, path: &str) -> Result<Listener, String> {
         Listener::spawn(program, &["--path".as_ref(), path.as_ref()])

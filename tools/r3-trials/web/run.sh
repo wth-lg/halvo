@@ -57,6 +57,9 @@ starts the browser headless with a new profile for every run, and stops both at 
   --rows relay      with --round 2, runs the rows of the relay's list: list_refuse, list_hops,
                     list_close and own_traffic (tools/r3-trials/web/chain-listener.mjs serves the
                     hops).
+  --rows ways       with --round 2, runs the recorded rows of U0.7b that the program holds:
+                    ws_allowed with its control (tools/r3-trials/web/ws-listener.mjs is the
+                    listener) and frame_doc on the port with the relay.
   --relay           runs the cells with the relay of ruling CP-24 in the trial program's own
                     process: every browser gets it as its only route, with the flags that the
                     README names.
@@ -160,7 +163,14 @@ case "$rows" in
       *) refuse usage "--step with --rows relay takes one of list_refuse, list_hops, list_close and own_traffic" ;;
     esac
     ;;
-  *) refuse usage "--rows takes isolation, driver or relay" ;;
+  ways)
+    [ "$round" = 2 ] || refuse usage "--rows ways belongs to --round 2"
+    case "$step" in
+      '' | ws_allowed | ws_allowed_control | frame_doc) ;;
+      *) refuse usage "--step with --rows ways takes one of ws_allowed, ws_allowed_control and frame_doc" ;;
+    esac
+    ;;
+  *) refuse usage "--rows takes isolation, driver, relay or ways" ;;
 esac
 case "$fault" in
   '') ;;
@@ -241,6 +251,7 @@ case "$mode" in
     [ -n "$relay" ] && set -- "$@" --relay
     [ -n "$routes" ] && set -- "$@" --routes
     [ "$rows" = relay ] && set -- "$@" --rows relay
+    [ "$rows" = ways ] && set -- "$@" --rows ways
     [ -n "$round" ] && set -- "$@" --round "$round"
     ;;
   extras)

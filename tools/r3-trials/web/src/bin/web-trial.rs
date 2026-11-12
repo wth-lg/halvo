@@ -3,7 +3,9 @@ use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use r3_web::{browser_kind, CANDIDATE, DRIVER_STEPS, ISOLATION_STEPS, RELAY_STEPS, STEPS};
+use r3_web::{
+    browser_kind, CANDIDATE, DRIVER_STEPS, ISOLATION_STEPS, RELAY_STEPS, STEPS, WAY_STEPS,
+};
 
 #[derive(Default)]
 struct Args {
@@ -14,6 +16,7 @@ struct Args {
     isolation: bool,
     driver: bool,
     relay_rows: bool,
+    way_rows: bool,
     round2: bool,
     add_flags: Vec<String>,
     machine: Option<String>,
@@ -82,7 +85,8 @@ fn parse(argv: &[String]) -> Result<Args, String> {
                 "isolation" => a.isolation = true,
                 "driver" => a.driver = true,
                 "relay" => a.relay_rows = true,
-                _ => return Err("--rows takes isolation, driver or relay".into()),
+                "ways" => a.way_rows = true,
+                _ => return Err("--rows takes isolation, driver, relay or ways".into()),
             },
             "--add-flag" => a.add_flags.push(take()?),
             "--machine" => {
@@ -135,7 +139,9 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     if a.fault.is_some() && a.mode != Mode::Cells {
         return Err("--fault runs cells only".into());
     }
-    let rows: &[&str] = if a.relay_rows {
+    let rows: &[&str] = if a.way_rows {
+        &WAY_STEPS
+    } else if a.relay_rows {
         &RELAY_STEPS
     } else if a.driver {
         &DRIVER_STEPS
@@ -152,10 +158,10 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     if (a.isolation || a.driver) && (a.mode != Mode::Cells || a.fault.is_some()) {
         return Err("--rows isolation and --rows driver run cells with no fault".into());
     }
-    if (a.round2 || a.relay_rows) && !a.relay && !a.driver {
+    if (a.round2 || a.relay_rows || a.way_rows) && !a.relay && !a.driver {
         return Err("--round 2 and --rows relay need --relay".into());
     }
-    if a.relay_rows && !a.round2 {
+    if (a.relay_rows || a.way_rows) && !a.round2 {
         return Err("--rows relay belongs to --round 2".into());
     }
     if !a.isolation && !a.add_flags.is_empty() {
@@ -247,7 +253,7 @@ mod driver {
     use r3_web::tls::{make_certificate, openssl_runs, CertFault, Listener};
     use r3_web::{
         extract_amount, major_of, median, variants_of, CANDIDATE, FIRST_FLAGS, ISOLATION_STEPS,
-        RELAY_STEPS, RESOLVER_RULE, ROUND2_FLAGS, STEPS,
+        RELAY_STEPS, RESOLVER_RULE, ROUND2_FLAGS, STEPS, WAY_STEPS, WS_POLICY,
     };
 
     use super::{out, Args, Mode};
@@ -1124,6 +1130,146 @@ mod driver {
         outcome(misses, None)
     }
 
+    async fn ws_allowed_run(
+        ex: &mut Executor,
+        ctx: &Ctx,
+        i: u32,
+        policy: bool,
+    ) -> Res<serde_json::Value> {
+        let relay = relay_of(ctx)?;
+        let dir = ctx.scratch.join(format!(
+            "{}-ws-{}-{i}",
+            std::process::id(),
+            if policy { "policy" } else { "control" }
+        ));
+        let (cert, key) = make_certificate(&dir).map_err(|e| match e {
+            CertFault::NoOpenssl => Fault::new("openssl", "no openssl"),
+            CertFault::Failed(d) => Fault::new("certificate", d),
+        })?;
+        let program = ctx.repo.join("tools/r3-trials/web/ws-listener.mjs");
+        let mut listener =
+            Listener::start_ws(&program, &cert, &key).map_err(|e| Fault::new("listener", e))?;
+        let first = listener
+            .json_counts()
+            .map_err(|e| Fault::new("listener", e))?;
+        let port = |k: &str| first["ports"][k].as_u64().unwrap_or(0) as u16;
+        let (p, q, r) = (port("http"), port("wss"), port("https"));
+        for pt in [p, q, r] {
+            relay.allow(UTILITY, pt);
+        }
+        let allowed = vec![
+            format!("http://{UTILITY}:{p}"),
+            format!("https://{UTILITY}:{r}"),
+        ];
+        if policy {
+            ex.arm_rule_with_policy(allowed, false, WS_POLICY).await?;
+        } else {
+            ex.arm_rule(allowed, false).await?;
+        }
+        let opened = ex.open(&format!("http://{UTILITY}:{p}/page")).await;
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        let counts = listener
+            .json_counts()
+            .map_err(|e| Fault::new("listener", e));
+        listener.stop();
+        opened?;
+        let mut c = counts?;
+        c["policy_counts"] = serde_json::to_value(ex.policy_counts()).unwrap_or_default();
+        Ok(c)
+    }
+
+    const WS_CONTEXTS: [&str; 7] = [
+        "page",
+        "frame",
+        "worker",
+        "shared",
+        "blank",
+        "dataframe",
+        "blobworker",
+    ];
+
+    fn ctx_count(c: &serde_json::Value, map: &str, ctx: &str) -> u64 {
+        c[map][ctx].as_u64().unwrap_or(0)
+    }
+
+    async fn ws_allowed(ex: &mut Executor, ctx: &Ctx, i: u32) -> Res<Option<u128>> {
+        let c = ws_allowed_run(ex, ctx, i, true).await?;
+        let mut misses = Vec::new();
+        for k in WS_CONTEXTS {
+            if ctx_count(&c, "ws", k) > 0 {
+                misses.push(format!("ws_{k}"));
+            }
+            if ctx_count(&c, "f", k) == 0 {
+                misses.push(format!("fetch_{k}"));
+            }
+            if ctx_count(&c, "r", k) == 0 {
+                misses.push(format!("data_blob_{k}"));
+            }
+        }
+        let wss = c["wss_connections"].as_u64().unwrap_or(0);
+        let https = c["https_connections"].as_u64().unwrap_or(0);
+        if wss > 0 {
+            misses.push("wss".to_string());
+        }
+        if https < WS_CONTEXTS.len() as u64 {
+            misses.push("https_fetch".to_string());
+        }
+        eprintln!(
+            "ws_allowed i={i} ws={} fetch={} data_blob={} wss_connections={wss} https_connections={https} policy={}",
+            c["ws"],
+            c["f"],
+            c["r"],
+            c["policy_counts"]
+        );
+        outcome(misses, None)
+    }
+
+    async fn ws_allowed_control(ex: &mut Executor, ctx: &Ctx, i: u32) -> Res<Option<u128>> {
+        let c = ws_allowed_run(ex, ctx, i, false).await?;
+        let arrived = WS_CONTEXTS
+            .iter()
+            .filter(|k| ctx_count(&c, "ws", k) > 0)
+            .count();
+        let wss = c["wss_connections"].as_u64().unwrap_or(0);
+        eprintln!(
+            "ws_allowed_control i={i} ws={} fetch={} wss_connections={wss}",
+            c["ws"], c["f"]
+        );
+        if arrived == WS_CONTEXTS.len() && wss > 0 {
+            Ok(None)
+        } else {
+            Err(Fault::new("check", format!("arrived_{arrived}_wss_{wss}")))
+        }
+    }
+
+    async fn frame_doc(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        signin(ex, ctx).await?;
+        let u = origin(UTILITY, ctx.port);
+        ex.arm_rule(vec![u.clone(), origin(PAY, ctx.port)], false)
+            .await?;
+        ex.open(&ctx.u("/pay")).await?;
+        let doc = ex
+            .paused()
+            .into_iter()
+            .find(|p| p.path == "/frame" && p.resource == "Document");
+        let Some(doc) = doc else {
+            return Err(Fault::new("check", "no_frame_document"));
+        };
+        let main = ex.main_frame().await?;
+        let mut misses = Vec::new();
+        if doc.frame == *main.inner() {
+            misses.push("frame_is_main".to_string());
+        }
+        match ex.parent_origin_of(&doc.frame).await? {
+            Some(o) if o == u => {}
+            _ => misses.push("page_origin".to_string()),
+        }
+        if doc.origin != origin(PAY, ctx.port) {
+            misses.push("frame_origin".to_string());
+        }
+        outcome(misses, None)
+    }
+
     async fn step(ex: &mut Executor, ctx: &Ctx, name: &str, i: u32) -> Res<Option<u128>> {
         let whole = |r: Res<()>| r.map(|_| None);
         match name {
@@ -1146,6 +1292,9 @@ mod driver {
             "list_hops" => list_hops(ex, ctx).await,
             "list_close" => list_close(ex, ctx).await,
             "own_traffic" => own_traffic(ex, ctx).await,
+            "ws_allowed" => ws_allowed(ex, ctx, i).await,
+            "ws_allowed_control" => ws_allowed_control(ex, ctx, i).await,
+            "frame_doc" => frame_doc(ex, ctx).await,
             _ => Err(Fault::new("usage", name.to_string())),
         }
     }
@@ -1375,12 +1524,28 @@ mod driver {
                         .join(",")
                 ));
             }
-            if *name == "own_traffic" {
+            if *name == "own_traffic" || *name == "ws_allowed" {
                 out(&format!(
-                    "way row=own_traffic machine={} browser={} closed={} runs={runs}",
+                    "way row={name} machine={} browser={} closed={} runs={runs}",
                     ctx.machine,
                     ctx.kind,
                     if ok == runs { "yes" } else { "no" }
+                ));
+                continue;
+            }
+            if *name == "frame_doc" {
+                out(&format!(
+                    "way row=frame_doc form=port_relay machine={} browser={} closed={} runs={runs} told={ok}",
+                    ctx.machine,
+                    ctx.kind,
+                    if ok == runs { "yes" } else { "no" }
+                ));
+                continue;
+            }
+            if *name == "ws_allowed_control" {
+                out(&format!(
+                    "control row=ws_allowed machine={} browser={} arrived_runs={ok} runs={runs}",
+                    ctx.machine, ctx.kind
                 ));
                 continue;
             }
@@ -2392,7 +2557,9 @@ mod driver {
             server.pid(),
             FIRST_FLAGS.len(),
             ctx.added_flags.len(),
-            if args.relay_rows {
+            if args.way_rows {
+                "ways"
+            } else if args.relay_rows {
                 "relay"
             } else if args.driver {
                 "driver"
@@ -2415,6 +2582,7 @@ mod driver {
             Mode::Cells => {
                 let steps: Vec<&str> = match &args.step {
                     Some(s) => vec![s.as_str()],
+                    None if args.way_rows => WAY_STEPS.to_vec(),
                     None if args.relay_rows => RELAY_STEPS.to_vec(),
                     None if args.isolation => ISOLATION_STEPS.to_vec(),
                     None => STEPS.to_vec(),

@@ -1253,8 +1253,36 @@ impl Executor {
                 allowed: allowed_origins,
                 state_changing,
                 hold: false,
+                policy: None,
             })
             .await
+    }
+
+    /// Arms the rule as `arm_rule` does, and with it a policy that the executor adds to the
+    /// response of every document and every script of every target, as a header line of its own:
+    /// a document is answered by fulfilment with its own status, headers and body and the line,
+    /// and a script, a worker's script among them, goes on with the line added. The site's own
+    /// policy stays. `policy_counts` tells how often each was done.
+    pub async fn arm_rule_with_policy(
+        &mut self,
+        allowed_origins: Vec<String>,
+        state_changing: bool,
+        policy: &str,
+    ) -> Res<()> {
+        self.wire
+            .arm_rule(wire::Rule {
+                allowed: allowed_origins,
+                state_changing,
+                hold: false,
+                policy: Some(policy.to_string()),
+            })
+            .await
+    }
+
+    /// How often the policy was added: by fulfilment (`fulfilled`), on a response that went on
+    /// (`continued`), and the failures of each.
+    pub fn policy_counts(&self) -> std::collections::BTreeMap<String, u64> {
+        self.wire.policy_counts()
     }
 
     /// For the trial of a driver that dies while a request is paused (U0.7, CP-22), and no
@@ -1266,6 +1294,7 @@ impl Executor {
                 allowed: allowed_origins,
                 state_changing: false,
                 hold: true,
+                policy: None,
             })
             .await
     }
@@ -1275,6 +1304,23 @@ impl Executor {
     /// first navigation to the relay's list this way (A11.1). `None` takes the hook away.
     pub fn on_main_document(&self, hook: Option<wire::Hook>) {
         self.wire.set_main_document_hook(hook);
+    }
+
+    /// The security origin of the frame that holds the frame `frame`, as the page's frame tree
+    /// gives it; `None` when the frame is not in the tree of the executor's page or has no parent.
+    pub async fn parent_origin_of(&self, frame: &str) -> Res<Option<String>> {
+        fn walk(t: &FrameTree, frame: &str) -> Option<String> {
+            for c in t.child_frames.iter().flatten() {
+                if c.frame.id.inner() == frame {
+                    return Some(t.frame.security_origin.clone());
+                }
+                if let Some(o) = walk(c, frame) {
+                    return Some(o);
+                }
+            }
+            None
+        }
+        Ok(walk(&self.frame_tree().await?, frame))
     }
 
     /// The WebSocket address of the browser's debugging channel.

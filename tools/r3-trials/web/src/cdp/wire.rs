@@ -2,8 +2,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use chromiumoxide::cdp::browser_protocol::fetch::{
-    ContinueRequestParams, EnableParams as FetchEnableParams, EventRequestPaused,
-    FailRequestParams, RequestPattern, RequestStage,
+    ContinueRequestParams, ContinueResponseParams, EnableParams as FetchEnableParams,
+    EventRequestPaused, FailRequestParams, FulfillRequestParams, GetResponseBodyParams,
+    HeaderEntry, RequestPattern, RequestStage,
 };
 use chromiumoxide::cdp::browser_protocol::network::{ErrorReason, ResourceType};
 use chromiumoxide::cdp::browser_protocol::target::{
@@ -33,6 +34,7 @@ pub(crate) struct Rule {
     pub allowed: Vec<String>,
     pub state_changing: bool,
     pub hold: bool,
+    pub policy: Option<String>,
 }
 
 impl Rule {
@@ -55,6 +57,7 @@ pub(crate) struct Book {
     pub paused: Vec<PausedRequest>,
     pub answered: HashSet<String>,
     pub on_main_document: Option<Hook>,
+    pub policy_counts: std::collections::BTreeMap<String, u64>,
 }
 
 struct Order {
@@ -107,15 +110,29 @@ fn must_arm(kind: &str) -> bool {
     matches!(kind, "page" | "iframe")
 }
 
-fn intercept_all() -> FetchEnableParams {
-    FetchEnableParams::builder()
-        .pattern(
-            RequestPattern::builder()
-                .url_pattern("*")
-                .request_stage(RequestStage::Request)
-                .build(),
-        )
-        .build()
+fn intercept_all(policy: bool) -> FetchEnableParams {
+    let mut b = FetchEnableParams::builder().pattern(
+        RequestPattern::builder()
+            .url_pattern("*")
+            .request_stage(RequestStage::Request)
+            .build(),
+    );
+    if policy {
+        for kind in [
+            ResourceType::Document,
+            ResourceType::Script,
+            ResourceType::Other,
+        ] {
+            b = b.pattern(
+                RequestPattern::builder()
+                    .url_pattern("*")
+                    .resource_type(kind)
+                    .request_stage(RequestStage::Response)
+                    .build(),
+            );
+        }
+    }
+    b.build()
 }
 
 impl Wire {
@@ -207,7 +224,8 @@ impl Wire {
     }
 
     async fn arm(&self, session: &str, kind: &str) -> Res<()> {
-        match self.call(Some(session), intercept_all()).await {
+        let policy = self.rule().map(|r| r.policy.is_some()).unwrap_or(false);
+        match self.call(Some(session), intercept_all(policy)).await {
             Ok(_) => Ok(()),
             Err(f) if must_arm(kind) => Err(f),
             Err(f) => {
@@ -235,7 +253,8 @@ impl Wire {
                 .map(|(s, a)| (s.clone(), a.kind.clone()))
                 .collect()
         };
-        self.call(None, intercept_all())
+        let policy = self.rule().map(|r| r.policy.is_some()).unwrap_or(false);
+        self.call(None, intercept_all(policy))
             .await
             .map_err(|f| Fault::new("rule", format!("kind=browser {}", f.1)))?;
         for (session, kind) in sessions {
@@ -287,7 +306,67 @@ impl Wire {
         }
     }
 
+    async fn respond(&self, session: Option<String>, ev: EventRequestPaused, code: i64) {
+        let policy = self.rule().and_then(|r| r.policy);
+        let mut headers = ev.response_headers.clone().unwrap_or_default();
+        if let Some(p) = &policy {
+            headers.push(HeaderEntry::new("Content-Security-Policy", p.clone()));
+        }
+        let id = ev.request_id.clone();
+        if matches!(ev.resource_type, ResourceType::Document) {
+            if let Ok(b) = self
+                .call(session.as_deref(), GetResponseBodyParams::new(id.clone()))
+                .await
+            {
+                use base64::Engine;
+                let body = if b.base64_encoded {
+                    b.body
+                } else {
+                    base64::engine::general_purpose::STANDARD.encode(b.body.as_bytes())
+                };
+                let fulfil = FulfillRequestParams::builder()
+                    .request_id(id.clone())
+                    .response_code(code)
+                    .response_headers(headers.clone())
+                    .body(body)
+                    .build();
+                if let Ok(f) = fulfil {
+                    if self.call(session.as_deref(), f).await.is_ok() {
+                        self.count_policy("fulfilled");
+                        return;
+                    }
+                }
+            }
+            self.count_policy("document_not_fulfilled");
+        }
+        let mut cont = ContinueResponseParams::new(id);
+        cont.response_code = Some(code);
+        cont.response_headers = Some(headers);
+        if self.call(session.as_deref(), cont).await.is_ok() {
+            self.count_policy("continued");
+        } else {
+            self.count_policy("not_continued");
+        }
+    }
+
+    fn count_policy(&self, what: &str) {
+        if let Ok(mut b) = self.book.lock() {
+            *b.policy_counts.entry(what.to_string()).or_insert(0) += 1;
+        }
+    }
+
+    pub(crate) fn policy_counts(&self) -> std::collections::BTreeMap<String, u64> {
+        self.book
+            .lock()
+            .map(|b| b.policy_counts.clone())
+            .unwrap_or_default()
+    }
+
     async fn decide(&self, session: Option<String>, ev: EventRequestPaused) {
+        if let Some(code) = ev.response_status_code {
+            self.respond(session, ev, code).await;
+            return;
+        }
         let method = ev.request.method.clone();
         let (origin, path) = split_url(&ev.request.url);
         let (body, body_complete) = body_of(&ev.request);
@@ -465,6 +544,7 @@ mod tests {
             allowed: vec!["http://utility.agent.test:18190".into()],
             state_changing: false,
             hold: false,
+            policy: None,
         };
         assert!(rule.lets_through("GET", "http://utility.agent.test:18190"));
         assert!(rule.lets_through("HEAD", "http://utility.agent.test:18190"));

@@ -46,6 +46,13 @@ pub const DRIVER_STEPS: [&str; 4] = [
 /// decide and `own_traffic`, which is recorded.
 pub const RELAY_STEPS: [&str; 4] = ["list_refuse", "list_hops", "list_close", "own_traffic"];
 
+/// The recorded rows of U0.7b (A13.7) that `--rows ways --round 2` runs: `ws_allowed` with its
+/// control, which shows that the row can fail, and `frame_doc` on the port with the relay.
+pub const WAY_STEPS: [&str; 3] = ["ws_allowed", "ws_allowed_control", "frame_doc"];
+
+/// The policy of A4.2 that the executor adds to every document and worker script (CP-67).
+pub const WS_POLICY: &str = "connect-src http: https: data: blob:";
+
 /// The one start flag that the rows of A13.7 add: it puts the payment frame of the fixture on
 /// `port` into a process of its own.
 pub fn isolate_flag(port: u16) -> String {
