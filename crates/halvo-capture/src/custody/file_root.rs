@@ -27,12 +27,14 @@ fn root_io(e: std::io::Error) -> CustodyError {
 }
 
 fn write_complete(partial: &Path, path: &Path, blob: &[u8]) -> Result<(), CustodyError> {
-    let written = std::fs::File::create(partial)
-        .and_then(|mut file| {
-            file.write_all(blob)?;
-            file.sync_all()
-        })
-        .and_then(|()| std::fs::rename(partial, path));
+    let mut file = std::fs::File::options()
+        .write(true)
+        .create_new(true)
+        .open(partial)
+        .map_err(root_io)?;
+    let written = file.write_all(blob).and_then(|()| file.sync_all());
+    drop(file);
+    let written = written.and_then(|()| std::fs::rename(partial, path));
     match written {
         Ok(()) => Ok(()),
         Err(e) => match scrub_and_remove(partial) {
@@ -391,6 +393,33 @@ mod tests {
         assert!(
             !roots.path(root_id).with_extension(PARTIAL_EXT).exists(),
             "a failed root write left its partial file"
+        );
+    }
+
+    #[test]
+    fn a_root_write_leaves_alone_a_partial_root_file_that_another_writer_holds() {
+        let dir = tempfile::tempdir().unwrap();
+        let roots = roots(dir.path());
+        let root_id = RootId::fresh();
+        let partial = roots.path(root_id).with_extension(PARTIAL_EXT);
+        std::fs::create_dir_all(partial.parent().unwrap()).unwrap();
+        let in_progress = b"the blob that another create is writing";
+        std::fs::write(&partial, in_progress).unwrap();
+        let made = roots.create_root(root_id);
+        let left = std::fs::read(&partial).ok();
+        let root_made = roots.path(root_id).exists();
+        assert!(
+            made.is_err(),
+            "a root write took the partial file of another writer"
+        );
+        assert!(
+            left.as_deref() == Some(in_progress.as_slice()),
+            "a root write changed or removed the partial file of another writer: {:?}",
+            left.map(|bytes| bytes.len())
+        );
+        assert!(
+            !root_made,
+            "a root write made a root from another writer's partial file"
         );
     }
 
