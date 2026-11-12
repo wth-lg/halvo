@@ -323,6 +323,7 @@ PASS $name"
   case_ext=.exe
   check hosted-win PASS 'bound part=router machine=hosted-win bound_bytes=8388608'
   STUB_UNAME=MINGW64_NT-10.0-26100
+  STUB_OUT=$work/windows.out
   case_ext=.exe
   check windows-outside-actions FAIL "FAIL $name (run)"
   STUB_UNAME=Linux
