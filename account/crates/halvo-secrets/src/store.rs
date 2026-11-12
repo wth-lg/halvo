@@ -1,8 +1,10 @@
 use crate::answer::{Delete, Read, StoreKind, Write};
 #[cfg(windows)]
 use crate::dpapi::{Dpapi, WindowsFs};
-#[cfg(all(target_os = "macos", feature = "keychain"))]
-use crate::keychain::{system::SystemKeychain, KeychainItem};
+#[cfg(target_os = "macos")]
+use crate::keychain::{system::SystemKeychain, Keychain, KeychainItem};
+#[cfg(target_os = "macos")]
+use crate::mac::{Keeps, Mac};
 use crate::place::{Item, Rules};
 #[cfg(target_os = "macos")]
 use crate::{place::Plain, unix::UnixFs};
@@ -33,6 +35,13 @@ use crate::{Directory, Name, Secret};
 /// directory that is missing answers `Fault`, and a write makes the store directory alone,
 /// never a step above it.
 ///
+/// Both stores of a Mac, for `Store::new`: a build without the feature `keychain` also
+/// looks for the Keychain item of `service` and `name`, by its attributes alone. When one
+/// stands there, a read answers `Locked::OtherStore` whatever the file holds. When the
+/// Keychain cannot be searched, a read that finds no file answers the Keychain's `Locked`
+/// or `Fault`, never `NotStored`. Its write and its delete never touch the Keychain.
+/// `Store::in_directory` reads and writes the file alone.
+///
 /// The place on Windows: the crate makes the directory with a protected access list that
 /// gives the person, SYSTEM and Administrators full control, and refuses a directory whose
 /// owner is anyone else as `Locked::Owner`; it reads no entry of that list and no step
@@ -50,13 +59,16 @@ pub struct Store {
     place: Place,
 }
 
+#[cfg(target_os = "macos")]
+type SharedKeychain = Box<dyn Keychain + Send + Sync>;
+
 enum Place {
     #[cfg(target_os = "macos")]
     File(Item<UnixFs, Plain>),
+    #[cfg(target_os = "macos")]
+    Mac(Mac<Item<UnixFs, Plain>, SharedKeychain>),
     #[cfg(windows)]
     Dpapi(Item<WindowsFs, Dpapi>),
-    #[cfg(all(target_os = "macos", feature = "keychain"))]
-    Keychain(KeychainItem<SystemKeychain>),
 }
 
 impl Store {
@@ -64,54 +76,40 @@ impl Store {
     /// `dir`, or with the feature `keychain` the Keychain item of `service` and `name`; on
     /// Windows the DPAPI file `name` in `dir`.
     pub fn new(dir: Directory, service: Name, name: Name) -> Store {
-        #[cfg(all(target_os = "macos", feature = "keychain"))]
-        {
-            let _ = dir;
-            Store {
-                place: Place::Keychain(KeychainItem {
-                    keychain: SystemKeychain,
+        #[cfg(target_os = "macos")]
+        let place = {
+            let keeps = if cfg!(feature = "keychain") {
+                Keeps::Keychain
+            } else {
+                Keeps::File
+            };
+            Place::Mac(Mac {
+                keeps,
+                file: file_item(&dir, name.clone()),
+                keychain: KeychainItem {
+                    keychain: Box::new(SystemKeychain),
                     service,
                     account: name,
-                }),
-            }
-        }
-        #[cfg(not(all(target_os = "macos", feature = "keychain")))]
-        {
+                },
+            })
+        };
+        #[cfg(windows)]
+        let place = {
             let _ = service;
-            Store::local(dir, name)
-        }
+            dpapi_place(&dir, name)
+        };
+        Store { place }
     }
 
     /// Debug builds only: the file `name` in `dir` (sealed by DPAPI on Windows), whatever
-    /// the features, so that a gate keeps its secret in a temporary directory and never in
-    /// the Keychain.
+    /// the features, so that a gate keeps its secret in a temporary directory and never
+    /// reads or writes the Keychain.
     #[cfg(debug_assertions)]
     pub fn in_directory(dir: Directory, name: Name) -> Store {
-        Store::local(dir, name)
-    }
-
-    #[cfg_attr(
-        all(target_os = "macos", feature = "keychain", not(debug_assertions)),
-        allow(dead_code)
-    )]
-    fn local(dir: Directory, name: Name) -> Store {
-        let dir = dir.as_path().to_path_buf();
         #[cfg(target_os = "macos")]
-        let place = Place::File(Item {
-            fs: UnixFs,
-            codec: Plain,
-            rules: Rules::Private,
-            dir,
-            name,
-        });
+        let place = Place::File(file_item(&dir, name));
         #[cfg(windows)]
-        let place = Place::Dpapi(Item {
-            fs: WindowsFs,
-            codec: Dpapi,
-            rules: Rules::KindOnly,
-            dir,
-            name,
-        });
+        let place = dpapi_place(&dir, name);
         Store { place }
     }
 
@@ -120,10 +118,13 @@ impl Store {
         match &self.place {
             #[cfg(target_os = "macos")]
             Place::File(_) => StoreKind::File,
+            #[cfg(target_os = "macos")]
+            Place::Mac(mac) => match mac.keeps {
+                Keeps::File => StoreKind::File,
+                Keeps::Keychain => StoreKind::Keychain,
+            },
             #[cfg(windows)]
             Place::Dpapi(_) => StoreKind::Dpapi,
-            #[cfg(all(target_os = "macos", feature = "keychain"))]
-            Place::Keychain(_) => StoreKind::Keychain,
         }
     }
 
@@ -132,10 +133,10 @@ impl Store {
         match &self.place {
             #[cfg(target_os = "macos")]
             Place::File(item) => item.read(),
+            #[cfg(target_os = "macos")]
+            Place::Mac(mac) => mac.read(),
             #[cfg(windows)]
             Place::Dpapi(item) => item.read(),
-            #[cfg(all(target_os = "macos", feature = "keychain"))]
-            Place::Keychain(item) => item.read(),
         }
     }
 
@@ -144,10 +145,10 @@ impl Store {
         match &self.place {
             #[cfg(target_os = "macos")]
             Place::File(item) => item.write(secret),
+            #[cfg(target_os = "macos")]
+            Place::Mac(mac) => mac.write(secret),
             #[cfg(windows)]
             Place::Dpapi(item) => item.write(secret),
-            #[cfg(all(target_os = "macos", feature = "keychain"))]
-            Place::Keychain(item) => item.write(secret),
         }
     }
 
@@ -156,10 +157,32 @@ impl Store {
         match &self.place {
             #[cfg(target_os = "macos")]
             Place::File(item) => item.delete(),
+            #[cfg(target_os = "macos")]
+            Place::Mac(mac) => mac.delete(),
             #[cfg(windows)]
             Place::Dpapi(item) => item.delete(),
-            #[cfg(all(target_os = "macos", feature = "keychain"))]
-            Place::Keychain(item) => item.delete(),
         }
     }
+}
+
+#[cfg(target_os = "macos")]
+fn file_item(dir: &Directory, name: Name) -> Item<UnixFs, Plain> {
+    Item {
+        fs: UnixFs,
+        codec: Plain,
+        rules: Rules::Private,
+        dir: dir.as_path().to_path_buf(),
+        name,
+    }
+}
+
+#[cfg(windows)]
+fn dpapi_place(dir: &Directory, name: Name) -> Place {
+    Place::Dpapi(Item {
+        fs: WindowsFs,
+        codec: Dpapi,
+        rules: Rules::KindOnly,
+        dir: dir.as_path().to_path_buf(),
+        name,
+    })
 }

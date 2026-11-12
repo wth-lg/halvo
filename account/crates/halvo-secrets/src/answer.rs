@@ -114,6 +114,11 @@ pub enum Locked {
     Size,
     /// More than one Keychain item answers to the name.
     Duplicate,
+    /// On macOS, the store that this build does not keep its secret in holds an item under
+    /// the name too: a build without the feature `keychain` found a Keychain item, or a
+    /// build with it found the file of the file store beside its own Keychain item. The
+    /// store picks neither.
+    OtherStore,
 }
 
 /// A failure of the system with its code: an OSStatus of the Keychain, an errno of macOS,

@@ -77,6 +77,98 @@ fn the_store_of_this_build_stores_reads_and_deletes_one_item() {
     println!("\nstore={}", kind.as_str());
 }
 
+#[cfg(all(target_os = "macos", not(feature = "keychain")))]
+mod keychain_items {
+    use super::*;
+    use security_framework::item::{ItemClass, ItemSearchOptions};
+    use security_framework::os::macos::keychain::SecKeychain;
+
+    pub(crate) fn add(account: &Name, bytes: &[u8]) {
+        SecKeychain::default()
+            .expect("the default keychain")
+            .add_generic_password(SERVICE, account.as_str(), bytes)
+            .expect("an item is added");
+    }
+
+    pub(crate) fn count(account: &Name) -> usize {
+        let mut options = ItemSearchOptions::new();
+        options
+            .class(ItemClass::generic_password())
+            .service(SERVICE)
+            .account(account.as_str())
+            .load_attributes(true)
+            .limit(security_framework::item::Limit::All);
+        match options.search() {
+            Ok(found) => found.len(),
+            Err(error) if error.code() == -25300 => 0,
+            Err(error) => panic!("the search failed with {}", error.code()),
+        }
+    }
+
+    pub(crate) fn remove(account: &Name) {
+        let mut options = ItemSearchOptions::new();
+        options
+            .class(ItemClass::generic_password())
+            .service(SERVICE)
+            .account(account.as_str());
+        options.delete().expect("the item is deleted");
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions, not(feature = "keychain")))]
+fn file_store(label: &str) -> Store {
+    Store::in_directory(
+        Directory::new(dir(label)).expect("an absolute directory"),
+        name(label),
+    )
+}
+
+#[cfg(all(target_os = "macos", debug_assertions, not(feature = "keychain")))]
+mod beside_the_keychain {
+    use super::*;
+    use halvo_secrets::Locked;
+
+    #[test]
+    fn a_keychain_item_read_by_a_build_without_the_feature_answers_locked() {
+        on_a_hosted_runner();
+        let label = "beside";
+        let store = store(label);
+        assert_eq!(store.kind(), StoreKind::File);
+        assert!(matches!(store.read(), Read::NotStored));
+        keychain_items::add(&name(label), b"kept by a build with the feature");
+        let read = store.read();
+        assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+        let file = file_store(label);
+        assert_eq!(file.write(&secret(b"in the file")), Write::Stored);
+        let both = store.read();
+        assert!(matches!(both, Read::Locked(Locked::OtherStore)), "{both:?}");
+        assert_eq!(found(file.read()), b"in the file");
+        assert_eq!(keychain_items::count(&name(label)), 1);
+        assert_eq!(file.delete(), Delete::Deleted);
+        keychain_items::remove(&name(label));
+        assert!(matches!(store.read(), Read::NotStored));
+        println!("\na keychain item read by a build without the feature answers {read:?}, and {both:?} beside a file");
+    }
+
+    #[test]
+    fn the_store_of_a_build_without_the_keychain_is_the_file_store() {
+        on_a_hosted_runner();
+        let label = "file-kind";
+        let place = dir(label);
+        let store = store(label);
+        assert_eq!(store.kind(), StoreKind::File);
+        assert_eq!(store.write(&secret(b"secret")), Write::Stored);
+        assert_eq!(
+            std::fs::read(place.join(name(label).as_str())).expect("the file"),
+            b"secret"
+        );
+        assert_eq!(keychain_items::count(&name(label)), 0);
+        assert_eq!(found(store.read()), b"secret");
+        assert_eq!(store.delete(), Delete::Deleted);
+        assert_eq!(std::fs::read_dir(&place).expect("the directory").count(), 0);
+    }
+}
+
 #[cfg(windows)]
 mod dpapi {
     use super::*;

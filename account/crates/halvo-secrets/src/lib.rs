@@ -10,8 +10,10 @@ mod answer;
 mod directory;
 #[cfg(windows)]
 mod dpapi;
-#[cfg_attr(not(all(target_os = "macos", feature = "keychain")), allow(dead_code))]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod keychain;
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+mod mac;
 mod name;
 mod place;
 mod secret;
