@@ -11,8 +11,8 @@ use crate::ports::{Clock, Owner, PortError, Rng, Runs};
 use crate::schedule::wants_active;
 use crate::types::{
     hex, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Choice, ConfigView, ConfirmAsk,
-    DoneAnswer, Event, Facts, Item, ItemId, LapseCause, Lapsed, Limits, Presenter, Raised, RunId,
-    RunItemKind, What, WorkflowId,
+    DoneAnswer, Event, Facts, Item, ItemId, LapseCause, Lapsed, Limits, OtherLapse, Presenter,
+    Raised, RunId, RunItem, RunItemKind, What, WorkflowId,
 };
 use std::num::NonZeroU32;
 
@@ -447,6 +447,61 @@ pub fn lapse<P: Owner + Runs + Clock>(
     if matches!(cause, LapseCause::WaitLimit | LapseCause::Cancelled) {
         *table = table.stop(&run);
         let _ = ports.cancel(&run);
+    }
+    Ok(())
+}
+
+/// The person's stop of the run of a held confirmation (I5.7, ruling RD-6): the lapse with
+/// `cancelled` where the machine takes it; else, for an item that is `recorded`, the run is
+/// stopped in the guard's table and `Runs::cancel` is sent, the fact that `Act::Stop` reads,
+/// and the item stays to the end of its run.
+pub fn stop_confirm<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &mut Table,
+    held: &mut Held,
+    limits: &Limits,
+) -> Result<(), Cause> {
+    if lapse(ports, ledger, table, held, LapseCause::Cancelled, limits).is_err() {
+        let run = held.ask.run();
+        if !table.is_stopped(run) {
+            *table = table.stop(run);
+            let _ = ports.cancel(run);
+        }
+    }
+    Ok(())
+}
+
+/// The lapse of the open item of `run`, of a kind other than `confirm`, with `cause` (I7.1):
+/// stores its `item_lapsed`, and for `wait_limit` and `cancelled`, which stop the run, stops the
+/// run in the guard's table and sends `Runs::cancel` once, the fact that every kind of item sets
+/// at its lapse and that `Act::Stop` reads (ruling RD-6); `malformed` for a confirmation, whose
+/// lapse is `lapse`.
+pub fn lapse_item<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &mut Table,
+    run: &RunId,
+    open: &RunItem,
+    cause: OtherLapse,
+    limits: &Limits,
+) -> Result<(), Cause> {
+    let lapsed = match open.kind {
+        RunItemKind::SignIn => Lapsed::SignIn(cause),
+        RunItemKind::LinkAccount => Lapsed::LinkAccount(cause),
+        RunItemKind::Stuck => Lapsed::Stuck(cause),
+        RunItemKind::Check => Lapsed::Check(cause),
+        RunItemKind::Show => Lapsed::Show(cause),
+        RunItemKind::Confirm => return Err(Cause::Malformed),
+    };
+    let row = What::ItemLapsed {
+        item: open.item.clone(),
+        lapsed,
+    };
+    let _ = store(ports, ledger, limits, vec![row]);
+    if matches!(cause, OtherLapse::WaitLimit | OtherLapse::Cancelled) && !table.is_stopped(run) {
+        *table = table.stop(run);
+        let _ = ports.cancel(run);
     }
     Ok(())
 }

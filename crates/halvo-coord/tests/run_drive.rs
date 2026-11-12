@@ -554,6 +554,10 @@ fn drive_end(before: Before, stop: StopOf, end: EndOf) -> Drove {
         StopOf::None | StopOf::Gone => None,
     };
     if let Some(by) = by {
+        if matches!(before, Before::Waiting) {
+            w.table = w.table.stop(&run);
+            let _ = halvo_coord::ports::Runs::cancel(&w.ports, &run);
+        }
         w.act(Act::Stop {
             run: run.clone(),
             by,

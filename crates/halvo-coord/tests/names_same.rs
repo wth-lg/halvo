@@ -439,7 +439,7 @@ fn run_item_kind_names_are_the_kinds_that_a_run_raises_of_i3_1() {
 fn other_lapse_names_are_the_causes_of_an_item_of_another_kind_of_i7_1() {
     assert_eq!(
         names(OtherLapse::ALL, OtherLapse::name),
-        ["run_ended", "app_ended", "wait_limit"]
+        ["run_ended", "app_ended", "wait_limit", "cancelled"]
     );
     for c in OtherLapse::ALL {
         assert_eq!(c.cause().name(), c.name());

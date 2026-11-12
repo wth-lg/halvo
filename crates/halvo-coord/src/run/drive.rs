@@ -311,8 +311,11 @@ where
 
 /// Carries out a move of a run on the ports, the board and the guard's table (I5.6, I5.7,
 /// I5.10). `hello`, `wait` and `resume` move the phase of the run's member by `run_step` and
-/// call no port; any other pair, and a run that is not live, is `state`. A stop of a live run
-/// that is not `stopping` sends `Runs::cancel` and stops the run in the guard's table, unless
+/// call no port; any other pair, and a run that is not live, is `state`. A stop of a `waiting`
+/// run whose item has not lapsed is `state` and calls no port: the lapse of an item of every
+/// kind that stops its run stops it in the guard's table first, which is the fact that this
+/// reads (ruling RD-6). A stop of a live run that is not `stopping` sends `Runs::cancel` and
+/// stops the run in the guard's table, unless
 /// the table holds the run as stopped already, where the lapse of its item that stopped it
 /// there sent the cancel (I4.5), and then makes the run `stopping` with the cause of the
 /// stop, from the clock's time on, so that the first tick at which `cancel_grace_s` have
@@ -414,6 +417,9 @@ where
         return answer(Some(Cause::State));
     };
     if run_step(Some(&phase), RunMove::Stop(by.cause())).is_err() {
+        return answer(Some(Cause::State));
+    }
+    if matches!(phase, Phase::Waiting(_)) && !table.is_stopped(run) {
         return answer(Some(Cause::State));
     }
     if !table.is_stopped(run) {
