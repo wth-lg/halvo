@@ -67,6 +67,7 @@ pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply,
         RunnerCall::Effect(b) => effect::put(host, &b),
         RunnerCall::Log(b) => put_log(host, &b),
         RunnerCall::Finish(b) => end::finish(host, now, &b),
+        RunnerCall::Checkpoint(_) => Err(ErrorName::Malformed),
     }
 }
 
