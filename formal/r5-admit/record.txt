@@ -1,49 +1,50 @@
 stamp=145edf7b0c2af5dadbb9912cfd5ef75d6ef2251b68d140a5cd16c2c8a67daa2d
 full config=Admit.cfg states=1660030 properties=14 violated=0 workers=4 run=nice19 seconds=2193
-design fault=serve_reverted reports=Q1 states=1980
-design fault=serve_lower reports=Q1 states=603
-design fault=stale_top reports=Q1 states=603
-design fault=revert_compiled reports=Q1 states=88829
-design fault=keep_unverified reports=Q2 states=32
-design fault=keep_unrecovered reports=Q2 states=32
-design fault=no_scope reports=Q3 states=362
-design fault=base_any_state reports=Q4 states=1964
-design fault=no_bar_at_finish reports=Q5 states=6889
-design fault=revert_active reports=Q6 states=13327
-design fault=double_use reports=Q6 states=599
-design fault=no_pending reports=Q7 states=821
-design fault=repeat_kept reports=Q7 states=45
-design fault=no_cut reports=Q7 states=9907
-design fault=stale_base reports=Q7Step states=155
-design fault=counted_ignored reports=Q8 states=597
-design fault=counted_verified reports=Q8 states=597
-design fault=ok_first reports=Q8 states=600
-design fault=revert_gone reports=Q8 states=597
-design fault=withdraw_last reports=Q9 states=1993
-design fault=no_finish_withdraw reports=Q9 states=1070
-design fault=withdraw_below_loaded reports=Q9 states=1070
-design fault=withdraw_newest_too reports=Q9 states=281
-design fault=second_commit_provisional_only reports=Q9 states=1981
-design fault=reverted_returns reports=Q10 states=5124
-design fault=base_first reports=Q11 states=9858
-design fault=cut_front reports=Q11 states=10850
-design fault=left_ignores_base reports=Q11 states=17280
-design fault=no_full reports=Q11 states=13784
-design fault=compiled_new reports=Q11Step states=7
-design fault=no_bar_admit reports=Q11Step states=3193
-design fault=held_compiled_only reports=Q11Step states=593
-design fault=admit_stale reports=Q11Step states=52
-design fault=no_bar reports=Q11Step states=3193
-design fault=bar_newest_revert reports=Q11Step states=26343
-design fault=ok_unverified reports=Q12Step states=598
-design fault=other_as_ok reports=Q12Step states=598
-design fault=never_active reports=Q12Move states=5143
-design fault=use_in_force reports=Q13 states=739
-design fault=lost_finish_moves reports=Q13 states=1099
-design fault=lost_finish_withdraws reports=Q13 states=1073
-design fault=keep_across_restart reports=Q13 states=11
-design fault=counted_of_either_step reports=Q14 states=1892
-design fault=never_keep reports=nothing states=2395
+small config=Small.cfg states=15690
+design fault=serve_reverted bound=3-2-3 reports=Q1 states=1980
+design fault=serve_lower bound=3-2-3 reports=Q1 states=603
+design fault=stale_top bound=3-2-3 reports=Q1 states=603
+design fault=revert_compiled bound=5-0-3 reports=Q1 states=88829
+design fault=keep_unverified bound=3-2-3 reports=Q2 states=32
+design fault=keep_unrecovered bound=3-2-3 reports=Q2 states=32
+design fault=no_scope bound=3-2-3 reports=Q3 states=362
+design fault=base_any_state bound=3-2-3 reports=Q4 states=1964
+design fault=no_bar_at_finish bound=5-0-3 reports=Q5 states=6889
+design fault=revert_active bound=5-0-3 reports=Q6 states=13327
+design fault=double_use bound=3-2-3 reports=Q6 states=599
+design fault=no_pending bound=3-2-3 reports=Q7 states=821
+design fault=repeat_kept bound=3-2-3 reports=Q7 states=45
+design fault=no_cut bound=3-2-3 reports=Q7 states=9907
+design fault=stale_base bound=3-2-3 reports=Q7Step states=155
+design fault=counted_ignored bound=3-2-3 reports=Q8 states=597
+design fault=counted_verified bound=3-2-3 reports=Q8 states=597
+design fault=ok_first bound=3-2-3 reports=Q8 states=600
+design fault=revert_gone bound=3-2-3 reports=Q8 states=597
+design fault=withdraw_last bound=3-2-3 reports=Q9 states=1993
+design fault=no_finish_withdraw bound=3-2-3 reports=Q9 states=1070
+design fault=withdraw_below_loaded bound=3-2-3 reports=Q9 states=1070
+design fault=withdraw_newest_too bound=3-2-3 reports=Q9 states=281
+design fault=second_commit_provisional_only bound=3-2-3 reports=Q9 states=1981
+design fault=reverted_returns bound=3-2-3 reports=Q10 states=5124
+design fault=base_first bound=3-2-3 reports=Q11 states=9858
+design fault=cut_front bound=3-2-3 reports=Q11 states=10850
+design fault=left_ignores_base bound=5-0-3 reports=Q11 states=17280
+design fault=no_full bound=3-2-2 reports=Q11 states=13784
+design fault=compiled_new bound=3-2-3 reports=Q11Step states=7
+design fault=no_bar_admit bound=3-2-3 reports=Q11Step states=3193
+design fault=held_compiled_only bound=3-2-3 reports=Q11Step states=593
+design fault=admit_stale bound=3-2-3 reports=Q11Step states=52
+design fault=no_bar bound=3-2-3 reports=Q11Step states=3193
+design fault=bar_newest_revert bound=4-2-3 reports=Q11Step states=26343
+design fault=ok_unverified bound=3-2-3 reports=Q12Step states=598
+design fault=other_as_ok bound=3-2-3 reports=Q12Step states=598
+design fault=never_active bound=3-2-3 reports=Q12Move states=5143
+design fault=use_in_force bound=3-2-3 reports=Q13 states=739
+design fault=lost_finish_moves bound=3-2-3 reports=Q13 states=1099
+design fault=lost_finish_withdraws bound=3-2-3 reports=Q13 states=1073
+design fault=keep_across_restart bound=3-2-3 reports=Q13 states=11
+design fault=counted_of_either_step bound=3-2-3 reports=Q14 states=1892
+design fault=never_keep bound=3-2-3 reports=nothing states=2395
 reach property=NotTwoRunsHoldCandidates bound=3-2 reached=yes states=59
 reach property=NotCompileUnderCandidate bound=3-2 reached=yes states=33
 reach property=NotStopLeavesEdits bound=3-2 reached=yes states=154
