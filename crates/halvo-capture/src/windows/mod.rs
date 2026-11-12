@@ -11,6 +11,9 @@ use crate::daemon::{DaemonError, TimedRunReport};
 use crate::event::{CaptureStreamEvent, CapturedAt, Modality, SegmentKeyId, SegmentRef};
 use crate::sink::{SinkError, SinkHandle};
 use crate::source::{CaptureError, EmitOutcome, EventSink};
+use std::collections::VecDeque;
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 /// Where a captured payload's bytes live in the encrypted segment store: the
@@ -80,51 +83,177 @@ pub struct HandOffCounts {
     pub coalesced: u64,
 }
 
-pub(crate) struct HandOff {
+/// Packets that a source's queue holds; a push to a full queue drops the packet
+/// and counts it as lost.
+pub(crate) const HANDOFF_CAPACITY: usize = 1_024;
+
+/// The shortest time between two motion samples that a forwarder sends: the
+/// samples in between collapse into the one pending sample.
+pub(crate) const MOTION_INTERVAL: Duration = Duration::from_millis(100);
+
+struct Queue {
+    packets: VecDeque<Packet>,
+    motion: Option<Packet>,
+    closed: bool,
+    writer_gone: bool,
+    counts: HandOffCounts,
+}
+
+struct Shared {
+    queue: Mutex<Queue>,
+    wake: Condvar,
     sink: SinkHandle,
 }
 
+impl Shared {
+    fn lock(&self) -> MutexGuard<'_, Queue> {
+        self.queue.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// A source's bounded queue between its OS callback and the sink, with the
+/// forwarder thread that does the blocking emit. A push never waits for the
+/// sink. Dropping the hand-off closes it: the forwarder sends what the queue
+/// holds and ends.
+pub(crate) struct HandOff {
+    shared: Arc<Shared>,
+}
+
+/// The callback's end of a hand-off.
 #[derive(Clone)]
 pub(crate) struct Producer {
-    sink: SinkHandle,
-    gone: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    shared: Arc<Shared>,
 }
 
 impl HandOff {
-    pub(crate) fn start(sink: SinkHandle, _name: &str) -> Result<Self, CaptureError> {
-        Ok(Self { sink })
+    pub(crate) fn start(sink: SinkHandle, name: &str) -> Result<Self, CaptureError> {
+        let shared = Arc::new(Shared {
+            queue: Mutex::new(Queue {
+                packets: VecDeque::new(),
+                motion: None,
+                closed: false,
+                writer_gone: false,
+                counts: HandOffCounts::default(),
+            }),
+            wake: Condvar::new(),
+            sink,
+        });
+        let forwarded = Arc::clone(&shared);
+        std::thread::Builder::new()
+            .name(name.to_string())
+            .spawn(move || forward(&forwarded))
+            .map_err(|e| CaptureError::Os {
+                stage: "spawn the forwarder thread",
+                domain: "io",
+                code: i64::from(e.raw_os_error().unwrap_or(0)),
+            })?;
+        Ok(Self { shared })
     }
 
     pub(crate) fn producer(&self) -> Producer {
         Producer {
-            sink: self.sink.clone(),
-            gone: std::sync::Arc::default(),
+            shared: Arc::clone(&self.shared),
         }
     }
 
     pub(crate) fn counts(&self) -> HandOffCounts {
-        HandOffCounts::default()
+        self.shared.lock().counts
+    }
+
+    pub(crate) fn close(&self) {
+        self.shared.lock().closed = true;
+        self.shared.wake.notify_all();
     }
 
     #[cfg(test)]
     fn pending_motion(&self) -> bool {
-        false
+        self.shared.lock().motion.is_some()
+    }
+}
+
+impl Drop for HandOff {
+    fn drop(&mut self) {
+        self.close();
     }
 }
 
 impl Producer {
+    /// Queue a packet that is never collapsed: a key, a button, a title.
     pub(crate) fn push(&self, packet: Packet) {
-        if forward_one(&self.sink, packet).is_err() {
-            self.gone.store(true, std::sync::atomic::Ordering::Relaxed);
+        let mut queue = self.shared.lock();
+        if queue.closed || queue.packets.len() >= HANDOFF_CAPACITY {
+            queue.counts.lost += 1;
+            return;
         }
+        queue.packets.push_back(packet);
+        drop(queue);
+        self.shared.wake.notify_one();
     }
 
+    /// Make a motion sample the pending one; a sample that was pending is
+    /// replaced and counted as coalesced.
     pub(crate) fn push_motion(&self, packet: Packet) {
-        self.push(packet);
+        let mut queue = self.shared.lock();
+        if queue.closed {
+            queue.counts.lost += 1;
+            return;
+        }
+        if queue.motion.replace(packet).is_some() {
+            queue.counts.coalesced += 1;
+        }
+        drop(queue);
+        self.shared.wake.notify_one();
     }
 
     pub(crate) fn writer_gone(&self) -> bool {
-        self.gone.load(std::sync::atomic::Ordering::Relaxed)
+        self.shared.lock().writer_gone
+    }
+}
+
+fn forward(shared: &Shared) {
+    let mut last_motion: Option<Instant> = None;
+    while let Some(packet) = next_packet(shared, &mut last_motion) {
+        if forward_one(&shared.sink, packet).is_err() {
+            let mut queue = shared.lock();
+            let left = queue.packets.len() + usize::from(queue.motion.is_some());
+            queue.counts.lost += left as u64;
+            queue.packets.clear();
+            queue.motion = None;
+            queue.closed = true;
+            queue.writer_gone = true;
+            return;
+        }
+    }
+}
+
+fn next_packet(shared: &Shared, last_motion: &mut Option<Instant>) -> Option<Packet> {
+    let mut queue = shared.lock();
+    loop {
+        if let Some(packet) = queue.packets.pop_front() {
+            return Some(packet);
+        }
+        if queue.motion.is_some() {
+            let wait = last_motion.map_or(Duration::ZERO, |at| {
+                MOTION_INTERVAL.saturating_sub(at.elapsed())
+            });
+            if wait.is_zero() || queue.closed {
+                *last_motion = Some(Instant::now());
+                return queue.motion.take();
+            }
+            queue = shared
+                .wake
+                .wait_timeout(queue, wait)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+            continue;
+        }
+        if queue.closed {
+            return None;
+        }
+        queue = shared
+            .wake
+            .wait(queue)
+            .unwrap_or_else(PoisonError::into_inner);
     }
 }
 

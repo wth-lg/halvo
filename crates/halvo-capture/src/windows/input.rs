@@ -327,6 +327,9 @@ impl CaptureSource for RawInputSource {
         if let Some(pump) = self.pump.take() {
             pump.stop();
         }
+        if let Some(handoff) = &self.handoff {
+            handoff.close();
+        }
     }
 }
 

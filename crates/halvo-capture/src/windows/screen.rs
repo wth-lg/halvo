@@ -164,6 +164,9 @@ impl CaptureSource for ScreenSource {
         if let Some(control) = self.control.take() {
             let _ = control.stop();
         }
+        if let Some(handoff) = &self.handoff {
+            handoff.close();
+        }
     }
 }
 

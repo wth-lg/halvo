@@ -27,7 +27,6 @@ helper_child_window
 helper_limited_listener
 known_defect::a_dropped_keyboard_source_keeps_capturing RR-windows-11
 known_defect::c5_watch_armed_while_the_per_user_key_is_absent RR-windows-12
-known_defect::pointer_moves_are_not_coalesced RR-windows-09
 known_defect::stop_with_a_full_sink RR-windows-11
 known_defect::title_event_on_a_switch_to_a_window_with_a_fixed_title RR-windows-08
 known_defect::x14_foreground_app_of_a_hosted_app RR-windows-10
@@ -36,6 +35,7 @@ known_defect::x16_packaged_apps_and_the_inventory RR-windows-12
 known_defect::x1_keystrokes_typed_into_a_password_field RR-windows-01
 known_defect::x2_window_title_events_for_other_windows_and_controls RR-windows-08
 known_defect::x3_attribution_before_the_first_foreground_change RR-windows-10
+pointer_moves_coalesce
 x13_frames_on_a_static_screen
 x7_capture_border_on_the_screen
 x8_raw_input_across_the_integrity_boundary
@@ -405,7 +405,7 @@ self_test() {
   expected=real
   check every-test-of-the-real-list-right PASS "$real" \
     "${nl}WF known_defect::x1_keystrokes_typed_into_a_password_field result=known-defect id=RR-windows-01${nl}" \
-    "${nl}WF total=24 pass=13 known_defect=11 fail=0${nl}PASS $name"
+    "${nl}WF total=24 pass=14 known_defect=10 fail=0${nl}PASS $name"
   check a-test-prints-the-lines-of-the-script PASS "c1_raw_input|fakes${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}    | WF ghost_test_not_in_the_file result=pass${nl}" \
     "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}PASS $name" \

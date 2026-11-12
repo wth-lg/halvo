@@ -30,7 +30,7 @@ use windows::Win32::System::Threading::{
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYBD_EVENT_FLAGS,
-    KEYEVENTF_KEYUP, MOUSEEVENTF_MOVE, MOUSEINPUT, VIRTUAL_KEY, VK_F15, VK_MENU,
+    KEYEVENTF_KEYUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_WHEEL, MOUSEINPUT, VIRTUAL_KEY, VK_F15, VK_MENU,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
@@ -280,6 +280,22 @@ fn mouse_move(dx: i32, dy: i32) -> INPUT {
                 dy,
                 mouseData: 0,
                 dwFlags: MOUSEEVENTF_MOVE,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    }
+}
+
+fn wheel_notch() -> INPUT {
+    INPUT {
+        r#type: INPUT_MOUSE,
+        Anonymous: INPUT_0 {
+            mi: MOUSEINPUT {
+                dx: 0,
+                dy: 0,
+                mouseData: 120,
+                dwFlags: MOUSEEVENTF_WHEEL,
                 time: 0,
                 dwExtraInfo: 0,
             },
@@ -2197,6 +2213,56 @@ fn x13_frames_on_a_static_screen() {
     });
 }
 
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn pointer_moves_coalesce() {
+    with_deadline("coalesce", Duration::from_secs(60), || {
+        const MOVES: u32 = 100;
+        env_report("coalesce");
+        source_built_by_test("coalesce", "pointer");
+        let (sink, events) = capture(8192);
+        let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
+        let start = pointer.start(sink.clone());
+        let first = move_pointer(MOVES / 2);
+        let wheel = send(&[wheel_notch()]);
+        let second = move_pointer(MOVES / 2);
+        let pointers = count(
+            &events.drain_for(Duration::from_millis(1500)),
+            Modality::Pointer,
+        );
+        pointer.stop();
+        let counts = pointer.handoff_counts();
+        let accepted = first + second;
+        say(
+            "coalesce",
+            format!(
+                "pointer_start={} moves_sent={MOVES} sendinput_move_events_accepted={accepted} \
+                 sendinput_wheel_events_accepted={wheel} pointer_events={pointers} \
+                 coalesced={} lost={}",
+                show(&start),
+                counts.coalesced,
+                counts.lost,
+            ),
+        );
+        assert!(start.is_ok(), "the pointer source must start");
+        assert!(
+            accepted == MOVES && wheel == 1,
+            "INCONCLUSIVE: SendInput did not insert every move and the wheel notch"
+        );
+        assert!(pointers >= 1, "no pointer event at all");
+        assert!(
+            pointers < accepted as usize,
+            "every move gave its own pointer event"
+        );
+        assert_eq!(counts.lost, 0, "the hand-off lost packets");
+        assert_eq!(
+            pointers as u64 + counts.coalesced,
+            u64::from(accepted) + 1,
+            "the wheel packet inside the burst is not its own pointer event"
+        );
+    });
+}
+
 macro_rules! defect {
     ($id:literal, $wanted:expr, $evidence:expr) => {{
         let evidence: String = $evidence;
@@ -2919,42 +2985,6 @@ mod known_defect {
                 "RR-windows-11",
                 after == 0,
                 format!("TF dropped keystroke_events_after_the_drop={after}")
-            );
-        });
-    }
-
-    #[test]
-    #[ignore = "known defect: needs an interactive Windows desktop"]
-    fn pointer_moves_are_not_coalesced() {
-        with_deadline("coalesce", Duration::from_secs(60), || {
-            const MOVES: u32 = 100;
-            env_report("coalesce");
-            let (sink, events) = capture(8192);
-            let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
-            let start = pointer.start(sink.clone());
-            let accepted = move_pointer(MOVES);
-            let pointers = count(
-                &events.drain_for(Duration::from_millis(1500)),
-                Modality::Pointer,
-            );
-            pointer.stop();
-            say(
-                "coalesce",
-                format!(
-                    "pointer_start={} moves_sent={MOVES} sendinput_move_events_accepted={accepted}",
-                    show(&start),
-                ),
-            );
-            assert!(start.is_ok(), "the pointer source must start");
-            assert_eq!(
-                accepted, MOVES,
-                "INCONCLUSIVE: SendInput did not insert every move"
-            );
-            assert!(pointers >= 1, "INCONCLUSIVE: no pointer event at all");
-            defect!(
-                "RR-windows-09",
-                pointers < accepted as usize,
-                format!("TF coalesce pointer_events={pointers}")
             );
         });
     }
