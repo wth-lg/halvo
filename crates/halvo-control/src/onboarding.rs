@@ -85,8 +85,54 @@ impl Permission {
         }
     }
 
-    pub const fn needs_relaunch_after_grant(self) -> bool {
-        matches!(self, Permission::ScreenAndSystemAudioRecording)
+    /// Whether a grant takes effect in the capturing process only after it
+    /// restarts: the screen and Input Monitoring (RD-29).
+    pub const fn restarts_capture(self) -> bool {
+        matches!(
+            self,
+            Permission::ScreenAndSystemAudioRecording | Permission::InputMonitoring
+        )
+    }
+
+    const fn index(self) -> usize {
+        match self {
+            Permission::ScreenAndSystemAudioRecording => 0,
+            Permission::Accessibility => 1,
+            Permission::InputMonitoring => 2,
+        }
+    }
+}
+
+/// A set of permissions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub struct PermissionSet(u8);
+
+impl PermissionSet {
+    pub const EMPTY: PermissionSet = PermissionSet(0);
+
+    pub const fn contains(self, permission: Permission) -> bool {
+        self.0 & (1 << permission.index()) != 0
+    }
+
+    pub fn insert(&mut self, permission: Permission) {
+        self.0 |= 1 << permission.index();
+    }
+
+    /// The members, in the order of `Permission::R1_MACOS`.
+    pub fn iter(self) -> impl Iterator<Item = Permission> {
+        Permission::R1_MACOS
+            .into_iter()
+            .filter(move |&permission| self.contains(permission))
+    }
+}
+
+impl FromIterator<Permission> for PermissionSet {
+    fn from_iter<I: IntoIterator<Item = Permission>>(permissions: I) -> Self {
+        let mut set = Self::EMPTY;
+        permissions
+            .into_iter()
+            .for_each(|permission| set.insert(permission));
+        set
     }
 }
 
@@ -105,6 +151,36 @@ pub enum GrantState {
 pub enum RequestOutcome {
     AlreadyGranted,
     Requested,
+}
+
+/// What the system answers now for each permission; a permission that was not
+/// checked reads not_determined.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Grants([GrantState; 3]);
+
+impl Default for Grants {
+    fn default() -> Self {
+        Self([GrantState::NotDetermined; 3])
+    }
+}
+
+impl Grants {
+    pub const fn of(self, permission: Permission) -> GrantState {
+        self.0[permission.index()]
+    }
+
+    pub fn with(mut self, permission: Permission, grant: GrantState) -> Self {
+        self.0[permission.index()] = grant;
+        self
+    }
+
+    /// The permissions that read granted.
+    pub fn granted(self) -> PermissionSet {
+        Permission::R1_MACOS
+            .into_iter()
+            .filter(|&permission| self.of(permission) == GrantState::Granted)
+            .collect()
+    }
 }
 
 /// Reads and requests the system's permissions.
@@ -134,7 +210,7 @@ pub struct PermissionStatus {
 pub enum WalkbackAction {
     RequestFromSystem,
     OpenSettingsPane,
-    Relaunch,
+    RestartCapture,
 }
 
 /// One step that brings a missing permission back.
@@ -155,49 +231,85 @@ pub struct OnboardingState {
     pub walkback: Vec<WalkbackStep>,
 }
 
-/// The onboarding state of `required` as `probe` reads it; `once_granted` names
-/// the permissions that were granted before.
-pub fn assess(
-    probe: &dyn PermissionProbe,
-    required: &[Permission],
-    once_granted: &[Permission],
-) -> OnboardingState {
-    let mut permissions = Vec::with_capacity(required.len());
+/// What `assess` reads (contracts.md C10.6).
+#[derive(Debug, Clone, Copy)]
+pub struct AssessInput<'a> {
+    /// The permissions to walk, in order.
+    pub required: &'a [Permission],
+    /// What the system answers now.
+    pub now: Grants,
+    /// The permissions granted when the capturing process started.
+    pub at_start: PermissionSet,
+    /// The permissions that Halvo has asked macOS for.
+    pub asked: PermissionSet,
+    /// The permissions that were granted once.
+    pub once_granted: PermissionSet,
+    /// The running macOS major, when known.
+    pub macos_major: Option<u32>,
+    /// The name of the entry that the person turns on in System Settings.
+    pub entry_name: &'a str,
+    /// Whether the switch screen_activity is on (contracts.md C13.5).
+    pub screen_activity: bool,
+}
+
+/// The onboarding state of `input.required`. `all_granted` is true when every
+/// required permission reads granted now. The walk-back ends with one
+/// restart_capture step while a permission of the restart class is missing, or
+/// is granted now and was not when the capturing process started; the step
+/// names the first such permission in required order.
+pub fn assess(input: &AssessInput<'_>) -> OnboardingState {
+    let mut permissions = Vec::with_capacity(input.required.len());
     let mut lost_grants = Vec::new();
     let mut walkback = Vec::new();
-    let macos_major = probe.macos_major_version();
+    let mut restart = None;
 
-    for &permission in required {
-        let pane_name = permission.pane_title_on_macos(macos_major);
-        let grant = probe.check(permission);
-        let held_before = once_granted.contains(&permission);
-        let lost = grant != GrantState::Granted && held_before;
-        if grant != GrantState::Granted {
+    for &permission in input.required {
+        let pane_name = permission.pane_title_on_macos(input.macos_major);
+        let grant = input.now.of(permission);
+        let granted = grant == GrantState::Granted;
+        let lost = !granted && input.once_granted.contains(permission);
+        if !granted {
             if lost {
                 lost_grants.push(permission);
             }
-            walkback.extend(walkback_for(permission, pane_name, lost));
+            walkback.extend(walkback_for(permission, pane_name, lost, input.entry_name));
+        }
+        if restart.is_none()
+            && permission.restarts_capture()
+            && !(granted && input.at_start.contains(permission))
+        {
+            restart = Some((permission, pane_name));
         }
         permissions.push(PermissionStatus {
             permission,
             pane_name: pane_name.to_string(),
             settings_url: permission.settings_url().to_string(),
-            why: permission.why(false).to_string(),
+            why: permission.why(input.screen_activity).to_string(),
             grant,
             lost,
-            asked: false,
+            asked: input.asked.contains(permission),
+        });
+    }
+    if let Some((permission, pane)) = restart {
+        walkback.push(WalkbackStep {
+            permission,
+            action: WalkbackAction::RestartCapture,
+            settings_url: permission.settings_url().to_string(),
+            text: format!(
+                "Click Restart recorder: Halvo restarts its recorder so that macOS applies the {pane} permission."
+            ),
         });
     }
 
     OnboardingState {
-        all_granted: walkback.is_empty(),
+        all_granted: permissions.iter().all(|p| p.grant == GrantState::Granted),
         permissions,
         lost_grants,
         walkback,
     }
 }
 
-fn walkback_for(permission: Permission, pane: &str, lost: bool) -> Vec<WalkbackStep> {
+fn walkback_for(permission: Permission, pane: &str, lost: bool, entry: &str) -> Vec<WalkbackStep> {
     let step = |action, text: String| WalkbackStep {
         permission,
         action,
@@ -209,30 +321,26 @@ fn walkback_for(permission: Permission, pane: &str, lost: bool) -> Vec<WalkbackS
     } else {
         String::new()
     };
-    let mut steps = Vec::with_capacity(3);
-    steps.push(step(
-        WalkbackAction::RequestFromSystem,
-        format!("{lead}Click Allow when macOS asks about {pane}."),
-    ));
     let relist = if matches!(
         permission,
         Permission::Accessibility | Permission::InputMonitoring
     ) {
-        " If Halvo is already listed and still not working, remove it with the minus button and add it again."
+        format!(" If {entry} is already listed and still not working, remove it with the minus button and add it again.")
     } else {
-        ""
+        String::new()
     };
-    steps.push(step(
-        WalkbackAction::OpenSettingsPane,
-        format!("Open System Settings > Privacy & Security > {pane} and turn Halvo on.{relist}"),
-    ));
-    if permission.needs_relaunch_after_grant() {
-        steps.push(step(
-            WalkbackAction::Relaunch,
-            "Quit and reopen Halvo; macOS applies a new screen recording grant only to a fresh launch.".to_string(),
-        ));
-    }
-    steps
+    vec![
+        step(
+            WalkbackAction::RequestFromSystem,
+            format!("{lead}Click Allow when macOS asks about {pane}."),
+        ),
+        step(
+            WalkbackAction::OpenSettingsPane,
+            format!(
+                "Open System Settings > Privacy & Security > {pane} and turn {entry} on.{relist}"
+            ),
+        ),
+    ]
 }
 
 /// Why the System Settings pane could not be opened.
@@ -275,17 +383,73 @@ pub fn open_settings_pane(permission: Permission) -> Result<(), PaneError> {
 mod tests {
     use super::*;
 
-    struct FakeProbe(Vec<(Permission, GrantState)>);
-    impl PermissionProbe for FakeProbe {
-        fn check(&self, permission: Permission) -> GrantState {
-            self.0
-                .iter()
-                .find(|(p, _)| *p == permission)
-                .map(|(_, g)| *g)
-                .unwrap_or(GrantState::NotDetermined)
+    use Permission::{Accessibility, InputMonitoring, ScreenAndSystemAudioRecording as Screen};
+
+    fn input<'a>(required: &'a [Permission], now: &[(Permission, GrantState)]) -> AssessInput<'a> {
+        let now = now
+            .iter()
+            .fold(Grants::default(), |grants, &(permission, grant)| {
+                grants.with(permission, grant)
+            });
+        AssessInput {
+            required,
+            now,
+            at_start: now.granted(),
+            asked: PermissionSet::EMPTY,
+            once_granted: PermissionSet::EMPTY,
+            macos_major: Some(26),
+            entry_name: "Halvo",
+            screen_activity: false,
         }
-        fn request(&self, _permission: Permission) -> RequestOutcome {
-            RequestOutcome::Requested
+    }
+
+    fn sets() -> Vec<PermissionSet> {
+        (0..8u8)
+            .map(|bits| {
+                Permission::R1_MACOS
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(at, _)| bits & (1 << at) != 0)
+                    .map(|(_, permission)| permission)
+                    .collect()
+            })
+            .collect()
+    }
+
+    fn every_state(mut visit: impl FnMut(&AssessInput<'_>, &OnboardingState)) {
+        let grants = [
+            GrantState::Granted,
+            GrantState::NotGranted,
+            GrantState::NotDetermined,
+        ];
+        for screen in grants {
+            for accessibility in grants {
+                for input_monitoring in grants {
+                    let now = Grants::default()
+                        .with(Screen, screen)
+                        .with(Accessibility, accessibility)
+                        .with(InputMonitoring, input_monitoring);
+                    for at_start in sets() {
+                        for asked in sets() {
+                            for once_granted in sets() {
+                                for macos_major in [None, Some(26), Some(27)] {
+                                    let input = AssessInput {
+                                        required: &Permission::R1_MACOS,
+                                        now,
+                                        at_start,
+                                        asked,
+                                        once_granted,
+                                        macos_major,
+                                        entry_name: "Halvo",
+                                        screen_activity: false,
+                                    };
+                                    visit(&input, &assess(&input));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -354,89 +518,163 @@ mod tests {
 
     #[test]
     fn a_grant_that_was_held_and_is_gone_is_reported_lost_with_a_walk_back() {
-        let probe = FakeProbe(vec![
-            (
-                Permission::ScreenAndSystemAudioRecording,
-                GrantState::NotGranted,
-            ),
-            (Permission::Accessibility, GrantState::Granted),
-            (Permission::InputMonitoring, GrantState::Granted),
-        ]);
-        let state = assess(
-            &probe,
+        let mut input = input(
             &Permission::R1_MACOS,
-            &[Permission::ScreenAndSystemAudioRecording],
+            &[
+                (Screen, GrantState::NotGranted),
+                (Accessibility, GrantState::Granted),
+                (InputMonitoring, GrantState::Granted),
+            ],
         );
-        assert_eq!(
-            state.lost_grants,
-            vec![Permission::ScreenAndSystemAudioRecording]
-        );
+        input.once_granted = [Screen].into_iter().collect();
+        let state = assess(&input);
+        assert_eq!(state.lost_grants, vec![Screen]);
         assert!(!state.all_granted);
-        let screen = &state.permissions[0];
-        assert!(screen.lost);
-        let actions: Vec<WalkbackAction> = state.walkback.iter().map(|s| s.action).collect();
+        assert!(state.permissions[0].lost);
+        assert!(state.walkback.iter().all(|s| s.permission == Screen));
         assert_eq!(
-            actions,
-            vec![
-                WalkbackAction::RequestFromSystem,
-                WalkbackAction::OpenSettingsPane,
-                WalkbackAction::Relaunch
-            ]
+            state.walkback.last().map(|s| s.action),
+            Some(WalkbackAction::RestartCapture)
         );
-        assert!(state
-            .walkback
-            .iter()
-            .all(|s| s.permission == Permission::ScreenAndSystemAudioRecording));
-        assert!(state.walkback[0].text.contains("removed"));
     }
 
     #[test]
     fn a_never_granted_permission_is_missing_not_lost() {
-        let probe = FakeProbe(vec![(
-            Permission::InputMonitoring,
-            GrantState::NotDetermined,
-        )]);
-        let state = assess(&probe, &[Permission::InputMonitoring], &[]);
+        let state = assess(&input(
+            &[InputMonitoring],
+            &[(InputMonitoring, GrantState::NotDetermined)],
+        ));
         assert!(state.lost_grants.is_empty());
         assert!(!state.permissions[0].lost);
         assert_eq!(state.permissions[0].grant, GrantState::NotDetermined);
-        assert_eq!(state.walkback.len(), 2);
-        assert_eq!(state.walkback[1].action, WalkbackAction::OpenSettingsPane);
-        assert_eq!(
-            state.walkback[1].settings_url,
-            Permission::InputMonitoring.settings_url()
-        );
+        assert!(state
+            .walkback
+            .iter()
+            .any(|s| s.action == WalkbackAction::OpenSettingsPane
+                && s.settings_url == InputMonitoring.settings_url()));
     }
 
     #[test]
-    fn accessibility_is_requested_from_the_system_and_needs_no_relaunch_step() {
-        let probe = FakeProbe(vec![(Permission::Accessibility, GrantState::NotGranted)]);
-        let state = assess(&probe, &[Permission::Accessibility], &[]);
-        let actions: Vec<WalkbackAction> = state.walkback.iter().map(|s| s.action).collect();
-        assert_eq!(
-            actions,
-            vec![
-                WalkbackAction::RequestFromSystem,
-                WalkbackAction::OpenSettingsPane
-            ]
-        );
+    fn input_monitoring_not_granted_ends_with_the_restart_step() {
+        for grant in [GrantState::NotGranted, GrantState::NotDetermined] {
+            let state = assess(&input(&[InputMonitoring], &[(InputMonitoring, grant)]));
+            let last = state.walkback.last().unwrap();
+            assert_eq!(last.action, WalkbackAction::RestartCapture);
+            assert_eq!(last.permission, InputMonitoring);
+        }
+    }
+
+    #[test]
+    fn three_missing_permissions_give_one_restart_step_in_last_place() {
+        let state = assess(&input(&Permission::R1_MACOS, &[]));
+        let restarts: Vec<usize> = state
+            .walkback
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.action == WalkbackAction::RestartCapture)
+            .map(|(at, _)| at)
+            .collect();
+        assert_eq!(restarts, vec![state.walkback.len() - 1]);
+        assert_eq!(state.walkback.last().unwrap().permission, Screen);
+    }
+
+    #[test]
+    fn a_capture_grant_that_came_after_the_process_started_asks_for_the_restart_alone() {
+        let granted = [
+            (Screen, GrantState::Granted),
+            (Accessibility, GrantState::Granted),
+            (InputMonitoring, GrantState::Granted),
+        ];
+        let mut input = input(&Permission::R1_MACOS, &granted);
+        input.at_start = [Screen, Accessibility].into_iter().collect();
+        let state = assess(&input);
+        assert!(state.all_granted);
+        assert_eq!(state.walkback.len(), 1);
+        assert_eq!(state.walkback[0].action, WalkbackAction::RestartCapture);
+        assert_eq!(state.walkback[0].permission, InputMonitoring);
+        input.at_start = [Screen, InputMonitoring].into_iter().collect();
+        assert!(assess(&input).walkback.is_empty());
+        input.at_start = Permission::R1_MACOS.into_iter().collect();
+        assert!(assess(&input).walkback.is_empty());
+    }
+
+    #[test]
+    fn accessibility_needs_no_restart_step() {
+        let state = assess(&input(
+            &[Accessibility],
+            &[(Accessibility, GrantState::NotGranted)],
+        ));
+        assert!(!state.walkback.is_empty());
+        assert!(state
+            .walkback
+            .iter()
+            .all(|s| s.action != WalkbackAction::RestartCapture));
+    }
+
+    #[test]
+    fn in_every_state_one_restart_step_at_most_comes_last_and_no_text_says_quit() {
+        let mut states = 0;
+        every_state(|input, state| {
+            states += 1;
+            let restarts = state
+                .walkback
+                .iter()
+                .filter(|s| s.action == WalkbackAction::RestartCapture)
+                .count();
+            let wanted = input.required.iter().any(|&p| {
+                p.restarts_capture()
+                    && (input.now.of(p) != GrantState::Granted || !input.at_start.contains(p))
+            });
+            assert_eq!(restarts, usize::from(wanted));
+            if wanted {
+                assert_eq!(
+                    state.walkback.last().map(|s| s.action),
+                    Some(WalkbackAction::RestartCapture)
+                );
+            }
+            assert_eq!(
+                state.all_granted,
+                input
+                    .required
+                    .iter()
+                    .all(|&p| input.now.of(p) == GrantState::Granted)
+            );
+            for step in &state.walkback {
+                assert!(!step.text.contains("Quit"), "{}", step.text);
+            }
+        });
+        assert_eq!(states, 27 * 8 * 8 * 8 * 3);
     }
 
     #[test]
     fn all_granted_yields_no_walk_back() {
-        let probe = FakeProbe(
-            Permission::R1_MACOS
-                .iter()
-                .map(|p| (*p, GrantState::Granted))
-                .collect(),
-        );
-        let state = assess(&probe, &Permission::R1_MACOS, &[]);
+        let granted: Vec<(Permission, GrantState)> = Permission::R1_MACOS
+            .iter()
+            .map(|p| (*p, GrantState::Granted))
+            .collect();
+        let state = assess(&input(&Permission::R1_MACOS, &granted));
         assert!(state.all_granted);
         assert!(state.walkback.is_empty());
         assert!(state
             .permissions
             .iter()
             .all(|p| p.grant == GrantState::Granted));
+    }
+
+    #[test]
+    fn the_walk_back_actions_have_their_wire_spellings() {
+        for (action, text) in [
+            (WalkbackAction::RequestFromSystem, "\"request_from_system\""),
+            (WalkbackAction::OpenSettingsPane, "\"open_settings_pane\""),
+            (WalkbackAction::RestartCapture, "\"restart_capture\""),
+        ] {
+            assert_eq!(serde_json::to_string(&action).unwrap(), text);
+            assert_eq!(
+                serde_json::from_str::<WalkbackAction>(text).unwrap(),
+                action
+            );
+        }
+        assert!(serde_json::from_str::<WalkbackAction>("\"relaunch\"").is_err());
     }
 
     #[test]
@@ -463,19 +701,9 @@ mod tests {
 
     #[test]
     fn the_walk_back_names_the_pane_as_the_running_macos_shows_it() {
-        struct Probe27;
-        impl PermissionProbe for Probe27 {
-            fn check(&self, _: Permission) -> GrantState {
-                GrantState::NotGranted
-            }
-            fn request(&self, _: Permission) -> RequestOutcome {
-                RequestOutcome::Requested
-            }
-            fn macos_major_version(&self) -> Option<u32> {
-                Some(27)
-            }
-        }
-        let state = assess(&Probe27, &[Permission::Accessibility], &[]);
+        let mut input = input(&[Accessibility], &[(Accessibility, GrantState::NotGranted)]);
+        input.macos_major = Some(27);
+        let state = assess(&input);
         assert_eq!(
             state.permissions[0].pane_name,
             "Device Control and Data Access"
@@ -545,12 +773,12 @@ mod tests {
 
     #[test]
     fn an_assessed_onboarding_state_reads_back_from_a_buffer() {
-        let probe = FakeProbe(vec![(Permission::Accessibility, GrantState::Granted)]);
-        let state = assess(
-            &probe,
+        let mut input = input(
             &Permission::R1_MACOS,
-            &[Permission::InputMonitoring],
+            &[(Accessibility, GrantState::Granted)],
         );
+        input.once_granted = [InputMonitoring].into_iter().collect();
+        let state = assess(&input);
         let buffer: String = serde_json::to_string(&state).unwrap();
         let read: OnboardingState = serde_json::from_str(&buffer).unwrap();
         drop(buffer);

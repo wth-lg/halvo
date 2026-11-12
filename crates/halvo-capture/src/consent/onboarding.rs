@@ -1,7 +1,34 @@
 pub use halvo_control::onboarding::{
-    assess, open_settings_pane, GrantState, OnboardingState, PaneError, Permission,
-    PermissionProbe, PermissionStatus, RequestOutcome, WalkbackAction, WalkbackStep,
+    open_settings_pane, GrantState, OnboardingState, PaneError, Permission, PermissionProbe,
+    PermissionStatus, RequestOutcome, WalkbackAction, WalkbackStep,
 };
+use halvo_control::onboarding::{AssessInput, Grants, PermissionSet};
+
+/// The onboarding state of `required` as `probe` reads it now, for the settings
+/// controller that the daemon units replace: what the probe reads now counts as
+/// granted at the start, no permission counts as asked, the entry is named Halvo
+/// and the switch screen_activity is off.
+pub fn assess(
+    probe: &dyn PermissionProbe,
+    required: &[Permission],
+    once_granted: &[Permission],
+) -> OnboardingState {
+    let now = required
+        .iter()
+        .fold(Grants::default(), |grants, &permission| {
+            grants.with(permission, probe.check(permission))
+        });
+    halvo_control::onboarding::assess(&AssessInput {
+        required,
+        now,
+        at_start: now.granted(),
+        asked: PermissionSet::EMPTY,
+        once_granted: once_granted.iter().copied().collect(),
+        macos_major: probe.macos_major_version(),
+        entry_name: "Halvo",
+        screen_activity: false,
+    })
+}
 
 pub fn platform_probe() -> Box<dyn PermissionProbe + Send + Sync> {
     #[cfg(target_os = "macos")]
