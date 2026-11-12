@@ -135,6 +135,16 @@ pub mod macos {
 
     pub struct TccProbe;
 
+    /// The grant that an IOHIDCheckAccess answer means, by the values of
+    /// IOHIDLib.h: 0 granted, 1 denied, 2 unknown.
+    pub fn grant_from_iohid_access(access: u32) -> GrantState {
+        match access {
+            IOHID_ACCESS_TYPE_GRANTED => GrantState::Granted,
+            IOHID_ACCESS_TYPE_DENIED => GrantState::NotGranted,
+            _ => GrantState::NotDetermined,
+        }
+    }
+
     fn macos_major_version() -> Option<u32> {
         static MAJOR: std::sync::OnceLock<Option<u32>> = std::sync::OnceLock::new();
         *MAJOR.get_or_init(|| {
@@ -172,11 +182,9 @@ pub mod macos {
                 }
                 Permission::InputMonitoring => {
                     // SAFETY: takes one enum value by value and returns an enum.
-                    match unsafe { IOHIDCheckAccess(IOHID_REQUEST_TYPE_LISTEN_EVENT) } {
-                        IOHID_ACCESS_TYPE_GRANTED => GrantState::Granted,
-                        IOHID_ACCESS_TYPE_DENIED => GrantState::NotGranted,
-                        _ => GrantState::NotDetermined,
-                    }
+                    grant_from_iohid_access(unsafe {
+                        IOHIDCheckAccess(IOHID_REQUEST_TYPE_LISTEN_EVENT)
+                    })
                 }
             }
         }
@@ -211,5 +219,36 @@ pub mod macos {
                 }
             }
         }
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::macos::{grant_from_iohid_access, TccProbe};
+    use super::{GrantState, Permission, PermissionProbe};
+
+    #[link(name = "CoreGraphics", kind = "framework")]
+    unsafe extern "C" {
+        fn CGPreflightListenEventAccess() -> bool;
+    }
+
+    #[test]
+    fn the_iohid_access_values_of_iohidlib_map_to_their_grants() {
+        assert_eq!(grant_from_iohid_access(0), GrantState::Granted);
+        assert_eq!(grant_from_iohid_access(1), GrantState::NotGranted);
+        assert_eq!(grant_from_iohid_access(2), GrantState::NotDetermined);
+        assert_eq!(grant_from_iohid_access(3), GrantState::NotDetermined);
+        assert_eq!(grant_from_iohid_access(u32::MAX), GrantState::NotDetermined);
+    }
+
+    #[test]
+    fn the_input_monitoring_check_agrees_with_cg_preflight_listen_event_access() {
+        let preflight = unsafe { CGPreflightListenEventAccess() };
+        let check = TccProbe.check(Permission::InputMonitoring);
+        assert_eq!(
+            check == GrantState::Granted,
+            preflight,
+            "check={check:?} preflight={preflight}"
+        );
     }
 }
