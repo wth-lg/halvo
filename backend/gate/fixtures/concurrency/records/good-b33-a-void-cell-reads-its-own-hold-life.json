@@ -1,0 +1,93 @@
+{
+  "kind": "judge",
+  "ruling": "B-33",
+  "about": "the void cell's gateway holds for 1,700 ms, so its bound is 1,300 ms and a median of 1,301 ms is slow",
+  "source": "by hand",
+  "top": {
+    "cell": {
+      "name": "void@20",
+      "kind": "void",
+      "level": 3,
+      "switch": "usage-last"
+    },
+    "requests": [
+      {
+        "id": "q0",
+        "index": 0,
+        "status": 403,
+        "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+        "sentAt": 1000,
+        "headersAt": 2301,
+        "endedAt": 2302,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      },
+      {
+        "id": "q1",
+        "index": 1,
+        "status": 403,
+        "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+        "sentAt": 1000,
+        "headersAt": 2301,
+        "endedAt": 2302,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      },
+      {
+        "id": "q2",
+        "index": 2,
+        "status": 403,
+        "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+        "sentAt": 1000,
+        "headersAt": 2301,
+        "endedAt": 2302,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      }
+    ],
+    "final": {
+      "now": 20000,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 20000,
+        "seq": 0
+      },
+      "periods": [],
+      "holds": [],
+      "alarm": null,
+      "databaseSize": null
+    },
+    "gateway": {
+      "holdLifeMs": 1700,
+      "deadlineMs": 1500,
+      "marginMs": 400
+    }
+  },
+  "expect": {
+    "counted": false,
+    "violations": [],
+    "facts": {
+      "slow": true,
+      "burstMedianMs": 1301,
+      "slowBoundMs": 1300
+    }
+  }
+}

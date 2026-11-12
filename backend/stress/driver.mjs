@@ -681,6 +681,8 @@ async function schedule(tasks, capacity, halted) {
   return Promise.all(running);
 }
 
+const FACTS_OF_A_DISCARDED_ATTEMPT = ["slow", "burstWaits", "burstMedianMs", "slowBoundMs", "lateSettles", "lostInTransport"];
+
 async function runCounted(ctx, cell, variant, runNo, withKill) {
   const who = variant === "counts-open-holds" ? "ledger" : "control";
   const discarded = [];
@@ -711,6 +713,7 @@ async function runCounted(ctx, cell, variant, runNo, withKill) {
       openAtKill: result.facts?.openAtKill ?? null,
       streamAtKill: result.facts?.streamAtKill ?? null,
       crossed: result.facts?.crossed ?? null,
+      ...Object.fromEntries(FACTS_OF_A_DISCARDED_ATTEMPT.filter((name) => name in (result.facts ?? {})).map((name) => [name, result.facts[name]])),
       violations: result.violations,
     });
   }

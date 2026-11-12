@@ -8,7 +8,7 @@ export const gatewayOf = (cfg, cell) => ({
 });
 
 export const CLAUSES = {
-  "wave-admits-k": "the wave admits exactly K",
+  "wave-admits-k": "a held wave of an attempt that is not slow has exactly K hold rows, each under an id that the driver sent",
   "refused-no-charge": "a refused request has no charge",
   "settled-exact":
     "a request whose final usage was delivered and whose settle was acknowledged is charged exactly its price times that usage",
@@ -18,7 +18,7 @@ export const CLAUSES = {
   cap: "counted spend passes the cap by 0 outside the over-report cell and by at most the sum of overruns inside it",
   "no-open-after-expiry": "no hold is open after its expiry time",
   "receipt-has-hold": "no receipt lacks a stored hold after the kill",
-  "no-late-settle": "no settle arrives after expiry in a run without the kill",
+  "no-late-settle": "no settle arrives after expiry in a run without the kill, read in attempts that are not slow",
   integrity: "the three records can be joined and the run ran as planned",
 };
 
@@ -53,6 +53,13 @@ function legal409(request, row, upstream, ledger) {
   }
   return body.result === "repeat" && sentMoreThanOnce(request) && fitsTheRow(body, row);
 }
+/** The value at the given share of the values by nearest rank (0.5 is the median), or null when there is none. */
+export function nearestRank(values, share) {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.max(0, Math.ceil(share * sorted.length) - 1)];
+}
+
 const FAULTS_THAT_FAIL_THE_UPSTREAM = new Set(["error-status", "reset"]);
 const lifeOf = (request, gateway) =>
   request.receipt?.now === undefined ? gateway.holdLifeMs : request.receipt.expiresAt - request.receipt.now;
@@ -124,6 +131,11 @@ export function judge({
   const sent = new Map(requests.filter((request) => request.sentAt !== null).map((request) => [request.id, request]));
   const rows = new Map(final.holds.map((row) => [row.request_id, row]));
   const mock = readMock(mockEvents);
+  const burstWaits = [...sent.values()].filter((request) => request.index < cell.level && request.headersAt !== null).map((request) => request.headersAt - request.sentAt);
+  const burstMedianMs = nearestRank(burstWaits, 0.5);
+  const slowBoundMs = gateway.holdLifeMs - gateway.marginMs;
+  const slow = burstMedianMs !== null && burstMedianMs > slowBoundMs;
+  const readsArrival = kill === null && !slow;
 
   for (const id of rows.keys()) {
     if (!sent.has(id)) bad("row-has-request", id, "a ledger row has no driver request");
@@ -174,7 +186,7 @@ export function judge({
     if (request.status === 200 && request.abortedAt === null && !request.trailer && !diedInKill) {
       bad("integrity", request.id, "the stream ended with no ledger event");
     }
-    if (kill === null && request.trailer?.settled && request.trailer.outcome === "expired") {
+    if (readsArrival && request.trailer?.settled && request.trailer.outcome === "expired") {
       bad("no-late-settle", request.id, "the ledger answered the gateway's settle as expired: it arrived after the hold's expiry");
     }
   }
@@ -249,7 +261,7 @@ export function judge({
         worstExpiryLagMs = Math.max(worstExpiryLagMs, row.ended_at - row.expires_at);
         if (row.late_at !== null) {
           lateSettles++;
-          if (kill === null) {
+          if (readsArrival) {
             bad("no-late-settle", row.request_id, `a settle arrived ${row.late_at - row.expires_at} ms after the expiry`);
           }
           if (row.cost !== chargeFromMock) {
@@ -267,10 +279,17 @@ export function judge({
         }
     }
   }
+  let held = null;
+  let streams = null;
   if (cell.kind === "wave") {
-    const streams = [...sent.values()].filter((request) => request.status === 200).length;
-    if (rows.size !== cell.k) bad("wave-admits-k", null, `the wave admitted ${rows.size}, K is ${cell.k}`);
-    if (streams !== cell.k) bad("wave-admits-k", null, `the driver got ${streams} streams in the wave, K is ${cell.k}`);
+    streams = [...sent.values()].filter((request) => request.status === 200).length;
+    const answeredAt = [...sent.values()].filter((request) => request.headersAt !== null).map((request) => request.headersAt);
+    const lastAnswerAt = answeredAt.length === 0 ? null : Math.max(...answeredAt);
+    held = lastAnswerAt !== null && [...rows.values()].every((row) => row.ended_at === null || row.ended_at >= lastAnswerAt);
+    const unsent = [...rows.keys()].filter((id) => !sent.has(id)).length;
+    if (held && !slow && (rows.size !== cell.k || unsent > 0)) {
+      bad("wave-admits-k", null, `the held wave has ${rows.size} hold rows, ${unsent} of them under an id the driver did not send; K is ${cell.k}`);
+    }
   }
 
   for (const row of rows.values()) {
@@ -393,6 +412,8 @@ export function judge({
   if (kill) counted = openAtKill.length > 0 && streamAtKill;
   if (cell.kind === "rollover") counted = counted && crossed;
   if (cell.kind === "void") counted = rows.size > 0 && voided === rows.size;
+  if (cell.kind === "wave") counted = counted && held;
+  counted = counted && !slow;
 
   let latestStreamEndPastExpiryMs = null;
   const streamsEndOnTheirOwn = !kill;
@@ -425,6 +446,12 @@ export function judge({
       resets: [...sent.values()].reduce((total, request) => total + request.lost.filter((attempt) => attempt.why === "reset").length, 0),
       proxyLost: [...sent.values()].reduce((total, request) => total + request.lost.filter((attempt) => attempt.why === "500").length, 0),
       lostInTransport: [...sent.values()].filter(lostInTransport).length,
+      slow,
+      burstWaits,
+      burstMedianMs,
+      slowBoundMs,
+      held,
+      streams,
       admitted: rows.size,
       settled,
       expired,

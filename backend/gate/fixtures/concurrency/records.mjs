@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
@@ -58,7 +58,44 @@ function readGateway(record) {
   return { good: true, problems: isDeepStrictEqual(got, record.expect) ? [] : [`the gateway is ${JSON.stringify(got)}, expected ${JSON.stringify(record.expect)}`] };
 }
 
-const READINGS = { judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway };
+async function readAttempts(record) {
+  const state = process.env.GATE_STATE ?? join(HERE, "..", "..", "..", ".tmp");
+  mkdirSync(state, { recursive: true });
+  const scripted = (_ctx, cell, variant, runNo, withKill, attempt) => ({
+    key: `attempt-${attempt + 1}`,
+    cell: cell.name,
+    kind: cell.kind,
+    level: cell.level,
+    switch: cell.switch,
+    variant,
+    withKill,
+    runNo,
+    counted: record.attempts[attempt].counted,
+    violations: [],
+    facts: record.attempts[attempt].facts,
+    ms: 1,
+    error: null,
+  });
+  const ctx = {
+    cfg: { attempts: record.attempts.length },
+    target: { command: () => ({}) },
+    outDir: state,
+    jobs: 1,
+    progress: () => undefined,
+    runOnce: async (...args) => scripted(...args),
+  };
+  const [run] = await driver.runCells(ctx, [record.cell], "counts-open-holds");
+  const problems = [];
+  if (run.discarded.length !== record.expect.discarded.length) problems.push(`${run.discarded.length} discarded attempts, expected ${record.expect.discarded.length}`);
+  record.expect.discarded.forEach((want, at) => {
+    for (const [name, value] of Object.entries(want)) {
+      if (!isDeepStrictEqual(run.discarded[at]?.[name], value)) problems.push(`discarded attempt ${at + 1} keeps ${name} as ${JSON.stringify(run.discarded[at]?.[name])}, expected ${JSON.stringify(value)}`);
+    }
+  });
+  return { good: true, problems };
+}
+
+const READINGS = { judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway, attempts: readAttempts };
 
 const files = readdirSync(RECORDS)
   .filter((name) => name.endsWith(".json"))
@@ -75,7 +112,7 @@ for (const file of files) {
   try {
     const record = JSON.parse(readFileSync(join(RECORDS, file), "utf8"));
     const reading = READINGS[record.kind];
-    result = reading ? reading(record) : { good: null, problems: [`the kind ${record.kind} has no reading`] };
+    result = reading ? await reading(record) : { good: null, problems: [`the kind ${record.kind} has no reading`] };
   } catch (error) {
     result = { good: null, problems: [`it threw: ${String(error?.message ?? error).split("\n")[0]}`] };
   }
