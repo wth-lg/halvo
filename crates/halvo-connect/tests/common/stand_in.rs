@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::{ErrorKind, Read, Write};
 use std::net::TcpListener;
 use std::sync::mpsc;
 use std::thread;
@@ -10,14 +10,20 @@ use halvo_schema::executable::WebOrigin;
 pub struct Plan {
     pub head_after: Duration,
     pub head: Vec<u8>,
+    pub await_close: bool,
     pub body_after: Duration,
     pub body: Vec<u8>,
     pub hold: Duration,
 }
 
+pub struct Served {
+    pub wrote_all: bool,
+    pub closed_before_body: bool,
+}
+
 pub struct StandIn {
     port: u16,
-    done: mpsc::Receiver<bool>,
+    done: mpsc::Receiver<Served>,
 }
 
 impl StandIn {
@@ -41,10 +47,33 @@ impl StandIn {
             }
             thread::sleep(plan.head_after);
             let mut wrote_all = stream.write_all(&plan.head).is_ok() && stream.flush().is_ok();
+            let mut closed_before_body = false;
+            if plan.await_close {
+                let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+                closed_before_body = loop {
+                    match stream.read(&mut buf) {
+                        Ok(0) => break true,
+                        Ok(_) => {}
+                        Err(error) if error.kind() == ErrorKind::Interrupted => {}
+                        Err(error)
+                            if matches!(
+                                error.kind(),
+                                ErrorKind::WouldBlock | ErrorKind::TimedOut
+                            ) =>
+                        {
+                            break false
+                        }
+                        Err(_) => break true,
+                    }
+                };
+            }
             thread::sleep(plan.body_after);
             wrote_all = wrote_all && stream.write_all(&plan.body).is_ok() && stream.flush().is_ok();
             thread::sleep(plan.hold);
-            let _ = tx.send(wrote_all);
+            let _ = tx.send(Served {
+                wrote_all,
+                closed_before_body,
+            });
         });
         StandIn { port, done: rx }
     }
@@ -55,7 +84,7 @@ impl StandIn {
         Graph::new(&origin, Route::Loopback, timeout).expect("the client builds")
     }
 
-    pub fn wrote_all(&self, within: Duration) -> Option<bool> {
+    pub fn served(&self, within: Duration) -> Option<Served> {
         self.done.recv_timeout(within).ok()
     }
 }

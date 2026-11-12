@@ -28,6 +28,7 @@ fn answer(head: Vec<u8>, body: Vec<u8>) -> Plan {
     Plan {
         head_after: Duration::ZERO,
         head,
+        await_close: false,
         body_after: Duration::ZERO,
         body,
         hold: Duration::ZERO,
@@ -41,6 +42,7 @@ fn one_time_limit_holds_the_head_and_the_body() {
     let stand_in = StandIn::serve(Plan {
         head_after: limit * 7 / 10,
         head: head(Some(body.len())),
+        await_close: false,
         body_after: limit * 7 / 10,
         body,
         hold: Duration::ZERO,
@@ -63,6 +65,7 @@ fn an_answer_held_open_past_the_limit_is_no_answer_within_it() {
         let stand_in = StandIn::serve(Plan {
             head_after: Duration::ZERO,
             head: header,
+            await_close: false,
             body_after: Duration::ZERO,
             body,
             hold: Duration::from_secs(10),
@@ -101,7 +104,8 @@ fn an_answer_of_64_mib_is_refused_before_it_is_read_whole() {
     let stand_in = StandIn::serve(Plan {
         head_after: Duration::ZERO,
         head: head(Some(size)),
-        body_after: Duration::from_secs(1),
+        await_close: true,
+        body_after: Duration::ZERO,
         body: inbox_of(size),
         hold: Duration::ZERO,
     });
@@ -109,10 +113,12 @@ fn an_answer_of_64_mib_is_refused_before_it_is_read_whole() {
         list(&stand_in, Duration::from_secs(30)).0,
         Err(CallError::Answer(AnswerFault::Size))
     );
-    assert_eq!(
-        stand_in.wrote_all(Duration::from_secs(40)),
-        Some(false),
-        "the stand-in's connection closed before it wrote the whole answer"
+    let served = stand_in
+        .served(Duration::from_secs(40))
+        .expect("the stand-in ends");
+    assert!(
+        served.closed_before_body,
+        "the client closed the connection within 10 s and before one byte of the body was written"
     );
 }
 
@@ -121,6 +127,7 @@ fn a_declared_length_over_the_bound_is_refused_before_its_body_comes() {
     let stand_in = StandIn::serve(Plan {
         head_after: Duration::ZERO,
         head: head(Some(BOUND + 1)),
+        await_close: false,
         body_after: Duration::from_secs(10),
         body: inbox_of(BOUND + 1),
         hold: Duration::ZERO,
