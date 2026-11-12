@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Nothing of a model request can leave the machine in this build: the ruling file of the commit reads ruling=none, no row of the policy or of the recorded table names a hosted tier, cargo tree of the run's three crates names no network package, the egress lists hold no entry, cargo test of halvo-route in the debug and the release profile prints the ok lines of no_grant_in_release and pinned_files_hold_their_hashes under the target tests/no_grant_in_release.rs, and no cargo command leaves the tree changed.
+# rule: Nothing of a model request can leave the machine in this build: the ruling file of the commit reads ruling=none, no row of the policy or of the recorded table names a hosted tier, cargo tree of the run's three crates names no network package, the egress lists hold no entry, cargo test of halvo-route in the debug and the release profile prints the ok lines of no_grant_in_release and pinned_files_hold_their_hashes under the target tests/no_grant_in_release.rs, a program of another crate built with --cfg test set from outside stops with E0624 where it names Ruling::test_hosted while its control compiles and answers ruling, and no cargo command leaves the tree changed.
 set -u
 name=80-r6-absent
 case $0 in
@@ -188,6 +188,98 @@ grant_lines_hold() {
   ' "$1"
 }
 
+probe_stops() {
+  awk -v line="$2" '
+    { sub(/\r$/, ""); gsub(/\\/, "/") }
+    /^error: (could not compile |aborting due to )/ { next }
+    /^error(\[E[0-9]+\])?: / { elsewhere++; next }
+    /^[^ ].*:[0-9]+:[0-9]+: error(\[E[0-9]+\])?: / {
+      if ($0 ~ ("^src/bin/probe\\.rs:" line ":[0-9]+: error\\[E0624\\]: ")) at_line++
+      else elsewhere++
+    }
+    END { exit !(at_line >= 1 && elsewhere == 0) }
+  ' "$1"
+}
+
+write_pair() {
+  route=$repo/crates/halvo-route
+  if command -v cygpath >/dev/null 2>&1; then
+    route=$(cygpath -m "$route") || return 1
+  fi
+  mkdir -p "$pair/src/bin" || return 1
+  printf '[package]\nname = "r6-absent-pair"\nversion = "0.0.0"\nedition = "2021"\npublish = false\n\n[workspace]\n\n[dependencies]\nhalvo-route = { path = '"'"'%s'"'"' }\n' \
+    "$route" >"$pair/Cargo.toml" || return 1
+  cat >"$pair/src/bin/probe.rs" <<'EOF' || return 1
+use halvo_route::ruling::Ruling;
+
+fn main() {
+    let ruling = Ruling::test_hosted(&["127.0.0.1:1"]);
+    println!("probe origins={}", ruling.origins().len());
+}
+EOF
+  cat >"$pair/src/bin/control.rs" <<'EOF' || return 1
+use halvo_route::leave::{grant, Consent, PartKind};
+use halvo_route::tier::Tier;
+
+fn main() {
+    let ruling = halvo_route::release::ruling();
+    for tier in [Tier::LowCostHosted, Tier::Frontier] {
+        let answer = match grant(&ruling, tier, Tier::Frontier, &[PartKind::Text], "127.0.0.1:1", Consent::Recorded) {
+            Ok(_) => "grant",
+            Err(cause) => cause.as_str(),
+        };
+        println!("control tier={} answer={}", tier.as_str(), answer);
+    }
+    println!("control cfg_test={}", if cfg!(test) { "yes" } else { "no" });
+}
+EOF
+}
+
+build_pair() {
+  if [ "${CARGO_ENCODED_RUSTFLAGS+set}" = set ]; then
+    separator=$(printf '\037')
+    CARGO_ENCODED_RUSTFLAGS="${CARGO_ENCODED_RUSTFLAGS:+$CARGO_ENCODED_RUSTFLAGS$separator}--cfg${separator}test"
+    export CARGO_ENCODED_RUSTFLAGS
+    set --
+  elif [ "${RUSTFLAGS+set}" = set ]; then
+    RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--cfg test"
+    export RUSTFLAGS
+    set --
+  else
+    set -- --config 'build.rustflags=["--cfg", "test"]'
+  fi
+  cargo generate-lockfile --offline --manifest-path "$pair/Cargo.toml" >"$artifacts/pair-lock.txt" 2>&1 </dev/null
+  cargo run --locked --offline --manifest-path "$pair/Cargo.toml" --target-dir "$scratch/pair-target" --bin control "$@" \
+    >"$artifacts/control.out" 2>"$artifacts/control.err" </dev/null
+  printf '%s\n' "$?" >"$scratch/control.code"
+  cargo build --locked --offline --manifest-path "$pair/Cargo.toml" --target-dir "$scratch/pair-target" --message-format short \
+    --bin probe "$@" >"$artifacts/probe.txt" 2>&1 </dev/null
+  printf '%s\n' "$?" >"$scratch/probe.code"
+}
+
+test_value() {
+  pair=$scratch/pair
+  misses=0
+  if write_pair; then
+    (build_pair)
+    probe_code=$(cat "$scratch/probe.code" 2>/dev/null) || probe_code=
+    control_code=$(cat "$scratch/control.code" 2>/dev/null) || control_code=
+  else
+    probe_code=
+    control_code=
+  fi
+  tree_same after-pair test_value
+  probe_line=$(awk '/test_hosted/ { print NR; exit }' "$pair/src/bin/probe.rs" 2>/dev/null) || probe_line=
+  if [ -z "$probe_line" ] || [ "$probe_code" = 0 ] || [ -z "$probe_code" ] || ! probe_stops "$artifacts/probe.txt" "$probe_line"; then
+    misses=$((misses + 1))
+  fi
+  printf '%s\n' "$control_want" >"$scratch/control.want"
+  if [ "$control_code" != 0 ] || ! cmp -s "$artifacts/control.out" "$scratch/control.want"; then
+    misses=$((misses + 1))
+  fi
+  value_count=$misses
+}
+
 grants() {
   held=0
   for profile in debug release; do
@@ -236,7 +328,7 @@ measure() {
   [ "$tree_code" -eq 0 ] || [ "$crates" -gt 0 ] || crates=1
 
   grants
-  value_count=-
+  test_value
 
   printf 'absent ruling=%s hosted_picks=%s hosted_rows=%s net_crates=%s entries=%s grants=%s test_value=%s\n' \
     "$ruling" "$picks" "$rows" "$crates" "$entries" "$grant_count" "$value_count"
@@ -247,6 +339,7 @@ measure() {
   [ "$crates" = 0 ] || cause=${cause:-crates}
   [ "$entries" = 0 ] || cause=${cause:-entries}
   [ "$grant_count" = 0 ] || cause=${cause:-grants}
+  [ "$value_count" = 0 ] || cause=${cause:-test_value}
   if [ -n "$cause" ]; then
     printf 'FAIL %s (%s)\n' "$name" "$cause"
     exit 1
@@ -613,8 +706,34 @@ grant_units() {
   grant_case release-form hold passing
 }
 
+probe_units() {
+  u=$work/u
+  probe_case() {
+    if probe_stops "$u/probe-$1" 4; then
+      verdict "probe-$1" "$2" stops "$3"
+    else
+      verdict "probe-$1" "$2" holds-no-stop "$3"
+    fi
+  }
+  e0624='error[E0624]: associated function test_hosted is private'
+  printf '' >"$u/probe-no-error" || exit 2
+  printf 'src/bin/probe.rs:4:26: error[E0599]: no function or associated item named test_hosted found\n' >"$u/probe-e0599" || exit 2
+  printf 'src/bin/probe.rs:5:26: %s\n' "$e0624" >"$u/probe-another-line" || exit 2
+  printf 'src/bin/probe.rs:4:26: %s\ncrates/halvo-route/src/leave.rs:586:5: error[E0432]: unresolved import sha2\n' "$e0624" >"$u/probe-and-an-error-in-the-library" || exit 2
+  printf 'src/bin/probe.rs:4:26: %s\nerror[E0432]: unresolved import sha2\n  --> crates/halvo-route/src/leave.rs:586:5\n' "$e0624" >"$u/probe-and-a-long-form-error" || exit 2
+  printf 'other/src/bin/probe.rs:4:26: %s\n' "$e0624" >"$u/probe-another-file" || exit 2
+  printf 'src/bin/probe.rs:4:26: error: associated function test_hosted is private\n' >"$u/probe-error-without-a-code" || exit 2
+  for fixture in no-error e0599 another-line and-an-error-in-the-library and-a-long-form-error another-file error-without-a-code; do
+    probe_case "$fixture" holds-no-stop failing
+  done
+  cp "$work/stub/probe.out" "$u/probe-committed-form" || exit 2
+  probe_case committed-form stops passing
+  printf 'src\\bin\\probe.rs:4:26: %s\r\nerror: aborting due to 1 previous error\r\n' "$e0624" >"$u/probe-windows-form" || exit 2
+  probe_case windows-form stops passing
+}
+
 full_cases() {
-  check all-hold PASS 'absent ruling=none hosted_picks=0 hosted_rows=0 net_crates=0 entries=0 grants=0 test_value=-'
+  check all-hold PASS 'absent ruling=none hosted_picks=0 hosted_rows=0 net_crates=0 entries=0 grants=0 test_value=0'
 
   for variant in ruling policy recorded egress; do
     mkdir "$work/commit-$variant" || exit 2
@@ -642,21 +761,42 @@ full_cases() {
   check tree-fails FAIL ' net_crates=1 entries=0 ' "FAIL $name (crates)"
 
   STUB_DEBUG_OUT=$work/stub/debug-no-grant.out
-  check debug-without-the-grant-ok-line FAIL ' grants=1 test_value=-' "FAIL $name (grants)"
+  check debug-without-the-grant-ok-line FAIL ' grants=1 test_value=0' "FAIL $name (grants)"
   STUB_RELEASE_OUT=$work/stub/release-no-grant.out
-  check release-without-the-grant-ok-line FAIL ' grants=1 test_value=-' "FAIL $name (grants)"
+  check release-without-the-grant-ok-line FAIL ' grants=1 test_value=0' "FAIL $name (grants)"
   STUB_DEBUG_EXIT=101
-  check debug-run-fails FAIL ' grants=1 test_value=-' "FAIL $name (grants)"
+  check debug-run-fails FAIL ' grants=1 test_value=0' "FAIL $name (grants)"
   STUB_RELEASE_EXIT=101
-  check release-run-fails FAIL ' grants=1 test_value=-' "FAIL $name (grants)"
+  check release-run-fails FAIL ' grants=1 test_value=0' "FAIL $name (grants)"
 
+  STUB_PROBE_EXIT=0
+  STUB_PROBE_OUT=$work/stub/empty.out
+  check probe-compiles FAIL ' grants=0 test_value=1' "FAIL $name (test_value)"
+  STUB_PROBE_EXIT=0
+  STUB_PROBE_OUT=$work/stub/probe-text.out
+  check probe-exits-0-with-the-error-text FAIL ' test_value=1' "FAIL $name (test_value)"
+  STUB_CONTROL_OUT=$work/stub/control-grant.out
+  check control-answers-grant FAIL ' test_value=1' "FAIL $name (test_value)"
+  STUB_CONTROL_EXIT=1
+  check control-exits-1 FAIL ' test_value=1' "FAIL $name (test_value)"
+  STUB_CONTROL_EXIT=101
+  STUB_PROBE_EXIT=0
+  STUB_PROBE_OUT=$work/stub/empty.out
+  check probe-and-control-miss FAIL ' test_value=2' "FAIL $name (test_value)"
+  CASE_RUSTFLAGS='-Dwarnings'
+  STUB_JOB_FLAG='-Dwarnings'
+  check job-rustflags-kept PASS ' test_value=0'
+  CASE_ENCODED='-Dwarnings'
+  STUB_JOB_FLAG='-Dwarnings'
+  check job-encoded-rustflags-kept PASS ' test_value=0'
   CASE_QUIET=true
-  check job-sets-cargo-quiet PASS ' grants=0 test_value=-'
+  check job-sets-cargo-quiet PASS ' grants=0 test_value=0'
 
-  for kind in tree:crates debug:grants release:grants; do
+  for kind in tree:crates debug:grants release:grants control:test_value probe:test_value; do
     STUB_CHANGE_AT=${kind%%:*}
     STUB_CHANGE_LINE='? .cargo/config.toml'
     case ${kind%%:*} in
+      control | probe) when=pair ;;
       *) when=${kind%%:*} ;;
     esac
     check "tree-changed-by-$STUB_CHANGE_AT" FAIL "tree changed=after-$when ? .cargo/config.toml" "FAIL $name (${kind#*:})"
@@ -664,12 +804,13 @@ full_cases() {
   printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-route/data/ruling.txt\n' >"$work/tree/status" || exit 2
   check changed-file-before-the-run FAIL 'tree changed=before 1 crates/halvo-route/data/ruling.txt' "FAIL $name (setup)"
   printf '? notes.txt\n! target/\n' >"$work/tree/status" || exit 2
-  check untracked-and-ignored-before-the-run PASS ' test_value=-'
+  check untracked-and-ignored-before-the-run PASS ' test_value=0'
   STUB_NO_COMMIT=1
   check no-commit FAIL 'tree commit=unreadable' "FAIL $name (setup)"
   STUB_COMMIT=$work/commit-ruling
   STUB_RELEASE_EXIT=101
-  check first-cause-named FAIL 'absent ruling=other ' ' grants=1 test_value=-' "FAIL $name (ruling)"
+  STUB_PROBE_EXIT=0
+  check first-cause-named FAIL 'absent ruling=other ' ' grants=1 test_value=1' "FAIL $name (ruling)"
 
   usage=$(sh "$self" --all 2>&1)
   direct "$?" "$usage" usage unknown-argument
@@ -700,6 +841,7 @@ self_test() {
   entry_units
   crate_units
   grant_units
+  probe_units
   full_cases
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
