@@ -288,6 +288,24 @@ names! {
 }
 
 names! {
+    /// The answer of a `secret_reply`: the secret is `stored`, `none` is stored, or the store is `unreadable`. Only
+    /// `none` says that no secret is stored.
+    pub enum SecretAnswer {
+        Stored = "stored",
+        None = "none",
+        Unreadable = "unreadable",
+    }
+}
+
+names! {
+    /// The member of the answer `unreadable`: the secret store was `locked`, or a `fault` kept it from being read.
+    pub enum Unreadable {
+        Locked = "locked",
+        Fault = "fault",
+    }
+}
+
+names! {
     /// The answer of an approval, which lasts for one effect.
     pub enum Answer {
         AllowOnce = "allow_once",

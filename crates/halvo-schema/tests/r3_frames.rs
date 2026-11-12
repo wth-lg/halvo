@@ -1,9 +1,9 @@
 use halvo_schema::executable::body::RunnerCall;
 use halvo_schema::executable::frame::{
     ConfirmDecision, ConfirmRequest, FromRunner, HandbackRequest, HandbackResult, ReplyError,
-    RunError, StoreRequest, ToRunner, FRAME_JSON_MAX,
+    RunError, SecretReply, StoreRequest, ToRunner, FRAME_JSON_MAX,
 };
-use halvo_schema::executable::names::YesNo;
+use halvo_schema::executable::names::{SecretAnswer, Unreadable, YesNo};
 use halvo_schema::executable::{Refusal, RefusalCause, ERROR_NAMES};
 use halvo_schema::request::{
     CoordinatorRole, CoordinatorWrite, ErrorName, RunnerRequest, RunnerRole,
@@ -109,8 +109,11 @@ fn to_runner() -> Vec<String> {
         ),
         format!(r#"{{"t":"handback_reply","result":{RESULT}}}"#),
         r#"{"t":"handback_reply","result":{"v":1,"outcome":"timeout","secret":null}}"#.to_owned(),
-        r#"{"t":"secret_reply","value":"tok_fixture"}"#.to_owned(),
-        r#"{"t":"secret_reply","value":null}"#.to_owned(),
+        r#"{"t":"secret_reply","answer":"stored","value":"tok_fixture"}"#.to_owned(),
+        r#"{"t":"secret_reply","answer":"stored","value":""}"#.to_owned(),
+        r#"{"t":"secret_reply","answer":"none"}"#.to_owned(),
+        r#"{"t":"secret_reply","answer":"unreadable","member":"locked"}"#.to_owned(),
+        r#"{"t":"secret_reply","answer":"unreadable","member":"fault"}"#.to_owned(),
         r#"{"t":"cancel"}"#.to_owned(),
         r#"{"t":"bind_reply","bound":"yes"}"#.to_owned(),
         r#"{"t":"bind_reply","bound":"no"}"#.to_owned(),
@@ -245,7 +248,7 @@ fn a_frame_is_refused_by_its_tag_its_keys_and_its_length() {
         "-",
     );
     expect(
-        ToRunner::parse(br#"{"t":"secret_reply","value":1}"#),
+        ToRunner::parse(br#"{"t":"secret_reply","answer":"stored","value":1}"#),
         "SecretText",
         "not_a_string",
         "value",
@@ -254,13 +257,13 @@ fn a_frame_is_refused_by_its_tag_its_keys_and_its_length() {
         ToRunner::parse(br#"{"t":"secret_reply"}"#),
         "SecretReply",
         "missing_key",
-        "value",
+        "answer",
     );
 
     assert_eq!(FRAME_JSON_MAX, 65_536);
-    let shell = r#"{"t":"secret_reply","value":""}"#.len();
+    let shell = r#"{"t":"secret_reply","answer":"stored","value":""}"#.len();
     let exact = format!(
-        r#"{{"t":"secret_reply","value":"{}"}}"#,
+        r#"{{"t":"secret_reply","answer":"stored","value":"{}"}}"#,
         "s".repeat(65_536 - shell)
     );
     assert_eq!(exact.len(), 65_536);
@@ -272,7 +275,7 @@ fn a_frame_is_refused_by_its_tag_its_keys_and_its_length() {
         exact
     );
     let over = format!(
-        r#"{{"t":"secret_reply","value":"{}"}}"#,
+        r#"{{"t":"secret_reply","answer":"stored","value":"{}"}}"#,
         "s".repeat(65_536 - shell + 1)
     );
     let refusal = ToRunner::parse(over.as_bytes()).unwrap_err();
@@ -285,10 +288,11 @@ fn a_frame_is_refused_by_its_tag_its_keys_and_its_length() {
         ToRunner::parse(spaced.as_bytes()).unwrap_err().cause(),
         RefusalCause::Length
     );
-    let ToRunner::SecretReply(mut frame) = ToRunner::parse(exact.as_bytes()).unwrap() else {
+    let ToRunner::SecretReply(SecretReply::Stored(_)) = ToRunner::parse(exact.as_bytes()).unwrap()
+    else {
         panic!()
     };
-    frame.value = Some(halvo_schema::executable::text::SecretText::new(
+    let frame = SecretReply::Stored(halvo_schema::executable::text::SecretText::new(
         &"s".repeat(65_536 - shell + 1),
     ));
     let refusal = ToRunner::SecretReply(frame).to_json().unwrap_err();
@@ -861,7 +865,8 @@ fn a_store_reply_takes_the_nine_error_names_and_the_six_of_this_run() {
 
 #[test]
 fn debug_of_a_frame_prints_no_secret_and_no_value_of_the_user() {
-    let secret = ToRunner::parse(br#"{"t":"secret_reply","value":"tok_4711"}"#).unwrap();
+    let secret =
+        ToRunner::parse(br#"{"t":"secret_reply","answer":"stored","value":"tok_4711"}"#).unwrap();
     let confirm_frame = FromRunner::parse(from_runner()[2].as_bytes()).unwrap();
     let put_session = RunnerCall::parse(format!(r#"{{"op":"put_session","agent":"{A}","run":"{R}","origin":"http://utility.test:18090","rev":1,"part":1,"of":1,"data":["c2VjcmV0NDcxMQ=="]}}"#).as_bytes()).unwrap();
     let request = RunnerRequest::new(
@@ -1232,4 +1237,292 @@ fn the_frames_bind_and_browser_and_their_replies_hold_the_keys_of_the_contract()
     for (text, type_name, rule, key) in to {
         expect(ToRunner::parse(text.as_bytes()), type_name, rule, key);
     }
+}
+
+fn secret_reply(keys: &str) -> String {
+    format!(r#"{{"t":"secret_reply",{keys}}}"#)
+}
+
+#[test]
+fn a_secret_reply_tells_the_secret_none_stored_and_a_store_that_could_not_be_read_apart() {
+    let answers: Vec<&str> = SecretAnswer::ALL.iter().map(|a| a.as_str()).collect();
+    assert_eq!(answers, ["stored", "none", "unreadable"]);
+    let members: Vec<&str> = Unreadable::ALL.iter().map(|m| m.as_str()).collect();
+    assert_eq!(members, ["locked", "fault"]);
+    let read = |keys: &str| match ToRunner::parse(secret_reply(keys).as_bytes()) {
+        Ok(ToRunner::SecretReply(reply)) => reply,
+        other => panic!("{keys}: {other:?}"),
+    };
+    let stored = read(r#""answer":"stored","value":"tok_fixture""#);
+    let SecretReply::Stored(value) = &stored else {
+        panic!("stored")
+    };
+    assert_eq!(value.expose(), "tok_fixture");
+    assert_eq!(stored.answer(), SecretAnswer::Stored);
+    assert_eq!(read(r#""answer":"none""#), SecretReply::None);
+    assert_eq!(read(r#""answer":"none""#).answer(), SecretAnswer::None);
+    for member in Unreadable::ALL {
+        let keys = format!(r#""answer":"unreadable","member":"{}""#, member.as_str());
+        let reply = read(&keys);
+        assert_eq!(reply, SecretReply::Unreadable(*member));
+        assert_eq!(reply.answer(), SecretAnswer::Unreadable);
+        assert_ne!(reply, SecretReply::None);
+        assert_eq!(
+            ToRunner::SecretReply(reply).to_json().unwrap(),
+            secret_reply(&keys)
+        );
+    }
+    let reordered = r#"{"value":"tok_fixture","answer":"stored","t":"secret_reply"}"#;
+    assert_eq!(
+        ToRunner::parse(reordered.as_bytes())
+            .unwrap()
+            .to_json()
+            .unwrap(),
+        secret_reply(r#""answer":"stored","value":"tok_fixture""#)
+    );
+    let written: Vec<String> = [
+        SecretReply::Stored(halvo_schema::executable::text::SecretText::new(
+            "tok_fixture",
+        )),
+        SecretReply::None,
+        SecretReply::Unreadable(Unreadable::Locked),
+        SecretReply::Unreadable(Unreadable::Fault),
+    ]
+    .into_iter()
+    .map(|r| ToRunner::SecretReply(r).to_json().unwrap())
+    .collect();
+    assert_eq!(
+        written,
+        [
+            secret_reply(r#""answer":"stored","value":"tok_fixture""#),
+            secret_reply(r#""answer":"none""#),
+            secret_reply(r#""answer":"unreadable","member":"locked""#),
+            secret_reply(r#""answer":"unreadable","member":"fault""#),
+        ]
+    );
+}
+
+#[test]
+fn a_secret_reply_with_a_value_and_an_answer_other_than_stored_is_refused() {
+    for keys in [
+        r#""answer":"none","value":"tok_fixture""#,
+        r#""answer":"none","value":"""#,
+        r#""answer":"none","value":null"#,
+        r#""value":null,"answer":"none""#,
+        r#""answer":"unreadable","member":"locked","value":"tok_fixture""#,
+        r#""answer":"unreadable","member":"fault","value":null"#,
+        r#""answer":"unreadable","value":"tok_fixture""#,
+    ] {
+        expect(
+            ToRunner::parse(secret_reply(keys).as_bytes()),
+            "SecretReply",
+            "value_without_stored",
+            "value",
+        );
+    }
+}
+
+#[test]
+fn a_secret_reply_with_a_member_and_an_answer_other_than_unreadable_is_refused() {
+    for keys in [
+        r#""answer":"none","member":"locked""#,
+        r#""answer":"none","member":"fault""#,
+        r#""answer":"none","member":null"#,
+        r#""answer":"stored","value":"tok_fixture","member":"locked""#,
+        r#""answer":"stored","value":"tok_fixture","member":null"#,
+        r#""answer":"stored","member":"fault""#,
+    ] {
+        expect(
+            ToRunner::parse(secret_reply(keys).as_bytes()),
+            "SecretReply",
+            "member_without_unreadable",
+            "member",
+        );
+    }
+}
+
+#[test]
+fn a_secret_reply_with_the_answer_stored_and_no_value_is_refused() {
+    expect(
+        ToRunner::parse(secret_reply(r#""answer":"stored""#).as_bytes()),
+        "SecretReply",
+        "stored_without_value",
+        "value",
+    );
+    expect(
+        ToRunner::parse(secret_reply(r#""answer":"stored","value":null"#).as_bytes()),
+        "SecretText",
+        "not_a_string",
+        "value",
+    );
+    expect(
+        ToRunner::parse(secret_reply(r#""answer":"unreadable""#).as_bytes()),
+        "SecretReply",
+        "unreadable_without_member",
+        "member",
+    );
+}
+
+#[test]
+fn a_secret_reply_is_refused_for_each_form_that_the_contract_does_not_give() {
+    let cases: Vec<(String, &str, &str, &str)> = vec![
+        (
+            r#"["secret_reply","stored","tok_fixture"]"#.to_owned(),
+            "ToRunner",
+            "not_an_object",
+            "-",
+        ),
+        (
+            secret_reply(r#""answer":"stored","answer":"none""#),
+            "ToRunner",
+            "repeated_key",
+            "-",
+        ),
+        (
+            secret_reply(r#""answer":"stored","value":"a","value":"b""#),
+            "ToRunner",
+            "repeated_key",
+            "-",
+        ),
+        (
+            secret_reply(r#""answer":null"#),
+            "SecretAnswer",
+            "not_a_string",
+            "answer",
+        ),
+        (
+            secret_reply(r#""answer":1"#),
+            "SecretAnswer",
+            "not_a_string",
+            "answer",
+        ),
+        (
+            secret_reply(r#""answer":"1""#),
+            "SecretAnswer",
+            "unknown_name",
+            "answer",
+        ),
+        (
+            secret_reply(r#""answer":"Stored","value":"x""#),
+            "SecretAnswer",
+            "unknown_name",
+            "answer",
+        ),
+        (
+            secret_reply(r#""answer":"locked""#),
+            "SecretAnswer",
+            "unknown_name",
+            "answer",
+        ),
+        (
+            secret_reply(r#""answer":"not_stored""#),
+            "SecretAnswer",
+            "unknown_name",
+            "answer",
+        ),
+        (
+            secret_reply(r#""answer":["none"]"#),
+            "SecretAnswer",
+            "not_a_string",
+            "answer",
+        ),
+        (
+            secret_reply(r#""value":"tok_fixture""#),
+            "SecretReply",
+            "missing_key",
+            "answer",
+        ),
+        (
+            secret_reply(r#""answer":"unreadable","member":"Locked""#),
+            "Unreadable",
+            "unknown_name",
+            "member",
+        ),
+        (
+            secret_reply(r#""answer":"unreadable","member":"none""#),
+            "Unreadable",
+            "unknown_name",
+            "member",
+        ),
+        (
+            secret_reply(r#""answer":"unreadable","member":"failed""#),
+            "Unreadable",
+            "unknown_name",
+            "member",
+        ),
+        (
+            secret_reply(r#""answer":"unreadable","member":null"#),
+            "Unreadable",
+            "not_a_string",
+            "member",
+        ),
+        (
+            secret_reply(r#""answer":"unreadable","member":0"#),
+            "Unreadable",
+            "not_a_string",
+            "member",
+        ),
+        (
+            secret_reply(r#""answer":"stored","value":["tok"]"#),
+            "SecretText",
+            "not_a_string",
+            "value",
+        ),
+        (
+            secret_reply(r#""answer":"stored","value":12345"#),
+            "SecretText",
+            "not_a_string",
+            "value",
+        ),
+        (
+            secret_reply(r#""answer":"none","secret":null"#),
+            "SecretReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            secret_reply(r#""answer":"none","ref":"fixture_token""#),
+            "SecretReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            secret_reply(r#""answer":"none","outcome":"done""#),
+            "SecretReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            secret_reply(r#""answer":"stored","value":"tok","name":"x""#),
+            "SecretReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            secret_reply(r#""value":null"#),
+            "SecretReply",
+            "missing_key",
+            "answer",
+        ),
+        (
+            r#"{"t":"secret_reply","answer":"none","t":"secret_reply"}"#.to_owned(),
+            "ToRunner",
+            "repeated_key",
+            "-",
+        ),
+    ];
+    for (text, type_name, rule, key) in cases {
+        expect(ToRunner::parse(text.as_bytes()), type_name, rule, key);
+    }
+    expect(
+        FromRunner::parse(secret_reply(r#""answer":"none""#).as_bytes()),
+        "FromRunner",
+        "unknown_frame",
+        "t",
+    );
+    let error =
+        ToRunner::parse(secret_reply(r#""answer":"none","value":"zq_secret_4711""#).as_bytes())
+            .unwrap_err()
+            .to_string();
+    assert!(!error.contains("4711"), "{error}");
 }

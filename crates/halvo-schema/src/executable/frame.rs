@@ -11,7 +11,9 @@ use crate::request::{self, Decoded, ErrorName, RunnerRequest};
 use super::body::{RunnerCall, RunnerReply};
 use super::bound::Bound;
 use super::json::{self, each_once, from_json, list, object_type, opt, FromJson};
-use super::names::{ActionClass, Answer, HandbackOutcome, HandbackReason, Outcome, YesNo};
+use super::names::{
+    ActionClass, Answer, HandbackOutcome, HandbackReason, Outcome, SecretAnswer, Unreadable, YesNo,
+};
 use super::text::{
     ApprovalId, CreationTime, Digest, EffectId, Endpoint, Name, RunId, SecretText, WebOrigin, V1,
 };
@@ -415,13 +417,111 @@ object_type! {
     rules(_f) { Ok(()) }
 }
 
-object_type! {
-    /// `{"t":"secret_reply","value":"<text>"|null}`.
-    #[derive(Clone, Debug, PartialEq, Eq)]
-    pub struct SecretReply [t = "secret_reply"] {
-        pub value: Option<SecretText> = "value" => opt(from_json),
+/// `secret_reply`, one of the three answers of `Secrets::read`: `{"t":"secret_reply","answer":"stored","value":"<text>"}`,
+/// `{"t":"secret_reply","answer":"none"}` or `{"t":"secret_reply","answer":"unreadable","member":"locked"|"fault"}`.
+/// Only `None` says that no secret is stored; a store that could not be read is `Unreadable`. A value stands only
+/// with the answer `stored` and a member only with the answer `unreadable`, so the type has no form of the other
+/// pairs, and the parser refuses them. `Debug` prints no value.
+///
+/// What must not compile, a value with the answer `none` and a member with the answer `stored`:
+///
+/// ```compile_fail
+/// use halvo_schema::executable::frame::SecretReply;
+/// use halvo_schema::executable::text::SecretText;
+/// let _ = SecretReply::None(SecretText::new("tok"));
+/// ```
+///
+/// ```compile_fail
+/// use halvo_schema::executable::frame::SecretReply;
+/// use halvo_schema::executable::names::Unreadable;
+/// let _ = SecretReply::Stored(Unreadable::Locked);
+/// ```
+///
+/// Their twins, which differ in the one name and compile:
+///
+/// ```
+/// use halvo_schema::executable::frame::SecretReply;
+/// use halvo_schema::executable::text::SecretText;
+/// let _ = SecretReply::Stored(SecretText::new("tok"));
+/// ```
+///
+/// ```
+/// use halvo_schema::executable::frame::SecretReply;
+/// use halvo_schema::executable::names::Unreadable;
+/// let _ = SecretReply::Unreadable(Unreadable::Locked);
+/// ```
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SecretReply {
+    Stored(SecretText),
+    None,
+    Unreadable(Unreadable),
+}
+
+impl SecretReply {
+    const KEYS: &'static [&'static str] = &["t", "answer", "value", "member"];
+
+    /// The answer.
+    pub fn answer(&self) -> SecretAnswer {
+        match self {
+            SecretReply::Stored(_) => SecretAnswer::Stored,
+            SecretReply::None => SecretAnswer::None,
+            SecretReply::Unreadable(_) => SecretAnswer::Unreadable,
+        }
     }
-    rules(_f) { Ok(()) }
+
+    fn from_raw(raw: &RawValue) -> Result<SecretReply, Refusal> {
+        let fail = |key, rule| Err(Refusal::malformed("SecretReply", rule).at(key));
+        let obj = json::object("SecretReply", raw)?;
+        obj.known(Self::KEYS)?;
+        let tag = obj.read("t", |raw| json::string("SecretReply", raw))?;
+        if tag != "secret_reply" {
+            return fail("t", "tag");
+        }
+        let answer = obj.read("answer", SecretAnswer::from_json)?;
+        if obj.has("value") && answer != SecretAnswer::Stored {
+            return fail("value", "value_without_stored");
+        }
+        if obj.has("member") && answer != SecretAnswer::Unreadable {
+            return fail("member", "member_without_unreadable");
+        }
+        match answer {
+            SecretAnswer::Stored if !obj.has("value") => fail("value", "stored_without_value"),
+            SecretAnswer::Stored => obj
+                .read("value", SecretText::from_json)
+                .map(SecretReply::Stored),
+            SecretAnswer::None => Ok(SecretReply::None),
+            SecretAnswer::Unreadable if !obj.has("member") => {
+                fail("member", "unreadable_without_member")
+            }
+            SecretAnswer::Unreadable => obj
+                .read("member", Unreadable::from_json)
+                .map(SecretReply::Unreadable),
+        }
+    }
+
+    /// Reads one JSON value of this type and refuses every other input.
+    pub fn parse(bytes: &[u8]) -> Result<Self, Refusal> {
+        Self::from_raw(json::whole("SecretReply", bytes)?)
+    }
+
+    /// The compact JSON of the frame.
+    pub fn to_json(&self) -> Result<String, Refusal> {
+        json::write_json("SecretReply", self)
+    }
+}
+
+impl Serialize for SecretReply {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("t", "secret_reply")?;
+        map.serialize_entry("answer", &self.answer())?;
+        match self {
+            SecretReply::Stored(value) => map.serialize_entry("value", value)?,
+            SecretReply::None => {}
+            SecretReply::Unreadable(member) => map.serialize_entry("member", member)?,
+        }
+        map.end()
+    }
 }
 
 object_type! {

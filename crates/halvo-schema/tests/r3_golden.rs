@@ -898,9 +898,10 @@ fn to_runner() -> Vec<ToRunner> {
                 secret: Some(name("fixture_token")),
             },
         }),
-        ToRunner::SecretReply(SecretReply {
-            value: Some(SecretText::new("tok_fixture")),
-        }),
+        ToRunner::SecretReply(SecretReply::Stored(SecretText::new("tok_fixture"))),
+        ToRunner::SecretReply(SecretReply::None),
+        ToRunner::SecretReply(SecretReply::Unreadable(Unreadable::Locked)),
+        ToRunner::SecretReply(SecretReply::Unreadable(Unreadable::Fault)),
         ToRunner::Cancel(Cancel {}),
         ToRunner::BindReply(BindReply { bound: YesNo::Yes }),
         ToRunner::BindReply(BindReply { bound: YesNo::No }),
