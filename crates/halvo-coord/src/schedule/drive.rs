@@ -976,9 +976,16 @@ where
                 });
                 whats.push(What::SlotSkipped { slot });
             }
-            match stored(cx, board, whats) {
-                Ok(()) => Report::default(),
-                Err(c) => refused(c),
+            let checked = own(&board.members[i].facts.doing, OwnItemKind::Check).is_some();
+            match store(cx, board, i, whats) {
+                Ok(()) => {
+                    if checked {
+                        let doing = without_item(&board.members[i].facts.doing);
+                        board.members[i].facts.doing = doing;
+                    }
+                    Report::default()
+                }
+                Err(e) => refused(port_cause(&e)),
             }
         }
         Move::SwitchOn { .. } => {

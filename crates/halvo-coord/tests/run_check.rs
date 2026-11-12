@@ -136,6 +136,29 @@ fn no_check_item_for_an_agent_with_an_open_item_or_a_failed_store() {
 }
 
 #[test]
+fn the_answer_to_a_check_keeps_an_open_ready_item_open() {
+    let mut w = world(&[PERSON]);
+    w.act(Act::Tick);
+    assert!(matches!(&w.facts(0).doing, Doing::Idle(Some(o)) if o.kind == OwnItemKind::Ready));
+    let before = RunId::parse(&format!("{:032x}", 0x0100)).unwrap();
+    w.store_end(0, &before, Outcome::EffectUnknown, 1);
+    let answered = schedule_drive(
+        &w.ports,
+        &mut w.board,
+        &w.limits,
+        Move::Check {
+            agent: agent(0),
+            answer: CheckAnswer::TryAgain,
+        },
+    );
+    assert_eq!(answered.answer, Ok(Answer::Ok));
+    assert!(
+        matches!(&w.facts(0).doing, Doing::Idle(Some(o)) if o.kind == OwnItemKind::Ready),
+        "the ready item stays open: only its answer or its lapse closes it (I7.1)"
+    );
+}
+
+#[test]
 fn no_check_is_sent_for_the_agent_of_a_workflow_that_is_gone() {
     let mut w = world(&[MANUAL]);
     let run = ended_unknown(&mut w, 0);
