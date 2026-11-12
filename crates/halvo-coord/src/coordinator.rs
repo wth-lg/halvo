@@ -245,7 +245,8 @@ where
     /// Takes what a move of the setup `k` answered; whether the setup stays.
     fn setup_done(&self, st: &mut State<Cfg<P>>, k: usize, done: Result<SetupDone, Cause>) -> bool {
         let agent = st.setups[k].agent().clone();
-        let stays = matches!(done, Ok(SetupDone::Open | SetupDone::Owed));
+        let stays = matches!(done, Ok(SetupDone::Open | SetupDone::Owed))
+            || matches!(done, Err(cause) if cause != Cause::Stale);
         if stays {
             return true;
         }
@@ -345,7 +346,7 @@ where
                     self.close_run_item(st, i, run, &open, false);
                     self.act(st, Act::Resume { run: run.clone() })?;
                 }
-                st.held.retain(|h| h.ask().run() != run);
+                self.lapse_held(st, i, run, LapseCause::RunEnded);
                 self.act(
                     st,
                     Act::End {
@@ -458,7 +459,7 @@ where
                         items::lapse(&self.ports, l, table, h, LapseCause::RunEnded, &self.limits);
                 }
             }
-            held.retain(|h| h.item() != &open.item);
+            held.retain(|h| h.item() != &open.item || h.confirmation().state().is_open());
         } else {
             let cause = if stop {
                 OtherLapse::Cancelled
@@ -466,6 +467,82 @@ where
                 OtherLapse::RunEnded
             };
             let _ = items::lapse_item(&self.ports, l, table, run, open, cause, &self.limits);
+        }
+        self.read_back(board, i);
+    }
+
+    /// Lapses with `cause` every confirmation of `run` that the coordinator still holds open,
+    /// a recorded one of a stopped run among them, and forgets them.
+    fn lapse_held(&self, st: &mut State<Cfg<P>>, i: usize, run: &RunId, cause: LapseCause) {
+        let State {
+            board,
+            table,
+            ledgers,
+            held,
+            ..
+        } = st;
+        let Some(board) = board.as_mut() else { return };
+        let l = ledger(ledgers, &board.members[i].facts);
+        for h in held.iter_mut().filter(|h| h.ask().run() == run) {
+            if h.confirmation().state().is_open() {
+                let _ = items::lapse(&self.ports, l, table, h, cause, &self.limits);
+            }
+        }
+        held.retain(|h| h.ask().run() != run);
+        self.read_back(board, i);
+    }
+
+    /// The lapse at the app's quit of every open item of the agent `i` with `app_ended`, in the
+    /// life that ends (I4.5): its held confirmations, the item of its waiting run, and an item
+    /// that no run raised, which then leaves its facts.
+    fn lapse_at_quit(&self, st: &mut State<Cfg<P>>, i: usize) {
+        let Some(board) = st.board.as_ref() else {
+            return;
+        };
+        let facts = &board.members[i].facts;
+        let doing = facts.doing.clone();
+        let runs: Vec<RunId> = board
+            .runs
+            .iter()
+            .filter(|r| r.agent == facts.agent)
+            .map(|r| r.run.clone())
+            .collect();
+        for run in &runs {
+            self.lapse_held(st, i, run, LapseCause::AppEnded);
+        }
+        let State {
+            board,
+            table,
+            ledgers,
+            setups,
+            ..
+        } = st;
+        let Some(board) = board.as_mut() else { return };
+        let l = ledger(ledgers, &board.members[i].facts);
+        match &doing {
+            Doing::Live(Live::Waiting(open)) if open.kind != RunItemKind::Confirm => {
+                if let Some(run) = runs.first() {
+                    let _ = items::lapse_item(
+                        &self.ports,
+                        l,
+                        table,
+                        run,
+                        open,
+                        OtherLapse::AppEnded,
+                        &self.limits,
+                    );
+                }
+            }
+            Doing::Idle(Some(own)) | Doing::Queued(Some(own)) => {
+                items::lapse_own(&self.ports, l, &self.limits, own, OtherLapse::AppEnded);
+                setups.retain(|s| s.item() != &own.item);
+                let facts = &mut board.members[i].facts;
+                facts.doing = match facts.doing {
+                    Doing::Queued(_) => Doing::Queued(None),
+                    _ => Doing::Idle(None),
+                };
+            }
+            _ => {}
         }
         self.read_back(board, i);
     }
@@ -681,9 +758,9 @@ where
         st.forgotten.contains(&facts.agent) || board.gone.contains(&facts.workflow.id)
     }
 
-    /// A control of a row (I8.1 `agents_control`). `run_now`, `switch_off` and `switch_on` of an
-    /// agent whose workflow a tick saw gone, or whose setup body the owner ended, are answered
-    /// `unknown_agent` at once with nothing stored (I5.7, rulings IG-33, IG-36); after the first
+    /// A control of a row (I8.1 `agents_control`). Every control of an agent whose workflow a
+    /// tick saw gone, or whose setup body the owner ended, is answered `unknown_agent` at once
+    /// with nothing stored (I5.7, rulings IG-33, IG-36); after the first
     /// step of the quit every start is `state`. The person's `stop` lapses the open item of a
     /// waiting run with `cancelled` and stops the run in one command, for every kind of item,
     /// and answers success for an agent whose run is stopping or not live (ruling RD-6); the
@@ -705,9 +782,7 @@ where
         let i = index(board, agent).ok_or(Cause::UnknownAgent)?;
         let gone = Self::gone(st, board, i);
         match action {
-            Action::RunNow | Action::SwitchOff | Action::SwitchOn if gone => {
-                Err(Cause::UnknownAgent)
-            }
+            _ if gone => Err(Cause::UnknownAgent),
             Action::RunNow => self.start_in(st, agent),
             Action::SwitchOn => self.schedule(
                 st,
@@ -761,18 +836,18 @@ where
         )
     }
 
-    /// The first step of the app's quit (I5.7, ruling RD-8): the open item of every waiting run
-    /// lapses with `cancelled`, every live run that no stop has reached gets `cancel` through
-    /// the run drive's stop-all, the queue is emptied, and from then on every start is refused,
-    /// the person's, the queue's and a tick's. It returns when the hook calls the second step at
-    /// the latest.
+    /// The first step of the app's quit (I5.7, ruling RD-8): every open item lapses with
+    /// `app_ended` in the life that ends (I4.5), every live run that no stop has reached gets
+    /// `cancel` through the run drive's stop-all, the queue is emptied, and from then on every
+    /// start is refused, the person's, the queue's and a tick's. It returns when the hook calls
+    /// the second step at the latest.
     pub fn quit_stop(&self) -> QuitWait {
         let mut st = self.lock();
         st.quitting = true;
         let now = self.ports.now().unwrap_or(0);
         let members = st.board.as_ref().map_or(0, |b| b.members.len());
         for i in 0..members {
-            self.lapse_for_stop(&mut st, i);
+            self.lapse_at_quit(&mut st, i);
         }
         let _ = self.act(&mut st, Act::StopAll);
         let grace = self.limits.cancel_grace_s.saturating_mul(1000);

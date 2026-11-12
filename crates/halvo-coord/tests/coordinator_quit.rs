@@ -104,7 +104,7 @@ fn the_first_step_cancels_every_live_run_once_and_empties_the_queue() {
 }
 
 #[test]
-fn the_first_step_leaves_a_waiting_run_whose_item_has_not_lapsed() {
+fn the_first_step_stops_a_waiting_run_too_whose_item_the_caller_lapsed() {
     let mut w = world_with(&[MANUAL], Limits::PRODUCT);
     let run = w.act(Act::Start { agent: agent(0) }).report.run.unwrap();
     w.act(Act::Hello { run: run.clone() });
@@ -115,13 +115,14 @@ fn the_first_step_leaves_a_waiting_run_whose_item_has_not_lapsed() {
             kind: halvo_coord::types::RunItemKind::Stuck,
         },
     });
+    let before = cancelled(&w).len();
     let done = w.act(Act::StopAll);
-    assert!(done.report.stopped.is_empty());
-    assert!(matches!(w.facts(0).doing, Doing::Live(Live::Waiting(_))));
-    w.table = w.table.stop(&run);
-    let done = w.act(Act::StopAll);
-    assert_eq!(done.report.stopped, [run]);
+    assert_eq!(done.report.stopped, std::slice::from_ref(&run));
     assert_eq!(w.facts(0).doing, Doing::Live(Live::Stopping));
+    assert_eq!(cancelled(&w)[before..], *std::slice::from_ref(&run));
+    let again = w.act(Act::StopAll);
+    assert!(again.report.stopped.is_empty(), "a stop sends cancel once");
+    assert_eq!(cancelled(&w).len(), before + 1);
 }
 
 #[test]

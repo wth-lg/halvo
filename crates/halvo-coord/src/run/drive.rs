@@ -81,8 +81,9 @@ pub enum Act {
         outcome: Option<Outcome>,
     },
     /// The first step of the app's quit (I5.7, ruling RD-8): every live run that no stop has
-    /// reached is stopped with `cancelled` and gets `Runs::cancel` once, and the queue is
-    /// emptied, so that no start leaves it.
+    /// reached is stopped with `cancelled` and gets `Runs::cancel` once, a `waiting` run among
+    /// them, whose item the caller has lapsed with `app_ended` (I4.5), and the queue is emptied,
+    /// so that no start leaves it.
     StopAll,
     /// The second step of the app's quit (I5.7, ruling RD-8): `Runs::kill` for every live run
     /// and every dying tree, in the order of their starts, through the board; a run whose kill
@@ -416,7 +417,7 @@ where
         .map(|r| r.run.clone())
         .collect();
     for run in runs {
-        let stopped = stop(ports, board, table, &run, StopBy::Person);
+        let stopped = stop_as(ports, board, table, &run, StopBy::Person, false);
         done.report.stopped.extend(stopped.report.stopped);
     }
     while let Some(waiting) = board.queue.pop() {
@@ -488,6 +489,23 @@ fn stop<P>(
 where
     P: Runs + Clock + Owner,
 {
+    stop_as(ports, board, table, run, by, true)
+}
+
+/// The stop of a live run; `lapsed_first` makes a `waiting` run whose item has not lapsed in
+/// the guard's table `state`, which the quit's stop-all does not ask, because the quit lapses
+/// every open item with `app_ended` first (I4.5).
+fn stop_as<P>(
+    ports: &P,
+    board: &mut Board<P::Config>,
+    table: &mut Table,
+    run: &RunId,
+    by: StopBy,
+    lapsed_first: bool,
+) -> Done
+where
+    P: Runs + Clock + Owner,
+{
     let now = match ports.now() {
         Ok(now) => now,
         Err(PortError::Busy) => return answer(Some(Cause::Busy)),
@@ -499,7 +517,7 @@ where
     if run_step(Some(&phase), RunMove::Stop(by.cause())).is_err() {
         return answer(Some(Cause::State));
     }
-    if matches!(phase, Phase::Waiting(_)) && !table.is_stopped(run) {
+    if lapsed_first && matches!(phase, Phase::Waiting(_)) && !table.is_stopped(run) {
         return answer(Some(Cause::State));
     }
     if !table.is_stopped(run) {

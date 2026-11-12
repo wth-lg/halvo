@@ -267,7 +267,7 @@ fn the_quit_cancels_every_live_run_refuses_every_start_and_kills_what_lives_at_i
     assert_eq!(cancelled, both, "one cancel for each live run");
     assert!(events(&c).contains(&What::ItemLapsed {
         item,
-        lapsed: Lapsed::Stuck(OtherLapse::Cancelled)
+        lapsed: Lapsed::Stuck(OtherLapse::AppEnded)
     }));
     for n in 0..3 {
         assert_eq!(c.control(&agent(n), Action::RunNow), Err(Cause::State));
@@ -337,6 +337,9 @@ fn a_move_of_the_person_after_a_tick_saw_the_workflow_gone_is_unknown_agent_with
         c.control(&agent(0), Action::SwitchOff),
         Err(Cause::UnknownAgent)
     );
+    for action in [Action::SwitchOn, Action::Stop] {
+        assert_eq!(c.control(&agent(0), action), Err(Cause::UnknownAgent));
+    }
     assert!(calls_since(&c, m)
         .iter()
         .all(|call| matches!(call, Call::Changed | Call::Attention(_))));
@@ -375,8 +378,9 @@ fn the_runners_end_of_a_waiting_run_lapses_its_item_with_run_ended_and_ends_the_
     assert_eq!(c.live(), 0);
 }
 
-#[test]
-fn an_agent_whose_setup_body_the_owner_ended_is_unknown_agent_to_the_persons_moves() {
+/// A coordinator whose creation move made one agent of a utility bill with no slot, so that it
+/// holds an open setup item, and the agent with that item.
+fn setup_agent() -> (Coordinator<Both>, AgentId, ItemId) {
     let both = owner(&[], Limits::PRODUCT);
     let flow = WorkflowId::parse(&format!("{:032x}", 0xfa)).unwrap();
     let made = AgentId::parse(&format!("{:032x}", 1)).unwrap();
@@ -415,6 +419,12 @@ fn an_agent_whose_setup_body_the_owner_ended_is_unknown_agent_to_the_persons_mov
     c.tick();
     let (item, kind) = open_item(&c);
     assert_eq!(kind, ItemKind::Setup);
+    (c, made, item)
+}
+
+#[test]
+fn an_agent_whose_setup_body_the_owner_ended_is_unknown_agent_to_the_persons_moves() {
+    let (c, made, item) = setup_agent();
     c.answer(&item, Choice::Choose, Some((Param::Start, 1)))
         .unwrap();
     c.answer(&item, Choice::Choose, Some((Param::Payee, 1)))
@@ -516,4 +526,168 @@ fn the_page_holds_the_state_of_a_new_snapshot_after_each_move_and_hears_each_cha
     c.ports().ports.end_runner(&run);
     c.on_run(&run, RunEvent::Ended(None)).unwrap();
     check(&c, &mut held);
+}
+
+fn recorded(c: &Coordinator<Both>) -> (RunId, ItemId) {
+    let run = start(c, 0);
+    c.on_run(&run, ask_confirm(&run, 0)).unwrap();
+    let item = c
+        .snapshot()
+        .items
+        .iter()
+        .find(|i| i.kind() == ItemKind::Confirm)
+        .map(|i| i.item().clone())
+        .unwrap();
+    c.on_screen(&item);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    c.ports().drop_decision.set(true);
+    assert_eq!(c.answer(&item, Choice::Allow, None), Err(Cause::NoService));
+    (run, item)
+}
+
+#[test]
+fn a_recorded_confirmation_of_a_stopped_run_lapses_with_run_ended_at_the_runners_end() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let (run, item) = recorded(&c);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    c.ports().ports.end_runner(&run);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    assert!(events(&c).contains(&What::ItemLapsed {
+        item,
+        lapsed: Lapsed::Confirm(LapseCause::RunEnded)
+    }));
+    assert!(events(&c).contains(&What::RunEnded {
+        run,
+        cause: RunEnd::Cancelled
+    }));
+}
+
+#[test]
+fn the_quit_lapses_every_open_item_with_app_ended_in_the_life_that_ends() {
+    let limits = Limits {
+        max_live_runs: 3,
+        ..Limits::PRODUCT
+    };
+    let slotted = support::A {
+        person: true,
+        slotted: true,
+    };
+    let c = coordinator(&[MANUAL, MANUAL, slotted], limits);
+    let (_, recorded_item) = recorded(&c);
+    let run = start(&c, 1);
+    c.on_run(&run, ask_confirm(&run, 1)).unwrap();
+    let ready = c
+        .snapshot()
+        .items
+        .iter()
+        .find(|i| i.kind() == ItemKind::Ready)
+        .map(|i| i.item().clone())
+        .expect("the agent with a slot holds a ready item");
+    let shown = c
+        .snapshot()
+        .items
+        .iter()
+        .find(|i| i.kind() == ItemKind::Confirm)
+        .map(|i| i.item().clone())
+        .unwrap();
+    let wait = c.quit_stop();
+    for (item, lapsed) in [
+        (recorded_item, Lapsed::Confirm(LapseCause::AppEnded)),
+        (shown, Lapsed::Confirm(LapseCause::AppEnded)),
+        (ready, Lapsed::Ready(OtherLapse::AppEnded)),
+    ] {
+        assert!(
+            events(&c).contains(&What::ItemLapsed { item, lapsed }),
+            "{lapsed:?}"
+        );
+    }
+    assert!(c.snapshot().items.is_empty());
+    assert_eq!(wait.until, T0 + 1_000 + limits.cancel_grace_s * 1000);
+    let cancels = c
+        .ports()
+        .ports
+        .calls
+        .borrow()
+        .iter()
+        .filter(|t| matches!(t.call, Call::Cancel(_)))
+        .count();
+    assert_eq!(cancels, 2, "one cancel for each of the two live runs");
+}
+
+#[test]
+fn a_tick_after_the_first_step_of_the_quit_makes_no_move() {
+    let due = support::A {
+        person: false,
+        slotted: true,
+    };
+    let c = Coordinator::new(owner(&[due], Limits::PRODUCT), Limits::PRODUCT);
+    c.quit_stop();
+    let m = mark(&c);
+    c.tick();
+    let calls = calls_since(&c, m);
+    assert!(
+        calls
+            .iter()
+            .all(|call| matches!(call, Call::Changed | Call::Attention(_))),
+        "{calls:?}"
+    );
+    let other = Coordinator::new(owner(&[due], Limits::PRODUCT), Limits::PRODUCT);
+    other.tick();
+    assert_eq!(
+        started(&other).len(),
+        1,
+        "without the quit the tick starts the due slot"
+    );
+}
+
+#[test]
+fn a_setup_answer_that_is_refused_leaves_the_item_open_and_its_owed_body_owed() {
+    let (c, made, item) = setup_agent();
+    assert_eq!(
+        c.answer(&item, Choice::Choose, Some((Param::Start, 99))),
+        Err(Cause::Malformed)
+    );
+    let s = c.snapshot();
+    assert_eq!(
+        s.rows.iter().find(|r| r.agent == made).unwrap().status,
+        Status::NeedsYou
+    );
+    assert_eq!(s.items.len(), 1);
+    c.answer(&item, Choice::Choose, Some((Param::Start, 1)))
+        .unwrap();
+    c.answer(&item, Choice::Choose, Some((Param::Payee, 1)))
+        .unwrap();
+    c.ports().ports.refuse(Method::Send, PortError::Busy);
+    assert_eq!(c.setup_typed(&item, Param::Instrument, "Card 4242"), Ok(()));
+    assert_eq!(c.answer(&item, Choice::None, None), Err(Cause::State));
+    c.ports().ports.clear_refusals();
+    let m = mark(&c);
+    c.tick();
+    assert!(calls_since(&c, m)
+        .iter()
+        .any(|call| matches!(call, Call::Send(Body::SetBindings { .. }))));
+}
+
+#[test]
+fn inside_needs_you_the_row_whose_item_was_raised_first_stands_first() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let second = start(&c, 1);
+    c.on_run(&second, handback(&second, 1, HandbackReason::StepFailed))
+        .unwrap();
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    let first = start(&c, 0);
+    c.on_run(&first, handback(&first, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let s = c.snapshot();
+    let order: Vec<AgentId> = s.rows.iter().map(|r| r.agent.clone()).collect();
+    assert_eq!(order, [agent(1), agent(0)], "{s:?}");
+    assert!(
+        s.rows[0].name > s.rows[1].name,
+        "the older item, not the name"
+    );
 }

@@ -135,9 +135,19 @@ fn a_lost_acknowledgement_of_a_ready_item_is_taken_and_not_raised_twice() {
         1,
         "one ready item in the owner's ledger"
     );
+    let stored = owner_events(&w, 0)
+        .iter()
+        .find_map(|e| match &e.what {
+            What::ItemRaised {
+                item,
+                raised: Raised::Ready,
+            } => Some(item.clone()),
+            _ => None,
+        })
+        .unwrap();
     assert!(
-        matches!(&w.facts(0).doing, Doing::Idle(Some(o)) if o.kind == OwnItemKind::Ready),
-        "{:?}",
+        matches!(&w.facts(0).doing, Doing::Idle(Some(o)) if o.kind == OwnItemKind::Ready && o.item == stored),
+        "the board holds the item that the owner stored: {:?}",
         w.facts(0).doing
     );
     agree(&w, 0);
@@ -191,4 +201,78 @@ fn a_lost_acknowledgement_of_a_hold_is_read_back_and_the_hold_stands() {
     agree(&w, 0);
     let start = w.act(Act::Start { agent: agent(0) });
     assert_eq!(start.report.answer, Err(halvo_coord::types::Cause::Hold));
+}
+
+#[test]
+fn a_later_log_that_reads_back_a_closed_item_takes_it_off_the_board() {
+    let mut w = world(&[PERSON]);
+    w.act(Act::Tick);
+    assert!(
+        matches!(&w.facts(0).doing, Doing::Idle(Some(o)) if o.kind == OwnItemKind::Ready),
+        "{:?}",
+        w.facts(0).doing
+    );
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let skip = schedule_drive(
+        &w.ports,
+        &mut w.board,
+        &w.limits,
+        Move::Skip { agent: agent(0) },
+    );
+    assert_eq!(skip.answer, Err(halvo_coord::types::Cause::NoService));
+    lose_the_acknowledgement(&w);
+    assert!(matches!(&w.facts(0).doing, Doing::Idle(Some(_))));
+    let off = w.act(Act::SwitchOff { agent: agent(0) });
+    assert_eq!(off.report.answer, Ok(Answer::Ok));
+    assert_eq!(
+        w.facts(0).doing,
+        Doing::Idle(None),
+        "the skip closed the item"
+    );
+    agree(&w, 0);
+}
+
+#[test]
+fn a_ready_item_that_another_writer_raised_and_closed_does_not_stand_for_a_new_one() {
+    let mut w = world(&[PERSON]);
+    let last = owner_events(&w, 0).last().map_or(0, |e| e.seq.get());
+    let old = halvo_coord::types::ItemId::parse(&format!("{:032x}", 0x4400)).unwrap();
+    let closed = [
+        What::ItemRaised {
+            item: old.clone(),
+            raised: Raised::Ready,
+        },
+        What::ItemLapsed {
+            item: old.clone(),
+            lapsed: halvo_coord::types::Lapsed::Ready(halvo_coord::types::OtherLapse::AppEnded),
+        },
+    ];
+    for (k, what) in closed.into_iter().enumerate() {
+        w.ports.events.borrow_mut().push(Event {
+            workflow: support::flow(0),
+            agent: agent(0),
+            seq: std::num::NonZeroU32::new(last + 1 + k as u32).unwrap(),
+            day: DAY,
+            at: 0,
+            what,
+        });
+    }
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.report.raised, [agent(0)]);
+    let open = match &w.facts(0).doing {
+        Doing::Idle(Some(o)) if o.kind == OwnItemKind::Ready => o.item.clone(),
+        other => panic!("{other:?}"),
+    };
+    assert_ne!(open, old, "a new ready item, not the closed one");
+    assert_eq!(
+        count(&w, 0, |what| matches!(
+            what,
+            What::ItemRaised {
+                raised: Raised::Ready,
+                ..
+            }
+        )),
+        2
+    );
+    agree(&w, 0);
 }

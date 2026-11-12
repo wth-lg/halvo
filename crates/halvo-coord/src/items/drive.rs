@@ -11,8 +11,8 @@ use crate::ports::{Clock, Owner, PortError, Rng, Runs};
 use crate::schedule::wants_active;
 use crate::types::{
     hex, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Choice, ConfigView, ConfirmAsk,
-    DoneAnswer, Event, Facts, Item, ItemId, LapseCause, Lapsed, Limits, OtherLapse, Presenter,
-    Raised, RunId, RunItem, RunItemKind, What, WorkflowId,
+    DoneAnswer, Event, Facts, Item, ItemId, LapseCause, Lapsed, Limits, OtherLapse, OwnItem,
+    OwnItemKind, Presenter, Raised, RunId, RunItem, RunItemKind, What, WorkflowId,
 };
 use std::num::NonZeroU32;
 
@@ -504,6 +504,28 @@ pub fn lapse_item<P: Owner + Runs + Clock>(
         let _ = ports.cancel(run);
     }
     Ok(())
+}
+
+/// The lapse of an open item that no run raised, `ready`, `check` or `setup`, with `cause`
+/// (I7.1), as the app's quit lapses every open item with `app_ended` (I4.5): stores its
+/// `item_lapsed`, which waits in the ledger when the owner does not acknowledge it.
+pub fn lapse_own<P: Owner + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    open: &OwnItem,
+    cause: OtherLapse,
+) {
+    let lapsed = match open.kind {
+        OwnItemKind::Ready => Lapsed::Ready(cause),
+        OwnItemKind::Check => Lapsed::Check(cause),
+        OwnItemKind::Setup => Lapsed::Setup(cause),
+    };
+    let row = What::ItemLapsed {
+        item: open.item.clone(),
+        lapsed,
+    };
+    let _ = store(ports, ledger, limits, vec![row]);
 }
 
 /// Raises the item of a request of `run` that `raise_step` gave as `kind`, a kind other than
