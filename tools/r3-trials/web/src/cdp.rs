@@ -434,11 +434,12 @@ impl Executor {
             .await
             .is_err()
         {
-            return Err(fail(
-                &mut child,
-                &wire_task,
-                Fault::new("no_channel", NO_CHANNEL_MESSAGE),
-            ));
+            let fault = if child.exited() {
+                Fault::new("browser_start", "the browser ended before its first reply")
+            } else {
+                Fault::new("no_channel", NO_CHANNEL_MESSAGE)
+            };
+            return Err(fail(&mut child, &wire_task, fault));
         }
         let home = async {
             wire.attach_all().await?;

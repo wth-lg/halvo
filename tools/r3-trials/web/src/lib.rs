@@ -102,13 +102,15 @@ pub const ORG_STEPS: [&str; 2] = ["org_debugging", "org_proxy"];
 
 /// The `Local State` entry of the profile that isolates the origin `http://pay.agent.test:<port>`
 /// without a flag on the command line (row `same_site_pref`): the flags entry `isolate-origins`
-/// with its origin list, written before the start.
+/// in `browser.enabled_labs_experiments` with its origin list in
+/// `browser.enabled_labs_experiments_origin_lists`, the names that Chrome 153's framework holds,
+/// written before the start.
 pub fn same_site_local_state(port: u16) -> String {
     serde_json::json!({
         "dns_over_https": {"mode": "off", "templates": ""},
         "browser": {
             "enabled_labs_experiments": ["isolate-origins"],
-            "enabled_lab_experiments_origin_lists": {
+            "enabled_labs_experiments_origin_lists": {
                 "isolate-origins": format!("http://pay.agent.test:{port}")
             }
         }
@@ -374,6 +376,21 @@ mod tests {
         assert_eq!(prefs["credentials_enable_service"], false);
         assert!(ROUND2_FLAGS.iter().any(|f| f.contains("FetchLaterAPI")));
         assert!(ROUND2_FLAGS.contains(&"--disable-updater-scheduler"));
+    }
+
+    #[test]
+    fn the_same_site_setting_names_the_flags_entry_and_its_origin_list() {
+        let v: serde_json::Value =
+            serde_json::from_str(&same_site_local_state(18190)).expect("json");
+        assert_eq!(
+            v["browser"]["enabled_labs_experiments"][0],
+            "isolate-origins"
+        );
+        assert_eq!(
+            v["browser"]["enabled_labs_experiments_origin_lists"]["isolate-origins"],
+            "http://pay.agent.test:18190"
+        );
+        assert_eq!(v["dns_over_https"]["mode"], "off");
     }
 
     #[test]
