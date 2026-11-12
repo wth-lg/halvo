@@ -572,6 +572,8 @@ EOF
   for mode in silent killed violated violated-status status distinct unfinished; do
     expect good "1:FAIL $name (invariant)" "$mode"
   done
+  expect good "1:FAIL $name (invariant)" violated '' ' invariants=12 violated=1'
+  expect good "1:FAIL $name (invariant)" violated-status '' ' invariants=10 violated=1'
   for mode in control-holds control-other control-status control-one; do
     expect not-compared "1:FAIL $name (control)" "$mode"
   done
