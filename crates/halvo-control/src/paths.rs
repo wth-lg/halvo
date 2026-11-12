@@ -240,7 +240,10 @@ impl DataDir {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ScratchDir(PathBuf);
+pub struct ScratchDir {
+    given: PathBuf,
+    real: PathBuf,
+}
 
 impl ScratchDir {
     /// Takes a scratch path that exists now and holds the path it resolves to. A path that
@@ -250,14 +253,19 @@ impl ScratchDir {
     pub fn new(path: impl Into<PathBuf>, user_data_dir: &DataDir) -> Result<Self, PathError> {
         let given = checked(path.into())?;
         let real = checked(given.canonicalize().map_err(|_| PathError::Unresolved)?)?;
-        if lies_within(&given, &real, user_data_dir.path()) {
+        let scratch = Self { given, real };
+        if scratch.is_or_lies_in(user_data_dir.path()) {
             return Err(PathError::InsideDataDir);
         }
-        Ok(Self(real))
+        Ok(scratch)
     }
 
     pub fn path(&self) -> &Path {
-        &self.0
+        &self.real
+    }
+
+    fn is_or_lies_in(&self, dir: &Path) -> bool {
+        lies_within(&self.given, &self.real, dir)
     }
 }
 
@@ -297,7 +305,7 @@ impl LoginItemDir {
     /// LaunchAgents directory is refused with [`PathError::InsideLaunchAgents`].
     pub fn scratch_form(dir: &ScratchDir, account: &dyn AccountLookup) -> Result<Self, PathError> {
         let agents = Self::for_account(account)?;
-        if lies_within(dir.path(), dir.path(), agents.path()) {
+        if dir.is_or_lies_in(agents.path()) {
             return Err(PathError::InsideLaunchAgents);
         }
         Ok(Self {
@@ -1300,6 +1308,8 @@ mod tests {
 
         std::fs::create_dir(live.join("store")).unwrap();
         symlink(&live, dir.join("live-link")).unwrap();
+        let elsewhere = dir_of("elsewhere");
+        symlink(&elsewhere, live.join("out")).unwrap();
         for (form, scratch) in [
             ("a link to an existing data dir", dir.join("live-link")),
             (
@@ -1314,6 +1324,10 @@ mod tests {
                 "another spelling (long s) of an existing data dir's store",
                 live.join("\u{17f}tore"),
             ),
+            (
+                "a link inside an existing data dir to a directory outside it",
+                live.join("out"),
+            ),
         ] {
             judge(
                 form,
@@ -1325,6 +1339,7 @@ mod tests {
 
         std::fs::create_dir_all(agents.path()).unwrap();
         symlink(agents.path(), root.join("agents-link-2")).unwrap();
+        symlink(&elsewhere, agents.path().join("out")).unwrap();
         for (form, scratch) in [
             (
                 "a link to an existing LaunchAgents",
@@ -1333,6 +1348,10 @@ mod tests {
             (
                 "another spelling (long s) of an existing LaunchAgents",
                 home.join("Library").join("LaunchAgent\u{17f}"),
+            ),
+            (
+                "a link inside an existing LaunchAgents to a directory outside it",
+                agents.path().join("out"),
             ),
         ] {
             judge(
