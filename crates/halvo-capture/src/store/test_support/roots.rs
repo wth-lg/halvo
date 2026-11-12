@@ -1,10 +1,6 @@
 use crate::custody::dev_fallback::DevFallbackCustody;
 use crate::custody::{KeyCustody, RootId};
 
-/// The keychain root of a test, destroyed when the guard drops, also when the
-/// test fails. A test holds it from its first line. The result of the destroy
-/// is checked only when the thread is not already panicking, so a failing
-/// test reports its own failure and does not abort on a second panic.
 pub(crate) struct RootGuard(RootId);
 
 impl RootGuard {

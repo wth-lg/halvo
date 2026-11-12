@@ -47,7 +47,7 @@ pub trait SegmentStore {
     fn write_segment(&mut self, bytes: &mut dyn Read) -> StoreResult<(SegmentRef, SegmentKeyId)>;
 
     /// The summed lengths of the files under the store directory, for the cost
-    /// bound. A file or directory that cannot be read is an error; one that
+    /// bound. A directory that cannot be read is an error; one that
     /// went away is skipped.
     fn size_bytes(&self) -> StoreResult<u64>;
 }
@@ -61,10 +61,8 @@ pub trait SegmentExpiry {
     /// Crypto-shred everything and destroy the store key (delete-all). A second
     /// call on a handle that delete-all has sealed destroys the root, the key
     /// file, the database files and the segments directory again where they
-    /// are left, and returns an empty report; it is the only way to finish a
-    /// call that stopped after its root step, through the same handle. Once
-    /// that handle is gone, `open` answers [`StoreError::Custody`] with
-    /// [`crate::custody::CustodyError::RootMissing`] and `create` answers
+    /// are left, and returns an empty report. Once
+    /// that handle is gone, `create` answers
     /// [`StoreError::AlreadyExists`] for as long as the key file is left.
     fn crypto_shred_all(&mut self) -> StoreResult<ShredReport>;
 }
@@ -90,12 +88,11 @@ pub enum StoreError {
     /// cipher refused.
     #[error("sealing a segment or a segment key failed")]
     Seal,
-    /// The write-ahead log checkpoint was busy or left bytes in the log, so the
-    /// shred that asked for it is not complete.
+    /// The write-ahead log checkpoint was busy or left bytes in the log.
     #[error("the checkpoint left the write-ahead log busy ({busy}) or holding {wal_bytes} bytes")]
     CheckpointIncomplete { busy: i64, wal_bytes: u64 },
-    /// No store-key file is in the directory, the store key does not open the
-    /// database, the handle was sealed by delete-all, or the segment was shredded.
+    /// No store-key file is in the directory,
+    /// the handle was sealed by delete-all, or the segment was shredded.
     #[error("the store is sealed; its key is not available")]
     Sealed,
     #[error("the store holds corrupt or tampered data: {0}")]
@@ -115,14 +112,13 @@ pub enum StoreError {
     #[error("the store key does not open the store database")]
     DatabaseUnreadable,
     /// store.key or store.db has a format version above the one this build
-    /// reads. `open` changed nothing.
+    /// reads.
     #[error(
         "the store has format version {found}, above version {supported} that this build reads"
     )]
     NewerStore { found: i64, supported: i64 },
     /// store.key or store.db has a format version below the one this build
-    /// reads. No migration exists: the store can only be deleted. `open`
-    /// changed nothing.
+    /// reads. No migration exists.
     #[error(
         "the store has format version {found}, below version {supported} that this build reads"
     )]
@@ -130,7 +126,7 @@ pub enum StoreError {
     /// A segment whose key is live has no file.
     #[error("a segment whose key is live has no file")]
     SegmentMissing(Uuid),
-    /// A setting that the store requires does not read back from the database.
+    /// A setting that the store requires does not read back.
     #[error("the store database does not have {0} in effect")]
     SettingNotInEffect(&'static str),
     #[error(transparent)]
@@ -158,15 +154,15 @@ pub fn verify_deletion() -> StoreResult<String> {
 }
 
 /// Run the `--verify-store` measurements on a fresh store made in `dir` that
-/// holds `marker`, and return the line that the gate judges. Reads no
-/// environment. Fails when a file of the store holds the raw store key.
+/// holds `marker`, and return the line that the gate judges.
+/// Fails when a file of the store holds the raw store key.
 pub fn measure_store(dir: &Path, marker: &str) -> StoreResult<String> {
     verify::run_store_check_in(dir, marker).map(|check| check.to_string())
 }
 
 /// Run the `--verify-deletion` measurements on a fresh store made in `dir`:
 /// one expired segment shredded beside a live one, then delete-all. Returns
-/// the line that the gate judges. Reads no environment. Fails when the state
+/// the line that the gate judges. Fails when the state
 /// of the root after delete-all is unknown.
 pub fn measure_deletion(dir: &Path) -> StoreResult<String> {
     verify::run_deletion_check_in(dir).map(|check| check.to_string())

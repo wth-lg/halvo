@@ -1,24 +1,15 @@
-//! Durable file writes: the bytes go to a temporary file, the file is synced,
-//! published under its name by rename, and its directory is synced.
-
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
 
-/// The file-system calls of a durable write and of a durable removal.
 pub(crate) trait DurableFs: Send + Sync {
-    /// Create a file that does not exist yet, readable and writable by its
-    /// owner only.
     fn create_new(&self, path: &Path) -> io::Result<File>;
     fn sync_file(&self, file: &File, path: &Path) -> io::Result<()>;
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()>;
     fn remove_file(&self, path: &Path) -> io::Result<()>;
-    /// Make the entries of `dir` durable. A no-op where the system makes a
-    /// rename or an unlink durable without it.
     fn sync_dir(&self, dir: &Path) -> io::Result<()>;
 }
 
-/// The file system of the process.
 pub(crate) struct OsFs;
 
 impl DurableFs for OsFs {
@@ -53,12 +44,6 @@ impl DurableFs for OsFs {
     }
 }
 
-/// Write `target` durably: create `temp`, which must not exist, let `fill`
-/// write the bytes, sync the file, rename it to `target` and sync the
-/// directory of `target`. When a step after the create fails, `discard`
-/// removes `temp` in the way that its bytes need, and an error of `discard`
-/// takes the place of the first one. A `temp` that another writer made is
-/// never touched.
 pub(crate) fn write_durably<T, E>(
     fs: &dyn DurableFs,
     temp: &Path,
@@ -95,8 +80,6 @@ fn fill_and_publish<T, E>(
     Ok(value)
 }
 
-/// Set `options` to open no link: the open of a link fails, so no write goes
-/// through it.
 pub(crate) fn no_follow(options: &mut std::fs::OpenOptions) -> &mut std::fs::OpenOptions {
     #[cfg(target_os = "macos")]
     std::os::unix::fs::OpenOptionsExt::custom_flags(options, libc::O_NOFOLLOW);
@@ -108,8 +91,6 @@ pub(crate) fn no_follow(options: &mut std::fs::OpenOptions) -> &mut std::fs::Ope
 #[cfg(windows)]
 const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 
-/// Create `dir` and each missing directory above it, readable by their owner
-/// only.
 pub(crate) fn create_private_dir_all(dir: &Path) -> io::Result<()> {
     let mut builder = std::fs::DirBuilder::new();
     builder.recursive(true);
@@ -118,8 +99,6 @@ pub(crate) fn create_private_dir_all(dir: &Path) -> io::Result<()> {
     builder.create(dir)
 }
 
-/// Narrow an existing directory to its owner. A no-op where files carry no
-/// mode.
 pub(crate) fn make_private(dir: &Path) -> io::Result<()> {
     #[cfg(unix)]
     {
@@ -133,8 +112,6 @@ pub(crate) fn make_private(dir: &Path) -> io::Result<()> {
     }
 }
 
-/// Remove `path` and sync its directory. A file that is already gone is no
-/// error, and its directory is synced all the same.
 pub(crate) fn remove_durably(fs: &dyn DurableFs, path: &Path) -> io::Result<()> {
     match fs.remove_file(path) {
         Ok(()) => {}
@@ -192,9 +169,6 @@ pub(crate) mod test_support {
 
     type Observer = Box<dyn Fn(&Call) + Send + Sync>;
 
-    /// The file system of the process, with every call recorded in order. A
-    /// call of a kind that [`RecordingFs::fail`] names fails with a full
-    /// volume (ENOSPC) instead, and an observer sees each call before it runs.
     #[derive(Default)]
     pub(crate) struct RecordingFs {
         calls: Mutex<Vec<Call>>,

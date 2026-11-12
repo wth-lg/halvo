@@ -77,8 +77,6 @@ pub(crate) fn segment_path(store_dir: &Path, segment_id: Uuid) -> PathBuf {
         .join(format!("{id}.{SEGMENT_EXT}"))
 }
 
-/// A regular file at `segments/SHARD/NAME` whose name is one that the store
-/// writes.
 pub(crate) enum SegmentFile {
     Segment { id: Uuid, path: PathBuf },
     Partial(PathBuf),
@@ -112,15 +110,11 @@ fn is_lower_hex(text: &str, len: usize) -> bool {
     text.len() == len && text.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
-/// What the walk of `segments/` found: the files with the store's names, and
-/// the count of every other entry, which the walk leaves where it is.
 pub(crate) struct SegmentWalk {
     pub(crate) files: Vec<SegmentFile>,
     pub(crate) left: u64,
 }
 
-/// Fails [`StoreError::Corrupt`] when `segments/` is a link: the store follows
-/// no link out of its directory.
 pub(crate) fn refuse_a_linked_segments_root(store_dir: &Path) -> StoreResult<()> {
     match std::fs::symlink_metadata(segments_root(store_dir)) {
         Ok(meta) if meta.file_type().is_symlink() => Err(StoreError::Corrupt(
@@ -132,8 +126,6 @@ pub(crate) fn refuse_a_linked_segments_root(store_dir: &Path) -> StoreResult<()>
     }
 }
 
-/// Walk `segments/SHARD/NAME` and nothing deeper, by the type of each entry
-/// itself, so no link is followed.
 pub(crate) fn segment_files(store_dir: &Path) -> StoreResult<SegmentWalk> {
     refuse_a_linked_segments_root(store_dir)?;
     let mut walk = SegmentWalk {

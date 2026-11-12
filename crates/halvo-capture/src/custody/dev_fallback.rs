@@ -1,4 +1,4 @@
-//! Dev-fallback key custody for unsigned builds.
+//! Dev-fallback key custody.
 
 use aead::{Aead, KeyInit};
 use chacha20poly1305::{XChaCha20Poly1305, XNonce};
@@ -9,9 +9,7 @@ use super::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey}
 const XNONCE_LEN: usize = size_of::<XNonce>();
 
 impl CustodyKind {
-    /// Whether a release build accepts this custody kind: only a kind whose
-    /// root this build can destroy and whose custody it can rebuild, so that a
-    /// delete-all of its store can finish.
+    /// Whether a release build accepts this custody kind.
     pub fn is_acceptable_for_release(self) -> bool {
         match self {
             CustodyKind::DevFallback | CustodyKind::SecureEnclave => false,

@@ -126,7 +126,6 @@ pub(crate) fn marker_from_env() -> String {
     std::env::var("HALVO_GATE_MARKER").unwrap_or_else(|_| "HALVO_DEFAULT_MARKER".to_string())
 }
 
-/// Implements `--verify-store`.
 pub fn run_store_check() -> StoreResult<StoreCheck> {
     let dir = StoreDir::from_env();
     run_store_check_in(&dir.path, &marker_from_env())
@@ -342,8 +341,6 @@ pub struct DeletionCheck {
     /// Bytes left in the WAL after the shred pass.
     pub wal_bytes: u64,
     pub delete_all_keys: u64,
-    /// The store key retained from before delete-all no longer unwraps through
-    /// the custody that wrapped it.
     pub root_destroyed: bool,
     /// `open` on the directory after delete-all returns `Sealed`.
     pub store_sealed: bool,
@@ -368,7 +365,6 @@ impl fmt::Display for DeletionCheck {
     }
 }
 
-/// Implements `--verify-deletion`.
 pub fn run_deletion_check() -> StoreResult<DeletionCheck> {
     let dir = StoreDir::from_env();
     run_deletion_check_in(&dir.path)

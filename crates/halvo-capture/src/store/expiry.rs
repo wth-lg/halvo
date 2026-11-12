@@ -11,9 +11,7 @@ use super::{SegmentExpiry, ShredReport, StoreError, StoreResult};
 
 const STORE_KEY_COUNT: u64 = 1;
 
-/// What one sweep of the keyless segment files did: the files it removed, and
-/// the entries under `segments/` that carry no name of the store, which it
-/// left in place.
+/// What one sweep of the keyless segment files did: the files it removed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sweep {
     pub removed: u64,

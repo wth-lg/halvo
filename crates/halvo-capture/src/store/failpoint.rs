@@ -1,7 +1,3 @@
-//! Named steps of the store that a test makes fail with an I/O error: once on
-//! the thread that arms one, or at every hit in a process whose environment
-//! names it in HALVO_STORE_FAILPOINTS, which a child of the test binary uses.
-
 use std::cell::Cell;
 
 use super::{StoreError, StoreResult};

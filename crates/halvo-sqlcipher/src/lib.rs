@@ -9,8 +9,8 @@ pub use rusqlite;
 
 /// Initialize SQLite and SQLCipher once for the process, and return the
 /// result code of that one call. A thread that calls it while the first call
-/// runs waits until the first call has returned, so no connection is opened
-/// while SQLCipher is still starting. Call it before the first connection.
+/// runs waits until the first call has returned.
+/// Call it before the first connection.
 pub fn initialize() -> Result<(), c_int> {
     static INITIALIZED: OnceLock<c_int> = OnceLock::new();
     match *INITIALIZED.get_or_init(|| unsafe { rusqlite::ffi::sqlite3_initialize() }) {
@@ -25,8 +25,7 @@ extern "C" {
 
 /// Whether LibTomCrypt draws its random bytes from the operating system's
 /// entropy source through this crate's hook. SQLite installs the hook when it
-/// initializes, so this reads false until the process has opened its first
-/// connection.
+/// initializes.
 pub fn os_entropy_hook_installed() -> bool {
     unsafe { halvo_sqlcipher_os_entropy_hook_installed() != 0 }
 }
