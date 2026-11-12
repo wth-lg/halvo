@@ -375,7 +375,7 @@ pub fn assess(input: &AssessInput<'_>) -> OnboardingState {
             action: WalkbackAction::RestartCapture,
             settings_url: permission.settings_url().to_string(),
             text: format!(
-                "Click Restart recorder: Halvo restarts its recorder so that macOS applies the {pane} permission."
+                "Halvo restarts its recorder so that macOS applies the {pane} permission."
             ),
         });
     }
@@ -890,6 +890,7 @@ mod tests {
         every_state(|_, state| {
             for step in &state.walkback {
                 assert!(!step.text.contains("Allow"), "{}", step.text);
+                assert!(!step.text.contains("Restart recorder"), "{}", step.text);
                 assert!(!step.text.contains("Access access"), "{}", step.text);
                 assert!(!step.text.contains("access access"), "{}", step.text);
             }
@@ -993,7 +994,7 @@ mod tests {
             format!("Halvo no longer has the {pane} permission. If you turned it off, nothing else is needed. ")
         };
         let restart = |pane: &str| {
-            format!("Click Restart recorder: Halvo restarts its recorder so that macOS applies the {pane} permission.")
+            format!("Halvo restarts its recorder so that macOS applies the {pane} permission.")
         };
         let cases = [
             (Screen, 26, screen, ""),
