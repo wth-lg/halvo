@@ -3,3 +3,10 @@ scripts/r4/words/never-read-cases.txt	/Users/sam	a case of the words lint for a 
 scripts/r4/words/never-read-cases.txt	/Users/ann	cases of the words lint for a path between quotes and brackets; ann is a made-up name
 scripts/r4/words/never-read-cases.txt	\Users\Ann	a case of the words lint for a Windows path; Ann is a made-up name
 account/crates/halvo-secrets/tests/hosted.rs	/Users/runner	the account of the hosting service's macOS runners, which is public and no person's: the hosted store tests check that they run as that user
+crates/halvo-control/src/paths.rs	C:\Users\a b	a made-up account name, a, in the tests of the data directory and the login item
+crates/halvo-control/src/paths.rs	/Users/a b	a made-up account name, a, in the tests of the data directory and the login item
+crates/halvo-control/src/paths.rs	/Users/a	a made-up account name, a, in the tests of the data directory and the login item
+crates/halvo-control/src/paths.rs	\Users\a	a made-up account name, a, in the tests of the data directory and the login item
+crates/halvo-control/src/service.rs	C:\Users\a b	a made-up account name, a, in the tests of the data directory and the login item
+crates/halvo-control/src/service.rs	/Users/a b	a made-up account name, a, in the tests of the data directory and the login item
+crates/halvo-control/src/service.rs	/Users/a	a made-up account name, a, in the tests of the data directory and the login item

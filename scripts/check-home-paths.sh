@@ -50,7 +50,10 @@ marks, dashes, an ellipsis, blanks), before the guillemets and the no-break
 space (U+00AB, U+00BB, U+00A0) and before CJK punctuation (U+3000 to
 U+303F), so "/Users/<name>" in curly quotes ends at the name. A name of one
 letter after a backslash and before +, *, ? or { is the escape of a regular
-expression (/Users/\w+) and passes. Any other first character
+expression (/Users/\w+) and passes; at the end of a line such a letter is a
+name. When a blank and more name characters follow a name up to a separator,
+as in C:\Users\<first> <last>\, the path that the scan matches goes on to
+that separator. Any other first character
 makes a placeholder, which passes: /Users/<name>, /Users/$USER,
 /home/${USER}, C:\Users\%USERNAME%, /home/*, /Users/{name}, /Users/... and
 /home/.config. The directory alone passes, as in "under /Users/ or /home/".
@@ -64,6 +67,8 @@ not already take the same characters.
                  separators, wsl+ or wsl%2B and the distribution, as an
                  editor's remote address writes it, a separator, home, a
                  separator
+  unc-share      two backslashes, a host, a backslash, then Users, home or
+                 home$ in any case, a separator: the share of a file server
   macos-volume   /System/Volumes/Data/Users/ or /Volumes/<volume>/Users/
   file-url-host  file: and separators, a host, a separator, then Users or
                  home in any case, a separator
@@ -92,10 +97,16 @@ underscore, a hyphen or a period: after a blank, a quote, an equals sign, a
 colon, a bracket, a comma or a slash, so also in file:///Users/<name>. They
 count after two periods (../../Users/<name>), after a percent-encoded byte
 (%3D/Users/<name>), after a backslash and a letter (the escape \n or \t of a
-JSON or a Python string), and after a hyphen and a letter at the start of a
-word (a flag of a compiler or a linker: -I/Users/<name>). They do not count
-inside a path below another directory
-(src/home/<name>) or in the path of a web address (https://<host>/home/<name>).
+JSON or a Python string), after the prefix /@fs of a dev server, right after
+an escape sequence of a terminal (a CSI sequence: ESC, an opening square
+bracket, parameters and a final letter, as in a colour code; an OSC sequence
+that BEL or ESC and a backslash ends), also where ESC is written as \x1b,
+\033, \e or the JSON escape of the code 27, and after a flag: one or two
+hyphens and letters at the start of a line or after a blank, a quote, an
+equals sign, a comma or an opening bracket (-I/Users/<name>,
+-isystem/Users/<name>). They do not count inside a path below another
+directory (src/home/<name>, my-app/home/<name>) or in the path of a web
+address (https://<host>/home/<name>).
 url-file-host counts anywhere. dash counts at the start of a line and after
 a blank, a tab, a quote, a backtick, a slash, a backslash, an equals sign, a
 colon, a comma, or an opening bracket of any kind.
@@ -133,7 +144,11 @@ taken out first, so that UTF-16 text reads as ASCII; the target of a symbolic
 link; and the name of a file that a commit adds, as line 0. A renamed file
 counts as added in full. A line that a later commit removes again still
 counts, because the commit that holds it is pushed. A carriage return at the
-end of a line changes no answer. The settings of a clone that change what git
+end of a line changes no answer. A line is read in pieces of 1,000
+characters, each with the next 1,000 in view, so the time grows with the
+length of a line and with the count of its matches, and a path that goes on
+for more than 1,000 characters past the start of its piece is cut there.
+The settings of a clone that change what git
 log prints (colour, prefixes, a relative diff, renames, submodule logs,
 ignored submodules, blank context lines, quoted names) are set for the call.
 
@@ -153,41 +168,72 @@ yourself before a push to another remote.
 The list. scripts/home-path-allow.txt in the checkout where this script
 runs, or the file that --allow names, holds one entry per line: the path of
 a file as git prints it with core.quotepath=off, a tab, the home path as this
-script matches it (from the first character of the form to the last of the
-name, as /Users/<name>), a tab, and the reason. A line that starts with # and
-an empty line are skipped, and a carriage return at the end of a line is
-dropped. A hit passes when its file and its path stand in one entry, so a new
-name in a listed file is still refused. A line of the list itself passes when
-its path is the path of an entry. A line with fewer than three fields, with
-an empty file or reason, or with a path that is not one home path as a whole
-makes the list malformed. An entry is only for a made-up name that a fixture
-holds on purpose, or for the public account of a hosting service's runner,
-never the home path of a person's machine: in the pre-push
-mode the scan refuses an entry whose name is the name of the home directory
-of the account that runs it (the last part of $HOME, in any case), and names
-the entry by its line. The range mode does not apply that rule, because the
-account of a hosted runner in CI is no person's.
+script matches it (from the first character of the form to the end of the
+name, or to the separator after a name that goes on after a blank, as
+C:\Users\<first> <last>), a tab, and the reason. A line that starts with #
+and an empty line are skipped, a carriage return at the end of a line is
+dropped, and a byte-order mark at the start of the list is read as none. An
+entry allows its path on each line of its file that holds it, and nothing
+else: no other path, no other file, no longer name. An entry is not one
+line, because a line number moves with every edit above it. A line of the
+list itself passes when its path is the path of an entry. A line with fewer
+than three fields, with an empty file or reason, or with a path that is not
+one home path as a whole makes the list malformed. An entry is of one of
+three kinds, and its reason says which: a made-up name that a fixture holds
+on purpose; the public account of a hosting service's runner; or a line that
+holds no home path and that the grammar reads as one (a route at the root of
+a site, a relative path through a directory called home or Users, the home
+of a container's account, -home-<word> after a blank). It is never the home
+path of a person's machine. In the pre-push mode the scan refuses an entry
+that a commit of the push adds to the list, read from the lines that those
+commits add to it, when its name is the last part of $HOME or the part of
+that last part before its first blank or plus sign, in any case. HOME is
+read with either separator and without its trailing separators; when a
+commit of the push adds an entry and HOME is unset or empty, the scan cannot
+check. An entry that the default branch already holds is not read for this.
+The range mode does not apply the rule, because the account of a hosted
+runner in CI is no person's.
 
 Output and exit. A hit prints the commit, the file, the line number and the
 form, and never the text of the line. Exit 0 when no added line holds a home
 path that the list does not allow, 1 when one does, 2 when the check could
 not run (git failed, a range or a line that git wrote cannot be read, the
-list is missing or malformed), 64 on bad usage. In the pre-push mode 1 and 2
-both make .githooks/pre-push refuse the push. A temporary directory of the
-script goes by its own trap.
+list is missing or malformed, git cannot resolve an object that a push
+names, or a commit adds an entry while HOME is unset or empty), 64 on bad
+usage. Every run that the scan counts as passed ends with one PASS line,
+also when it reads no commit. In the pre-push mode 1 and 2 both make
+.githooks/pre-push refuse the push, and so does an exit 0 without that PASS
+line. A temporary directory of the script goes by its own trap.
 
 Limits. The scan does not find a path spelled in a way that the grammar does
-not hold: /users/<name> in lower case, /var/home/<name>, a name whose first
-character is percent-encoded, an HTML entity or a \u escape for a separator,
-base64, a compressed file (zip, gzip, a PNG chunk), UTF-32, a path broken
-over two lines. It does not find an account name outside a path, such as an
+not hold: /users/<name> or /USERS/<name> in another case, a share written
+with slashes (//<host>/Users/<name>, which reads as an address without its
+scheme), /var/home/<name>, /usr/home/<name>, /export/home/<name> and
+/host_mnt/Users/<name>, the colon path of the classic Mac file system
+(<volume>:Users:<name>:), a path after a digit or after the host of an
+address (:8080/Users/<name>), the listing of an archive without its first
+slash, the short form DOCUME~1, a name whose first character is
+percent-encoded, an HTML entity or a \u escape for a separator, base64, a
+compressed file (zip, gzip, a PNG chunk), UTF-32, and a path that a person
+spells so that it does not read as one: a path broken over two lines, a join
+of strings, a letter of the root as a percent code, /./ or /Shared/../, a
+quoted name. It does not find an account name outside a path, such as an
 email address or a host name. It reads no commit message, no tag message, no
-author or committer, and no blob or tree that a tag names without a commit.
-The list is read from the work tree, not from the pushed commits. The hook
-does not run for git push --no-verify, or in a clone where
-sh scripts/prerequisites.sh has not set core.hooksPath, and when this script
-is not beside .githooks/pre-push the hook says that the scan did not run
-and lets the push go on.
+author or committer, no blob or tree that a tag names without a commit, and
+no commit of a submodule, which is another repository's. It refuses lines
+that hold no home path and that the grammar reads as one: a relative path
+through a directory called home or Users (../home/<page>), a route at the
+root of a site (/home/<page>), the home of a container's or a runner's
+account (/home/<service>), and -home-<word> after a blank; give each an entry
+of the third kind. A placeholder that is a word (username after /Users/) is
+refused: write it with a sign (/Users/<name>). A file whose name holds a tab
+or a line break cannot be listed. The list and the name of the exempt commit
+are read from the work tree, not from the pushed commits. The hook does not
+run for git push --no-verify, or in a clone where sh scripts/prerequisites.sh
+has not set core.hooksPath, and when this script is not beside
+.githooks/pre-push the hook says that the scan did not run and lets the push
+go on: run the scanner of a checkout of main on the range,
+sh <checkout of main>/scripts/check-home-paths.sh origin/main..HEAD.
 EOF
 }
 
@@ -575,7 +621,7 @@ scan() {
   {
     printf '%s: FAIL: %s: commits read %s, lines with a home path %s.\n' "$NAME" "$label" "$commits" "$found"
     [ "$own_entries" = 0 ] || printf '%s: FAIL: %s: added entries of the list that name the home directory of the account that pushes: %s.\n' "$NAME" "$label" "$own_entries"
-    printf 'Fix: take each listed line out of the commit that added it: git commit --amend for the newest commit, git rebase -i with "edit" for an older one. A later commit that removes the line does not help, because the commit that holds it is pushed. Write a location relative to the repository, take it from an environment variable, or write the name as a placeholder (/Users/<name>). If the path is made up for a fixture, add the file, the exact path and the reason to %s (sh scripts/check-home-paths.sh --help, The list).\n' "$LIST_IN_THE_REPOSITORY"
+    printf 'Fix: take each listed line out of the commit that added it: git commit --amend for the newest commit, git rebase -i with "edit" for an older one. A later commit that removes the line does not help, because the commit that holds it is pushed. Write a location relative to the repository, take it from an environment variable, or write the name as a placeholder (/Users/<name>). If the path is made up for a fixture, is the public account of a hosting service'"'"'s runner, or is no home path but reads as one (a route at the root of a site, a relative path through a directory called home), add the file, the exact path and a reason that says which to %s (sh scripts/check-home-paths.sh --help, The list).\n' "$LIST_IN_THE_REPOSITORY"
   } >&2
 }
 
