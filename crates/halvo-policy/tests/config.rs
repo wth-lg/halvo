@@ -235,6 +235,17 @@ fn validate_answers_each_cause() {
     c.caps.untrusted = N;
     assert_eq!(validate(&c), Ok(()));
 
+    for autonomy in [Autonomy::DraftAndConfirm, Autonomy::Observe] {
+        let mut c = preset_of(SeedCategory::SpreadsheetFill);
+        c.allow = vec![AllowedClass::Send];
+        c.autonomy = autonomy;
+        assert_eq!(
+            validate(&c),
+            Err(ConfigCause::Allow),
+            "{autonomy:?} with the split"
+        );
+    }
+
     for (category, other) in [
         (SeedCategory::Email, Runtime::Web),
         (SeedCategory::UtilityBillPayment, Runtime::GraphMail),
