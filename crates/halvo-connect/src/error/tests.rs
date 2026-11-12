@@ -18,6 +18,7 @@ fn effect_of_each_error() {
         (CallError::Answer(AnswerFault::Paged), Effect::Unknown),
         (CallError::Answer(AnswerFault::Repeated), Effect::Unknown),
         (CallError::Answer(AnswerFault::Id), Effect::Unknown),
+        (CallError::Answer(AnswerFault::Item), Effect::Unknown),
     ];
     for (error, effect) in rows {
         assert_eq!(error.effect(), effect, "{error:?}");
@@ -52,6 +53,10 @@ fn texts() {
         (
             CallError::Answer(AnswerFault::Id),
             "the answer holds an id that is empty, . or ..",
+        ),
+        (
+            CallError::Answer(AnswerFault::Item),
+            "the answer names another item than the request",
         ),
     ];
     for (error, text) in rows {

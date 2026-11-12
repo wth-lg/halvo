@@ -28,6 +28,8 @@ pub enum AnswerFault {
     Repeated,
     /// An id is empty, `.` or `..`.
     Id,
+    /// The answer names another item than the one that the request addressed.
+    Item,
 }
 
 /// Whether the effect of a call of the class `send` or `delete` that returned an error was made.
@@ -75,6 +77,7 @@ impl fmt::Display for CallError {
                 AnswerFault::Paged => "the answer goes on in another page",
                 AnswerFault::Repeated => "the answer holds one id twice",
                 AnswerFault::Id => "the answer holds an id that is empty, . or ..",
+                AnswerFault::Item => "the answer names another item than the request",
             }),
         }
     }

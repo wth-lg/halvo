@@ -4,7 +4,7 @@ use reqwest::Method;
 use serde_json::{json, Value};
 
 use crate::answer::{self, Ids, FORM};
-use crate::error::CallError;
+use crate::error::{AnswerFault, CallError};
 use crate::graph::{segment, Graph};
 use crate::token::Token;
 
@@ -21,9 +21,11 @@ pub trait Mail {
 
     /// For each message of `messages`, once and in order: createReply, then PATCH of the draft's body to `body` as
     /// plain text. Keeps `drafts`, each with its `to` and `subject` as the PATCH answered them. Takes `messages`
-    /// whole, so that a list is drafted once. Refuses a createReply answer whose id is the id of a kept message or
-    /// of an earlier draft with `Answer(Repeated)`, before its PATCH. Stops at the first error; drafts made before
-    /// it stay with the provider, unsent.
+    /// whole, so that a list is drafted once. Refuses a createReply answer whose id is the id of any message of the
+    /// list answer, kept by the rule or not, or of an earlier draft with `Answer(Repeated)`, before its PATCH, and
+    /// a PATCH answer whose id is not the draft's with `Answer(Item)`, so that a handle exists only for a draft
+    /// that createReply made for its own message. Stops at the first error; drafts made before it stay with the
+    /// provider, unsent.
     fn mail_draft_reply(
         &self,
         token: &Token,
@@ -113,7 +115,8 @@ impl Message {
     }
 }
 
-/// The kept list `messages` of A11.2. Only `mail_list` makes one, and `mail_draft_reply` takes it whole. It has no
+/// The kept list `messages` of A11.2, with the id of every message that the list answer held. Only `mail_list`
+/// makes one, and `mail_draft_reply` takes it whole. It has no
 /// `Clone`, so that one list is drafted once:
 ///
 /// ```compile_fail
@@ -121,22 +124,25 @@ impl Message {
 ///     messages.clone()
 /// }
 /// ```
-pub struct Messages(Vec<Message>);
+pub struct Messages {
+    kept: Vec<Message>,
+    listed: Vec<String>,
+}
 
 impl Messages {
     /// The messages, in the order of the provider's answer.
     pub fn iter(&self) -> std::slice::Iter<'_, Message> {
-        self.0.iter()
+        self.kept.iter()
     }
 
     /// The count of messages.
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.kept.len()
     }
 
     /// Whether the rule selected no message.
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.kept.is_empty()
     }
 }
 
@@ -236,7 +242,7 @@ impl DraftToSend {
 impl Mail for Graph {
     fn mail_list(&self, token: &Token, rule: &ReplyRule) -> Result<Messages, CallError> {
         let answer = self.json(token, Method::GET, INBOX, None, 200)?;
-        kept(&answer, rule).map(Messages)
+        kept(&answer, rule)
     }
 
     fn mail_draft_reply(
@@ -246,9 +252,9 @@ impl Mail for Graph {
         body: &str,
     ) -> Result<Drafts, CallError> {
         let content = json!({"body": {"contentType": "text", "content": body}});
-        let mut ids = Ids::of(messages.iter().map(Message::id));
+        let mut ids = Ids::of(messages.listed.iter().map(String::as_str));
         let mut drafts = Vec::with_capacity(messages.len());
-        for message in messages.0 {
+        for message in messages.kept {
             let created = self.json(
                 token,
                 Method::POST,
@@ -265,6 +271,9 @@ impl Mail for Graph {
                 Some(&content),
                 200,
             )?;
+            if answer::id(&patched)? != id {
+                return Err(CallError::Answer(AnswerFault::Item));
+            }
             drafts.push(Draft {
                 to: recipients(&patched)?,
                 subject: answer::text(&patched, "subject")?,
@@ -285,12 +294,14 @@ impl Mail for Graph {
     }
 }
 
-fn kept(answer: &Value, rule: &ReplyRule) -> Result<Vec<Message>, CallError> {
+fn kept(answer: &Value, rule: &ReplyRule) -> Result<Messages, CallError> {
     let mut ids = Ids::default();
     let mut kept = Vec::new();
+    let mut listed = Vec::new();
     for item in answer::page(answer)? {
         let id = answer::id(item)?;
         ids.first(&id)?;
+        listed.push(id.clone());
         let is_read = item.get("isRead").and_then(Value::as_bool).ok_or(FORM)?;
         let sender = address(item.get("from"))?;
         let to = recipients(item)?;
@@ -311,7 +322,7 @@ fn kept(answer: &Value, rule: &ReplyRule) -> Result<Vec<Message>, CallError> {
             });
         }
     }
-    Ok(kept)
+    Ok(Messages { kept, listed })
 }
 
 fn recipients(item: &Value) -> Result<Vec<String>, CallError> {
@@ -349,7 +360,7 @@ impl fmt::Debug for Message {
 impl fmt::Debug for Messages {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Messages")
-            .field("len", &self.0.len())
+            .field("len", &self.kept.len())
             .finish()
     }
 }

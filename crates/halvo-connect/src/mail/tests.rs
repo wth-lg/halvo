@@ -25,7 +25,7 @@ fn message(id: &str, is_read: bool, from: &str, to: &[&str]) -> Value {
 }
 
 fn ids(answer: &Value) -> Result<Vec<String>, CallError> {
-    kept(answer, &rule()).map(|kept| kept.into_iter().map(|m| m.id).collect())
+    kept(answer, &rule()).map(|list| list.kept.into_iter().map(|m| m.id).collect())
 }
 
 #[test]
@@ -53,8 +53,9 @@ fn a_list_keeps_the_selected_messages_in_the_order_of_the_answer() {
         message("m5", false, "eve@people.test", &["me@home.test"]),
     ]});
     assert_eq!(ids(&answer), Ok(vec!["m1".to_owned(), "m4".to_owned()]));
-    let kept = kept(&answer, &rule()).expect("a list");
-    let first = &kept[0];
+    let list = kept(&answer, &rule()).expect("a list");
+    assert_eq!(list.listed, ["m1", "m2", "m3", "m4", "m5"]);
+    let first = &list.kept[0];
     assert_eq!(
         (
             first.conversation(),
@@ -167,7 +168,13 @@ fn debug_prints_no_value() {
     assert_eq!(format!("{:?}", rule()), "ReplyRule { senders: 2, .. }");
     assert_eq!(format!("{message:?}"), "Message { .. }");
     assert_eq!(
-        format!("{:?}", Messages(vec![message])),
+        format!(
+            "{:?}",
+            Messages {
+                kept: vec![message],
+                listed: vec!["m1".to_owned()],
+            }
+        ),
         "Messages { len: 1 }"
     );
     assert_eq!(format!("{draft:?}"), "Draft { .. }");

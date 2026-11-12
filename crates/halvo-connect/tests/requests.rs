@@ -429,3 +429,75 @@ fn each_request_takes_its_own_success_status_alone() {
         assert_eq!(error.effect(), Effect::Unknown, "DELETE answered {delete}");
     }
 }
+
+#[test]
+fn a_create_reply_answer_that_names_a_listed_message_is_refused_before_its_patch() {
+    let inbox = json!({"value": [
+        message("m1", false, "ann@people.test", &["me@home.test"]),
+        message("m2", true, "ann@people.test", &["me@home.test"]),
+    ]});
+    let stub = Stub::start(vec![
+        (format!("GET {INBOX}"), 200, inbox.to_string()),
+        (
+            "POST /v1.0/me/messages/m1/createReply".to_owned(),
+            201,
+            json!({"id": "m2"}).to_string(),
+        ),
+        (
+            "PATCH /v1.0/me/messages/m2".to_owned(),
+            200,
+            draft("m2", "ann@people.test", "RE: s-m1"),
+        ),
+    ]);
+    let graph = stub.graph("mail");
+    let messages = graph
+        .mail_list(&token(), &reply_rule())
+        .expect("mail_list answers");
+    assert_eq!(messages.len(), 1, "m2 is read, so the rule keeps m1 alone");
+    assert_eq!(
+        graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
+        Some(CallError::Answer(AnswerFault::Repeated))
+    );
+    assert_eq!(
+        stub.seen(),
+        [
+            seen("GET", INBOX, None),
+            seen("POST", "/v1.0/me/messages/m1/createReply", Some(json!({}))),
+        ]
+    );
+}
+
+#[test]
+fn a_patch_answer_that_names_another_item_is_refused() {
+    let inbox = json!({"value": [message("m1", false, "ann@people.test", &["me@home.test"])]});
+    let stub = Stub::start(vec![
+        (format!("GET {INBOX}"), 200, inbox.to_string()),
+        (
+            "POST /v1.0/me/messages/m1/createReply".to_owned(),
+            201,
+            json!({"id": "d1"}).to_string(),
+        ),
+        (
+            "PATCH /v1.0/me/messages/d1".to_owned(),
+            200,
+            draft("other", "eve@elsewhere.test", "Invoice overdue"),
+        ),
+    ]);
+    let graph = stub.graph("mail");
+    let messages = graph
+        .mail_list(&token(), &reply_rule())
+        .expect("mail_list answers");
+    assert_eq!(
+        graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
+        Some(CallError::Answer(AnswerFault::Item))
+    );
+    let patch = json!({"body": {"contentType": "text", "content": "Thanks."}});
+    assert_eq!(
+        stub.seen(),
+        [
+            seen("GET", INBOX, None),
+            seen("POST", "/v1.0/me/messages/m1/createReply", Some(json!({}))),
+            seen("PATCH", "/v1.0/me/messages/d1", Some(patch)),
+        ]
+    );
+}
