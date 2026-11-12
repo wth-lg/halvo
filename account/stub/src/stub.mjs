@@ -9,6 +9,11 @@ import { openRecord, RecordError } from "./record.mjs";
 import { makeTestAuthority, writeAuthority, TlsError } from "./tls.mjs";
 
 export { BODY_CAP } from "./wire.mjs";
+/**
+ * How long, in ms, a connection of the app-facing port may send nothing before the stub ends it: far above any gap
+ * between the bytes of one request on loopback, and below the 10 s that a test of the stub waits for an answer.
+ */
+export const IDLE_MS = 5000;
 const HOST = "127.0.0.1";
 const vendored = (name) => JSON.parse(readFileSync(new URL(`../../schema/${name}`, import.meta.url), "utf8"));
 
@@ -54,7 +59,9 @@ function closes({ version, headers }) {
   return version === "1.0" || tokens.some((token) => token.trim().toLowerCase() === "close");
 }
 
-function serve(socket, connection, app, record) {
+function serve(socket, connection, app, record, idleMs) {
+  let timer = null;
+  const quiet = () => clearTimeout(timer);
   const reader = makeReader({
     request(message) {
       const { method, target, headers, trailers, body } = message;
@@ -62,15 +69,32 @@ function serve(socket, connection, app, record) {
       record.request({ connection, method, target, headers, trailers, body, status: answer.status, result: answer.result });
       const close = closes(message);
       socket.write(answerBytes(method, answer, close));
-      if (close) socket.end();
+      if (close) {
+        quiet();
+        socket.end();
+      }
       return !close;
     },
     malformed(cause) {
+      quiet();
       record.refused({ connection, error: cause });
       socket.end(answerBytes("", app.malformed(), true));
     },
   });
-  socket.on("data", (chunk) => reader.feed(chunk));
+  const arm = () => {
+    quiet();
+    timer = setTimeout(() => {
+      if (reader.idle()) return;
+      record.refused({ connection, error: "idle-close" });
+      socket.end();
+    }, idleMs);
+  };
+  arm();
+  socket.on("data", (chunk) => {
+    arm();
+    reader.feed(chunk);
+  });
+  socket.on("close", quiet);
   socket.on("end", () => {
     reader.end();
     socket.end();
@@ -111,17 +135,19 @@ function serveControl(app, stop) {
  * app-facing port serves TLS with a server certificate of a test authority made at this start (see makeTestAuthority),
  * whose certificate is written to the file `tlsCa`, which must not exist yet.
  * Resolves to `{app, control, stopped, close}`: the two base URLs, a promise that settles when the stub has stopped,
- * through `close()` or the control route `POST /stop`, and `close()`, which ends every open connection.
+ * through `close()` or the control route `POST /stop`, and `close()`, which ends every open connection. A connection
+ * that sends nothing for `idleMs` (IDLE_MS unless a test gives another) gets the rejection of a malformed request
+ * when a request had begun, and is closed with the record line `idle-close` when none had.
  * Throws RecordError or TlsError for a bad directory or file.
  */
-export async function startStub({ record: dir, tlsCa, now = Date.now }) {
+export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = IDLE_MS }) {
   const record = openRecord(dir);
   const app = makeApp({ ...readVendored(), now });
   let done;
   const stopped = new Promise((resolve) => {
     done = resolve;
   });
-  const onSocket = (socket) => serve(socket, record.connection(socket), app, record);
+  const onSocket = (socket) => serve(socket, record.connection(socket), app, record, idleMs);
   let appServer;
   if (tlsCa === undefined) {
     appServer = createPlainServer({ allowHalfOpen: true }, onSocket);

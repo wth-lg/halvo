@@ -38,6 +38,8 @@ The stub writes the authority's certificate to `FILE`, and the app-facing port s
 
 The app-facing port reads HTTP/1.1 itself, so that every request reaches the checks of the next section, whatever its `expect`, `upgrade` or `connection` header, its method's case, and whether it names a host. `CONNECT` is a method like any other. A connection serves its requests in order, and the stub closes it after an answer to a request that asks for `connection: close` and after every answer to HTTP/1.0. An answer to `HEAD` carries its head alone. The stub sends no `100 Continue`.
 
+A connection that sends nothing for 5,000 ms (`IDLE_MS` of `src/stub.mjs`) is ended. When a byte of a request had arrived, it gets the 400 of the next paragraph with the cause `idle`; a request whose lines end in a bare LF is one such case, because the stub reads only CRLF as a line end. When no byte of a request had arrived, as on a keep-alive connection after its last answer, the stub closes it without an answer and records the line `idle-close`. The limit counts from the last byte received. It is far above any gap between the bytes of one request on loopback, and below the 10 s that a test of the stub waits for an answer.
+
 Bytes that are no request get status 400 with `content-type: application/json` and the body `{"result":"rejected"}`, as contract 1.4 answers a body that does not parse, and the stub closes the connection and reads no more of it. The causes are:
 
 | Cause | The bytes |
@@ -50,6 +52,7 @@ Bytes that are no request get status 400 with `content-type: application/json` a
 | `chunk` | A chunk size that is not 1 to 13 hexadecimal digits, a chunk not followed by CRLF, or a chunk-size line above 4,096 bytes. |
 | `head-too-large` | A request head, or the trailer section of a chunked body, above 65,536 bytes. |
 | `incomplete` | A peer that ends its side inside a request. |
+| `idle` | A peer that sends nothing for the idle limit inside a request. |
 
 ## How a request is judged
 
@@ -119,6 +122,6 @@ A line of `requests.jsonl` has these keys:
 
 The line writes each byte of a target, a name or a value as one character, its latin1 reading, so a byte above 0x7F stands as one character and not as UTF-8. A search for a value sent as UTF-8 reads the raw files.
 
-Bytes that are no request get the line `{"seq", "connection", "error"}`, where `error` is the cause. A TLS handshake that the server sees fail, such as one that the client ends with an alert, gets a line with `seq` and `error` only, and `error` is Node's code. A client that refuses the certificate and closes without an alert leaves no line, and neither does a connection that the peer resets.
+Bytes that are no request get the line `{"seq", "connection", "error"}`, where `error` is the cause. A connection that the idle limit closes with no request begun gets the same line with `error` set to `idle-close`. A TLS handshake that the server sees fail, such as one that the client ends with an alert, gets a line with `seq` and `error` only, and `error` is Node's code. A client that refuses the certificate and closes without an alert leaves no line, and neither does a connection that the peer resets.
 
 The stub writes no value of a request to standard output or standard error.

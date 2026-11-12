@@ -136,3 +136,40 @@ if (process.platform !== "win32") {
     assert.equal(await exited(child), 0);
   });
 }
+
+test("the idle limit is 5,000 ms", async () => {
+  const { IDLE_MS } = await import("../src/stub.mjs");
+  assert.equal(IDLE_MS, 5000);
+});
+
+test("a request that sends nothing for the idle limit gets the contract's 400 and the line idle", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir, idleMs: 200 });
+  const answer = parse(await exchange(portOf(stub.app), Buffer.from("GET /v1/done HTTP/1.1\nhost: a\n\n")));
+  assert.equal(answer.status, 400);
+  assert.equal(answer.body, REJECTED);
+  assert.equal(answer.headers.get("connection"), "close");
+  assert.deepEqual(lines(dir).map((line) => [line.seq, line.connection, line.error]), [[1, 1, "idle"]]);
+});
+
+test("a connection that sends no byte of a request for the idle limit is closed with the line idle-close", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir, idleMs: 200 });
+  const port = portOf(stub.app);
+  assert.equal((await exchange(port, Buffer.alloc(0))).length, 0);
+  assert.equal((await exchange(port, Buffer.from("\r\n"))).length, 0);
+  const served = parseAll(await exchange(port, Buffer.from("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n")));
+  assert.deepEqual(served.map((a) => a.status), [200]);
+  assert.deepEqual(lines(dir).map((line) => [line.connection, line.status ?? line.error]), [[1, "idle-close"], [2, "idle-close"], [3, 200], [3, "idle-close"]]);
+});
+
+test("the idle limit counts from the last byte, so a request sent in parts with short gaps is served", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir, idleMs: 300 });
+  const bytes = request("GET", "/v1/subscription", appHeaders());
+  const parts = [];
+  for (let at = 0; at < bytes.length; at += 12) parts.push(bytes.subarray(at, at + 12));
+  assert.ok(parts.length * 50 > 600, String(parts.length));
+  assert.equal(parse(await exchange(portOf(stub.app), parts)).status, 200);
+  assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200]);
+});
