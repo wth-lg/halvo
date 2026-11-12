@@ -136,6 +136,45 @@ impl FromIterator<Permission> for PermissionSet {
     }
 }
 
+/// What macOS shows for the permissions on one major version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MacosRow {
+    pub major: u32,
+    /// The button of the permission alert that leads to System Settings: observed
+    /// on 27; the other rows carry the same words until someone observes them.
+    pub alert_button: &'static str,
+}
+
+/// The supported macOS majors, from the floor up.
+pub const MACOS_ROWS: [MacosRow; 4] = [
+    MacosRow {
+        major: 14,
+        alert_button: "Open System Settings",
+    },
+    MacosRow {
+        major: 15,
+        alert_button: "Open System Settings",
+    },
+    MacosRow {
+        major: 26,
+        alert_button: "Open System Settings",
+    },
+    MacosRow {
+        major: 27,
+        alert_button: "Open System Settings",
+    },
+];
+
+/// The row of a macOS major: the last row at or below it, and the floor's row
+/// below the floor or when the major is unknown.
+fn macos_row(major: Option<u32>) -> &'static MacosRow {
+    MACOS_ROWS
+        .iter()
+        .rev()
+        .find(|row| major.is_some_and(|major| major >= row.major))
+        .unwrap_or(&MACOS_ROWS[0])
+}
+
 /// What the system answers for a permission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -252,8 +291,11 @@ pub struct AssessInput<'a> {
     pub screen_activity: bool,
 }
 
-/// The onboarding state of `input.required`. `all_granted` is true when every
-/// required permission reads granted now. The walk-back ends with one
+/// The onboarding state of `input.required`; any permission may read
+/// not_determined. `all_granted` is true when every required permission reads
+/// granted now. A missing permission gets a request step unless it is in the
+/// asked set, lost, or a denied Input Monitoring; Input Monitoring that reads
+/// not_determined always gets one, because only its check tells a denial apart. The walk-back ends with one
 /// restart_capture step while a permission of the restart class is missing, or
 /// is granted now and was not when the capturing process started; the step
 /// names the first such permission in required order.
@@ -272,7 +314,15 @@ pub fn assess(input: &AssessInput<'_>) -> OnboardingState {
             if lost {
                 lost_grants.push(permission);
             }
-            walkback.extend(walkback_for(permission, pane_name, lost, input.entry_name));
+            walkback.extend(walkback_for(&StepContext {
+                permission,
+                grant,
+                pane: pane_name,
+                lost,
+                asked: input.asked.contains(permission),
+                entry: input.entry_name,
+                alert_button: macos_row(input.macos_major).alert_button,
+            }));
         }
         if restart.is_none()
             && permission.restarts_capture()
@@ -309,15 +359,44 @@ pub fn assess(input: &AssessInput<'_>) -> OnboardingState {
     }
 }
 
-fn walkback_for(permission: Permission, pane: &str, lost: bool, entry: &str) -> Vec<WalkbackStep> {
+struct StepContext<'a> {
+    permission: Permission,
+    grant: GrantState,
+    pane: &'a str,
+    lost: bool,
+    asked: bool,
+    entry: &'a str,
+    alert_button: &'a str,
+}
+
+fn walkback_for(context: &StepContext<'_>) -> Vec<WalkbackStep> {
+    let StepContext {
+        permission,
+        grant,
+        pane,
+        lost,
+        asked,
+        entry,
+        alert_button,
+    } = *context;
     let step = |action, text: String| WalkbackStep {
         permission,
         action,
         settings_url: permission.settings_url().to_string(),
         text,
     };
+    let undetermined_input_monitoring =
+        permission == Permission::InputMonitoring && grant == GrantState::NotDetermined;
+    let denied = permission == Permission::InputMonitoring && grant == GrantState::NotGranted;
+    let mut steps = Vec::with_capacity(2);
+    if undetermined_input_monitoring || !(asked || lost || denied) {
+        steps.push(step(
+            WalkbackAction::RequestFromSystem,
+            format!("Click Ask now, then click {alert_button} in the message from macOS, and turn on {entry} under {pane}."),
+        ));
+    }
     let lead = if lost {
-        format!("macOS removed Halvo's {pane} access. This happens after a macOS update, a periodic re-check or a new Halvo version. ")
+        format!("macOS removed the {pane} permission of {entry}. This happens after a macOS update, a periodic re-check or a new Halvo version. ")
     } else {
         String::new()
     };
@@ -329,18 +408,13 @@ fn walkback_for(permission: Permission, pane: &str, lost: bool, entry: &str) -> 
     } else {
         String::new()
     };
-    vec![
-        step(
-            WalkbackAction::RequestFromSystem,
-            format!("{lead}Click Allow when macOS asks about {pane}."),
+    steps.push(step(
+        WalkbackAction::OpenSettingsPane,
+        format!(
+            "{lead}Open System Settings > Privacy & Security > {pane} and turn on {entry}.{relist}"
         ),
-        step(
-            WalkbackAction::OpenSettingsPane,
-            format!(
-                "Open System Settings > Privacy & Security > {pane} and turn {entry} on.{relist}"
-            ),
-        ),
-    ]
+    ));
+    steps
 }
 
 /// Why the System Settings pane could not be opened.
@@ -711,6 +785,165 @@ mod tests {
         assert!(state.walkback[0]
             .text
             .contains("Device Control and Data Access"));
+    }
+
+    fn step_text(
+        input: &AssessInput<'_>,
+        permission: Permission,
+        action: WalkbackAction,
+    ) -> String {
+        assess(input)
+            .walkback
+            .into_iter()
+            .find(|s| s.permission == permission && s.action == action)
+            .map(|s| s.text)
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn no_step_text_names_a_button_the_alert_lacks_or_doubles_a_word() {
+        every_state(|_, state| {
+            for step in &state.walkback {
+                assert!(!step.text.contains("Allow"), "{}", step.text);
+                assert!(!step.text.contains("Access access"), "{}", step.text);
+                assert!(!step.text.contains("access access"), "{}", step.text);
+            }
+        });
+    }
+
+    #[test]
+    fn a_permission_already_asked_about_gets_no_request_step() {
+        every_state(|input, state| {
+            for step in &state.walkback {
+                if step.action == WalkbackAction::RequestFromSystem {
+                    let p = step.permission;
+                    let undetermined_input_monitoring =
+                        p == InputMonitoring && input.now.of(p) == GrantState::NotDetermined;
+                    assert!(
+                        undetermined_input_monitoring || !input.asked.contains(p),
+                        "{p:?}"
+                    );
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn a_lost_or_denied_permission_starts_at_the_settings_step_unless_input_monitoring_is_undetermined(
+    ) {
+        let first_action =
+            |input: &AssessInput<'_>| assess(input).walkback.first().map(|s| s.action);
+        let mut lost = input(&[Accessibility], &[(Accessibility, GrantState::NotGranted)]);
+        lost.once_granted = [Accessibility].into_iter().collect();
+        assert_eq!(first_action(&lost), Some(WalkbackAction::OpenSettingsPane));
+        let denied = input(
+            &[InputMonitoring],
+            &[(InputMonitoring, GrantState::NotGranted)],
+        );
+        assert_eq!(
+            first_action(&denied),
+            Some(WalkbackAction::OpenSettingsPane)
+        );
+        let mut asked = input(&[Screen], &[(Screen, GrantState::NotGranted)]);
+        asked.asked = [Screen].into_iter().collect();
+        assert_eq!(first_action(&asked), Some(WalkbackAction::OpenSettingsPane));
+        let mut undetermined = input(
+            &[InputMonitoring],
+            &[(InputMonitoring, GrantState::NotDetermined)],
+        );
+        undetermined.asked = [InputMonitoring].into_iter().collect();
+        undetermined.once_granted = [InputMonitoring].into_iter().collect();
+        assert_eq!(
+            first_action(&undetermined),
+            Some(WalkbackAction::RequestFromSystem)
+        );
+        let fresh = input(
+            &[Screen, Accessibility],
+            &[(Screen, GrantState::NotGranted)],
+        );
+        let state = assess(&fresh);
+        assert_eq!(
+            state.walkback.first().map(|s| (s.permission, s.action)),
+            Some((Screen, WalkbackAction::RequestFromSystem))
+        );
+        assert_eq!(state.permissions[1].grant, GrantState::NotDetermined);
+    }
+
+    #[test]
+    fn the_request_step_names_the_alert_button_of_each_supported_major() {
+        assert_eq!(MACOS_ROWS.map(|row| row.major), [14, 15, 26, 27]);
+        for row in MACOS_ROWS {
+            assert_eq!(row.alert_button, "Open System Settings", "{}", row.major);
+            let mut input = input(&[InputMonitoring], &[]);
+            input.macos_major = Some(row.major);
+            let text = step_text(&input, InputMonitoring, WalkbackAction::RequestFromSystem);
+            assert!(text.contains("click Open System Settings"), "{text}");
+        }
+    }
+
+    #[test]
+    fn the_entry_name_is_an_input() {
+        let mut input = input(&[Accessibility], &[]);
+        input.entry_name = "Halvo Dev";
+        for action in [
+            WalkbackAction::RequestFromSystem,
+            WalkbackAction::OpenSettingsPane,
+        ] {
+            let text = step_text(&input, Accessibility, action);
+            assert!(text.contains("turn on Halvo Dev"), "{text}");
+        }
+    }
+
+    #[test]
+    fn every_step_text_is_pinned_by_a_literal() {
+        let screen = "Screen & System Audio Recording";
+        let relist = " If Halvo is already listed and still not working, remove it with the minus button and add it again.";
+        let request = |pane: &str| {
+            format!("Click Ask now, then click Open System Settings in the message from macOS, and turn on Halvo under {pane}.")
+        };
+        let settings = |pane: &str, relist: &str| {
+            format!("Open System Settings > Privacy & Security > {pane} and turn on Halvo.{relist}")
+        };
+        let lost = |pane: &str| {
+            format!("macOS removed the {pane} permission of Halvo. This happens after a macOS update, a periodic re-check or a new Halvo version. ")
+        };
+        let restart = |pane: &str| {
+            format!("Click Restart recorder: Halvo restarts its recorder so that macOS applies the {pane} permission.")
+        };
+        let cases = [
+            (Screen, 26, screen, ""),
+            (Accessibility, 26, "Accessibility", relist),
+            (Accessibility, 27, "Device Control and Data Access", relist),
+            (InputMonitoring, 27, "Input Monitoring", relist),
+        ];
+        for (permission, major, pane, relist) in cases {
+            let required = [permission];
+            let mut fresh = input(&required, &[]);
+            fresh.macos_major = Some(major);
+            assert_eq!(
+                step_text(&fresh, permission, WalkbackAction::RequestFromSystem),
+                request(pane)
+            );
+            assert_eq!(
+                step_text(&fresh, permission, WalkbackAction::OpenSettingsPane),
+                settings(pane, relist)
+            );
+            let mut gone = fresh;
+            gone.once_granted = [permission].into_iter().collect();
+            assert_eq!(
+                step_text(&gone, permission, WalkbackAction::OpenSettingsPane),
+                lost(pane) + &settings(pane, relist)
+            );
+            let expected_restart = if permission.restarts_capture() {
+                restart(pane)
+            } else {
+                String::new()
+            };
+            assert_eq!(
+                step_text(&fresh, permission, WalkbackAction::RestartCapture),
+                expected_restart
+            );
+        }
     }
 
     const ONBOARDING_JSON: &str = r#"{"permissions":[{"permission":"accessibility","pane_name":"Accessibility","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility","why":"the why text","grant":"not_granted","lost":true,"asked":true},{"permission":"input_monitoring","pane_name":"Input Monitoring","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent","why":"another why text","grant":"not_determined","lost":false,"asked":false}],"lost_grants":["accessibility"],"all_granted":false,"walkback":[{"permission":"accessibility","action":"open_settings_pane","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility","text":"a step text"},{"permission":"input_monitoring","action":"request_from_system","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent","text":"another step text"}]}"#;
