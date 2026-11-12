@@ -67,6 +67,7 @@ function serve(socket, connection, app, record, idleMs) {
     reader.feed(chunk);
   };
   const stop = (last) => {
+    if (socket.writableEnded) return;
     quiet();
     socket.removeListener("data", onData);
     socket.pause();

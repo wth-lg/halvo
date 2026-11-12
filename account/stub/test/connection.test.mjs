@@ -252,3 +252,22 @@ test("after the peer resets the connection behind an answer, no idle-close line 
   assert.equal(parse(client.got()).status, 200);
   assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200]);
 });
+
+test("a client that reads slowly and ends inside a request gets every answer that the record holds and the 400", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir });
+  const count = 3000;
+  const one = "GET /v1/done HTTP/1.1\r\nhost: 127.0.0.1\r\n\r\n";
+  const client = await halfOpen(portOf(stub.app));
+  client.socket.pause();
+  client.socket.end(one.repeat(count) + "GET /v1/done HTTP/1.1\r\n");
+  await pause(1500);
+  client.socket.resume();
+  assert.equal(await within(client.closed, 8000), true, "the stub closes the connection");
+  const text = client.got().toString("latin1");
+  const got = lines(dir);
+  assert.equal(got.filter((line) => line.status === 200).length, count);
+  assert.deepEqual(got.filter((line) => line.error !== undefined).map((line) => line.error), ["incomplete"]);
+  assert.equal(text.split("HTTP/1.1 200 ").length - 1, count, "every 200 of the record reached the client");
+  assert.equal(text.split("HTTP/1.1 400 ").length - 1, 1, "the 400 of the cut request reached the client");
+});
