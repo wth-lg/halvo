@@ -143,7 +143,7 @@ make_repo() {
 }
 
 log() {
-  printf "$2" >"$work/$1.log" || self_fail "the fixture log $1 cannot be written"
+  printf '%b' "$2" >"$work/$1.log" || self_fail "the fixture log $1 cannot be written"
 }
 
 self_test() {
