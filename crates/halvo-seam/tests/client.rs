@@ -914,3 +914,61 @@ fn a_read_whose_next_names_segment_zero_stops_the_client() {
         stopped_after_one_failure(client, 2);
     }
 }
+
+#[test]
+fn a_batch_whose_watermark_falls_below_that_of_an_earlier_batch_stops_the_client() {
+    let mut client = scripted(&[
+        opened(STORE, pos(5, 0), pos(1, 0)),
+        batch_json(
+            STORE,
+            pos(9, 0),
+            &[(pos(1, 0), record(1, "keystroke", DAY))],
+            pos(2, 0),
+        ),
+        batch_json(STORE, pos(7, 0), &[], pos(3, 0)),
+    ]);
+    client
+        .open(OpenCursor::at(store(), pos(1, 0), None, None).unwrap())
+        .unwrap();
+    client.read().unwrap();
+    assert_eq!(
+        client.read(),
+        Err(ClientError::Failed(Failure::Order(
+            "the watermark never falls"
+        )))
+    );
+    assert_eq!(client.position(), Some(pos(2, 0)));
+    stopped_after_one_failure(client, 3);
+}
+
+#[test]
+fn a_record_below_the_next_of_an_earlier_batch_stops_the_client() {
+    let w = pos(5, 0);
+    let mut client = scripted(&[
+        opened(STORE, w, pos(1, 0)),
+        batch_json(
+            STORE,
+            w,
+            &[(pos(1, 0), record(1, "keystroke", DAY))],
+            pos(3, 0),
+        ),
+        batch_json(
+            STORE,
+            w,
+            &[(pos(2, 0), record(2, "keystroke", DAY + 1))],
+            pos(4, 0),
+        ),
+    ]);
+    client
+        .open(OpenCursor::at(store(), pos(1, 0), None, None).unwrap())
+        .unwrap();
+    client.read().unwrap();
+    assert_eq!(
+        client.read(),
+        Err(ClientError::Failed(Failure::Order(
+            "positions rise from the position to below next"
+        )))
+    );
+    assert_eq!(client.position(), Some(pos(3, 0)));
+    stopped_after_one_failure(client, 3);
+}
