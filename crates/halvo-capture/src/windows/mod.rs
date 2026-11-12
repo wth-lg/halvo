@@ -13,7 +13,7 @@ use crate::sink::{SinkError, SinkHandle};
 use crate::source::{CaptureError, EmitOutcome, EventSink};
 use std::collections::VecDeque;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 use uuid::Uuid;
 
 /// Where a captured payload's bytes live in the encrypted segment store: the
@@ -46,17 +46,18 @@ impl EventPlacement {
     }
 }
 
-/// Build the one raw stream event for a captured payload: stamp the sink's next
-/// monotonic sequence, record the foreground app and the store placement, and
-/// mark it raw.
+/// Build the one raw stream event for a captured payload: the capture instant
+/// that the caller computed, the sink's next monotonic sequence, the foreground
+/// app and the store placement, marked raw.
 pub fn build_event(
     sink: &SinkHandle,
     modality: Modality,
     foreground_app: String,
     placement: EventPlacement,
+    wall_clock: SystemTime,
 ) -> CaptureStreamEvent {
     let captured_at = CapturedAt {
-        wall_clock: std::time::SystemTime::now(),
+        wall_clock,
         sequence: sink.next_sequence(),
     };
     CaptureStreamEvent::new_raw(
@@ -74,7 +75,6 @@ pub(crate) struct Packet {
     pub(crate) app: String,
     pub(crate) byte_len: u64,
     /// When the OS made the event, in milliseconds since the system started.
-    #[allow(dead_code)]
     pub(crate) tick: u32,
 }
 
@@ -88,6 +88,19 @@ extern "system" {
 pub(crate) fn now_tick() -> u32 {
     // SAFETY: GetTickCount takes no argument and reads a counter.
     unsafe { GetTickCount() }
+}
+
+/// The wall-clock instant of an OS event made at `event_tick`: the wall clock
+/// now minus the age of the event (C12.8).
+pub(crate) fn capture_instant(event_tick: u32) -> SystemTime {
+    instant_from_age(SystemTime::now(), now_tick(), event_tick)
+}
+
+fn instant_from_age(now: SystemTime, now_tick: u32, event_tick: u32) -> SystemTime {
+    let age = now_tick.wrapping_sub(event_tick);
+    let age = if age > i32::MAX as u32 { 0 } else { age };
+    now.checked_sub(Duration::from_millis(u64::from(age)))
+        .unwrap_or(now)
 }
 
 /// The counts of a source's hand-off queue: packets that a full or closed
@@ -274,7 +287,14 @@ fn next_packet(shared: &Shared, last_motion: &mut Option<Instant>) -> Option<Pac
 
 pub(crate) fn forward_one(sink: &SinkHandle, packet: Packet) -> Result<EmitOutcome, SinkError> {
     let placement = EventPlacement::unpersisted(packet.byte_len);
-    sink.emit(build_event(sink, packet.kind, packet.app, placement))
+    let wall_clock = capture_instant(packet.tick);
+    sink.emit(build_event(
+        sink,
+        packet.kind,
+        packet.app,
+        placement,
+        wall_clock,
+    ))
 }
 
 /// A live pump thread's id, as reported by the pump once its message queue
@@ -467,6 +487,7 @@ pub(crate) mod tests {
             Modality::Keystroke,
             "C:\\Windows\\explorer.exe".to_string(),
             test_placement(),
+            SystemTime::UNIX_EPOCH,
         );
         assert_eq!(event.modality, Modality::Keystroke);
         assert!(!event.is_derived);
@@ -475,11 +496,38 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn build_event_takes_a_fresh_monotonic_sequence() {
+    fn build_event_takes_the_given_instant_and_a_fresh_monotonic_sequence() {
         let (sink, _writer) = crate::sink::channel(8);
-        let a = build_event(&sink, Modality::Pointer, String::new(), test_placement());
-        let b = build_event(&sink, Modality::Pointer, String::new(), test_placement());
+        let at = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000);
+        let a = build_event(
+            &sink,
+            Modality::Pointer,
+            String::new(),
+            test_placement(),
+            at,
+        );
+        let b = build_event(
+            &sink,
+            Modality::Pointer,
+            String::new(),
+            test_placement(),
+            at,
+        );
         assert!(a.captured_at.sequence < b.captured_at.sequence);
+        assert_eq!(a.captured_at.wall_clock, at);
+    }
+
+    #[test]
+    fn the_age_of_an_event_is_read_across_the_wrap_of_the_tick_count() {
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000);
+        let at = |now_tick, event_tick| {
+            now.duration_since(instant_from_age(now, now_tick, event_tick))
+                .expect("not after now")
+        };
+        assert_eq!(at(5_000, 4_750), Duration::from_millis(250));
+        assert_eq!(at(100, u32::MAX - 149), Duration::from_millis(250));
+        assert_eq!(at(4_750, 5_000), Duration::ZERO);
+        assert_eq!(at(5_000, 5_000), Duration::ZERO);
     }
 
     #[test]
