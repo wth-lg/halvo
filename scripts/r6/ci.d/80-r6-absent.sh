@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Nothing of a model request can leave the machine in this build: the ruling file of the commit reads ruling=none, no row of the policy or of the recorded table names a hosted tier, cargo tree of the run's three crates names no network package, the egress lists hold no entry, and no cargo command leaves the tree changed.
+# rule: Nothing of a model request can leave the machine in this build: the ruling file of the commit reads ruling=none, no row of the policy or of the recorded table names a hosted tier, cargo tree of the run's three crates names no network package, the egress lists hold no entry, cargo test of halvo-route in the debug and the release profile prints the ok lines of no_grant_in_release and pinned_files_hold_their_hashes under the target tests/no_grant_in_release.rs, and no cargo command leaves the tree changed.
 set -u
 name=80-r6-absent
 case $0 in
@@ -161,6 +161,55 @@ net_crates() {
   ' "$1"
 }
 
+grant_lines_hold() {
+  awk '
+    function target_of(line,    paren, bin) {
+      sub(/^ *Running /, "", line)
+      gsub(/\\/, "/", line)
+      paren = index(line, " (")
+      if (paren == 0 || line !~ /\)$/) return ""
+      bin = substr(line, paren + 2, length(line) - paren - 2)
+      sub(/.*\//, "", bin)
+      sub(/\.exe$/, "", bin)
+      sub(/-[0-9a-f]+$/, "", bin)
+      return bin " " substr(line, 1, paren - 1)
+    }
+    { sub(/\r$/, "") }
+    /^ *Doc-tests / { target = ""; next }
+    /^ *Running / {
+      target = target_of($0)
+      if (target == "no_grant_in_release tests/no_grant_in_release.rs") lines++
+      next
+    }
+    target != "no_grant_in_release tests/no_grant_in_release.rs" { next }
+    $0 == "test no_grant_in_release ... ok" { grant_ok++ }
+    $0 == "test pinned_files_hold_their_hashes ... ok" { pins_ok++ }
+    END { exit !(lines == 1 && grant_ok == 1 && pins_ok == 1) }
+  ' "$1"
+}
+
+grants() {
+  held=0
+  for profile in debug release; do
+    started=$(date +%s)
+    if [ "$profile" = release ]; then
+      cargo test --locked -p halvo-route --release >"$artifacts/test-$profile.txt" 2>&1 </dev/null
+    else
+      cargo test --locked -p halvo-route >"$artifacts/test-$profile.txt" 2>&1 </dev/null
+    fi
+    code=$?
+    ended=$(date +%s)
+    printf '%s %s\n' "$profile" "$((ended - started))" >>"$artifacts/seconds.txt"
+    tree_same "after-$profile" grants
+    [ "$code" -eq 0 ] && grant_lines_hold "$artifacts/test-$profile.txt" && held=$((held + 1))
+  done
+  if [ "$held" -eq 2 ]; then
+    grant_count=0
+  else
+    grant_count=1
+  fi
+}
+
 measure() {
   enter_repo
   artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
@@ -186,7 +235,7 @@ measure() {
   crates=$(net_crates "$artifacts/tree.txt")
   [ "$tree_code" -eq 0 ] || [ "$crates" -gt 0 ] || crates=1
 
-  grant_count=-
+  grants
   value_count=-
 
   printf 'absent ruling=%s hosted_picks=%s hosted_rows=%s net_crates=%s entries=%s grants=%s test_value=%s\n' \
@@ -197,6 +246,7 @@ measure() {
   [ "$rows" = 0 ] || cause=${cause:-rows}
   [ "$crates" = 0 ] || cause=${cause:-crates}
   [ "$entries" = 0 ] || cause=${cause:-entries}
+  [ "$grant_count" = 0 ] || cause=${cause:-grants}
   if [ -n "$cause" ]; then
     printf 'FAIL %s (%s)\n' "$name" "$cause"
     exit 1
@@ -532,8 +582,39 @@ crate_units() {
   unit tree-committed-form 0 passing net_crates "$work/stub/tree.out"
 }
 
+grant_units() {
+  u=$work/u
+  base=$work/stub/debug.out
+  grant_case() {
+    if grant_lines_hold "$u/grants-$1"; then
+      verdict "grants-$1" "$2" hold "$3"
+    else
+      verdict "grants-$1" "$2" miss "$3"
+    fi
+  }
+  awk '$0 != "test pinned_files_hold_their_hashes ... ok"' "$base" >"$u/grants-without-the-pins-ok" || exit 2
+  awk '$0 != "test no_grant_in_release ... ok"' "$base" >"$u/grants-without-the-grant-ok" || exit 2
+  awk '/^test (no_grant_in_release|pinned_files_hold_their_hashes) \.\.\. ok$/ { held = held $0 "\n"; next } { print } $0 == "test pick_rule ... ok" { printf "%s", held }' "$base" >"$u/grants-under-the-next-target" || exit 2
+  awk '!/Running tests\/no_grant_in_release\.rs /' "$base" >"$u/grants-without-the-target-line" || exit 2
+  awk '{ print } /Running tests\/no_grant_in_release\.rs / { print }' "$base" >"$u/grants-target-line-twice" || exit 2
+  awk '{ sub(/deps\/no_grant_in_release-/, "deps/pick_rules-") } { print }' "$base" >"$u/grants-other-binary" || exit 2
+  awk '{ sub(/Running tests\/no_grant_in_release\.rs /, "Running tests/forge.rs ") } { print }' "$base" >"$u/grants-other-source" || exit 2
+  awk '$0 == "test no_grant_in_release ... ok" { print "   Doc-tests halvo_route" } { print }' "$base" >"$u/grants-after-a-doc-tests-line" || exit 2
+  awk '$0 == "test pinned_files_hold_their_hashes ... ok" { $0 = "test pinned_files_hold_their_hashes - should panic ... ok" } { print }' "$base" >"$u/grants-should-panic" || exit 2
+  awk '{ print } $0 == "test no_grant_in_release ... ok" { print }' "$base" >"$u/grants-ok-line-twice" || exit 2
+  awk '/Running tests\/no_grant_in_release\.rs / { sub(/\)$/, "") } { print }' "$base" >"$u/grants-target-line-without-its-paren" || exit 2
+  for fixture in without-the-pins-ok without-the-grant-ok under-the-next-target without-the-target-line target-line-twice \
+    other-binary other-source after-a-doc-tests-line should-panic ok-line-twice target-line-without-its-paren; do
+    grant_case "$fixture" miss failing
+  done
+  awk '/^ *Running / { gsub(/\//, "\\"); sub(/\)$/, ".exe)") } { printf "%s\r\n", $0 }' "$base" >"$u/grants-windows-form" || exit 2
+  grant_case windows-form hold passing
+  cp "$work/stub/release.out" "$u/grants-release-form" || exit 2
+  grant_case release-form hold passing
+}
+
 full_cases() {
-  check all-hold PASS 'absent ruling=none hosted_picks=0 hosted_rows=0 net_crates=0 entries=0 grants=- test_value=-'
+  check all-hold PASS 'absent ruling=none hosted_picks=0 hosted_rows=0 net_crates=0 entries=0 grants=0 test_value=-'
 
   for variant in ruling policy recorded egress; do
     mkdir "$work/commit-$variant" || exit 2
@@ -552,7 +633,7 @@ full_cases() {
   mkdir -p "$work/commit-egress/scripts/r6/egress" || exit 2
   printf '[fixed]\n127.0.0.1:1\n[agent]\n' >"$work/commit-egress/scripts/r6/egress/gate.txt" || exit 2
   STUB_COMMIT=$work/commit-egress
-  check egress-list-with-an-entry FAIL ' entries=1 grants=- ' "FAIL $name (entries)"
+  check egress-list-with-an-entry FAIL ' entries=1 grants=0 ' "FAIL $name (entries)"
 
   STUB_TREE_OUT=$work/stub/tree-reqwest.out
   check tree-names-a-network-package FAIL ' net_crates=1 entries=0 ' "FAIL $name (crates)"
@@ -560,9 +641,26 @@ full_cases() {
   STUB_TREE_OUT=$work/stub/empty.out
   check tree-fails FAIL ' net_crates=1 entries=0 ' "FAIL $name (crates)"
 
-  STUB_CHANGE_AT=tree
-  STUB_CHANGE_LINE='? .cargo/config.toml'
-  check tree-changed-by-tree FAIL 'tree changed=after-tree ? .cargo/config.toml' "FAIL $name (crates)"
+  STUB_DEBUG_OUT=$work/stub/debug-no-grant.out
+  check debug-without-the-grant-ok-line FAIL ' grants=1 test_value=-' "FAIL $name (grants)"
+  STUB_RELEASE_OUT=$work/stub/release-no-grant.out
+  check release-without-the-grant-ok-line FAIL ' grants=1 test_value=-' "FAIL $name (grants)"
+  STUB_DEBUG_EXIT=101
+  check debug-run-fails FAIL ' grants=1 test_value=-' "FAIL $name (grants)"
+  STUB_RELEASE_EXIT=101
+  check release-run-fails FAIL ' grants=1 test_value=-' "FAIL $name (grants)"
+
+  CASE_QUIET=true
+  check job-sets-cargo-quiet PASS ' grants=0 test_value=-'
+
+  for kind in tree:crates debug:grants release:grants; do
+    STUB_CHANGE_AT=${kind%%:*}
+    STUB_CHANGE_LINE='? .cargo/config.toml'
+    case ${kind%%:*} in
+      *) when=${kind%%:*} ;;
+    esac
+    check "tree-changed-by-$STUB_CHANGE_AT" FAIL "tree changed=after-$when ? .cargo/config.toml" "FAIL $name (${kind#*:})"
+  done
   printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-route/data/ruling.txt\n' >"$work/tree/status" || exit 2
   check changed-file-before-the-run FAIL 'tree changed=before 1 crates/halvo-route/data/ruling.txt' "FAIL $name (setup)"
   printf '? notes.txt\n! target/\n' >"$work/tree/status" || exit 2
@@ -570,7 +668,8 @@ full_cases() {
   STUB_NO_COMMIT=1
   check no-commit FAIL 'tree commit=unreadable' "FAIL $name (setup)"
   STUB_COMMIT=$work/commit-ruling
-  check first-cause-named FAIL 'absent ruling=other ' ' grants=- test_value=-' "FAIL $name (ruling)"
+  STUB_RELEASE_EXIT=101
+  check first-cause-named FAIL 'absent ruling=other ' ' grants=1 test_value=-' "FAIL $name (ruling)"
 
   usage=$(sh "$self" --all 2>&1)
   direct "$?" "$usage" usage unknown-argument
@@ -600,6 +699,7 @@ self_test() {
   row_units
   entry_units
   crate_units
+  grant_units
   full_cases
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
