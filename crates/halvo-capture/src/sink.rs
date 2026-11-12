@@ -207,6 +207,18 @@ pub struct SinkWriter {
     next: Cell<u64>,
 }
 
+const _: fn() = || {
+    trait AmbiguousIfCloneOrSync<Marker> {
+        fn check() {}
+    }
+    impl<T> AmbiguousIfCloneOrSync<()> for T {}
+    struct IsClone;
+    impl<T: Clone> AmbiguousIfCloneOrSync<IsClone> for T {}
+    struct IsSync;
+    impl<T: Sync> AmbiguousIfCloneOrSync<IsSync> for T {}
+    let _ = <SinkWriter as AmbiguousIfCloneOrSync<_>>::check;
+};
+
 impl SinkWriter {
     /// The event gets no [`ArrivalNumber`] and takes none.
     pub fn recv(&self) -> Option<CaptureStreamEvent> {
