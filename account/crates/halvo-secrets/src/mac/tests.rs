@@ -100,6 +100,7 @@ struct Keys {
     fail: Vec<(&'static str, i32)>,
     gives_back_other_bytes: bool,
     drops_adds: bool,
+    racing: Option<Vec<u8>>,
     log: RefCell<Vec<&'static str>>,
 }
 
@@ -110,8 +111,14 @@ impl Keys {
             fail: Vec::new(),
             gives_back_other_bytes: false,
             drops_adds: false,
+            racing: None,
             log: RefCell::new(Vec::new()),
         }
+    }
+
+    fn racing(mut self, bytes: &[u8]) -> Keys {
+        self.racing = Some(bytes.to_vec());
+        self
     }
 
     fn giving_back_other_bytes(mut self) -> Keys {
@@ -170,6 +177,9 @@ impl Keychain for Keys {
 
     fn add(&self, _service: &str, _account: &str, bytes: &[u8]) -> Result<(), i32> {
         self.check("add")?;
+        if let Some(winner) = &self.racing {
+            self.items.borrow_mut().push(winner.clone());
+        }
         if !self.items.borrow().is_empty() {
             return Err(DUPLICATE_ITEM);
         }
@@ -392,6 +402,23 @@ fn a_failed_add_leaves_the_file_and_answers_locked_with_its_code() {
         assert!(store.keychain.keychain.items().is_empty());
         assert!(!store.keychain.keychain.ops().contains(&"data"));
     }
+}
+
+#[test]
+fn a_move_that_loses_the_race_for_the_keychain_item_keeps_the_file_and_answers_locked() {
+    let store = mac(
+        Keeps::Keychain,
+        File::holding(FILE),
+        Keys::empty().racing(FILE),
+    );
+    let read = store.read();
+    assert!(
+        matches!(read, Read::Locked(locked) if locked == moved(-1)),
+        "{read:?}"
+    );
+    assert_file_kept(&store);
+    assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
+    assert!(!store.keychain.keychain.ops().contains(&"data"));
 }
 
 #[test]
