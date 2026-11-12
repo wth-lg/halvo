@@ -38,8 +38,9 @@ pub trait AccountLookup {
     /// account gives none.
     fn base_dir(&self) -> Result<Option<OsString>, PathError>;
 
-    /// macOS: the per-user temporary directory, confstr(_CS_DARWIN_USER_TEMP_DIR).
-    /// `None` where the system has none.
+    /// macOS: the per-user temporary directory, confstr(_CS_DARWIN_USER_TEMP_DIR),
+    /// only in the system's shape /var/folders/<a>/<b>/T. `None` where the system
+    /// has none or the answer has another shape.
     fn user_temp_dir(&self) -> Result<Option<PathBuf>, PathError>;
 }
 
@@ -97,17 +98,41 @@ pub enum EntryKind {
     Log,
 }
 
-/// One registered entry of the data directory (contracts.md C17.2).
+/// One registered entry of the data directory (contracts.md C17.2). Only the
+/// rows of this file exist; no other crate can build one:
+///
+/// ```compile_fail
+/// use halvo_control::paths::{Entry, EntryKind};
+/// let outside = Entry { name: "..", kind: EntryKind::Log, key_files: &[], owner_pid_file: None };
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Entry {
+    name: &'static str,
+    kind: EntryKind,
+    key_files: &'static [&'static str],
+    owner_pid_file: Option<&'static str>,
+}
+
+impl Entry {
     /// One path component under the data directory.
-    pub name: &'static str,
-    pub kind: EntryKind,
+    pub const fn name(&self) -> &'static str {
+        self.name
+    }
+
+    pub const fn kind(&self) -> EntryKind {
+        self.kind
+    }
+
     /// The key files, relative to the data directory and inside the entry.
-    pub key_files: &'static [&'static str],
+    pub const fn key_files(&self) -> &'static [&'static str] {
+        self.key_files
+    }
+
     /// The file that names the process that owns the entry, relative to the data
     /// directory and inside the entry.
-    pub owner_pid_file: Option<&'static str>,
+    pub const fn owner_pid_file(&self) -> Option<&'static str> {
+        self.owner_pid_file
+    }
 }
 
 pub const STORE: Entry = Entry {
@@ -256,7 +281,10 @@ impl ScratchDir {
     pub fn new(path: impl Into<PathBuf>, user_data_dir: &DataDir) -> Result<Self, PathError> {
         let path = checked(path.into())?;
         let data = user_data_dir.path();
-        if same_or_inside(&path, data) || same_or_inside(&resolved(&path), &resolved(data)) {
+        if same_or_inside(&path, data)
+            || same_or_inside(&resolved(&path), &resolved(data))
+            || inside_by_identity(&path, data)
+        {
             return Err(PathError::InsideDataDir);
         }
         Ok(Self(path))
@@ -322,6 +350,41 @@ fn same_or_inside(path: &Path, dir: &Path) -> bool {
     })
 }
 
+#[cfg(unix)]
+fn inside_by_identity(path: &Path, dir: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    let Some((existing, rest)) = deepest_existing(dir) else {
+        return false;
+    };
+    let Ok(target) = std::fs::metadata(existing) else {
+        return false;
+    };
+    path.ancestors().any(|ancestor| {
+        std::fs::metadata(ancestor)
+            .is_ok_and(|meta| meta.dev() == target.dev() && meta.ino() == target.ino())
+            && path
+                .strip_prefix(ancestor)
+                .is_ok_and(|tail| same_or_inside(tail, &rest))
+    })
+}
+
+#[cfg(not(unix))]
+fn inside_by_identity(_path: &Path, _dir: &Path) -> bool {
+    false
+}
+
+#[cfg(unix)]
+fn deepest_existing(dir: &Path) -> Option<(&Path, PathBuf)> {
+    let mut rest = Vec::new();
+    let mut existing = dir;
+    while !existing.exists() {
+        rest.push(existing.file_name()?);
+        existing = existing.parent()?;
+    }
+    Some((existing, rest.into_iter().rev().collect()))
+}
+
 fn resolved(path: &Path) -> PathBuf {
     let mut existing = path;
     let mut rest = Vec::new();
@@ -361,11 +424,27 @@ pub fn endpoint_hash(text: &str) -> String {
 }
 
 /// The Windows pipe of the control channel for the user with SID text `sid` and
-/// the data directory `data_dir` (contracts.md C15.1); the hash is over the path
-/// in lower case.
+/// the data directory `data_dir` (contracts.md C15.1). The hash is over the final
+/// path in lower case: on Windows the path that the system resolves for the
+/// directory when it exists, else the path as given.
 pub fn pipe_name(sid: &str, data_dir: &DataDir) -> String {
-    let hash = endpoint_hash(&data_dir.text().to_lowercase());
+    let hash = endpoint_hash(&final_path(data_dir).to_lowercase());
     format!(r"\\.\pipe\halvo-control-{sid}-{hash}")
+}
+
+#[cfg(windows)]
+fn final_path(data_dir: &DataDir) -> String {
+    data_dir
+        .path()
+        .canonicalize()
+        .ok()
+        .and_then(|path| path.to_str().map(str::to_string))
+        .unwrap_or_else(|| data_dir.text().to_string())
+}
+
+#[cfg(not(windows))]
+fn final_path(data_dir: &DataDir) -> String {
+    data_dir.text().to_string()
 }
 
 /// The unix socket of the control channel for `data_dir`: run/control.sock, or,
@@ -396,6 +475,24 @@ pub fn socket_path(data_dir: &DataDir, account: &dyn AccountLookup) -> Result<Pa
         return Err(PathError::SocketPathTooLong);
     }
     Ok(fallback)
+}
+
+/// Whether `path` has the shape of the per-user temporary directory that the
+/// system gives, /var/folders/<a>/<b>/T, so that a suffix that an environment
+/// variable adds is refused.
+#[cfg(target_os = "macos")]
+fn is_darwin_user_temp_dir(path: &Path) -> bool {
+    let names: Vec<&std::ffi::OsStr> = path
+        .components()
+        .map(|component| component.as_os_str())
+        .collect();
+    let names: Vec<&str> = names.iter().filter_map(|name| name.to_str()).collect();
+    match names.as_slice() {
+        ["/", "var", "folders", a, b, "T"] | ["/", "private", "var", "folders", a, b, "T"] => {
+            !a.is_empty() && !b.is_empty()
+        }
+        _ => false,
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -450,9 +547,8 @@ mod system {
             return Ok(None);
         }
         let text = CStr::from_bytes_until_nul(&buf).map_err(|_| PathError::NotUtf8)?;
-        Ok(Some(PathBuf::from(OsString::from_vec(
-            text.to_bytes().to_vec(),
-        ))))
+        let path = PathBuf::from(OsString::from_vec(text.to_bytes().to_vec()));
+        Ok(super::is_darwin_user_temp_dir(&path).then_some(path))
     }
 }
 
@@ -809,6 +905,87 @@ mod tests {
             data.daemon_err(),
             data.path().join("logs").join("daemon.err")
         );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_scratch_directory_through_the_data_firmlink_is_still_the_data_directory() {
+        use std::os::unix::fs::MetadataExt;
+        let root = tempfile::tempdir().unwrap();
+        let real = root.path().canonicalize().unwrap();
+        let data = DataDir::from_flag(real.join("Halvo")).unwrap();
+        std::fs::create_dir_all(data.path()).unwrap();
+        let firm = Path::new("/System/Volumes/Data").join(data.path().strip_prefix("/").unwrap());
+        let (a, b) = (
+            std::fs::metadata(data.path()).unwrap(),
+            std::fs::metadata(&firm).unwrap(),
+        );
+        assert_eq!((a.dev(), a.ino()), (b.dev(), b.ino()));
+        for inside in [
+            firm.clone(),
+            firm.join("store"),
+            firm.join("not-yet").join("x"),
+        ] {
+            assert_eq!(
+                ScratchDir::new(&inside, &data),
+                Err(PathError::InsideDataDir),
+                "{}",
+                inside.display()
+            );
+        }
+        let missing = DataDir::from_flag(real.join("Later")).unwrap();
+        let firm_missing =
+            Path::new("/System/Volumes/Data").join(missing.path().strip_prefix("/").unwrap());
+        assert_eq!(
+            ScratchDir::new(firm_missing.join("store"), &missing),
+            Err(PathError::InsideDataDir)
+        );
+        assert!(ScratchDir::new(firm.with_file_name("Halvo-scratch"), &data).is_ok());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn only_the_system_shape_of_the_user_temp_dir_is_taken() {
+        for good in [
+            "/var/folders/7n/abc_xyz/T/",
+            "/private/var/folders/7n/abc/T",
+        ] {
+            assert!(is_darwin_user_temp_dir(Path::new(good)), "{good}");
+        }
+        for bad in [
+            "/var/folders/7n/abc/T/zz/",
+            "/var/folders/7n/abc/T/r1/T/",
+            "/var/folders/7n/T/",
+            "/tmp/",
+            "/Users/a/T",
+            "var/folders/7n/abc/T",
+        ] {
+            assert!(!is_darwin_user_temp_dir(Path::new(bad)), "{bad}");
+        }
+        let temp = SystemAccount.user_temp_dir().unwrap().unwrap();
+        assert!(is_darwin_user_temp_dir(&temp), "{}", temp.display());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn on_windows_the_pipe_hash_is_over_the_final_path() {
+        let root = tempfile::tempdir().unwrap();
+        let real = root.path().join("Data");
+        std::fs::create_dir(&real).unwrap();
+        let link = root.path().join("Link");
+        std::os::windows::fs::symlink_dir(&real, &link).unwrap();
+        let sid = "S-1-5-21-1-2-3-1001";
+        let by_real = pipe_name(sid, &DataDir::from_flag(&real).unwrap());
+        let by_link = pipe_name(sid, &DataDir::from_flag(&link).unwrap());
+        let by_case = pipe_name(
+            sid,
+            &DataDir::from_flag(real.to_str().unwrap().to_uppercase()).unwrap(),
+        );
+        assert_eq!(by_real, by_link);
+        assert_eq!(by_real, by_case);
+        let final_path = real.canonicalize().unwrap();
+        let hash = endpoint_hash(&final_path.to_str().unwrap().to_lowercase());
+        assert_eq!(by_real, format!(r"\\.\pipe\halvo-control-{sid}-{hash}"));
     }
 
     #[test]
