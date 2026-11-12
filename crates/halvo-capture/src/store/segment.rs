@@ -370,6 +370,74 @@ pub(crate) mod tests {
         (0..300u32).map(|i| (i * 7 % 251) as u8).collect()
     }
 
+    fn nonce_hex(sealed: &[u8]) -> String {
+        sealed[..24].iter().map(|b| format!("{b:02x}")).collect()
+    }
+
+    #[test]
+    fn wrap_nonces_for_parent() {
+        if std::env::var("HALVO_TEST_WRAP_NONCES").is_err() {
+            println!(
+                "wrap_nonces_for_parent: HALVO_TEST_WRAP_NONCES is not set, so no parent asked for nonces"
+            );
+            return;
+        }
+        let segment_key_wrap =
+            wrap_segment_key(&[0x42; 32], &SegmentKey::random().unwrap()).unwrap();
+        println!("segment-key wrap nonce {}", nonce_hex(&segment_key_wrap));
+        let roots_dir = tempfile::tempdir().unwrap();
+        let roots = crate::custody::file_root::FileRoots::new(
+            roots_dir.path().to_path_buf(),
+            crate::custody::file_root::test_support::TestProtector::new(0x5a).0,
+        );
+        let root_id = crate::custody::RootId::fresh();
+        roots.replace_root(root_id, &[0x24; 32]).unwrap();
+        let store_key_wrap = roots
+            .wrap(root_id, &crate::custody::StoreKey::from_bytes([0x42; 32]))
+            .unwrap();
+        println!("store-key wrap nonce {}", nonce_hex(&store_key_wrap.0));
+    }
+
+    fn wrap_nonces_of_a_child_process() -> (String, String) {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "store::segment::tests::wrap_nonces_for_parent",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env("HALVO_TEST_WRAP_NONCES", "1")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(output.status.success(), "the child failed: {text}");
+        let nonce = |marker: &str| {
+            text.lines()
+                .find_map(|line| line.split_once(marker))
+                .and_then(|(_, rest)| rest.split_whitespace().next())
+                .unwrap_or_else(|| panic!("the child printed no {marker:?}: {text}"))
+                .to_string()
+        };
+        (
+            nonce("segment-key wrap nonce "),
+            nonce("store-key wrap nonce "),
+        )
+    }
+
+    #[test]
+    fn two_processes_that_wrap_under_one_key_draw_two_nonces() {
+        let first = wrap_nonces_of_a_child_process();
+        let second = wrap_nonces_of_a_child_process();
+        assert_ne!(
+            first.0, second.0,
+            "two processes drew one nonce for a segment-key wrap under one store key"
+        );
+        assert_ne!(
+            first.1, second.1,
+            "two processes drew one nonce for a store-key wrap under one root"
+        );
+    }
+
     #[test]
     fn segment_key_wraps_under_one_store_key_use_distinct_nonces_that_vary_in_every_byte() {
         const XNONCE: usize = 24;
