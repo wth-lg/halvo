@@ -6,10 +6,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::value::RawValue;
 
 use crate::ids::{
-    name_enum, object, strict_struct, Position, RequestId, StoreId, SummaryId, Unchecked,
-    WorkflowId, MAX_ORDINAL, VERSION,
+    name_enum, object, strict_struct, Position, RequestId, StoreId, Strict, SummaryId, WorkflowId,
+    MAX_ORDINAL, VERSION,
 };
 use crate::record::{Episode, EvidencePage, WorkflowsPage};
+
+pub(crate) struct Key(());
 
 /// The bound of a serialized analysis write in bytes, so that it fits the 65,536 payload bytes of the seam's
 /// frame with the 35 bytes of its wrapper.
@@ -195,6 +197,14 @@ const LONGEST_POSITION: Position = Position {
     seg: MAX_ORDINAL,
     idx: MAX_ORDINAL,
 };
+
+struct Unchecked<'a, T>(&'a T);
+
+impl<T: Strict> Serialize for Unchecked<'_, T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.write_fields(serializer, Key(()))
+    }
+}
 
 fn episode_len(episode: &Episode) -> usize {
     serde_json::to_vec(&Unchecked(episode)).map_or(usize::MAX, |b| b.len())
