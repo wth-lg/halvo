@@ -16,8 +16,8 @@ test_in() {
   code=$?
   esc=$(printf '\033')
   LC_ALL=C sed "s/$esc\[[0-9;]*m//g" "$out/test.txt" >"$out/test.plain.txt" || return 2
-  files=$(sed -n 's/^ *Test Files  *\([0-9][0-9]*\) passed.*/\1/p' "$out/test.plain.txt" | tail -n 1)
-  tests=$(sed -n 's/^ *Tests  *\([0-9][0-9]*\) passed.*/\1/p' "$out/test.plain.txt" | tail -n 1)
+  files=$(grep -E '^ *Test Files ' "$out/test.plain.txt" | tail -n 1 | grep -o -E '[0-9]+ passed' | sed 's/ passed//')
+  tests=$(grep -E '^ *Tests ' "$out/test.plain.txt" | tail -n 1 | grep -o -E '[0-9]+ passed' | sed 's/ passed//')
   failed=$(grep -c -E '^ *(Test Files|Tests) .*[0-9]+ failed' "$out/test.plain.txt")
   skipped=$(grep -E '^ *(Test Files|Tests) ' "$out/test.plain.txt" | grep -o -E '[0-9]+ (skipped|todo)' | awk '{ n += $1 } END { print n + 0 }')
   tracked=$(git -C "$repo" ls-files -- ':(glob)backend/test/**/*.test.ts' | awk 'END { print NR }')
@@ -115,7 +115,7 @@ self_test() {
   expect FAIL coloured-failed-test
 
   fixture failed-file-with-passed-tests-and-exit-0
-  printf '\n Test Files  1 failed | 1 passed (2)\n      Tests  5 passed (5)\n' >"$scratch/failed-file-with-passed-tests-and-exit-0/state/vitest.out"
+  printf '\n Test Files  1 failed | 2 passed (3)\n      Tests  5 passed (5)\n' >"$scratch/failed-file-with-passed-tests-and-exit-0/state/vitest.out"
   expect FAIL failed-file-with-passed-tests-and-exit-0
 
   fixture one-file-and-one-test
@@ -146,7 +146,7 @@ self_test() {
   expect FAIL tests-fail
 
   fixture failed-test-with-exit-0
-  printf '\n Test Files  1 failed | 1 passed (2)\n      Tests  1 failed | 4 passed (5)\n' >"$scratch/failed-test-with-exit-0/state/vitest.out"
+  printf '\n Test Files  1 failed | 2 passed (3)\n      Tests  1 failed | 5 passed (6)\n' >"$scratch/failed-test-with-exit-0/state/vitest.out"
   expect FAIL failed-test-with-exit-0
 
   fixture no-test-ran
