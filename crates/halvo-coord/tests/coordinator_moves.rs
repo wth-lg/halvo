@@ -1945,6 +1945,11 @@ fn after_the_quits_first_step_a_tick_kills_a_dying_tree_at_its_grace() {
     let m = mark(&c);
     c.ports()
         .ports
+        .set_clock(T0 + limits.cancel_grace_s * 1000 - 1, DAY);
+    c.tick();
+    assert_eq!(kills_of(&c, m, &run), 0, "not before its grace");
+    c.ports()
+        .ports
         .set_clock(T0 + limits.cancel_grace_s * 1000, DAY);
     c.tick();
     assert_eq!(kills_of(&c, m, &run), 1);
@@ -2177,4 +2182,73 @@ fn a_second_answer_after_a_lost_acknowledgement_takes_the_stored_answer_which_de
         assert!(s.items.is_empty(), "{second:?}");
         assert_eq!(row_line(&s, 0), text("line.working.working"), "{second:?}");
     }
+}
+
+#[test]
+fn an_item_answered_before_wait_limit_does_not_lapse_at_it() {
+    let limits = Limits::PRODUCT;
+    let c = coordinator(&[MANUAL], limits);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let (item, _) = open_item(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    assert_eq!(c.answer(&item, Choice::Done, None), Ok(()));
+    let m = mark(&c);
+    c.ports()
+        .ports
+        .set_clock(T0 + limits.wait_limit_s * 1000 + 1_000, DAY);
+    c.tick();
+    assert_eq!(closing_rows(&c, &item), 1, "the answer alone");
+    assert_eq!(cancels_of(&c, m, &run), 0);
+    assert_eq!(row_line(&c.snapshot(), 0), text("line.working.working"));
+}
+
+#[test]
+fn after_the_quits_first_step_a_tick_whose_clock_reads_before_a_stop_kills_that_run() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports().ports.set_clock(T0 + 10_000, DAY);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    let _ = c.quit_stop();
+    let m = mark(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    assert_eq!(
+        kills_of(&c, m, &run),
+        1,
+        "one step of the clock back (RD-7)"
+    );
+}
+
+#[test]
+fn a_switch_off_marks_the_guards_table_and_the_board_before_a_cancel_that_panics() {
+    use halvo_coord::run::{drive, recover, Act};
+    let limits = Limits::PRODUCT;
+    let both = owner(&[MANUAL], limits);
+    let mut board = recover(&both, &limits).unwrap().board;
+    let mut table = halvo_coord::guard::Table::new();
+    let started = drive(
+        &both,
+        &mut board,
+        &mut table,
+        &limits,
+        Act::Start { agent: agent(0) },
+    );
+    let run = started.report.run.unwrap();
+    both.panics.set(Some("cancel"));
+    let off = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        drive(
+            &both,
+            &mut board,
+            &mut table,
+            &limits,
+            Act::SwitchOff { agent: agent(0) },
+        )
+    }));
+    both.panics.set(None);
+    assert!(off.is_err(), "the port's cancel panicked");
+    assert!(table.is_stopped(&run));
+    let live = board.runs.iter().find(|r| r.run == run).unwrap();
+    assert!(live.stop.is_some());
 }

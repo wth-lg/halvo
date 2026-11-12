@@ -490,3 +490,34 @@ fn the_end_of_a_run_whose_log_meets_seq_logs_nothing_when_the_read_shows_the_run
     assert!(w.board.owed.is_empty());
     agree(&w, 0);
 }
+
+#[test]
+fn a_start_closes_a_lost_run_started_that_its_events_already_hold() {
+    let mut w = world(&[MANUAL]);
+    let lost = RunId::parse(&format!("{:032x}", 0xe801)).unwrap();
+    stored_by_another_writer(
+        &w,
+        0,
+        What::RunStarted {
+            run: lost.clone(),
+            trigger: halvo_coord::types::Trigger::Person,
+            slot: None,
+        },
+    );
+    let read = owner_events(&w, 0).last().cloned().unwrap();
+    w.board.members[0].facts.events.push(read);
+    let start = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(start.report.answer, Err(halvo_coord::types::Cause::State));
+    assert_eq!(ends_of(&w, &lost), 1, "run_ended with interrupted");
+    assert!(w
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .any(|t| t.call == Call::Send(halvo_coord::types::Body::EndRun { run: lost.clone() })));
+    assert_eq!(
+        count(&w, 0, |what| matches!(what, What::RunStarted { .. })),
+        2
+    );
+    agree(&w, 0);
+}
