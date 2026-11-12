@@ -1438,7 +1438,11 @@ self_test_hook() {
   push_home="C:\\$u\\sam\\"
   push_case added-entry-with-home-in-the-windows-form refused 'this entry names the home directory of the account that runs this push' proof add-sam
   case $(uname -s) in
-    MINGW* | MSYS* | CYGWIN*) printf 'case %s/added-entry-with-home-unset not run: this system sets HOME for every process\n' "$NAME" ;;
+    MINGW* | MSYS* | CYGWIN*)
+      shell_home=$(env -u HOME sh -c 'printenv HOME >/dev/null && echo set || echo unset') || shell_home=unknown
+      git_home=$(env -u HOME git -c alias.home-state='!printenv HOME >/dev/null && echo set || echo unset' home-state) || git_home=unknown
+      printf 'case %s/added-entry-with-home-unset left out, not counted: with HOME unset before them, HOME is %s in a shell of this system and %s in a command that git runs\n' "$NAME" "$shell_home" "$git_home"
+      ;;
     *)
       push_home=UNSET
       push_case added-entry-with-home-unset refused 'HOME is unset or empty' proof add-sam
