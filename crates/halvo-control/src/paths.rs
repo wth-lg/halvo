@@ -327,7 +327,6 @@ fn checked(path: PathBuf) -> Result<PathBuf, PathError> {
     Ok(path.components().collect())
 }
 
-#[cfg(unix)]
 fn lies_within(given: &Path, real: &Path, dir: &Path) -> bool {
     let Some(target) = identity(dir) else {
         return false;
@@ -346,25 +345,50 @@ fn identity(path: &Path) -> Option<(u64, u64)> {
         .map(|meta| (meta.dev(), meta.ino()))
 }
 
-#[cfg(not(unix))]
-fn lies_within(given: &Path, real: &Path, dir: &Path) -> bool {
-    same_or_inside(given, dir) || same_or_inside(real, &resolved(dir))
+/// The volume's serial number and the file's index, as the unix branch reads device and
+/// inode.
+#[cfg(windows)]
+fn identity(path: &Path) -> Option<(u64, u64)> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::Storage::FileSystem::{
+        CreateFileW, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+        FILE_FLAG_BACKUP_SEMANTICS, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
+        FILE_SHARE_WRITE, OPEN_EXISTING,
+    };
+
+    let wide: Vec<u16> = path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    // SAFETY: `wide` ends in a NUL and outlives the call.
+    let handle = unsafe {
+        CreateFileW(
+            PCWSTR(wide.as_ptr()),
+            FILE_READ_ATTRIBUTES.0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            None,
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS,
+            None,
+        )
+    }
+    .ok()?;
+    let mut info = BY_HANDLE_FILE_INFORMATION::default();
+    // SAFETY: `handle` is open and `info` is a live value of the type the call fills.
+    let read = unsafe { GetFileInformationByHandle(handle, &mut info) };
+    // SAFETY: `handle` came from CreateFileW above and is closed once.
+    let _ = unsafe { CloseHandle(handle) };
+    read.ok()?;
+    Some((
+        u64::from(info.dwVolumeSerialNumber),
+        u64::from(info.nFileIndexHigh) << 32 | u64::from(info.nFileIndexLow),
+    ))
 }
 
-#[cfg(not(unix))]
-fn same_or_inside(path: &Path, dir: &Path) -> bool {
-    let mut path = path.components();
-    dir.components().all(|d| match path.next() {
-        Some(p) => p
-            .as_os_str()
-            .to_string_lossy()
-            .to_lowercase()
-            .eq(&d.as_os_str().to_string_lossy().to_lowercase()),
-        None => false,
-    })
-}
-
-#[cfg(not(unix))]
+#[cfg(windows)]
 fn resolved(path: &Path) -> PathBuf {
     let mut existing = path;
     let mut rest = Vec::new();
@@ -1056,6 +1080,72 @@ mod tests {
         let final_path = real.canonicalize().unwrap();
         let hash = endpoint_hash(&final_path.to_str().unwrap().to_lowercase());
         assert_eq!(by_real, format!(r"\\.\pipe\halvo-control-{sid}-{hash}"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn on_windows_a_scratch_path_is_refused_in_every_form_of_the_data_directory() {
+        let guard = tempfile::tempdir().unwrap();
+        let root = guard.path();
+        let data = DataDir::from_flag(root.join("data")).unwrap();
+        std::fs::create_dir_all(data.path().join("store")).unwrap();
+        std::fs::create_dir(root.join("elsewhere")).unwrap();
+        let missing = DataDir::from_flag(root.join("missing-data")).unwrap();
+        let mut rows = vec![
+            (
+                "another case",
+                &data,
+                root.join("DATA").join("store"),
+                Err(PathError::InsideDataDir),
+            ),
+            (
+                "a trailing dot",
+                &data,
+                root.join("data."),
+                Err(PathError::InsideDataDir),
+            ),
+            (
+                "below a trailing dot",
+                &data,
+                root.join("data.").join("store"),
+                Err(PathError::InsideDataDir),
+            ),
+            (
+                "a trailing dot of a missing data dir",
+                &missing,
+                root.join("missing-data."),
+                Err(PathError::Unresolved),
+            ),
+            (
+                "control: a directory outside",
+                &data,
+                root.join("elsewhere"),
+                Ok(()),
+            ),
+        ];
+        let real = data.path().canonicalize().unwrap();
+        let text = real.to_str().unwrap().trim_start_matches(r"\\?\");
+        let (drive, rest) = text.split_once(":\\").unwrap();
+        let share = PathBuf::from(format!(r"\\localhost\{drive}$\{rest}")).join("store");
+        let reachable = share.is_dir();
+        println!("admin share {} reachable={reachable}", share.display());
+        if reachable {
+            rows.push((
+                "the admin share",
+                &data,
+                share,
+                Err(PathError::InsideDataDir),
+            ));
+        }
+        let wrong: Vec<String> = rows
+            .iter()
+            .filter_map(|(form, data, scratch, want)| {
+                let got = ScratchDir::new(scratch, data).map(|_| ());
+                println!("{form}: {} -> {got:?}", scratch.display());
+                (got != *want).then(|| format!("{form}: got {got:?}, want {want:?}"))
+            })
+            .collect();
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 
     #[cfg(windows)]
