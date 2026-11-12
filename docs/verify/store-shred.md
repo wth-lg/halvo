@@ -535,19 +535,30 @@ with their pragma for the same reason.
 The rows of check 1 on the random test need a case with their pattern (see
 Bounds). The four rows of check 2 depend on timing: a case shows
 `formal-single-writer` or `formal-busy-not-mapped-to-locked` only when two
-contenders meet while the lock file is unlinked. On the Mac of this pass,
-runs of these two rows were given up to 200 cases, so that each run ended
+contenders meet while the lock file is unlinked. On the Mac of the third
+formal step, runs of these two rows were given up to 200 cases, so that each run ended
 at its first failing case, and the share of failing cases followed the load
 of the machine. `formal-single-writer`, with the contender as it was before
-this pass: 30 failing cases among 49 at a 1-minute load of 9 to 15. The
+that step: 30 failing cases among 49 at a 1-minute load of 9 to 15. The
 same row in 30 pairs of runs at a load of 24 to 128: 30 among 38 with the
-contender as it was, 30 among 42 with the contender of today.
+contender as it was, 30 among 42 with the contender of that step.
 `formal-busy-not-mapped-to-locked`, which passed the contender as it was:
 30 among 38 at a load of 114 to 402. `RACE_CASES` is 30 for the lowest
 share measured, 0.61 a case: 30 such cases all pass with a chance below 1
 in a million million, and at half that share once in about 55,000 runs. A
 machine on which contenders rarely meet needs more cases, and the line
-that check 2 prints on a pass shows it: its last count falls towards 0.
+that check 2 prints on a pass shows it: its last two counts fall towards 0.
+
+Since the store refuses a held store at `Db::refuse_a_live_holder`,
+`formal-busy-not-mapped-to-locked` shows only when two contenders both
+find the store free and one comes second to the database. At the fourth
+formal step the substitution of that row failed check 2 in 5 of 5 runs,
+each with "open failed with Db(5)". `formal-held-store-asks-its-custody`
+shows in a case with an unlink cadence in which a refused open falls whole
+inside a hold of another contender: its substitution failed check 2 in 3
+of 3 runs, and the check as it stood before that step passed it in 2 of 2.
+Two runs of the unmutated store counted 2,083 and 2,400 refused opens
+whole inside a hold, none after the custody.
 
 `formal-secure-delete-off` is judged by the one-pass case, because the
 random test shows it only in a case with two due writes before one
@@ -1004,11 +1015,30 @@ squash merge would change:
 - On each pull request and each push, `scripts/r1/ci.d/30-formal-covered.sh`
   runs `sh docs/verify/check-covered.sh`, and `12-test` runs the six tests.
 
-Outcome of the last pass, the third formal step of store-1, over the 15
-commits of the store's closed list: updated, for check 1. `create` now
-makes its root in a step of its own, `under_a_new_root`, and an error of
-that step removes the database of the call and destroys no root. Three
-rows moved with that text, and this file follows it. Check 1 gained the
-move `CreateWhoseRootStepFails`, with a row for a store that spares only a
-root for which its custody answers `RootExists`. Check 2 is in sync: the
-changed `create` is on its path, and its three rows fail as before.
+Outcome of the last pass, the fourth formal step, over the 17 commits of
+the unit store-2 (an `open` that makes no database, format versions, the
+settings read back, the sweep that follows no link, the modes, and
+`Locked` before the custody): updated, for both checks.
+
+Check 1 stands on the changed `open`, `create` and write paths, and it
+passes. One of its rows had come to fail for another reason than its line
+gives: `formal-journal-mode-not-wal`, which now turns the read-back with
+the pragma (see Break proofs). Check 1 gained the read of the modes, with
+two rows on `durable.rs`.
+
+Check 2 passes, and its three older rows fail as before. A held store
+whose lock file was unlinked is now refused by `Db::refuse_a_live_holder`,
+before the custody, and no longer by `verify_key`. The check as it stood
+did not read that order: it passed a store that drops the answer of
+`Db::refuse_a_live_holder` and refuses after the unwrap. It gained that
+read, with the row `formal-held-store-asks-its-custody`.
+
+One finding is about the store and not about the checks: the open of the
+lock file under an unlink (see Not covered). Check 2 as it stood before
+this pass, alone, in 376 runs on a 16-core Mac at a 1-minute load of
+18 to 37: 4 runs failed, each with `Io(NotFound)` from the open of one
+contender, in a case with an unlink cadence. `WriterLock::take` alone, in
+a changed copy with a probe test: 9 answers `Io(NotFound)` in 1,703,204
+takes from two or five threads while another thread unlinked the file
+every 1 or 7 ms, none in 142,013 takes from one thread, and no failure of
+the narrowing of the directory in 1,845,217 calls.
