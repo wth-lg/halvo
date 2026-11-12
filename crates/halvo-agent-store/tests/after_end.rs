@@ -198,3 +198,70 @@ fn the_runner_s_finish_repeated_after_its_end_is_answered_as_the_first() {
         Err(declared("effect"))
     );
 }
+
+fn second_agent(store: &mut MemoryStore) {
+    store.put_workflow(workflow(&wf(2), "utility_bill_payment", "approved", None));
+    create(store, 2, 2).expect("create_agent of the second agent");
+}
+
+#[test]
+fn load_of_another_agent_that_names_an_ended_run_is_refused() {
+    let mut store = ended(End::Finish);
+    second_agent(&mut store);
+    let got = runner(
+        &mut store,
+        json!({"op": "load", "agent": agent(2), "run": run(1)}),
+    );
+    assert_eq!(got.map(|_| ()), Err(declared("effect")));
+}
+
+#[test]
+fn log_of_another_agent_that_names_an_ended_run_is_refused_with_binding_first() {
+    let mut store = ended(End::Finish);
+    second_agent(&mut store);
+    let mut body = log(1, 1);
+    body["agent"] = json!(agent(2));
+    body["records"][0]["agent"] = json!(agent(2));
+    body["records"][0]["workflow"] = json!(wf(2));
+    assert_eq!(runner(&mut store, body), Err(declared("binding")));
+}
+
+#[test]
+fn load_of_an_agent_that_is_not_the_workflow_s_names_an_ended_run_with_binding_first() {
+    let mut store = ended(End::Finish);
+    let got = runner(
+        &mut store,
+        json!({"op": "load", "agent": agent(3), "run": run(1)}),
+    );
+    assert_eq!(got.map(|_| ()), Err(declared("binding")));
+}
+
+#[test]
+fn load_steps_of_an_ended_run_with_an_unknown_number_is_refused_with_effect_first() {
+    let mut store = ended(End::Finish);
+    let got = runner(
+        &mut store,
+        json!({"op": "load_steps", "agent": agent(1), "run": run(1), "number": 5, "from": 1}),
+    );
+    assert_eq!(got.map(|_| ()), Err(declared("effect")));
+}
+
+#[test]
+fn load_session_of_an_ended_run_with_a_missing_part_is_refused_with_effect_first() {
+    let mut store = ended(End::EndRun);
+    let got = runner(
+        &mut store,
+        json!({"op": "load_session", "agent": agent(1), "run": run(1), "origin": ORIGIN, "rev": 9, "part": 1}),
+    );
+    assert_eq!(got.map(|_| ()), Err(declared("effect")));
+}
+
+#[test]
+fn put_playbook_of_an_ended_run_with_a_bad_number_is_refused_with_effect_first() {
+    let mut store = ended(End::Finish);
+    let got = runner(
+        &mut store,
+        json!({"op": "put_playbook", "agent": agent(1), "run": run(1), "number": 5, "steps": [step(1, "navigate", "read")]}),
+    );
+    assert_eq!(got, Err(declared("effect")));
+}
