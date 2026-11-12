@@ -40,7 +40,7 @@ link come from it. A change elsewhere in the workspace does not need them.
    it destroyed the root leaves a store that the next delete-all on the
    same handle finishes. An append whose index row fails leaves no event
    row, and a shred removes the event rows of its segment.
-   On macOS and Linux every file in the store directory has mode 0600 and
+   On macOS every file in the store directory has mode 0600 and
    every directory in it, the store directory included, has mode 0700,
    after every operation.
    Harm if broken: data the owner believes destroyed is still recoverable
@@ -187,7 +187,7 @@ store: `store.key`, `store.db`, `store.db-wal`, `store.db-shm`,
 case, so a file that the check does not read cannot hold a key or a copy of
 a segment.
 
-On macOS and Linux the check then walks the store directory, by the type of
+On macOS the check then walks the store directory, by the type of
 each entry itself, and requires mode 0700 of every directory, the store
 directory included, and mode 0600 of every file: "... has mode 644 in the
 store directory, and a store makes it 600".
@@ -273,7 +273,7 @@ The contender takes an error of `open` as a refusal only when
 
 | Platform | Refusal that the contender accepts | Where it comes from |
 |---|---|---|
-| macOS, Linux | `Locked` | `WriterLock::take` gets `WouldBlock` from the file lock. Once `writer.lock` has been unlinked, `Db::refuse_a_live_holder` gets `SQLITE_BUSY` from the holder's exclusive database lock, on a read without a key and before `open` asks its custody. `verify_key` gets `SQLITE_BUSY` only from a holder that took the database after that read |
+| macOS | `Locked` | `WriterLock::take` gets `WouldBlock` from the file lock. Once `writer.lock` has been unlinked, `Db::refuse_a_live_holder` gets `SQLITE_BUSY` from the holder's exclusive database lock, on a read without a key and before `open` asks its custody. `verify_key` gets `SQLITE_BUSY` only from a holder that took the database after that read |
 | Windows | `Locked`, or `Io(PermissionDenied)` | the same three paths, plus: unlinking `writer.lock` while the holder keeps it open leaves the name delete-pending, and Windows refuses every open of that path with access denied (os error 5) until the holder closes it |
 
 Any other error ends the contender at once, with the error in its message,
@@ -347,7 +347,10 @@ do not run the Secure Enclave or DPAPI custodies. The read of the modes
 takes the umask of the test process as it finds it: the two rows on modes
 fail where that umask leaves a bit for the group or for others, as 022 does
 on the hosted runners, and under a umask of 077 the store of either row
-makes the modes that the unmutated store makes.
+makes the modes that the unmutated store makes. The crate builds for macOS
+and Windows alone: `durable::no_follow` exists for those two targets, and
+its callers do not compile for another. So the checks run on those two
+systems, and the read of the modes on macOS.
 
 ## Command
 
@@ -894,7 +897,8 @@ it in the plan before weakening an assertion.
   sealed handle; in `db.rs`
   `reserve_segment_key`, `commit_segment_key`, `KeyFile::read` with
   `known_version`, `KeyFile::destroy`, `Db::destroy`, `Db::require_file`,
-  `Db::require_schema`, `Db::refuse_a_live_holder` where it answers that no
+  `Db::require_schema`, `Db::refuse_a_linked_file` where it answers that
+  `store.db` is no link, `Db::refuse_a_live_holder` where it answers that no
   process holds the store, the read-backs `require_checkpoint_fullfsync`,
   `require_cipher_log_level_none` and `require_pinned_cipher`, the mode of
   `writer.lock` in `WriterLock::open_lock_file`, and
@@ -929,7 +933,11 @@ it in the plan before weakening an assertion.
   `delete_all_unlinks_a_store_key_that_is_a_link_and_writes_nothing_through_it`,
   `create_makes_no_file_through_a_writer_lock_that_is_a_link` and
   `a_segment_write_puts_no_file_through_a_shard_that_links_out_of_the_store`
-  read the other three.
+  read the other three. Nor does it read what `open` answers for a
+  `segments` directory or a `store.db` that is a link: `Corrupt`, after the
+  read of the key file and before the holder probe and the custody.
+  `store::hardening_tests::open_refuses_a_store_db_that_is_a_link_before_its_custody_and_writes_nothing_through_it`
+  tests the second, on unix.
 - The mode of a directory that exists. Check 1 makes its store in a new
   directory, so a store whose `open` and `create` do not narrow a wider
   directory (`make_private`) passes it.
@@ -1085,3 +1093,15 @@ often a second try fails was counted outside the store, with the same two
 system calls from five processes while a sixth unlinked the name every
 1 ms: the first try answered "no such file" in 23 of 2,867,815 takes, and
 the second try in none of those 23.
+
+The fourth formal step read the eight commits after the comment pass and
+the round of ruling ST-25. They change no code that a property, a read or a
+row of this file stands on, with one addition to the path of every open:
+`Db::refuse_a_linked_file`, after the read of the key file and before the
+holder probe and the custody, which answers `Corrupt` for a `store.db` that
+is a link. Both checks run it in every open, on a `store.db` that is no
+link, and no move makes one that is (see Links under Not covered). Since
+that round `durable::no_follow` exists for macOS and Windows alone, with
+the code that each of the two systems had before. Both checks pass, check 2
+alone passed 20 more runs of 20, and the 28 rows whose lines those
+commits moved are caught as before, each by its test.
