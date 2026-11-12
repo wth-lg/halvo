@@ -1,0 +1,176 @@
+#!/bin/sh
+# privacy rows: the unattended half adds no row, because it starts no capture source; a run with --input operator adds rows for target/r1-gate/debug/halvo-capture, the one gate-built path, under Screen & System Audio Recording, Accessibility and Input Monitoring
+set -u
+DIR=$(cd "$(dirname "$0")" && pwd)
+. "$DIR/lib.sh"
+name=content-floor
+
+marker_word_of() {
+  sed -n 's/^floor marker=\([a-z_]*\) .*/\1/p' "$1" 2>/dev/null
+}
+
+floor_head() {
+  sed -n "1s/.* $2=\\([^ ]*\\).*/\\1/p" "$1" 2>/dev/null
+}
+
+floor_shape_defect() {
+  floor_first=$(sed -n '1s/^\(floor records=\).*/\1/p' "$1" 2>/dev/null)
+  [ "$floor_first" = 'floor records=' ] || { printf 'the floor report holds no first line floor records=\n'; return 1; }
+  for floor_key in undecodable forbidden_fields; do
+    floor_n=$(floor_head "$1" "$floor_key")
+    [ "$floor_n" = 0 ] || { printf 'the floor report says %s=%s\n' "$floor_key" "${floor_n:-absent}"; return 1; }
+  done
+  floor_keys=$(grep -c '^floor key_class=[a-z]* records=[0-9]*$' "$1")
+  floor_points=$(grep -c '^floor pointer_class=[a-z]* records=[0-9]* folded=[0-9]*$' "$1")
+  [ "$floor_keys:$floor_points" = 7:4 ] && return 0
+  printf 'the floor report holds %s key_class lines and %s pointer_class lines, and C13.9 has 7 and 4\n' "$floor_keys" "$floor_points"
+  return 1
+}
+
+title_marker_defect() {
+  floor_shape_defect "$1" || return 1
+  marker_found=$(floor_value "$1" marker=found app)
+  marker_word=$(marker_word_of "$1")
+  [ -n "$marker_found" ] || { printf 'floor marker=%s for the planted marker, so the reader saw no text\n' "$marker_word"; return 1; }
+  marker_title=$(floor_value "$1" marker=found title)
+  marker_column=$(floor_value "$1" marker=found column)
+  [ "$marker_found" -gt 0 ] && [ "${marker_title:-0}" -gt 0 ] || { printf 'the planted marker is found with app=%s title=%s, and both must be above 0\n' "$marker_found" "${marker_title:-absent}"; return 1; }
+  [ "$marker_column" = 0 ] && return 0
+  printf 'the marker is in a database column: column=%s\n' "${marker_column:-absent}"
+  return 1
+}
+
+predicate_title_marker_found() {
+  title_marker_defect "$1" > /dev/null
+}
+
+typed_marker_defect() {
+  floor_shape_defect "$1" || return 1
+  marker_word=$(marker_word_of "$1")
+  [ "$marker_word" = absent ] && return 0
+  printf 'the typed marker is in the store: floor marker=%s\n' "$marker_word"
+  return 1
+}
+
+predicate_typed_marker_absent() {
+  typed_marker_defect "$1" > /dev/null
+}
+
+raw_scan_defect() {
+  grep -r -q -F -e "$2" -- "$1" 2>/dev/null
+  case $? in
+    1) return 0 ;;
+    0) printf 'the raw scan of the data directory finds the marker outside the encrypted payloads\n' ;;
+    *) printf 'the raw scan of the data directory could not read every file\n' ;;
+  esac
+  return 1
+}
+
+predicate_raw_scan_clean() {
+  raw_scan_defect "$@" > /dev/null
+}
+
+excluded_defect() {
+  marker_word=$(marker_word_of "$1")
+  [ "$marker_word" = absent ] && return 0
+  printf 'a record carries the app id of the statically excluded app\n'
+  return 1
+}
+
+predicate_no_excluded_record() {
+  excluded_defect "$1" > /dev/null
+}
+
+floor_steps() {
+  build_for_measure || return 1
+  service_prepare || return 1
+  title_marker=$(gate_marker)
+  prefill_run prefill 100 --marker "$title_marker" --span-days 1 || { gate_defect="$gate_defect; not tried: --floor-report"; return 1; }
+  floor_run floor --marker "$title_marker" || return 1
+  found=$(title_marker_defect "$svc_dir/floor.out") || { gate_defect=$found; return 1; }
+  found=$(raw_scan_defect "$svc_data" "$title_marker") || { gate_defect=$found; return 1; }
+  floor_app=$(floor_value "$svc_dir/floor.out" marker=found app); floor_title=$(floor_value "$svc_dir/floor.out" marker=found title)
+  floor_result="floor marker=found app=$floor_app title=$floor_title column=0, undecodable=0 forbidden_fields=0, 7 key_class and 4 pointer_class lines, raw scan clean"
+  if [ -n "${GATE_EXCLUDED_APP:-}" ]; then
+    floor_run excluded --marker "$GATE_EXCLUDED_APP" || return 1
+    found=$(excluded_defect "$svc_dir/excluded.out") || { gate_defect=$found; return 1; }
+    floor_result="$floor_result, no record of the excluded app"
+  fi
+}
+
+measure() {
+  floor_result=''
+  if floor_steps; then ok=yes; else ok=no; fi
+  stop_children
+  where="binary=${capture_bin#"$GATE_ROOT"/}"
+  [ "$ok" = yes ] || { emit_fail "$name" "$gate_defect; $where"; return 1; }
+  if [ "$gate_input" = none ]; then
+    emit_no_input "$name" "input=none, so the typed half did not run: $floor_result; $where"
+    return 3
+  fi
+  emit_fail "$name" "the typed half is not built: it needs a text window whose title carries a second marker and the session log of what was sent; $floor_result; $where"
+  return 1
+}
+
+against_the_standin() {
+  service_standin "$1" "$2"
+  measure
+}
+
+says() {
+  says_text=$1; shift
+  service_standin "$1" "$2"
+  says_out=$(measure 2>/dev/null)
+  case $says_out in *"$says_text"*) return 0 ;; esac
+  return 1
+}
+
+floor_fixture() {
+  {
+    printf 'floor records=100 undecodable=%s forbidden_fields=%s\n' "$2" "$3"
+    for kind in screen_frame keystroke pointer foreground_app window_title system_audio microphone camera; do printf 'floor kind=%s records=20\n' "$kind"; done
+    for class in printable editing navigation enter tab shortcut other; do
+      [ "$class" = "$4" ] || printf 'floor key_class=%s records=3\n' "$class"
+    done
+    for class in click scroll drag move; do printf 'floor pointer_class=%s records=5 folded=0\n' "$class"; done
+    printf 'floor titles=20 max_title_bytes=40 sites=0\n%s\n' "$5"
+  } > "$gate_scratch/$1"
+  printf '%s\n' "$gate_scratch/$1"
+}
+
+cases() {
+  scratch_root
+  found_line='floor marker=found app=100 title=20 site=0 column=0'
+  absent_line='floor marker=absent app=0 title=0 site=0 column=0'
+  good=$(floor_fixture good 0 0 none "$found_line")
+  t title-marker-found PASS predicate_title_marker_found "$good"
+  fixture=$(floor_fixture title-absent 0 0 none "$absent_line")
+  t title-marker-absent FAIL predicate_title_marker_found "$fixture"
+  fixture=$(floor_fixture forbidden 0 3 none "$found_line")
+  t forbidden-fields-3 FAIL predicate_title_marker_found "$fixture"
+  fixture=$(floor_fixture undecodable 1 0 none "$found_line")
+  t undecodable-1 FAIL predicate_title_marker_found "$fixture"
+  fixture=$(floor_fixture class-missing 0 0 tab "$found_line")
+  t class-line-missing FAIL predicate_title_marker_found "$fixture"
+  fixture=$(floor_fixture column 0 0 none 'floor marker=found app=100 title=20 site=0 column=1')
+  t marker-in-column FAIL predicate_title_marker_found "$fixture"
+  fixture=$(floor_fixture no-title 0 0 none 'floor marker=found app=100 title=0 site=0 column=0')
+  t title-marker-without-a-title FAIL predicate_title_marker_found "$fixture"
+  fixture=$(floor_fixture typed-absent 0 0 none "$absent_line")
+  t typed-marker-absent PASS predicate_typed_marker_absent "$fixture"
+  fixture=$(floor_fixture typed-found 0 0 none 'floor marker=found app=0 title=1 site=0 column=0')
+  t typed-marker-found FAIL predicate_typed_marker_absent "$fixture"
+  mkdir -p "$gate_scratch/raw-clean/store" "$gate_scratch/raw-hit/store"
+  head -c 256 /dev/urandom > "$gate_scratch/raw-clean/store/store.db"
+  printf 'title r1gateTITLE-9 in plain text\n' > "$gate_scratch/raw-hit/store/store.db-wal"
+  t title-marker-not-in-raw-scan PASS predicate_raw_scan_clean "$gate_scratch/raw-clean" r1gateTITLE-9
+  t title-marker-in-raw-scan FAIL predicate_raw_scan_clean "$gate_scratch/raw-hit" r1gateTITLE-9
+  fixture=$(floor_fixture excluded-absent 0 0 none "$absent_line")
+  t no-excluded-app-record PASS predicate_no_excluded_record "$fixture"
+  fixture=$(floor_fixture excluded-found 0 0 none 'floor marker=found app=3 title=0 site=0 column=0')
+  t excluded-app-record FAIL predicate_no_excluded_record "$fixture"
+  t standin-unattended-half NO-INPUT against_the_standin good none
+  t standin-main-names-the-mode PASS says 'FAIL content-floor (no --prefill-store mode' main none
+}
+
+check_main "$@"
