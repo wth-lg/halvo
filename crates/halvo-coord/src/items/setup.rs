@@ -34,8 +34,8 @@ impl SetupBody {
 
 /// The state of a setup item (I3.5): open for answers; its body owed, sent and not yet
 /// acknowledged, while the item stays open and takes no answer (ruling IG-10); closed at the
-/// owner's acknowledgement; closed by the person's `none`; or gone, with its workflow or because
-/// its agent is not the workflow's.
+/// owner's acknowledgement; or gone, with its workflow or because its agent is not the
+/// workflow's.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SetupState {
     /// Takes answers.
@@ -44,8 +44,6 @@ pub enum SetupState {
     Owed(SetupBody),
     /// The owner acknowledged the body.
     Closed,
-    /// The person chose `none`: the item closed and the hold stays (I3.5, ruling IG-35).
-    Dismissed,
     /// The workflow is gone: nothing more is sent (I5.7).
     Gone,
     /// The owner refused the body with `binding`: the agent is not the workflow's, nothing more
@@ -70,7 +68,8 @@ pub enum SetupInput<'a> {
         /// The text.
         text: &'a str,
     },
-    /// The choice `none`: the item closes and the hold stays (I3.5, ruling IG-35).
+    /// The choice `none`: the hold stays and the item stays open, with its answers (I3.5,
+    /// ruling RD-23 (b)).
     None,
 }
 
@@ -216,23 +215,22 @@ fn typed(text: &str) -> Result<Vec<String>, Cause> {
 /// The decision of the setup flow (I3.5, I5.10, ruling IG-6c): the setup after `mv`, or the
 /// cause of its refusal, first that fits. An item whose agent the owner refused with `binding`
 /// refuses an answer of the person with `unknown_agent` (ruling IG-36) and every other move with
-/// `stale`; a closed item, one that `none` closed and one whose workflow is gone refuse every move
-/// with `stale`. While the body is owed, an answer is refused with `state`
-/// (ruling IG-10), the acknowledgement closes the item, `not_taken` makes it open again with
-/// every answer cleared and the line `item.setup.not_taken` (ruling IG-34), and `gone` ends it.
-/// An open item refuses the acknowledgement and `not_taken` with `state`, closes at `none` (ruling
-/// IG-35), and takes `choose` of a candidate that it shows, or a typed line for a parameter with
-/// no candidate (`malformed` otherwise); a later answer for a parameter replaces the earlier one.
+/// `stale`; a closed item and one whose workflow is gone refuse every move with `stale`. While the
+/// body is owed, an answer is refused with `state` (ruling IG-10), the acknowledgement closes the
+/// item, `not_taken` makes it open again with every answer cleared and the line
+/// `item.setup.not_taken` (ruling IG-34), and `gone` ends it. An open item refuses the
+/// acknowledgement and `not_taken` with `state`, keeps everything at `none` (I3.5, ruling RD-23
+/// (b)), and takes `choose` of a candidate that it shows, or a typed line for a parameter with no
+/// candidate (`malformed` otherwise); a later answer for a parameter replaces the earlier one.
 /// While a parameter has no answer the item stays open; the answer that gives the last one makes
 /// the one body `set_bindings`, with the slots of the given values, which is owed from then on.
 pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
     let mut next = setup.clone();
     match (&setup.state, mv) {
         (SetupState::AgentGone, SetupMove::Input(_)) => return Err(Cause::UnknownAgent),
-        (
-            SetupState::Closed | SetupState::Dismissed | SetupState::Gone | SetupState::AgentGone,
-            _,
-        ) => return Err(Cause::Stale),
+        (SetupState::Closed | SetupState::Gone | SetupState::AgentGone, _) => {
+            return Err(Cause::Stale)
+        }
         (SetupState::Owed(_), SetupMove::Acknowledged) => next.state = SetupState::Closed,
         (SetupState::Owed(_), SetupMove::NotTaken) => {
             next.given = vec![None; setup.params.len()];
@@ -246,9 +244,7 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
         | (SetupState::Open, SetupMove::Acknowledged | SetupMove::NotTaken) => {
             return Err(Cause::State)
         }
-        (SetupState::Open, SetupMove::Input(SetupInput::None)) => {
-            next.state = SetupState::Dismissed
-        }
+        (SetupState::Open, SetupMove::Input(SetupInput::None)) => {}
         (SetupState::Open, SetupMove::Input(SetupInput::Choose { param, n })) => {
             let i = setup.at(param)?;
             let candidates = &setup.params[i].candidates;

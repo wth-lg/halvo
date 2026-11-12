@@ -596,10 +596,10 @@ fn setup_rows(inner: &Ports<Config>) -> Vec<(halvo_coord::types::ItemId, SetupAn
 }
 
 /// A setup item never closes without its row: the clock is read before the move that closes it,
-/// so that with a failing clock `none` and the answer that completes the parameters are refused
-/// with the clock's cause and change nothing, a tick sends no owed body, and once the clock
-/// answers again the item closes with its one row (I7.1, ruling IG-35; the review's finding on
-/// a clock that fails at the close).
+/// so that with a failing clock the answer that completes the parameters is refused with the
+/// clock's cause and changes nothing, `none` reads no clock and changes nothing, a tick sends no
+/// owed body, and once the clock answers again the item closes with its one row (I7.1, ruling
+/// IG-35; the review's finding on a clock that fails at the close).
 #[test]
 fn a_failing_clock_closes_no_setup_item_without_its_row() {
     let f = facts(Category::SpreadsheetFill, "file", WorkflowState::Approved);
@@ -612,14 +612,16 @@ fn a_failing_clock_closes_no_setup_item_without_its_row() {
     }
     p.clock_fails.set(true);
     let open = s.clone();
-    for answer in [LAST, SetupInput::None] {
-        assert_eq!(
-            answer_setup(&p, &mut l, &LIMITS, &mut s, &f, answer),
-            Err(Cause::NoService),
-            "{answer:?}"
-        );
-        assert_eq!(s, open, "{answer:?} changed nothing");
-    }
+    assert_eq!(
+        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, LAST),
+        Err(Cause::NoService)
+    );
+    assert_eq!(s, open, "the last answer changed nothing");
+    assert_eq!(
+        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, SetupInput::None),
+        Ok(SetupDone::Open)
+    );
+    assert_eq!(s, open, "none changed nothing");
     assert!(p.sends.borrow().is_empty(), "no body with no clock");
     p.clock_fails.set(false);
     p.lose.set(true);
@@ -641,29 +643,12 @@ fn a_failing_clock_closes_no_setup_item_without_its_row() {
         Ok(SetupDone::Closed { active: true })
     );
     assert_eq!(setup_rows(&inner), vec![(item_id(1), SetupAnswer::Choose)]);
-
-    let inner = ports(&f);
-    let p = Lossy::new(&inner);
-    let mut s = spreadsheet();
-    let mut l = ledger();
-    p.clock_fails.set(true);
-    assert_eq!(
-        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, SetupInput::None),
-        Err(Cause::NoService)
-    );
-    assert_eq!(s.state(), &SetupState::Open);
-    p.clock_fails.set(false);
-    assert_eq!(
-        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, SetupInput::None),
-        Ok(SetupDone::Dismissed)
-    );
-    assert_eq!(setup_rows(&inner), vec![(item_id(1), SetupAnswer::None)]);
 }
 
 /// One `item_answered` row for one setup item, stored when the item closes: at the owner's
-/// acknowledgement of its body, with the choice `choose`, and none while the body is owed or
-/// after a lost acknowledgement; at the person's `none`, with that choice; a row that the owner
-/// does not acknowledge goes once with the next write (I7.1, rulings IG-30, IG-35).
+/// acknowledgement of its body, with the choice `choose`, and none while the body is owed, after a
+/// lost acknowledgement or at `none`; a row that the owner does not acknowledge goes once with the
+/// next write (I7.1, rulings IG-30, IG-35, RD-23 (b)).
 #[test]
 fn one_row_for_one_setup_item_is_stored_when_it_closes() {
     let f = facts(Category::SpreadsheetFill, "file", WorkflowState::Approved);
@@ -696,19 +681,21 @@ fn one_row_for_one_setup_item_is_stored_when_it_closes() {
     let p = Lossy::new(&inner);
     let mut s = spreadsheet();
     let mut l = ledger();
-    answer_setup(&p, &mut l, &LIMITS, &mut s, &f, three_answers()[0]).unwrap();
+    for mv in three_answers() {
+        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, mv).unwrap();
+    }
+    answer_setup(&p, &mut l, &LIMITS, &mut s, &f, SetupInput::None).unwrap();
+    assert!(setup_rows(&inner).is_empty(), "no row at none");
     inner.refuse(halvo_coord::mem::Method::Log, PortError::NoService);
     assert_eq!(
-        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, SetupInput::None),
-        Ok(SetupDone::Dismissed)
+        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, LAST),
+        Ok(SetupDone::Closed { active: true })
     );
-    assert_eq!(s.state(), &SetupState::Dismissed);
     assert!(setup_rows(&inner).is_empty());
     assert_eq!(l.waiting().len(), 1, "the row waits for the next write");
     inner.clear_refusals();
     halvo_coord::items::drive::flush(&p, &mut l, &LIMITS).unwrap();
-    assert_eq!(setup_rows(&inner), vec![(item_id(1), SetupAnswer::None)]);
-    assert!(p.sends.borrow().is_empty(), "none sends no body");
+    assert_eq!(setup_rows(&inner), vec![(item_id(1), SetupAnswer::Choose)]);
     assert_eq!(
         answer_setup(&p, &mut l, &LIMITS, &mut s, &f, SetupInput::None),
         Err(Cause::Stale)
@@ -741,6 +728,7 @@ fn complete_answers_in_any_order_give_the_one_body_and_the_last_choice_counts() 
         }),
     )
     .unwrap();
+    s = setup_step(&s, SetupMove::Input(SetupInput::None)).unwrap();
     for mv in three_answers() {
         s = setup_step(&s, SetupMove::Input(mv)).unwrap();
     }
@@ -763,15 +751,19 @@ fn complete_answers_in_any_order_give_the_one_body_and_the_last_choice_counts() 
     }
 }
 
-/// `none` closes the item with its row and sends no body, and the hold stays (I3.5, ruling
-/// IG-35); a tick sends nothing for an open item.
 #[test]
-fn none_closes_the_item_with_its_row_and_sends_no_body() {
+fn none_leaves_the_item_open_and_sends_nothing() {
     let f = facts(Category::SpreadsheetFill, "file", WorkflowState::Approved);
     let inner = ports(&f);
     let p = Lossy::new(&inner);
     let mut s = spreadsheet();
     let mut l = ledger();
+    assert_eq!(
+        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, SetupInput::None),
+        Ok(SetupDone::Open)
+    );
+    assert_eq!(s.state(), &SetupState::Open);
+    assert!(p.sends.borrow().is_empty());
     assert_eq!(
         tick_setup(&p, &mut l, &LIMITS, &mut s, &f),
         Ok(SetupDone::Open)
@@ -780,18 +772,50 @@ fn none_closes_the_item_with_its_row_and_sends_no_body() {
         p.sends.borrow().is_empty(),
         "a tick sends nothing for an open item"
     );
-    assert_eq!(
-        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, SetupInput::None),
-        Ok(SetupDone::Dismissed)
-    );
-    assert_eq!(s.state(), &SetupState::Dismissed);
-    assert!(p.sends.borrow().is_empty());
-    assert_eq!(setup_rows(&inner), vec![(item_id(1), SetupAnswer::None)]);
+}
+
+/// After `none` the agent holds the same open item, with the answers given before it, and no
+/// row: nothing is stored and nothing sent, the hold stays, and the item takes the person's
+/// answers up to its close, whose row is the item's one row (I3.5, I7.1, ruling RD-23 (b)). An
+/// item that asks again after a refusal keeps asking again after `none`.
+#[test]
+fn after_none_the_agent_holds_the_same_open_item_and_no_row() {
+    let f = facts(Category::SpreadsheetFill, "file", WorkflowState::Approved);
+    let inner = ports(&f);
+    let p = Lossy::new(&inner);
+    let mut s = spreadsheet();
+    let mut l = ledger();
+    answer_setup(&p, &mut l, &LIMITS, &mut s, &f, three_answers()[0]).unwrap();
+    let before = s.clone();
+    for _ in 0..2 {
+        assert_eq!(
+            answer_setup(&p, &mut l, &LIMITS, &mut s, &f, SetupInput::None),
+            Ok(SetupDone::Open)
+        );
+        assert_eq!(s, before, "the same open item with its answers");
+    }
+    assert!(inner.events.borrow().is_empty(), "no row and no event");
+    assert!(l.waiting().is_empty(), "nothing waits to be stored");
+    assert!(p.sends.borrow().is_empty(), "nothing sent");
     assert!(holds(&f).contains(&Hold::Setup), "the hold stays");
+    for mv in three_answers().into_iter().skip(1) {
+        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, mv).unwrap();
+    }
     assert_eq!(
-        tick_setup(&p, &mut l, &LIMITS, &mut s, &f),
-        Err(Cause::Stale)
+        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, LAST),
+        Ok(SetupDone::Closed { active: true })
     );
+    assert_eq!(slots_of(&p.bindings()[0]), chosen());
+    assert_eq!(setup_rows(&inner), vec![(item_id(1), SetupAnswer::Choose)]);
+
+    let (_, mut again, inner, _, mut l) = refused_with(PortError::Refused(name("config")));
+    let p = Lossy::new(&inner);
+    assert_eq!(
+        answer_setup(&p, &mut l, &LIMITS, &mut again, &f, SetupInput::None),
+        Ok(SetupDone::Open)
+    );
+    assert!(again.not_taken() && again.state() == &SetupState::Open);
+    assert!(inner.events.borrow().is_empty() && p.sends.borrow().is_empty());
 }
 
 #[test]

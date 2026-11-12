@@ -725,10 +725,6 @@ pub enum SetupDone {
         /// Whether `set_state` `active` was sent.
         active: bool,
     },
-    /// The person chose `none`: the item closed with its `item_answered` row of the choice
-    /// `none`, nothing was sent, and the hold stays (I3.5, ruling IG-35). The caller takes the
-    /// item off the agent's facts.
-    Dismissed,
     /// The owner refused the body by a name after which another value can pass: nothing more is
     /// sent until the person answers again, and the same item asks every parameter again with
     /// its answers cleared and the line `item.setup.not_taken`; nothing is stored (I3.5, ruling
@@ -747,7 +743,7 @@ pub enum SetupDone {
 /// (rulings IG-28, IG-34, IG-36) and with `no_workflow` (I5.7): still owed after a failure with
 /// no name, `busy`, `store_unavailable`, `internal` and `state`; gone after `no_workflow` and
 /// `binding`; asked again after `config`, `malformed`, `too_large`, `length` and every other
-/// name, so that the person can always answer again or close the item.
+/// name, so that the item always takes the person's answers again.
 fn refused_body(error: &PortError) -> SetupDone {
     let PortError::Refused(name) = error else {
         return SetupDone::Owed;
@@ -771,20 +767,20 @@ fn same_agent<C>(setup: &Setup, facts: &Facts<C>, ledger: &Ledger) -> Result<(),
     }
 }
 
-/// Stores the one `item_answered` row of a setup item that closes with `answer`, which holds no
-/// value (I7.1, rulings IG-30, IG-35), at the time `at` that the clock gave before the move; a
-/// row that gets no acknowledgement waits in the ledger and goes with the next write.
+/// Stores the one `item_answered` row of a setup item, which closes at the owner's
+/// acknowledgement with the choice `choose` and holds no value (I7.1, rulings IG-30, IG-35,
+/// RD-23 (b)), at the time `at` that the clock gave before the move; a row that gets no
+/// acknowledgement waits in the ledger and goes with the next write.
 fn closed_row<P: Owner>(
     ports: &P,
     ledger: &mut Ledger,
     limits: &Limits,
     setup: &Setup,
-    answer: SetupAnswer,
     at: (u64, u32),
 ) {
     let row = What::ItemAnswered {
         item: setup.item().clone(),
-        answer: Answered::Setup(answer),
+        answer: Answered::Setup(SetupAnswer::Choose),
     };
     let _ = store_at(ports, ledger, limits, vec![row], at);
 }
@@ -831,7 +827,7 @@ fn send_owed<P: Owner, C: ConfigView + Clone>(
     match ports.send(&body.body()) {
         Ok(_) => {
             *setup = setup_step(setup, SetupMove::Acknowledged)?;
-            closed_row(ports, ledger, limits, setup, SetupAnswer::Choose, at);
+            closed_row(ports, ledger, limits, setup, at);
             Ok(SetupDone::Closed {
                 active: activate(ports, facts, &body),
             })
@@ -842,10 +838,7 @@ fn send_owed<P: Owner, C: ConfigView + Clone>(
                 SetupDone::Gone => *setup = setup_step(setup, SetupMove::Gone)?,
                 SetupDone::AgentGone => *setup = setup_step(setup, SetupMove::Binding)?,
                 SetupDone::NotTaken => *setup = setup_step(setup, SetupMove::NotTaken)?,
-                SetupDone::Open
-                | SetupDone::Owed
-                | SetupDone::Closed { .. }
-                | SetupDone::Dismissed => {}
+                SetupDone::Open | SetupDone::Owed | SetupDone::Closed { .. } => {}
             }
             Ok(done)
         }
@@ -855,8 +848,9 @@ fn send_owed<P: Owner, C: ConfigView + Clone>(
 /// The person's answer to a setup item (I3.5), with the facts and the ledger of its agent:
 /// `state` for the facts or the ledger of another agent, and the refusal of `setup_step`, `stale`
 /// for an item that closed, `state` while its body is owed (ruling IG-10) and `malformed` for an
-/// answer that does not fit it; then nothing is sent and nothing stored. `none` closes the item
-/// and stores its row (ruling IG-35). When the answer gives the last parameter, the one body
+/// answer that does not fit it; then nothing is sent and nothing stored. `none` keeps the item
+/// open with its answers and stores and sends nothing (I3.5, ruling RD-23 (b)). When the answer
+/// gives the last parameter, the one body
 /// `set_bindings` goes to the owner in this move; at its acknowledgement the item closes, its row
 /// is stored and the rule of `active` of I5.5 runs once for the agent, and a refusal decides as
 /// `refused_body` gives.
@@ -871,17 +865,13 @@ pub fn answer_setup<P: Owner + Clock, C: ConfigView + Clone>(
     same_agent(setup, facts, ledger)?;
     let next = setup_step(setup, SetupMove::Input(answer))?;
     let at = match next.state() {
-        SetupState::Dismissed | SetupState::Owed(_) => clock_at(ports)?,
+        SetupState::Owed(_) => clock_at(ports)?,
         SetupState::Open | SetupState::Closed | SetupState::Gone | SetupState::AgentGone => {
             *setup = next;
             return Ok(SetupDone::Open);
         }
     };
     *setup = next;
-    if *setup.state() == SetupState::Dismissed {
-        closed_row(ports, ledger, limits, setup, SetupAnswer::None, at);
-        return Ok(SetupDone::Dismissed);
-    }
     send_owed(ports, ledger, limits, setup, facts, at)
 }
 
@@ -898,9 +888,7 @@ pub fn tick_setup<P: Owner + Clock, C: ConfigView + Clone>(
 ) -> Result<SetupDone, Cause> {
     same_agent(setup, facts, ledger)?;
     match setup.state() {
-        SetupState::Closed | SetupState::Dismissed | SetupState::Gone | SetupState::AgentGone => {
-            Err(Cause::Stale)
-        }
+        SetupState::Closed | SetupState::Gone | SetupState::AgentGone => Err(Cause::Stale),
         SetupState::Open => Ok(SetupDone::Open),
         SetupState::Owed(_) => {
             let at = clock_at(ports)?;
