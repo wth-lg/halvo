@@ -68,14 +68,14 @@ pub const WINDOWS_DATA_DIR: [&str; 2] = [APP_BUNDLE_ID, "data"];
 pub const MACOS_LAUNCH_AGENTS_DIR: [&str; 2] = ["Library", "LaunchAgents"];
 
 #[cfg(windows)]
-const DATA_DIR: &[&str] = &WINDOWS_DATA_DIR;
+const DATA_DIR: &[&str] = &MACOS_DATA_DIR;
 #[cfg(not(windows))]
 const DATA_DIR: &[&str] = &MACOS_DATA_DIR;
 
 pub const STATE_FILE: &str = "daemon-state.json";
 pub const INTENT_FILE: &str = "delete-all.intent";
 #[cfg(windows)]
-pub const INSTANCE_LOCK_FILE: &str = "daemon.lock";
+pub const INSTANCE_LOCK_FILE: &str = "daemon.lck";
 pub const CONTROL_SOCKET: &str = "control.sock";
 pub const RUN_MARKER: &str = "running";
 pub const DAEMON_ERR: &str = "daemon.err";
@@ -219,7 +219,7 @@ impl DataDir {
 
     #[cfg(windows)]
     pub fn instance_lock_file(&self) -> PathBuf {
-        self.0.join(INSTANCE_LOCK_FILE)
+        self.run_dir().join(INSTANCE_LOCK_FILE)
     }
 
     pub fn control_socket(&self) -> PathBuf {
@@ -391,10 +391,7 @@ fn identity(path: &Path) -> Option<(u64, u64)> {
     // SAFETY: `handle` came from CreateFileW above and is closed once.
     let _ = unsafe { CloseHandle(handle) };
     read.ok()?;
-    Some((
-        u64::from(info.dwVolumeSerialNumber),
-        u64::from(info.nFileIndexHigh) << 32 | u64::from(info.nFileIndexLow),
-    ))
+    Some((u64::from(info.dwVolumeSerialNumber), 0))
 }
 
 #[cfg(windows)]
@@ -402,7 +399,7 @@ fn resolved(path: &Path) -> PathBuf {
     let mut existing = path;
     let mut rest = Vec::new();
     loop {
-        if let Ok(real) = existing.canonicalize() {
+        if let Ok(real) = path.canonicalize() {
             return rest
                 .into_iter()
                 .rev()
@@ -570,7 +567,9 @@ mod system {
     use windows::Win32::Security::{TOKEN_IMPERSONATE, TOKEN_QUERY};
     use windows::Win32::System::Com::CoTaskMemFree;
     use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
-    use windows::Win32::UI::Shell::{FOLDERID_LocalAppData, SHGetKnownFolderPath, KF_FLAG_DEFAULT};
+    use windows::Win32::UI::Shell::{
+        FOLDERID_RoamingAppData, SHGetKnownFolderPath, KF_FLAG_DEFAULT,
+    };
 
     use super::PathError;
 
@@ -593,9 +592,10 @@ mod system {
         }
         .map_err(|e| PathError::Lookup(e.code().0))?;
         let token = Token(token);
-        let path =
-            unsafe { SHGetKnownFolderPath(&FOLDERID_LocalAppData, KF_FLAG_DEFAULT, Some(token.0)) }
-                .map_err(|e| PathError::Lookup(e.code().0))?;
+        let path = unsafe {
+            SHGetKnownFolderPath(&FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, Some(token.0))
+        }
+        .map_err(|e| PathError::Lookup(e.code().0))?;
         let text = OsString::from_wide(unsafe { path.as_wide() });
         unsafe { CoTaskMemFree(Some(path.0 as *const _)) };
         Ok(Some(text))

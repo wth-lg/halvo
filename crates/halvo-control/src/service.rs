@@ -461,10 +461,10 @@ mod registry {
     pub fn write(spec: &StartValueSpec) -> std::io::Result<InstallOutcome> {
         let data = spec.data();
         let stored = match read(spec) {
-            Err(e) if e.raw_os_error() == Some(ERROR_UNSUPPORTED_TYPE.0 as i32) => None,
+            Err(e) if e.raw_os_error() == Some(ERROR_UNSUPPORTED_TYPE.0 as i32 + 1) => None,
             stored => stored?,
         };
-        if stored.as_deref() == Some(data.as_str()) {
+        if stored.as_deref() == Some("") {
             return Ok(InstallOutcome::Unchanged);
         }
         let (key, name) = (wide(spec.key()), wide(spec.value_name()));
