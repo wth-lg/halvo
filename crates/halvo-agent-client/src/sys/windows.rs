@@ -87,6 +87,7 @@ const PROCESS_TERMINATE: u32 = 0x0001;
 const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
 const SYNCHRONIZE: u32 = 0x0010_0000;
 const ERROR_INVALID_PARAMETER: i32 = 87;
+const ERROR_ACCESS_DENIED: i32 = 5;
 const STILL_ACTIVE: u32 = 259;
 const WAIT_OBJECT_0: u32 = 0;
 const BCRYPT_USE_SYSTEM_PREFERRED_RNG: u32 = 2;
@@ -277,7 +278,9 @@ pub(crate) enum Read {
     Unknown,
 }
 
-/// Whether the process `pid` runs with the creation time `created_us`.
+/// Whether the process `pid` runs with the creation time `created_us`. A number that no process has, and one whose
+/// process this user may not open to read its times, are `Gone`: a process of a run runs under the library's own
+/// token, which may always read it.
 pub(crate) fn read(pid: u32, created_us: u64) -> Read {
     match open(pid, PROCESS_QUERY_LIMITED_INFORMATION) {
         Ok(h) => match created_of(h.as_raw_handle()) {
@@ -285,7 +288,14 @@ pub(crate) fn read(pid: u32, created_us: u64) -> Read {
             Some(_) => Read::Gone,
             None => Read::Unknown,
         },
-        Err(e) if e.raw_os_error() == Some(ERROR_INVALID_PARAMETER) => Read::Gone,
+        Err(e)
+            if matches!(
+                e.raw_os_error(),
+                Some(ERROR_INVALID_PARAMETER | ERROR_ACCESS_DENIED)
+            ) =>
+        {
+            Read::Gone
+        }
         Err(_) => Read::Unknown,
     }
 }

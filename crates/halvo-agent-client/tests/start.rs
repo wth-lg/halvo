@@ -261,3 +261,64 @@ fn no_process_of_the_job_breaks_away() {
     );
     rig.sup.kill(&run).unwrap();
 }
+
+#[test]
+fn a_browser_frame_before_hello_is_answered_and_its_browser_is_ended_by_a_start_that_fails() {
+    let rig = Rig::with(
+        "browser-before-hello",
+        common::peer(),
+        Duration::from_millis(1500),
+    );
+    let script = rig.script(&["browser child", "idle"]);
+    let spec = rig.spec(&script);
+    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert!(
+        script.log().contains(r#"reply {"t":"browser_reply"}"#),
+        "{}",
+        script.log()
+    );
+    let browser = script.logged("browser");
+    assert_eq!(browser.len(), 1, "{}", script.log());
+    assert!(script.wait_log("browser-child", SHORT), "{}", script.log());
+    let child = script.logged("browser-child");
+    assert!(gone(browser[0].0, browser[0].1));
+    assert!(wait_until(SHORT, || gone(child[0].0, child[0].1)));
+
+    let ok = rig.script(&["browser", "hello", "idle"]);
+    let spec = rig.spec(&ok);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    let mark = rig.mark(&run).unwrap();
+    assert!(mark.browser.is_some());
+    rig.sup.kill(&run).unwrap();
+    assert!(line_gone(&mark.browser.unwrap()));
+}
+
+#[test]
+fn a_kill_while_the_start_runs_answers_success_only_for_a_runner_that_is_then_gone() {
+    for _ in 0..5 {
+        let rig = Rig::new("kill-during-start");
+        let script = rig.script(&["hello", "idle"]);
+        let spec = rig.spec(&script);
+        let run = spec.run.clone();
+        let sup = rig.sup.clone();
+        let starter = std::thread::spawn(move || sup.start(spec));
+        loop {
+            match rig.sup.kill(&run) {
+                Ok(()) => break,
+                Err(CallError::UnknownRun) => std::hint::spin_loop(),
+                Err(e) => panic!("kill answered {e:?}"),
+            }
+        }
+        let started = starter.join().unwrap();
+        assert!(
+            rig.rec.wait_end(&run, Duration::from_secs(30)).is_some(),
+            "kill answered success while the start ran, the start answered {started:?}, and the run did not end"
+        );
+        let runner = script.logged("runner");
+        assert!(
+            runner.iter().all(|(pid, created)| gone(*pid, *created)),
+            "kill answered success while the start ran, the start answered {started:?}, and the runner lives"
+        );
+    }
+}

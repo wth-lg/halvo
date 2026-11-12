@@ -127,15 +127,15 @@ impl Supervisor {
     /// life started or whose mark of an earlier life stands.
     pub fn start(&self, spec: RunSpec) -> Result<(), CallError> {
         let run = spec.run.clone();
-        let slot = {
+        let slot = Arc::new(Slot::new(spec));
+        let mut held = lock(&slot.proc);
+        {
             let mut runs = lock(&self.inner.runs);
             if runs.contains_key(&run) {
                 return Err(CallError::Started);
             }
-            let slot = Arc::new(Slot::new(spec));
             runs.insert(run.clone(), Arc::clone(&slot));
-            slot
-        };
+        }
         let data_dir = &self.inner.config.data_dir;
         let mut mark = match MarkFile::create(data_dir, &run) {
             Ok(Created::Made(mark)) => mark,
@@ -148,7 +148,6 @@ impl Supervisor {
                 return Err(CallError::NotStarted);
             }
         };
-        let mut held = lock(&slot.proc);
         self.inner.parts.marks.start(&run);
         let spawned = {
             let _one = lock(&self.inner.spawn_lock);
@@ -265,8 +264,11 @@ impl Supervisor {
     /// run whose runner has ended.
     pub fn kill(&self, run: &RunId) -> Result<(), CallError> {
         let slot = self.slot(run)?;
-        slot.with_proc(RunProc::end_all);
-        Ok(())
+        match slot.with_proc(RunProc::end_all) {
+            Some(()) => Ok(()),
+            None if slot.ended() => Ok(()),
+            None => Err(CallError::UnknownRun),
+        }
     }
 
     /// Answers for every mark under the data directory, one answer per run: a run of this life whose runner has
@@ -330,16 +332,6 @@ pub(crate) enum Flow {
     Lost,
 }
 
-fn handshake(slot: &Slot, rx: &Receiver<Event>, wait: Duration) -> bool {
-    match rx.recv_timeout(wait) {
-        Ok(Event::Frame(frame)) => match *frame {
-            FromRunner::Hello(h) => h.run == slot.spec.run && h.agent == slot.spec.agent,
-            _ => false,
-        },
-        _ => false,
-    }
-}
-
 fn drive(
     inner: Arc<Inner>,
     slot: Arc<Slot>,
@@ -347,7 +339,14 @@ fn drive(
     mark: MarkFile,
     started: Sender<Result<(), CallError>>,
 ) {
-    if !handshake(&slot, &rx, inner.config.start_wait) {
+    let mut run = Running {
+        inner: &inner,
+        slot: &slot,
+        mark,
+        ending: Ending::default(),
+        acts: Acts::default(),
+    };
+    if !run.handshake(&rx, inner.config.start_wait) {
         let gone = slot
             .with_proc(|p| {
                 p.end_all();
@@ -363,13 +362,6 @@ fn drive(
         return;
     }
     let _ = started.send(Ok(()));
-    let mut run = Running {
-        inner: &inner,
-        slot: &slot,
-        mark,
-        ending: Ending::default(),
-        acts: Acts::default(),
-    };
     loop {
         let flow = match rx.recv_timeout(TICK) {
             Ok(Event::Frame(frame)) => run.on_frame(*frame),
@@ -404,6 +396,29 @@ pub(crate) struct Running<'a> {
 }
 
 impl Running<'_> {
+    /// Waits for the runner's `hello` for its run and agent, answering a `browser` frame that comes first so that
+    /// the mark names the browser before anything can end the start.
+    fn handshake(&mut self, rx: &Receiver<Event>, wait: Duration) -> bool {
+        let deadline = Instant::now() + wait;
+        loop {
+            let left = deadline.saturating_duration_since(Instant::now());
+            let Ok(Event::Frame(frame)) = rx.recv_timeout(left) else {
+                return false;
+            };
+            match *frame {
+                FromRunner::Hello(h) => {
+                    return h.run == self.slot.spec.run && h.agent == self.slot.spec.agent;
+                }
+                FromRunner::Browser(b) => {
+                    if let Flow::Lost = self.browser(&b) {
+                        return false;
+                    }
+                }
+                _ => return false,
+            }
+        }
+    }
+
     fn on_frame(&mut self, frame: FromRunner) -> Flow {
         let request = !matches!(frame, FromRunner::Progress(_) | FromRunner::Done(_));
         if request && self.acts.waiting() {

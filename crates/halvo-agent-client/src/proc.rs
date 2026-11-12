@@ -159,22 +159,45 @@ impl RunProc {
         self.browser.is_some()
     }
 
-    /// Whether the runner has exited; reaps it when it has.
+    /// Whether the runner has exited; reaps it when it has. On macOS a runner that exited and is not reaped still
+    /// holds its number, so its group, with what the runner left in it, is ended before the reap.
     pub(crate) fn exited(&mut self) -> bool {
-        if !self.reaped && matches!(self.child.try_wait(), Ok(Some(_))) {
+        if self.reaped {
+            return true;
+        }
+        #[cfg(target_os = "macos")]
+        match sys::child_state(self.child.id()) {
+            sys::ChildState::Running => return false,
+            sys::ChildState::Exited => {
+                self.end_own_group();
+                let _ = self.child.try_wait();
+                self.reaped = true;
+            }
+            sys::ChildState::Gone => self.reaped = true,
+        }
+        #[cfg(windows)]
+        if matches!(self.child.try_wait(), Ok(Some(_))) {
             self.reaped = true;
         }
         self.reaped
     }
 
+    #[cfg(target_os = "macos")]
+    fn end_own_group(&self) {
+        if let Some(Group::Leader(g)) = self.line.map(|l| l.group) {
+            sys::kill_group(g.get());
+        }
+    }
+
     /// Ends every process of the run that the library may end and waits for the runner: on macOS the runner's
-    /// group while the runner is not reaped, so that its number cannot have been taken, and the browser's group
-    /// while its leader has the number, creation time and group of its line; on Windows the job.
+    /// group only while the runner, running or exited and not reaped, still holds its number, and the browser's
+    /// group while its leader has the number, creation time and group of its line; on Windows the job.
     pub(crate) fn end_all(&mut self) {
         #[cfg(target_os = "macos")]
         if !self.reaped {
-            if let Some(Group::Leader(g)) = self.line.map(|l| l.group) {
-                sys::kill_group(g.get());
+            match sys::child_state(self.child.id()) {
+                sys::ChildState::Running | sys::ChildState::Exited => self.end_own_group(),
+                sys::ChildState::Gone => self.reaped = true,
             }
         }
         self.end_leftovers();
