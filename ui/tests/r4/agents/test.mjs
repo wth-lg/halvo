@@ -239,10 +239,14 @@ if (only.length === 0 || only.includes('card')) {
         sentences.every((s, i) => s.did === effects[i].text && s.values.every((v) => !s.did.includes(v)) && same(s.values, effects[i].fields.map((f) => f.value.join(''))) && same(s.pieces, effects[i].fields.map((f) => f.value.length))),
       { sentences, effects },
     );
+    const other = state.snapshot.rows.find((r) => r.agent !== agent).agent;
+    await act(h, { act: 'open_card', param: other });
+    const shownFor = await h.page.evaluate(() => [...document.querySelectorAll('.r4a-card')].map((c) => c.id));
+    result('a_card_of_another_agent_is_not_shown', same(shownFor, ['r4a-card-' + agent]), shownFor);
     await press(h, 'close_card', agent);
     const closed = await h.page.evaluate(MODEL);
     const want = expectedModel(state.snapshot, null);
-    result('close_card_sends_nothing_and_closes', same(closed, want) && calls(out).length === 1, { calls: calls(out) });
+    result('close_card_sends_nothing_and_closes', same(closed, want) && calls(out).length === 2, { calls: calls(out) });
     const focus = await h.page.evaluate(() => [document.activeElement.getAttribute('data-act'), document.activeElement.getAttribute('data-param')]);
     result('close_card_keeps_the_focus_on_its_toggle', same(focus, ['open_card', agent]), focus);
   } finally {
