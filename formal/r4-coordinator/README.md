@@ -132,23 +132,23 @@ What each configuration costs. The first three columns are from the development 
 (arm64, JDK 17.0.20.1), one run each on 2026-11-11 through the machine's helper for timed
 runs, on its lane for heavy runs, because the lane for timed runs was held by other work all evening, so each run had other runs beside it, read with `/usr/bin/time -l`; the time holds the start of the JVM and follows the
 load of the machine. The last two are the seconds of the check's own line for that
-configuration, with three workers, in the hosted jobs of run 43122481909 on 2026-11-11, at commit 8a2d7a0, the commit before this file's last change, which changed this file alone.
+configuration, with three workers, in the hosted jobs of run 43161137794 on 2026-11-12, at a merge of main into commit 9414949, the commit before this file's last change, which changed this file alone.
 
 | Model | Configuration | Time on the Mac | Largest resident size | 1-minute load before the run | `macos` job | `windows` job |
 |---|---|---|---|---|---|---|
 | `Schedule` | `full` | 1625.32 s, four workers | 1,521,221,632 bytes | 90.39 | not run | not run |
-| `Schedule` | `days` | 688.26 s, three workers | 1,250,279,424 bytes | 341.34 | 102 s | 96 s |
-| `Schedule` | `queue` | 9.52 s, one worker | 457,375,744 bytes | 307.30 | 3 s | 2 s |
-| `Schedule` | `store` | 57.91 s, one worker | 479,674,368 bytes | 301.30 | 6 s | 4 s |
-| `Schedule` | `holds` | 61.04 s, three workers | 797,802,496 bytes | 234.23 | - s | - s |
-| `Schedule` | `left` | 56.53 s, one worker | 478,527,488 bytes | 292.19 | - s | - s |
-| `Schedule` | `reap` | 23.57 s, one worker | 457,523,200 bytes | 235.64 | - s | - s |
-| `Confirm4` | `full` | 66.00 s, one worker | 430,702,592 bytes | 44.58 | 15 s | 11 s |
-| `Confirm4` | `apart` | 31.88 s, one worker | 423,051,264 bytes | 474.76 | 5 s | 4 s |
+| `Schedule` | `days` | 688.26 s, three workers | 1,250,279,424 bytes | 341.34 | 111 s | 145 s |
+| `Schedule` | `queue` | 9.52 s, one worker | 457,375,744 bytes | 307.30 | 4 s | 3 s |
+| `Schedule` | `store` | 57.91 s, one worker | 479,674,368 bytes | 301.30 | 7 s | 7 s |
+| `Schedule` | `holds` | 61.04 s, three workers | 797,802,496 bytes | 234.23 | 13 s | 16 s |
+| `Schedule` | `left` | 56.53 s, one worker | 478,527,488 bytes | 292.19 | 7 s | 7 s |
+| `Schedule` | `reap` | 23.57 s, one worker | 457,523,200 bytes | 235.64 | 4 s | 4 s |
+| `Confirm4` | `full` | 66.00 s, one worker | 430,702,592 bytes | 44.58 | 19 s | 15 s |
+| `Confirm4` | `apart` | 31.88 s, one worker | 423,051,264 bytes | 474.76 | 6 s | 5 s |
 
-In that run the check took 161 s and its self-test 25 s in the
-`macos` job, and 137 s and 86 s in the `windows` job; the
-export of both trace files is 22 s and 15 s of the check's.
+In that run the check took 199 s and its self-test 70 s in the
+`macos` job, and 236 s and 301 s in the `windows` job; the
+export of both trace files is 23 s and 25 s of the check's.
 
 ## What a property is read from
 
@@ -307,15 +307,18 @@ follow these readings.
 8. `delete` takes the workflow out of the owner's list and stops nothing. The first tick
    after it stops the run of that workflow with the cause `deleted`, also a run that was
    already `stopping`, and drops the agent's queued start and its `ready` item. The end
-   of a run whose workflow is gone stores nothing, whether the kill, the runner or a
-   restart ends it: the owner has removed every row that names the workflow and refuses a
-   new one with `no_workflow`. `deleted` is the cause of the stop and of the `ended` entry
+   of a run whose workflow is gone stores nothing, whether the kill or the runner ends it:
+   the owner has removed every row that names the workflow and refuses a new one with
+   `no_workflow`. A restart does not end such a run at all: the new life does not know
+   its agent, and the run is not among the runs that the restart ended (reading 19).
+   `deleted` is the cause of the stop and of the `ended` entry
    of the line, and of no `run_ended` event. The open item of such a run stores no
    `item_lapsed` either; `Confirm4` has no deleted workflow and does not show that.
 9. `off` sets the hold at once and stops the agent's run. A queued start of that agent is
    dropped with `hold` when it leaves the queue, and an open `ready` item of it stays open
    (I5.7). No tick sets or ends the hold `off`.
-10. A restart ends every run with `interrupted`, also a run that was `stopping`: a stop is
+10. A restart ends every run of an agent that the new life knows (reading 19) with
+    `interrupted`, also a run that was `stopping`: a stop is
     no stored event, so recovery finds a `run_started` event with no `run_ended` and stores
     `interrupted` (I5.6, I5.8), whatever `reap` answered for the run. It empties the queue
     and closes every `ready` item, and it takes the day that the new life reads.
@@ -750,7 +753,7 @@ An entry of `p` is `{"call":"<name>"}` with the keys of the table after it.
 | `cancel` | `run`; none in a confirm trace | `Runs::cancel` | `stop` with `ok`; `off` and a `tick`, for each run that they stop; a `lapse` with `wait_limit` or `cancelled` |
 | `kill` | `run` | `Runs::kill` | a `tick` with `grace` `yes`, for each run that was `stopping` before it and for each stopped run whose runner ended before it |
 | `reap` | none | `Runs::reap` | `restart`; its answers are the key `alive` of the line |
-| `end_run` | `run` | `Owner::send` with the body `end_run` | a start under `no_store` or `no_run`, after its `run_ended` event; `restart`, for each run that the store has not ended and that `reap` answered `gone`; a `tick`, again, for each run of `owing` until the store has ended it |
+| `end_run` | `run` | `Owner::send` with the body `end_run` | a start under `no_store` or `no_run`, after its `run_ended` event; `restart`, for each run of a listed workflow that the store has not ended and that `reap` answered `gone`; a `tick`, again, for each run that is owed after its kills until the store has ended it, and once more for a run whose workflow is gone |
 | `set_state` | `agent`, `state` | `Owner::send` with the body `set_state` | `paused` with every `hold_set` event; `active` with a `hold_cleared` event of the cause `failures` when the hold `off` does not stand, and none with one of the cause `check` |
 | `answer_confirm` | `item`, `answer` (`allow`, `reject`) | `Runs::answer_confirm` | an `answer` with `ok`; with `reject`, a `lapse` from `shown` or `armed` of a run that still lives and an `issue` with `digest_ok` `no` |
 
