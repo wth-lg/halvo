@@ -276,3 +276,90 @@ fn a_ready_item_that_another_writer_raised_and_closed_does_not_stand_for_a_new_o
     );
     agree(&w, 0);
 }
+
+#[test]
+fn a_switch_off_after_another_writers_event_is_stored_although_the_log_holds_an_earlier_one() {
+    let mut w = world(&[MANUAL]);
+    let off = Move::SwitchOff { agent: agent(0) };
+    let on = Move::SwitchOn { agent: agent(0) };
+    let first = schedule_drive(&w.ports, &mut w.board, &w.limits, off.clone());
+    assert_eq!(first.answer, Ok(Answer::Ok));
+    let back = schedule_drive(&w.ports, &mut w.board, &w.limits, on);
+    assert_eq!(back.answer, Ok(Answer::Ok));
+    assert!(!holds(w.facts(0)).contains(&Hold::Off));
+    let last = owner_events(&w, 0).last().map_or(0, |e| e.seq.get());
+    let old = halvo_coord::types::ItemId::parse(&format!("{:032x}", 0x4500)).unwrap();
+    let closed = [
+        What::ItemRaised {
+            item: old.clone(),
+            raised: Raised::Ready,
+        },
+        What::ItemLapsed {
+            item: old,
+            lapsed: halvo_coord::types::Lapsed::Ready(halvo_coord::types::OtherLapse::AppEnded),
+        },
+    ];
+    for (k, what) in closed.into_iter().enumerate() {
+        w.ports.events.borrow_mut().push(Event {
+            workflow: support::flow(0),
+            agent: agent(0),
+            seq: std::num::NonZeroU32::new(last + 1 + k as u32).unwrap(),
+            day: DAY,
+            at: 0,
+            what,
+        });
+    }
+    let again = schedule_drive(&w.ports, &mut w.board, &w.limits, off);
+    assert_eq!(again.answer, Ok(Answer::Ok));
+    assert_eq!(
+        count(&w, 0, |what| matches!(
+            what,
+            What::HoldSet {
+                cause: HoldSetCause::Person
+            }
+        )),
+        2,
+        "the second hold_set is stored after the read of the other writer's events"
+    );
+    assert!(holds(w.facts(0)).contains(&Hold::Off));
+    agree(&w, 0);
+}
+
+#[test]
+fn a_queued_agent_that_adopts_a_revealed_ready_item_stays_queued() {
+    let limits = halvo_coord::types::Limits {
+        max_live_runs: 1,
+        ..halvo_coord::types::Limits::PRODUCT
+    };
+    let mut w = support::world_with(&[PERSON, MANUAL], limits);
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let first = w.act(Act::Tick);
+    assert!(first.report.raised.is_empty());
+    lose_the_acknowledgement(&w);
+    let ready = owner_events(&w, 0)
+        .iter()
+        .find_map(|e| match &e.what {
+            What::ItemRaised {
+                item,
+                raised: Raised::Ready,
+            } => Some(item.clone()),
+            _ => None,
+        })
+        .expect("the owner stored the ready item");
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+    let live = w.act(Act::Start { agent: agent(1) });
+    assert_eq!(live.report.answer, Ok(Answer::Ok));
+    let queued = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(queued.report.answer, Ok(Answer::Queued));
+    assert_eq!(w.facts(0).doing, Doing::Queued(None));
+    assert!(w.board.queue.holds(&agent(0)));
+    let off = w.act(Act::SwitchOff { agent: agent(0) });
+    assert_eq!(off.report.answer, Ok(Answer::Ok));
+    assert!(
+        matches!(&w.facts(0).doing, Doing::Queued(Some(o)) if o.kind == OwnItemKind::Ready && o.item == ready),
+        "the queued agent holds the revealed item and stays queued: {:?}",
+        w.facts(0).doing
+    );
+    assert!(w.board.queue.holds(&agent(0)));
+    agree(&w, 0);
+}

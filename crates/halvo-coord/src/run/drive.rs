@@ -169,12 +169,14 @@ fn phase_of(phase: &Phase) -> Live {
     }
 }
 
-/// The ports as the schedule's tick sees them, with the runs whose kill the supervisor
-/// library refused with `unknown_run` noted.
+/// The ports as the schedule's tick and switch-off see them, with the runs whose kill the
+/// supervisor library refused with `unknown_run` noted, and no `cancel` for a run in `sent`,
+/// whose cancel the lapse of its item sent when it stopped the run in the guard's table (I5.7).
 struct Watch<'a, P> {
     ports: &'a P,
     unknown: RefCell<Vec<RunId>>,
     listed: RefCell<Option<Vec<WorkflowId>>>,
+    sent: Vec<RunId>,
 }
 
 impl<P: Owner> Owner for Watch<'_, P> {
@@ -228,6 +230,9 @@ impl<P: Runs> Runs for Watch<'_, P> {
     }
 
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {
+        if self.sent.contains(run) {
+            return Ok(());
+        }
         self.ports.cancel(run)
     }
 
@@ -311,6 +316,7 @@ where
         ports,
         unknown: RefCell::new(Vec::new()),
         listed: RefCell::new(None),
+        sent: Vec::new(),
     };
     let before = board.clone();
     let mut report = schedule::drive(&watch, board, limits, Move::Tick);
@@ -353,7 +359,7 @@ where
 /// so that its item is closed before the end sets the member idle; any other end is the
 /// schedule's end of the run. A start by the person is the schedule's start. The switch-off
 /// control is the schedule's, and each run that it stops is stopped in the guard's table as
-/// well. A tick is the schedule's tick, which kills each run whose stop came `cancel_grace_s`
+/// well; it sends no `cancel` to a run that the table holds as stopped, whose lapse sent it. A tick is the schedule's tick, which kills each run whose stop came `cancel_grace_s`
 /// before it, again at each tick while the kill fails; each run that the tick stops for a
 /// workflow that is gone is stopped in the guard's table; and a `stopping` run whose kill the
 /// library refused with `unknown_run` ends `interrupted` in that tick, with no `end_run`
@@ -388,7 +394,19 @@ where
             done
         }
         Act::SwitchOff { agent } => {
-            let report = schedule::drive(ports, board, limits, Move::SwitchOff { agent });
+            let sent = board
+                .runs
+                .iter()
+                .filter(|r| r.agent == agent && r.stop.is_none() && table.is_stopped(&r.run))
+                .map(|r| r.run.clone())
+                .collect();
+            let watch = Watch {
+                ports,
+                unknown: RefCell::new(Vec::new()),
+                listed: RefCell::new(None),
+                sent,
+            };
+            let report = schedule::drive(&watch, board, limits, Move::SwitchOff { agent });
             for run in &report.stopped {
                 *table = table.stop(run);
             }

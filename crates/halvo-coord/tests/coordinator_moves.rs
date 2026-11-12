@@ -6,8 +6,8 @@ use halvo_coord::ports::PortError;
 use halvo_coord::sync::Next;
 use halvo_coord::types::{
     Action, AgentId, Body, Category, Cause, Choice, Class, ConfirmAsk, HandbackAsk, HandbackReason,
-    ItemId, ItemKind, LapseCause, Lapsed, Limits, Name, OtherLapse, Outcome, Param, PastRun,
-    RunEnd, RunEvent, RunId, Snapshot, Status, What, Workflow, WorkflowId, WorkflowState,
+    HoldSetCause, ItemId, ItemKind, LapseCause, Lapsed, Limits, Name, OtherLapse, Outcome, Param,
+    PastRun, RunEnd, RunEvent, RunId, Snapshot, Status, What, Workflow, WorkflowId, WorkflowState,
     WorkflowTrigger,
 };
 use halvo_coord::{words, Coordinator};
@@ -1065,4 +1065,95 @@ fn a_setup_body_refused_with_config_asks_every_parameter_again_on_the_same_item(
         c.answer(&item, Choice::Choose, Some((Param::Start, 1))),
         Ok(())
     );
+}
+
+#[test]
+fn switching_off_an_agent_whose_run_waits_lapses_its_item_with_cancelled_and_stops_the_run() {
+    let cases = [
+        (None, Lapsed::Confirm(LapseCause::Cancelled)),
+        (
+            Some(HandbackReason::StepFailed),
+            Lapsed::Stuck(OtherLapse::Cancelled),
+        ),
+    ];
+    for (reason, lapsed) in cases {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        let event = match reason {
+            None => ask_confirm(&run, 0),
+            Some(r) => handback(&run, 0, r),
+        };
+        assert_eq!(c.on_run(&run, event), Ok(()), "{reason:?}");
+        let (item, _) = open_item(&c);
+        let m = mark(&c);
+        assert_eq!(
+            c.control(&agent(0), Action::SwitchOff),
+            Ok(()),
+            "{reason:?}"
+        );
+        let cancels = calls_since(&c, m)
+            .iter()
+            .filter(|call| matches!(call, Call::Cancel(r) if *r == run))
+            .count();
+        assert_eq!(cancels, 1, "{reason:?}");
+        let stored = events(&c);
+        assert!(
+            stored.contains(&What::ItemLapsed { item, lapsed }),
+            "{reason:?}"
+        );
+        assert!(stored.contains(&What::HoldSet {
+            cause: HoldSetCause::Person
+        }));
+        assert!(c.snapshot().items.is_empty(), "{reason:?}");
+        c.ports().ports.end_runner(&run);
+        assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+        assert!(events(&c).contains(&What::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Cancelled
+        }));
+        assert_eq!(c.live(), 0);
+    }
+}
+
+#[test]
+fn the_second_step_of_the_quit_waits_for_the_latest_stop_of_two_live_runs() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    start(&c, 0);
+    start(&c, 1);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    c.ports().ports.set_clock(T0 + 2_000, DAY);
+    let wait = c.quit_stop();
+    assert_eq!(wait.until, T0 + 2_000 + limits.cancel_grace_s * 1000);
+}
+
+#[test]
+fn the_card_of_an_agent_whose_setup_body_the_owner_ended_is_unknown_agent() {
+    let (c, made, item) = setup_agent();
+    c.answer(&item, Choice::Choose, Some((Param::Start, 1)))
+        .unwrap();
+    c.answer(&item, Choice::Choose, Some((Param::Payee, 1)))
+        .unwrap();
+    assert!(
+        c.card(&made).is_ok(),
+        "a card before the owner ends the body"
+    );
+    c.ports().ports.refuse(
+        Method::Send,
+        PortError::Refused(Name::parse("no_workflow").unwrap()),
+    );
+    assert_eq!(c.setup_typed(&item, Param::Instrument, "Card 4242"), Ok(()));
+    c.ports().ports.clear_refusals();
+    for action in [
+        Action::RunNow,
+        Action::SwitchOn,
+        Action::SwitchOff,
+        Action::Stop,
+    ] {
+        assert_eq!(c.control(&made, action), Err(Cause::UnknownAgent));
+    }
+    assert_eq!(c.card(&made), Err(Cause::UnknownAgent));
 }
