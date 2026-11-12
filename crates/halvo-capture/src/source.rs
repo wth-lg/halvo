@@ -1,64 +1,36 @@
-//! The platform-agnostic capture traits. Each OS-specific source implements
-//! [`CaptureSource`] and emits events through an [`EventSink`]. Per-OS
-//! implementations live under [`crate::macos`] / [`crate::windows`] behind `cfg`.
-
 use crate::event::{CaptureStreamEvent, Modality};
 use crate::sink::{SinkError, SinkHandle};
 
-/// One capture source. `begin`, or the old `start`, installs the OS callback and
-/// returns. The callback emits through the sink: an event of a droppable kind is
-/// dropped when the queue is full, and an event of any other kind blocks the
-/// calling thread until the writer makes room.
-///
-/// The two pairs reach each other through their default bodies, so a source
-/// implements `begin` and `shutdown` or `start` and `stop`. A source that
-/// implements neither pair recurses without end.
 pub trait CaptureSource {
-    /// Retired: no product code calls it, and one source can emit several kinds.
-    /// The default body panics.
     fn modality(&self) -> Modality {
         panic!("CaptureSource::modality is retired and has no default answer")
     }
 
-    /// The old form of [`CaptureSource::begin`]. The default body begins with a
-    /// context that holds `sink` and answers `Ok` for both [`Started`] values.
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
         self.begin(SourceContext::new(sink)).map(|_| ())
     }
 
-    /// The old form of [`CaptureSource::shutdown`]. The default body shuts down
-    /// and drops the result; [`CaptureSource::health`] still reports a failure.
     fn stop(&mut self) {
         let _ = self.shutdown();
     }
 
-    /// Install the OS callback and return [`Started::Running`], or install nothing
-    /// and return [`Started::Off`] for a source that never captures or whose
-    /// switches are all off. A second `begin` on a started source is
-    /// [`CaptureError::AlreadyStarted`]. The default body calls `start` with the
-    /// context's sink.
     fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
         self.start(ctx.sink).map(|()| Started::Running)
     }
 
     /// Remove the OS callback and join the source's thread: `Ok` when both are
     /// done, [`CaptureError::ThreadEnded`] when the thread had ended before,
-    /// [`CaptureError::Timeout`] when the source's deadline passed. The default
-    /// body calls `stop` and answers `Ok`.
+    /// [`CaptureError::Timeout`] when the source's deadline passed.
     fn shutdown(&mut self) -> Result<(), CaptureError> {
         self.stop();
         Ok(())
     }
 
-    /// The source's state and counters. The default body is
-    /// [`SourceState::NotReported`] with every counter at zero.
     fn health(&self) -> SourceHealth {
         SourceHealth::default()
     }
 }
 
-/// What a source gets when it begins. Its fields are private, so a field added
-/// later changes no source's signature.
 #[derive(Clone)]
 pub struct SourceContext {
     sink: SinkHandle,
@@ -69,13 +41,11 @@ impl SourceContext {
         Self { sink }
     }
 
-    /// The handle that the source emits through.
     pub fn sink(&self) -> &SinkHandle {
         &self.sink
     }
 }
 
-/// What [`CaptureSource::begin`] reports.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Started {
     /// The source installed its OS callback.
@@ -85,26 +55,20 @@ pub enum Started {
     Off,
 }
 
-/// What [`CaptureSource::health`] reports: a state and the source's counters. A
-/// health value holds fixed text and OS codes only, never an event field or a
-/// panic message.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SourceHealth {
     pub state: SourceState,
     pub counters: SourceCounters,
 }
 
-/// The state of a source.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum SourceState {
-    /// The source has not reported a state.
     #[default]
     NotReported,
     /// The source's OS callback is installed.
     Running,
     /// The source runs and part of its capture is missing.
     Impaired { reason: HealthReason },
-    /// The source does not capture because of `error`.
     Failed {
         reason: HealthReason,
         error: CaptureError,
@@ -115,7 +79,6 @@ pub enum SourceState {
     Off,
 }
 
-/// Who stopped a source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StopCause {
     /// The daemon asked the source to stop.
@@ -124,8 +87,6 @@ pub enum StopCause {
     User,
 }
 
-/// Why a source is impaired or failed. One variant for each `reason=` token of
-/// the status text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HealthReason {
     Permission,
@@ -141,33 +102,27 @@ pub enum HealthReason {
     RunLoopStalled,
 }
 
-/// Every figure that the status text and the timed-run report print for a
-/// source. Each count starts at zero and each yes or no at no.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SourceCounters {
     pub tap_disabled_timeout: u64,
     pub tap_disabled_user_input: u64,
     pub late_events: u64,
     pub max_lag_ms: u64,
-    /// Key events that reached the tap while secure input was active; each was
-    /// suppressed and never stored.
+    /// Key events that reached the tap while secure input was active.
     pub secure_input_keystrokes: u64,
     pub title_read_errors: u64,
     pub pointer_coalesced: u64,
-    /// Whether keys were withheld: a yes or no, never a count.
     pub keys_withheld: bool,
     pub secure_released_keystrokes: u64,
     pub secure_held_keystrokes: u64,
     pub secure_held_suppressed: SuppressedKeys,
     pub secure_input_held: HeldSamples,
     pub secure_window_pointer: u64,
-    /// Whether the key counter of the system advanced in the held phase: a yes or
-    /// no, never a count.
+    /// Whether the key counter of the system advanced in the held phase.
     pub secure_window_keys_typed: bool,
 }
 
-/// Key events suppressed in the held phase, by type: counts of events, never a
-/// key.
+/// Key events suppressed in the held phase, by type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SuppressedKeys {
     pub down: u64,
@@ -182,42 +137,26 @@ pub struct HeldSamples {
     pub taken: u64,
 }
 
-/// The emit path a source uses to hand an event to the single writer: an event
-/// of a droppable kind is dropped when the queue is full, and an event of any
-/// other kind blocks the calling thread until the writer makes room. The only
-/// implementor is the sink handle (see [`crate::sink`]).
 pub trait EventSink {
-    /// Enqueue an event for the single writer. Never drops a non-droppable
-    /// modality; see [`crate::sink`] for the backpressure policy.
     fn emit(&self, event: CaptureStreamEvent) -> Result<EmitOutcome, SinkError>;
 }
 
-/// What happened to an emitted event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EmitOutcome {
-    /// The event was queued for the writer.
     Queued,
-    /// A droppable event was dropped because the queue was full.
     Dropped,
 }
 
-/// Why a source could not start, run or stop. Every variant holds fixed text or
-/// an OS code, never an event field, an OS message or a panic message.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CaptureError {
-    /// The person has not granted the permission. Only for a real denial: a
-    /// service that cannot be reached is [`CaptureError::Os`] or
-    /// [`CaptureError::Timeout`].
     #[error("the capture permission for {0:?} is not granted")]
     PermissionDenied(Modality),
-    /// A start that failed for a reason with no OS code. The text is fixed.
     #[error("the capture source failed to start: {0}")]
     Start(String),
     #[error("{0} is not implemented in this phase")]
     NotImplemented(&'static str),
     #[error("the capture source timed out at {stage} after {ms} ms")]
     Timeout { stage: &'static str, ms: u64 },
-    /// An OS call at `stage` failed with `code` of the error `domain`.
     #[error("the capture source failed at {stage}: {domain} code {code}")]
     Os {
         stage: &'static str,

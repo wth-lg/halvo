@@ -1,11 +1,6 @@
-//! The single-writer sink: the only path from a capture source to the store.
-//!
-//! [`bounded`] and [`channel`] return a cloneable [`SinkHandle`] that sources emit
-//! through and a non-cloneable [`SinkWriter`] that the daemon owns and drains.
-//!
 //! Backpressure: the channel is bounded. A droppable modality (frames, audio,
 //! camera) is dropped when the queue is full; every other modality blocks until
-//! the writer makes room, so a keystroke is never lost.
+//! the writer makes room.
 
 use std::cell::Cell;
 use std::num::NonZeroUsize;
@@ -67,19 +62,11 @@ struct KindCounters {
     refused: AtomicU64,
 }
 
-/// One kind's counts in a [`SinkCounts`] snapshot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct KindCounts {
-    /// Emits that returned `Queued`.
     pub accepted: u64,
-    /// Emits of a droppable kind that returned `Dropped` because the queue was
-    /// full.
     pub dropped: u64,
-    /// Fold records handed back on a full queue. No emit coalesces yet, so this
-    /// reads 0.
     pub coalesced: u64,
-    /// Emits that returned `Disconnected` because the writer was gone, whether
-    /// the emit met a gone writer or was blocked when the writer went.
     pub refused: u64,
 }
 
@@ -98,9 +85,6 @@ impl SinkCounts {
     }
 }
 
-/// The cloneable emit side held by every capture source. Clones share one queue,
-/// one sequence authority and one set of counts, so sequences stay globally
-/// monotonic across sources and the counts cover every source.
 #[derive(Clone)]
 pub struct SinkHandle {
     tx: SyncSender<CaptureStreamEvent>,
@@ -109,15 +93,11 @@ pub struct SinkHandle {
 }
 
 impl SinkHandle {
-    /// The next monotonic sequence number for the stream. The sink is the single
-    /// authority, so numbers are unique and increasing no matter which source
-    /// calls this.
+    /// The next monotonic sequence number for the stream.
     pub fn next_sequence(&self) -> MonotonicSequence {
         MonotonicSequence::new(self.sequence.fetch_add(1, Ordering::Relaxed))
     }
 
-    /// How many droppable events have been dropped under backpressure so far: the
-    /// sum of the dropped counts of [`SinkHandle::counts`].
     pub fn dropped_count(&self) -> u64 {
         self.counts
             .iter()
@@ -125,8 +105,6 @@ impl SinkHandle {
             .sum()
     }
 
-    /// A snapshot of the accepted, dropped, coalesced and refused emits of each
-    /// kind.
     pub fn counts(&self) -> SinkCounts {
         SinkCounts {
             kinds: std::array::from_fn(|index| {
@@ -183,7 +161,7 @@ impl EventSink for SinkHandle {
 /// exactly one in the order in which events arrive there; a dropped or refused
 /// event never gets one. The count restarts at 0 in every process and with every
 /// sink, so a number is no read position: never store one as a cursor or compare
-/// numbers of two processes. Only the writer makes one.
+/// numbers of two processes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ArrivalNumber(u64);
 
@@ -198,10 +176,9 @@ impl ArrivalNumber {
     }
 }
 
-/// An event as the writer received it, with its [`ArrivalNumber`]. The event is
-/// shown read-only. Its own `captured_at.sequence` is the stamp that the emitting
-/// source took before a send that can block, not the arrival number: order by
-/// [`Received::number`].
+/// An event as the writer received it, with its [`ArrivalNumber`]. Its own
+/// `captured_at.sequence` is the stamp that the emitting source took before a
+/// send that can block, not the arrival number: order by [`Received::number`].
 #[derive(Debug)]
 pub struct Received {
     event: CaptureStreamEvent,
@@ -217,43 +194,31 @@ impl Received {
         &self.event
     }
 
-    /// Whether the writer received this event before it drew `barrier`.
     pub fn is_before(&self, barrier: Barrier) -> bool {
         self.number.0 < barrier.0
     }
 }
 
-/// The first [`ArrivalNumber`] that the writer had not given when
-/// [`SinkWriter::barrier`] drew it. Only that call makes one, so code that holds
-/// only a [`SinkHandle`] cannot draw a barrier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Barrier(u64);
 
-/// The single drain side. Not `Clone` and not `Sync`: there is one receiver, and
-/// it numbers what it receives. The daemon owns it.
 pub struct SinkWriter {
     rx: Receiver<CaptureStreamEvent>,
     next: Cell<u64>,
 }
 
 impl SinkWriter {
-    /// Block for the next event, or return `None` once every [`SinkHandle`] has
-    /// been dropped. The event gets no [`ArrivalNumber`] and takes none.
+    /// The event gets no [`ArrivalNumber`] and takes none.
     pub fn recv(&self) -> Option<CaptureStreamEvent> {
         self.rx.recv().ok()
     }
 
-    /// Wait at most `timeout` for the next event and give it the next
-    /// [`ArrivalNumber`]. `Disconnected` once every [`SinkHandle`] has been dropped
-    /// and the queue is empty.
     pub fn recv_timeout(&self, timeout: Duration) -> Result<Received, RecvTimeoutError> {
         self.rx
             .recv_timeout(timeout)
             .map(|event| self.number(event))
     }
 
-    /// Take the next event if one is queued and give it the next
-    /// [`ArrivalNumber`].
     pub fn try_recv(&self) -> Result<Received, TryRecvError> {
         self.rx.try_recv().map(|event| self.number(event))
     }
@@ -261,8 +226,8 @@ impl SinkWriter {
     /// Draw a barrier at the next number that this writer will give. Every event
     /// received before the draw is before it. An event that was still queued, or
     /// still blocked in an emit, at the draw is not before it, so an owner that
-    /// discards the events at or after a barrier discards those too, up to the
-    /// queue depth, which errs toward not persisting.
+    /// discards the events at or after a barrier discards those too, which errs
+    /// toward not persisting.
     pub fn barrier(&self) -> Barrier {
         Barrier(self.next.get())
     }
@@ -277,16 +242,12 @@ impl SinkWriter {
     }
 }
 
-/// Build the sink. `capacity` bounds the queue; past it, droppable modalities are
-/// dropped and others block. With a capacity of 0 a droppable event is dropped
-/// unless the writer is waiting in a receive; [`bounded`] cannot be given 0.
+/// With a capacity of 0 a droppable event is dropped unless the writer is
+/// waiting in a receive.
 pub fn channel(capacity: usize) -> (SinkHandle, SinkWriter) {
     build(capacity)
 }
 
-/// Build the sink with a queue of `capacity` events. Past it, a droppable kind is
-/// dropped and every other kind blocks the emitting thread until the writer makes
-/// room.
 pub fn bounded(capacity: NonZeroUsize) -> (SinkHandle, SinkWriter) {
     build(capacity.get())
 }
