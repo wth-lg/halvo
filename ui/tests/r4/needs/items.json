@@ -1,0 +1,63 @@
+{
+  "test_mixed": {
+    "snapshot": {
+      "seq": 1,
+      "rows": [],
+      "items": [
+        {
+          "item": "0000000000000000000000000000000b",
+          "agent": "0000000000000000000000000000000a",
+          "kind": "confirm",
+          "presenter": "page",
+          "armed": "yes",
+          "title": "Do these 2 things?",
+          "text": "",
+          "fields": [
+            { "label": "It will remove this", "value": [], "from": "halvo", "from_text": "Set by Halvo" },
+            { "label": "What to remove", "value": ["Old note from May"], "from": "site", "from_text": "From the site" },
+            { "label": "It will submit this form", "value": [], "from": "halvo", "from_text": "Set by Halvo" },
+            { "label": "Site", "value": ["site3.example"], "from": "halvo", "from_text": "Set by Halvo" },
+            { "label": "What it fills in", "value": ["Name Ann Lee. ", "Flat 2."], "from": "agent", "from_text": "Written by the agent" }
+          ],
+          "params": [],
+          "choices": [
+            { "choice": "reject", "text": "Don't do any of these 2", "safe": "yes" },
+            { "choice": "allow", "text": "Do all 2", "safe": "no" }
+          ]
+        }
+      ],
+      "note": null
+    },
+    "card": null
+  },
+  "test_changed": {
+    "snapshot": {
+      "seq": 1,
+      "rows": [],
+      "items": [
+        {
+          "item": "0000000000000000000000000000000d",
+          "agent": "0000000000000000000000000000000c",
+          "kind": "confirm",
+          "presenter": "native",
+          "armed": "no",
+          "title": "Pay this?",
+          "text": "",
+          "fields": [
+            { "label": "Something changed after you said yes, so it has not done this yet and asks you again.", "value": [], "from": "halvo", "from_text": "Set by Halvo" },
+            { "label": "Pay to", "value": ["City Power"], "from": "you", "from_text": "You gave this" },
+            { "label": "Amount", "value": ["42.10 USD"], "from": "site", "from_text": "From the site" },
+            { "label": "Pay with", "value": ["Card ending 4242"], "from": "you", "from_text": "You gave this" },
+            { "label": "Site", "value": ["site1.example"], "from": "halvo", "from_text": "Set by Halvo" }
+          ],
+          "params": [],
+          "choices": [
+            { "choice": "present", "text": "See the details and answer", "safe": "yes" }
+          ]
+        }
+      ],
+      "note": null
+    },
+    "card": null
+  }
+}
