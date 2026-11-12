@@ -1529,3 +1529,182 @@ fn a_record_is_read_with_json_space_and_keys_in_any_order_and_written_in_the_con
         RUN_EXAMPLE
     );
 }
+
+const VERSIONS: [(&str, &str); 4] = [
+    ("v 2", r#""v":2"#),
+    ("v 1.0", r#""v":1.0"#),
+    ("v as a string", r#""v":"1""#),
+    ("v null", r#""v":null"#),
+];
+
+#[test]
+fn a_run_row_with_any_v_but_the_integer_1_is_refused() {
+    for line in [RUN_EXAMPLE, RUN_STARTED, RUN_UNVERIFIED] {
+        for (what, v) in VERSIONS {
+            assert_eq!(
+                run_refused(&changed(line, r#""v":1"#, v)),
+                ("LearnRun", Some("v"), "version"),
+                "{what}"
+            );
+        }
+    }
+}
+
+#[test]
+fn an_edit_row_with_any_v_but_the_integer_1_is_refused() {
+    for line in [EDIT_EXAMPLE, EDIT_REVERTED, EDIT_ACTIVE, EDIT_WITHDRAWN] {
+        for (what, v) in VERSIONS {
+            assert_eq!(
+                edit_refused(&changed(line, r#""v":1"#, v)),
+                ("LearnEdit", Some("v"), "version"),
+                "{what}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_routine_row_with_any_v_but_the_integer_1_is_refused() {
+    for line in [ROUTINE_EXAMPLE, ROUTINE_FIRST, ROUTINE_STALE] {
+        for (what, v) in VERSIONS {
+            assert_eq!(
+                routine_refused(&changed(line, r#""v":1"#, v)),
+                ("LearnRoutine", Some("v"), "version"),
+                "{what}"
+            );
+        }
+    }
+}
+
+const TARGET: &str = r#"{"desc":"link Pay now","locators":[{"by":"label","value":"Pay now","name":null},{"by":"css","value":"a.pay","name":null}]}"#;
+
+#[test]
+fn a_bare_learned_target_is_read_and_written_in_its_one_form() {
+    let target = LearnedTarget::parse(TARGET.as_bytes()).unwrap();
+    assert_eq!(
+        target.locators,
+        [
+            locator(LocatorBy::Label, "Pay now", None),
+            locator(LocatorBy::Css, "a.pay", None)
+        ]
+    );
+    assert_eq!(target.to_json().unwrap(), TARGET);
+    assert_eq!(serde_json::to_string(&target).unwrap(), TARGET);
+    assert_eq!(
+        serde_json::from_str::<LearnedTarget>(TARGET).unwrap(),
+        target
+    );
+}
+
+#[test]
+fn a_bare_learned_target_parser_refuses_no_locator_five_one_twice_and_a_role_without_a_name() {
+    let label = r#"{"by":"label","value":"Pay now","name":null}"#;
+    let cases: Vec<(&str, String, Want)> = vec![
+        (
+            "no locator",
+            r#"{"desc":"x","locators":[]}"#.to_owned(),
+            ("LearnedTarget", Some("locators"), "locators_bound"),
+        ),
+        (
+            "five locators",
+            format!(r#"{{"desc":"x",{FIVE_LOCATORS}}}"#),
+            ("LearnedTarget", Some("locators"), "locators_bound"),
+        ),
+        (
+            "one locator twice",
+            format!(r#"{{"desc":"x","locators":[{label},{label}]}}"#),
+            ("LearnedTarget", Some("locators"), "repeated_locator"),
+        ),
+        (
+            "a role locator without a name",
+            r#"{"desc":"x","locators":[{"by":"role","value":"button","name":null}]}"#.to_owned(),
+            ("Locator", Some("name"), "name_of_by"),
+        ),
+    ];
+    for (what, line, want) in cases {
+        assert_eq!(
+            LearnedTarget::parse(line.as_bytes()).map_err(|r| parts(&r)),
+            Err(want),
+            "{what}"
+        );
+        let error = serde_json::from_str::<LearnedTarget>(&line).expect_err(what);
+        assert!(
+            error.to_string().starts_with(&format!("{}: ", want.0)),
+            "{what}: {error}"
+        );
+    }
+}
+
+#[test]
+fn a_bare_learned_target_writer_refuses_no_locator_five_one_twice_and_a_role_without_a_name() {
+    let base = LearnedTarget::parse(TARGET.as_bytes()).unwrap();
+    let mut none = base.clone();
+    none.locators.clear();
+    let mut five = base.clone();
+    five.locators = vec![
+        locator(LocatorBy::Role, "button", Some("Pay")),
+        locator(LocatorBy::Label, "Pay", None),
+        locator(LocatorBy::Text, "Pay", None),
+        locator(LocatorBy::TestId, "pay", None),
+        locator(LocatorBy::Css, "button.pay", None),
+    ];
+    let mut twice = base.clone();
+    twice.locators[1] = twice.locators[0].clone();
+    let mut role = base.clone();
+    role.locators[0] = locator(LocatorBy::Role, "button", None);
+    let cases: Vec<(&str, LearnedTarget, Want)> = vec![
+        (
+            "no locator",
+            none,
+            ("LearnedTarget", Some("locators"), "locators_bound"),
+        ),
+        (
+            "five locators",
+            five,
+            ("LearnedTarget", Some("locators"), "locators_bound"),
+        ),
+        (
+            "one locator twice",
+            twice,
+            ("LearnedTarget", Some("locators"), "repeated_locator"),
+        ),
+        (
+            "a role locator without a name",
+            role,
+            ("Locator", Some("name"), "name_of_by"),
+        ),
+    ];
+    for (what, target, want) in cases {
+        assert_eq!(target.rules().map_err(|r| parts(&r)), Err(want), "{what}");
+        assert_eq!(target.to_json().map_err(|r| parts(&r)), Err(want), "{what}");
+        let error = serde_json::to_string(&target).expect_err(what);
+        assert_eq!(
+            error.to_string(),
+            format!("{}: {}: {}", want.0, want.1.unwrap_or("-"), want.2),
+            "{what}"
+        );
+    }
+}
+
+const ROUTINE_ONE_DAY: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","rev":2,"day":20767,"category":"utility_bill_payment","site":{"key":"northwind-power.test","source":"address_field"},"app":"com.google.Chrome","period":null,"seen":1,"first":20767,"last":20767,"next":null,"missed":0,"mark":"none","since":null}"#;
+
+#[test]
+fn a_routine_of_one_day_is_read_and_written_back_to_the_same_bytes() {
+    let routine = LearnRoutine::parse(ROUTINE_ONE_DAY.as_bytes()).unwrap();
+    assert_eq!(routine.seen, 1);
+    assert_eq!(routine.first, Some(day(20767)));
+    assert_eq!(routine.last, Some(day(20767)));
+    assert_eq!(routine.period, None);
+    assert_eq!(routine.next, None);
+    assert_eq!(routine.to_json().unwrap(), ROUTINE_ONE_DAY);
+    assert_eq!(serde_json::to_string(&routine).unwrap(), ROUTINE_ONE_DAY);
+    assert_eq!(
+        serde_json::from_str::<LearnRoutine>(ROUTINE_ONE_DAY).unwrap(),
+        routine
+    );
+    let entry = halvo_schema::learning::KINDS
+        .iter()
+        .find(|k| k.name == "learn_routine")
+        .unwrap();
+    assert_eq!(check_record(entry, ROUTINE_ONE_DAY), Ok(()));
+}
