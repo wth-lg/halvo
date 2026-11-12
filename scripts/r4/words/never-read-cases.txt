@@ -208,6 +208,8 @@
 24	path	miss	It is 100% done.
 25	address	match	Go to https://site1.example now.
 25	address	match	Open file://bills now.
+25	address	match	Go to https://pay.site1.example now.
+25	address	match	Go to https://pay.site1.example:8443 now.
 25	address	miss	Note that it goes to Site1.
 26	address	match	Visit www.site1 today.
 26	address	match	Visit WWW.SITE1 today.
@@ -220,13 +222,20 @@
 29	address	match	It runs on localhost.
 29	address	miss	It runs on this computer.
 29	address	miss	The shop is called Nolocalhost.
-30	address	match	It paid on site1.example today.
-30	address	match	Go to shop.com today.
-30	address	match	It paid the bill on shop.de today.
-30	address	match	It paid the bill on mybank.co.uk today.
-30	address	match	Go to SHOP.DE now.
-30	address	match	Pay on Amazon.com today.
+30	address	match	Open http://pay.site1.example:8443/x now.
+30	address	match	Open shop.de/bills now.
+30	address	match	Open site1.example?page=2 now.
+30	address	match	Open site1.example#top now.
+30	address	match	Open pay.site1.example:8443/x now.
 30	address	miss	It paid on Site1. Then it stopped.
+30	address	miss	It paid on site1.example today.
+30	address	miss	Go to shop.com today.
+30	address	miss	It paid the bill on shop.de today.
+30	address	miss	Go to SHOP.DE now.
+30	address	miss	Pay on Amazon.com today.
+30	address	miss	Allow pay.site1.example:8443 now.
+30	address	miss	Is it pay.site1.example?
+30	address	miss	It paid on shop.de: it went through.
 30	address	miss	It is 9 a.m. now.
 30	address	miss	Mr. Smith paid it.
 31	enum	match	Its status is needs_you.
