@@ -868,19 +868,22 @@ that true for each merged commit, and neither needs a commit id that a
 squash merge would change:
 
 - On each pull request and each push, `scripts/r1/ci.d/30-mutants.sh` runs
-  `sh scripts/r1-gate/mutation-test.sh --apply-only`, which applies every
-  row, the `formal-` rows among them, and builds each mutant. A covered
-  function that changes shape under its row fails that run: the
-  substitution no longer applies.
+  `sh scripts/r1-gate/mutation-test.sh --apply-only`, which applies each
+  row, the `formal-` rows among them, and builds each mutant; the control
+  row must not build, and a transitional row whose name another row file
+  holds prints MOVED and is not applied. A covered function that changes
+  shape under its row fails that run: the substitution no longer applies.
 - On each pull request and each push, `scripts/r1/ci.d/30-formal-covered.sh`
   runs `sh docs/verify/check-covered.sh`, and `12-test` runs the six tests.
 
-On each push to main, `30-mutants.sh` also runs mutants in full for at
-most its budget of seconds (`budget_s`), in an order that the commit id
-decides, and requires that the test of the verdict of each row that ran
-fails; the next push runs other rows. The whole list, which requires that
-the test of every `formal-` row fails, runs on a person's machine as a line
-of each unit's verifier gate and of the phase's gate.
+On each push to main, `30-mutants.sh` also runs mutants in full, in an
+order that the commit id decides. It starts no row once its budget of
+seconds (`budget_s`) has passed since the first row started, lets the row
+in progress end, and fails when a row that ran is not caught by its
+verdict; another commit takes the rows in another order. The whole list,
+which requires that the test of every `formal-` row fails, runs on a
+person's machine as a line of the phase's gate and of the verifier gates of
+the units that name `mutation-test.sh`.
 
 Outcome of the last pass, the third formal step of store-1, over the 15
 commits of the store's closed list: updated, for check 1. `create` now

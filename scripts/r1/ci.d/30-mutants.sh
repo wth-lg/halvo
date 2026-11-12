@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every substitution of a mutants.rows file still applies and builds, and a push to main runs mutants in an order that the commit decides for at most budget_s seconds and fails when a row that ran is not caught.
+# rule: Every substitution of a mutants.rows file still applies and builds, and a push to main runs mutants in an order that the commit decides, starts no row after budget_s seconds and fails when a row that ran is not caught.
 set -u
 name=30-mutants
 budget_s=240
