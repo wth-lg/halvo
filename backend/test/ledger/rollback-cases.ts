@@ -255,6 +255,7 @@ export const rangeEdges: RangeEdgeCase[] = [
     name: "B-17: a settle that would take the reported sum of its sync interval, across two cap periods each in range, above 2^53 - 1 throws a RangeError and rolls back; the hold stays open, expires at its amount, and the interval still answers",
     run(step) {
       const ledger = acrossTwoPeriods(step, 100);
+      dispatchBoth(step, ledger);
       const a = attempt(() => step((sql) => ledger.settle(sql, "a", tokens(RANGE_COST), WEEK_MS - 500)));
       const b = attempt(() => step((sql) => ledger.settle(sql, "b", tokens(RANGE_COST), WEEK_MS + 1500)));
       const before = step((sql) => ({ state: stateOfHold(sql, "b"), totals: ledger.intervalTotals(sql, ACROSS) }));
@@ -273,6 +274,42 @@ export const rangeEdges: RangeEdgeCase[] = [
         periods: [
           { reported: RANGE_COST, unreported: 0, open: 0 },
           { reported: 0, unreported: 100, open: 0 },
+        ],
+      },
+    },
+  },
+  {
+    name: "B-17 with holds that no call followed: the same steps, and the hold that stays open ends voided at its expiry, neither its period nor the interval counts it, and a settle after its expiry answers already-ended",
+    run(step) {
+      const ledger = acrossTwoPeriods(step, 100);
+      const a = attempt(() => step((sql) => ledger.settle(sql, "a", tokens(RANGE_COST), WEEK_MS - 500)));
+      const b = attempt(() => step((sql) => ledger.settle(sql, "b", tokens(RANGE_COST), WEEK_MS + 1500)));
+      const before = step((sql) => ({ state: stateOfHold(sql, "b"), totals: ledger.intervalTotals(sql, ACROSS) }));
+      const expired = step((sql) => ledger.expire(sql, WEEK_MS + 5000));
+      const after = step((sql) => ({ state: stateOfHold(sql, "b"), totals: ledger.intervalTotals(sql, ACROSS), periods: periodsOf(sql) }));
+      const late = attempt(() => step((sql) => ledger.settle(sql, "b", tokens(100), WEEK_MS + 6000)));
+      const afterLate = step((sql) => ({ totals: ledger.intervalTotals(sql, ACROSS), periods: periodsOf(sql) }));
+      return { a, b, before, expired, after, late, afterLate };
+    },
+    expected: {
+      a: settledAt(RANGE_COST),
+      b: { threw: "RangeError" },
+      before: { state: "open", totals: { reported: RANGE_COST, unreported: 0, open: 1 } },
+      expired: 1,
+      after: {
+        state: "voided",
+        totals: { reported: RANGE_COST, unreported: 0, open: 0 },
+        periods: [
+          { reported: RANGE_COST, unreported: 0, open: 0 },
+          { reported: 0, unreported: 0, open: 0 },
+        ],
+      },
+      late: { outcome: "refused", reason: "already-ended" },
+      afterLate: {
+        totals: { reported: RANGE_COST, unreported: 0, open: 0 },
+        periods: [
+          { reported: RANGE_COST, unreported: 0, open: 0 },
+          { reported: 0, unreported: 0, open: 0 },
         ],
       },
     },
@@ -322,6 +359,7 @@ export const rangeEdges: RangeEdgeCase[] = [
     name: "intervalTotals guard: the expired amounts of one sync interval in two periods sum past 2^53 - 1, and intervalTotals throws a RangeError",
     run(step) {
       const ledger = acrossTwoPeriods(step, RANGE_COST);
+      dispatchBoth(step, ledger);
       const expired = step((sql) => ledger.expire(sql, WEEK_MS + 5000));
       return { expired, periods: step(periodsOf), totals: attempt(() => step((sql) => ledger.intervalTotals(sql, ACROSS))) };
     },
@@ -332,6 +370,28 @@ export const rangeEdges: RangeEdgeCase[] = [
         { reported: 0, unreported: RANGE_COST, open: 0 },
       ],
       totals: { threw: "RangeError" },
+    },
+  },
+  {
+    name: "intervalTotals guard with holds that no call followed: the same two holds end voided at their expiry, the periods count nothing, intervalTotals answers zeros, and a settle after the expiry answers already-ended",
+    run(step) {
+      const ledger = acrossTwoPeriods(step, RANGE_COST);
+      const expired = step((sql) => ledger.expire(sql, WEEK_MS + 5000));
+      const periods = step(periodsOf);
+      const totals = attempt(() => step((sql) => ledger.intervalTotals(sql, ACROSS)));
+      const late = attempt(() => step((sql) => ledger.settle(sql, "b", tokens(100), WEEK_MS + 6000)));
+      const totalsAfterLate = attempt(() => step((sql) => ledger.intervalTotals(sql, ACROSS)));
+      return { expired, periods, totals, late, totalsAfterLate };
+    },
+    expected: {
+      expired: 2,
+      periods: [
+        { reported: 0, unreported: 0, open: 0 },
+        { reported: 0, unreported: 0, open: 0 },
+      ],
+      totals: { reported: 0, unreported: 0, open: 0 },
+      late: { outcome: "refused", reason: "already-ended" },
+      totalsAfterLate: { reported: 0, unreported: 0, open: 0 },
     },
   },
 ];
@@ -348,6 +408,13 @@ function acrossTwoPeriods(step: Step, amount: number): Ledger {
     ledger.reserve(sql, { requestId: "b", tier: "low_cost_hosted", amount, price: UNIT }, WEEK_MS + 1000, interval);
   });
   return ledger;
+}
+
+function dispatchBoth(step: Step, ledger: Ledger): void {
+  step((sql) => {
+    ledger.dispatch(sql, "a", WEEK_MS - 1000);
+    ledger.dispatch(sql, "b", WEEK_MS + 1000);
+  });
 }
 
 export function runRead(step: Step, each: ReadCase): unknown {

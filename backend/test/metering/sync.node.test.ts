@@ -291,6 +291,7 @@ describe("a sync wake never delays a hold's expiry (unit 5.1; check 55 reads thi
     await w.use("r1", 30_000);
     w.at(END + 500);
     await w.reserve("r2");
+    await w.entries().dispatch("r2");
     w.at(END + 1000);
     await w.entries().alarm();
     w.host.config.testClock = true;
@@ -299,6 +300,42 @@ describe("a sync wake never delays a hold's expiry (unit 5.1; check 55 reads thi
     expect(during).toEqual({ outcome: "expired", cost: 1_000, overrun: 900 });
     expect([r2?.state, r2?.expires_at, r2?.ended_at]).toEqual(["expired", END + 3500, END + 3500]);
     expect(kinds(w.calls)).toEqual(["send recorded"]);
+    w.close();
+  });
+});
+
+describe("a hold that no call followed, whose expiry falls due while a sync wake waits on the provider (units 5.1 and 4.5)", () => {
+  test("it ends voided at its expiry time, a settle after its expiry answers already-ended, and its interval counts and sends nothing of it", async () => {
+    let during: unknown = "no call";
+    const w = await world({
+      testClock: false,
+      faults: [
+        {
+          kind: "during",
+          run: async () => {
+            w.at(END + 500 + 3000);
+            during = await w.settle("r2", 1_000);
+          },
+        },
+      ],
+    });
+    await w.use("r1", 30_000);
+    w.at(END + 500);
+    await w.reserve("r2");
+    w.at(END + 1000);
+    await w.entries().alarm();
+    w.host.config.testClock = true;
+    const tables = await w.tables();
+    const r2 = (tables.ledger_holds ?? []).find((row) => row.request_id === "r2");
+    expect(during).toEqual({ outcome: "refused", reason: "already-ended" });
+    expect([r2?.state, r2?.expires_at, r2?.ended_at]).toEqual(["voided", END + 3500, END + 3500]);
+    expect(kinds(w.calls)).toEqual(["send recorded"]);
+    w.at(END + HOUR + 1000);
+    await w.entries().alarm();
+    const next = (await w.intervals()).find((row) => row.start === END);
+    expect(next).toEqual(expect.objectContaining({ start: END, end_at: END + HOUR, reported: 0, amount: 0, carry_in: 0, carry_out: 0, outcome: "no-call" }));
+    expect(kinds(w.calls)).toEqual(["send recorded"]);
+    expect(w.meter.recordedEvents(ACCOUNT).map((each) => [each.identifier, each.amountMinor, each.timestamp])).toEqual([[IDENTIFIER, 3, TIMESTAMP]]);
     w.close();
   });
 });
