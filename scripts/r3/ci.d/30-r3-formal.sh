@@ -9,6 +9,7 @@ name=30-r3-formal
 label=$name
 workers=3
 invariants='P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 P11'
+reach_want=637933+61728
 
 fail() {
   printf 'FAIL %s (%s)\n' "$label" "$1"
@@ -166,12 +167,18 @@ checked() {
   ok=yes
   holds confirm "$dir/Confirm.cfg" || ok=no
   states=$distinct
+  reach=$distinct
   broken=$violated
   holds rebinds "$dir/Rebinds.cfg" || ok=no
   states=$((states + distinct))
+  reach=$reach+$distinct
   broken=$((broken + violated))
   printf 'formal states=%s invariants=%s violated=%s\n' "$states" "$count" "$broken"
   [ "$ok" = yes ] || fail invariants
+  same=no
+  [ "$reach" != "$reach_want" ] || same=yes
+  printf 'formal reach confirm+rebinds=%s same=%s\n' "$reach" "$same"
+  [ "$same" = yes ] || fail reach
 }
 
 exported() {

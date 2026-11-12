@@ -104,13 +104,18 @@ which it leaves in place, and compares the size and the SHA-256; with `TLA2TOOLS
 copies that file instead and compares it the same way. It runs TLC with three workers on
 `Confirm.cfg` and `Rebinds.cfg`, exports the two files again with the seed and the count of
 the committed first line of `traces.jsonl`, compares both byte for byte with the committed
-files, and runs `Control.cfg`, which must report P1 and nothing else. It prints:
+files, and runs `Control.cfg`, which must report P1 and nothing else. It also requires the
+distinct states of the two runs to be the counts of the section "What the check reaches",
+637,933 and 61,728, so that a change of the model that makes the system reach less, or more,
+fails the check until the counts in the check and in that section are written again. It
+prints:
 
 ```
 formal configs files=4 same=4
 formal java major=<n>
 formal jar source=fetch bytes=2274532 same=yes
 formal states=699661 invariants=11 violated=0
+formal reach confirm+rebinds=637933+61728 same=yes
 formal export status=0
 formal table rows=3840 same=yes
 formal traces count=400 same=yes
@@ -120,8 +125,9 @@ PASS 30-r3-formal
 
 `--self-test` runs the control copy as if it were a file of the check, which must fail, and
 compares a table with one row removed with the export, which must differ. The check shows
-that P1 can fail, through the control copy; it does not show that any other invariant can
-fail. A change of `Confirm.tla` that weakens one of the others passes it.
+that P1 can fail, through the control copy, for a `payment` effect; it does not show that
+any other invariant can fail, nor P1 for `purchase` or `sign`. A change of `Confirm.tla`
+that weakens an invariant and leaves the export and the reach as they are passes it.
 
 ## The decision
 
