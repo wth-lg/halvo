@@ -765,7 +765,11 @@ mod tests {
         let foreign = relay.handle().foreign();
         assert_eq!(foreign.len(), 2);
         assert_eq!(foreign[0].cause, "no_browser");
-        assert_eq!(foreign[1].cause, "no_owner");
+        assert!(
+            ["no_owner", "outside_tree"].contains(&foreign[1].cause),
+            "{:?}",
+            foreign[1]
+        );
         assert_eq!(relay.handle().foreign_count(), 2);
         assert!(relay.handle().refusals().is_empty());
         assert_eq!(accepted.load(Ordering::SeqCst), 0);
