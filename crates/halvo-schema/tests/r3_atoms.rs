@@ -344,7 +344,7 @@ fn debug_of_a_text_type_prints_no_value() {
         "{:?} {:?} {:?} {:?}",
         OwnText::parse("Northwind 4711").unwrap(),
         OwnValue::new("Northwind 4711"),
-        SecretText::new("tok_4711"),
+        SecretText::parse("tok_4711").unwrap(),
         SessionData::new(vec!["QUJD".to_owned()]).unwrap()
     );
     assert!(
@@ -370,6 +370,13 @@ fn a_name_is_1_to_32_bytes_of_lower_case_letters_digits_and_underscore() {
     ] {
         malformed(Name::parse(bad), "Name", "name_form");
     }
+}
+
+#[test]
+fn a_secret_holds_at_least_one_byte() {
+    malformed(SecretText::parse(""), "SecretText", "empty_secret");
+    assert_eq!(SecretText::parse("t").unwrap().expose(), "t");
+    assert_eq!(SecretText::parse(" ").unwrap().expose(), " ");
 }
 
 #[test]

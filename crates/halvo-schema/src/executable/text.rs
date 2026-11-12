@@ -444,15 +444,19 @@ impl FromJson for CreationTime {
     }
 }
 
-/// The value of an entry of the supervisor's secret store, which only a `secret_reply` frame carries. `Debug`
-/// prints the type name alone.
+/// The value of an entry of the supervisor's secret store, which only a `secret_reply` frame carries: at least one
+/// byte. `Debug` prints the type name alone.
 #[derive(Clone, PartialEq, Eq)]
 pub struct SecretText(String);
 
 impl SecretText {
-    /// The value.
-    pub fn new(s: &str) -> SecretText {
-        SecretText(s.to_owned())
+    /// The value `s`, or the refusal with the rule `empty_secret` when it is empty: a store that returns an empty
+    /// secret is answered as `unreadable` with `fault`, never as `stored`.
+    pub fn parse(s: &str) -> Result<SecretText, Refusal> {
+        if s.is_empty() {
+            return Err(Refusal::malformed("SecretText", "empty_secret"));
+        }
+        Ok(SecretText(s.to_owned()))
     }
 
     /// The value.
@@ -475,7 +479,7 @@ impl Serialize for SecretText {
 
 impl FromJson for SecretText {
     fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
-        Ok(SecretText(json::string("SecretText", raw)?))
+        SecretText::parse(&json::string("SecretText", raw)?)
     }
 }
 
