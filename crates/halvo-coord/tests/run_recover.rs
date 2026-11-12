@@ -1560,3 +1560,96 @@ fn a_debts_read_takes_up_a_check_item_that_the_owner_stored_with_a_lost_acknowle
     assert_eq!(w.facts(0).doing, held);
     assert!(w.board.owed.is_empty());
 }
+
+#[test]
+fn an_owed_run_ended_refused_with_seq_for_another_event_is_logged_after_it() {
+    let mut w = world(&[MANUAL]);
+    let earlier = RunId::parse(&format!("{:032x}", 0xc101)).unwrap();
+    let run = RunId::parse(&format!("{:032x}", 0xc102)).unwrap();
+    for what in [
+        What::RunStarted {
+            run: earlier.clone(),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+        What::RunEnded {
+            run: earlier.clone(),
+            cause: RunEnd::Completed,
+        },
+        What::RunStarted {
+            run: run.clone(),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+    ] {
+        stored_outside(&w, 0, what);
+    }
+    w.ports.refuse(Method::Log, PortError::NoService);
+    relife(&mut w, &[]);
+    w.ports.clear_refusals();
+    assert!(
+        w.board.owed.iter().any(|o| matches!(
+            &o.what,
+            halvo_coord::schedule::Owing::RunEnded { run: r, .. } if *r == run
+        )),
+        "the run_ended of the newer run is owed"
+    );
+    stored_outside(&w, 0, What::SlotSkipped { slot: None });
+    two_ticks(&mut w);
+    assert_eq!(
+        ends_of(&w, &run),
+        1,
+        "the owed run_ended is logged after the other event, not paid by the end of another run"
+    );
+    assert!(!w
+        .board
+        .owed
+        .iter()
+        .any(|o| matches!(o.what, halvo_coord::schedule::Owing::RunEnded { .. })));
+}
+
+#[test]
+fn a_run_ended_debts_read_takes_up_a_check_item_that_the_owner_stored_with_a_lost_acknowledgement()
+{
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    w.ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 1,
+        },
+    );
+    relife_with(&mut w, vec![Turn::Refuse(PortError::NoService), Turn::Lose]);
+    let open = open_checks(&w);
+    assert_eq!(open.len(), 1, "the owner stored the check item");
+    assert!(
+        w.board.owed.iter().any(|o| matches!(
+            &o.what,
+            halvo_coord::schedule::Owing::RunEnded { run: r, .. } if *r == run
+        )),
+        "the run_ended of the refused body is owed"
+    );
+    let held = halvo_coord::types::Doing::Idle(Some(halvo_coord::types::OwnItem {
+        item: open[0].clone(),
+        kind: halvo_coord::types::OwnItemKind::Check,
+    }));
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(
+        w.facts(0).doing,
+        held,
+        "the run_ended's log is refused with seq, and its read takes up the open check item (RD-12 (b))"
+    );
+    w.set_clock(T0 + 20_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(
+        open_checks(&w),
+        open,
+        "no check item is raised a second time"
+    );
+    assert_eq!(ends_of(&w, &run), 1);
+    assert!(w.board.owed.is_empty());
+}

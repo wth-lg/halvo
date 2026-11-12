@@ -422,3 +422,63 @@ fn no_check_item_after_a_read_that_shows_the_persons_answer_to_the_check() {
         Ok(Answer::Ok)
     );
 }
+
+#[test]
+fn an_open_setup_item_that_the_owner_stored_with_a_lost_acknowledgement_is_held() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    let item = halvo_coord::types::ItemId::parse(&format!("{:032x}", 0x7203)).unwrap();
+    stored_unacknowledged(
+        &w,
+        0,
+        What::ItemRaised {
+            item: item.clone(),
+            raised: Raised::Setup,
+        },
+    );
+    w.act(Act::Tick);
+    assert_eq!(
+        w.facts(0).doing,
+        Doing::Idle(Some(halvo_coord::types::OwnItem {
+            item,
+            kind: OwnItemKind::Setup,
+        })),
+        "the board holds the open setup item that the owner holds"
+    );
+}
+
+#[test]
+fn a_read_whose_later_events_raise_and_close_an_item_takes_up_no_item() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    let item = halvo_coord::types::ItemId::parse(&format!("{:032x}", 0x7204)).unwrap();
+    stored_unacknowledged(
+        &w,
+        0,
+        What::ItemRaised {
+            item: item.clone(),
+            raised: Raised::Ready,
+        },
+    );
+    stored_unacknowledged(
+        &w,
+        0,
+        What::ItemLapsed {
+            item: item.clone(),
+            lapsed: halvo_coord::types::Lapsed::Ready(halvo_coord::types::OtherLapse::AppEnded),
+        },
+    );
+    let tick = w.act(Act::Tick);
+    assert_eq!(
+        tick.checked,
+        vec![agent(0)],
+        "the check is logged after the read"
+    );
+    assert!(
+        holds_check_item(&w, 0),
+        "the board holds the check, not the item that the owner closed"
+    );
+    assert_eq!(check_items(&w, 0), 1);
+}
