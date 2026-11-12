@@ -1708,6 +1708,54 @@ fn expire_rows_up_to(store: &EncryptedStore, last_id: i64) {
 }
 
 #[test]
+fn after_a_shred_no_database_side_file_holds_the_wrapped_key_of_the_shredded_segment() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let journal_mode: String = store
+        .db()
+        .unwrap()
+        .connection()
+        .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(journal_mode, "wal");
+    let body = b"segment to shred ".repeat(100);
+    store
+        .write_segment_with_expiry(&mut Cursor::new(&body), 0, 1)
+        .unwrap();
+    store.write_segment(&mut Cursor::new(b"live")).unwrap();
+    let key = copy_of_store_key(&store);
+    let rows = keyed_rows(&store);
+    assert_eq!(rows.len(), 2);
+
+    assert_eq!(store.crypto_shred_expired().unwrap().segments_shredded, 1);
+
+    let left = leftovers_in_raw_pages(&store, &key, &[&rows[0]]);
+    assert_eq!(
+        (left.whole, left.middle),
+        (0, 0),
+        "a database file holds the wrapped key of the shredded segment at {:?}",
+        left.places
+    );
+    assert_eq!(
+        leftovers_in_raw_pages(&store, &key, &[&rows[1]]).whole,
+        1,
+        "the page reader does not see the live wrapped key"
+    );
+    assert!(!dir.path().join("store.db-journal").exists());
+}
+
+#[test]
+fn an_open_store_draws_its_random_bytes_from_the_os_entropy_hook_of_the_pinned_cipher() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = super::db::test_support::make_store(dir.path());
+    assert!(
+        halvo_sqlcipher::os_entropy_hook_installed(),
+        "LibTomCrypt's random source is not the OS entropy hook"
+    );
+    assert_eq!(store.db().unwrap().cipher_provider().unwrap(), "libtomcrypt");
+}
+
+#[test]
 fn a_shredded_wrapped_key_is_gone_from_the_raw_database_pages() {
     const SEGMENTS: usize = 1200;
     let dir = tempfile::tempdir().unwrap();

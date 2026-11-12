@@ -251,14 +251,15 @@ impl Db {
         conn.execute_batch(
             "PRAGMA secure_delete = ON;\n\
              PRAGMA temp_store = MEMORY;\n\
-             PRAGMA journal_mode = WAL;\n\
              PRAGMA foreign_keys = ON;\n\
              PRAGMA checkpoint_fullfsync = ON;",
         )
         .map_err(db_error)?;
+        require_write_ahead_log(&conn)?;
         require_secure_delete(&conn)?;
         require_exclusive_locking(&conn)?;
         require_checkpoint_fullfsync(&conn)?;
+        require_pinned_cipher(&conn)?;
         let db = Self {
             conn,
             wal_path: path.with_extension("db-wal"),
@@ -496,9 +497,47 @@ fn require_secure_delete(conn: &Connection) -> StoreResult<()> {
     }
 }
 
+fn require_write_ahead_log(conn: &Connection) -> StoreResult<()> {
+    let mode: String = conn
+        .query_row("PRAGMA journal_mode = WAL;", [], |r| r.get(0))
+        .map_err(db_error)?;
+    if mode == "wal" {
+        Ok(())
+    } else {
+        Err(StoreError::SettingNotInEffect("journal_mode"))
+    }
+}
+
+const CIPHER_PROVIDER: &str = "libtomcrypt";
+const CIPHER_VERSION: &str = "4.19.0";
+
+fn require_pinned_cipher(conn: &Connection) -> StoreResult<()> {
+    let text = |pragma: &str| -> StoreResult<String> {
+        conn.query_row(pragma, [], |r| r.get(0)).map_err(db_error)
+    };
+    cipher_in_effect(
+        &text("PRAGMA cipher_provider")?,
+        &text("PRAGMA cipher_version")?,
+        halvo_sqlcipher::os_entropy_hook_installed(),
+    )
+}
+
+fn cipher_in_effect(provider: &str, version: &str, os_entropy_hook: bool) -> StoreResult<()> {
+    if provider != CIPHER_PROVIDER {
+        return Err(StoreError::SettingNotInEffect("cipher_provider"));
+    }
+    if version.split_whitespace().next() != Some(CIPHER_VERSION) {
+        return Err(StoreError::SettingNotInEffect("cipher_version"));
+    }
+    if !os_entropy_hook {
+        return Err(StoreError::SettingNotInEffect("os_entropy_hook"));
+    }
+    Ok(())
+}
+
 fn require_exclusive_locking(conn: &Connection) -> StoreResult<()> {
     let mode: String = conn
-        .query_row("PRAGMA locking_mode", [], |r| r.get(0))
+        .query_row("PRAGMA main.locking_mode", [], |r| r.get(0))
         .map_err(db_error)?;
     if mode == "exclusive" {
         Ok(())
@@ -1012,6 +1051,44 @@ mod tests {
         assert_eq!(db.pragma_int("temp_store").unwrap(), 2);
         assert_eq!(db.fts_secure_delete().unwrap(), 1);
         assert_eq!(db.pragma_int("checkpoint_fullfsync").unwrap(), 1);
+        let text = |pragma: &str| -> String {
+            db.connection()
+                .query_row(pragma, [], |r| r.get(0))
+                .unwrap()
+        };
+        assert_eq!(text("PRAGMA journal_mode"), "wal");
+        assert_eq!(text("PRAGMA main.locking_mode"), "exclusive");
+        assert_eq!(db.cipher_provider().unwrap(), "libtomcrypt");
+        assert!(
+            text("PRAGMA cipher_version").starts_with("4.19.0"),
+            "{}",
+            text("PRAGMA cipher_version")
+        );
+        assert!(
+            halvo_sqlcipher::os_entropy_hook_installed(),
+            "LibTomCrypt's random source is not the OS entropy hook"
+        );
+    }
+
+    #[test]
+    fn a_cipher_other_than_the_pinned_one_is_refused() {
+        let cases = [
+            ("libtomcrypt", "4.19.0 community", true, None),
+            ("openssl", "4.19.0 community", true, Some("cipher_provider")),
+            ("libtomcrypt", "4.6.1 community", true, Some("cipher_version")),
+            ("libtomcrypt", "4.19.01 community", true, Some("cipher_version")),
+            ("libtomcrypt", "4.19.0 community", false, Some("os_entropy_hook")),
+        ];
+        for (provider, version, hook, refused) in cases {
+            let answer = cipher_in_effect(provider, version, hook);
+            match refused {
+                None => assert!(answer.is_ok(), "{provider} {version} {hook}: {answer:?}"),
+                Some(name) => assert!(
+                    matches!(answer, Err(StoreError::SettingNotInEffect(n)) if n == name),
+                    "{provider} {version} {hook}: {answer:?}"
+                ),
+            }
+        }
     }
 
     fn persistent_store(dir: &Path) -> (EncryptedStore, RootId) {
