@@ -286,7 +286,7 @@ self_test() {
   ref=refs/heads/main
   check real-runner-rows-and-count PASS "PASS $name" '' "row mutation:gamma-gone PASS * s${nl}row mutation:alpha-gone PASS N s${nl}row mutation:beta-gone PASS * s${nl}ran 3 of 4 rows"
   real_runner real-runner-first-row-only
-  sed 's/^budget_s=.*/budget_s=0/' "$0" >"$work/real-runner-first-row-only/30-mutants.sh" || exit 2
+  sed 's/^budget_s=.*/budget_s=1/' "$0" >"$work/real-runner-first-row-only/30-mutants.sh" || exit 2
   script=$work/real-runner-first-row-only/30-mutants.sh
   ref=refs/heads/main
   sha=$commit3

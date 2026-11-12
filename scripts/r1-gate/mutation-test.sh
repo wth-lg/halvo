@@ -382,6 +382,20 @@ fixture_in_order() {
   return 1
 }
 
+seconds_lines() {
+  out=$(fixture_run "$1" yes)
+  printf '%s\n' "$out" | awk -v want="$2" '/^seconds mutation:/ { names = names " " substr($2, 10) } END { exit names != want }'
+}
+
+seconds_own() {
+  own_start=$(date +%s)
+  out=$(fixture_run "$1" no)
+  own_end=$(date +%s)
+  printf '%s\n' "$out" | awk -v wall="$((own_end - own_start))" '
+    /^seconds mutation:/ { k++; if ($3 < 1) low = 1; if ($3 > max) max = $3 }
+    END { exit !(k == 3 && !low && max <= wall - 3) }'
+}
+
 fixture_once() {
   out=$(fixture_run "$1" yes)
   printf '%s\n' "$out" | awk -v line="$2" 'index($0, line) == 1 { n++ } END { exit n != 1 }'
@@ -471,6 +485,9 @@ cases() {
   row slow/scripts/r1-gate/mutants.rows first b.sh 's/two/three/' 'test selftest:demo/c1' required X-1
   row slow/scripts/r1-gate/mutants.rows second b.sh 's/echo two/echo three/' 'test selftest:demo/c1' required X-1
   row slow/scripts/r1-gate/mutants.rows third b.sh 's/o two/o three/' 'test selftest:demo/c1' required X-1
+  t budget-times-every-started-row-once PASS with_budget 600 with_only 'first second third' seconds_lines slow ' first second third'
+  t budget-times-a-row-that-was-not-started FAIL with_budget 600 with_only 'first second' seconds_lines slow ' first second third'
+  t budget-seconds-are-each-row-s-own PASS with_budget 600 with_only 'first second third' seconds_own slow
   t budget-counts-from-the-first-row PASS with_budget 4 with_only 'first second third' fixture_says slow 'NOT-RUN mutation:third (the budget of 4 s is used)'
   fixture_tree defective
   row defective/scripts/r1-gate/mutants.rows good b.sh 's/two/three/' leak required X-1
