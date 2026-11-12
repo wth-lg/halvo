@@ -444,8 +444,6 @@ fn final_path(data_dir: &DataDir) -> String {
 
 #[cfg(target_os = "macos")]
 pub fn socket_path(data_dir: &DataDir, account: &dyn AccountLookup) -> Result<PathBuf, PathError> {
-    use std::os::unix::fs::MetadataExt;
-
     let primary = data_dir.control_socket();
     if primary.as_os_str().len() < SOCKET_PATH_MAX_BYTES {
         return Ok(primary);
@@ -456,7 +454,7 @@ pub fn socket_path(data_dir: &DataDir, account: &dyn AccountLookup) -> Result<Pa
     let temp = temp.path();
     let meta = std::fs::metadata(temp).map_err(|_| PathError::SocketPathTooLong)?;
     let uid = unsafe { libc::geteuid() };
-    if !meta.is_dir() || meta.uid() != uid || meta.mode() & 0o777 != 0o700 {
+    if !is_a_private_dir_of(&meta, uid) {
         return Err(PathError::SocketPathTooLong);
     }
     let fallback = temp
@@ -467,6 +465,15 @@ pub fn socket_path(data_dir: &DataDir, account: &dyn AccountLookup) -> Result<Pa
         return Err(PathError::SocketPathTooLong);
     }
     Ok(fallback)
+}
+
+/// Whether `meta` is a directory that `uid` owns with mode 0700, the only temporary
+/// directory that may hold the fallback socket.
+#[cfg(target_os = "macos")]
+fn is_a_private_dir_of(meta: &std::fs::Metadata, uid: u32) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    meta.is_dir() && meta.uid() == uid && meta.mode() & 0o777 == 0o700
 }
 
 fn is_darwin_user_temp_dir(path: &Path) -> bool {
@@ -1471,6 +1478,37 @@ mod tests {
             socket_path(&long, &account),
             Err(PathError::SocketPathTooLong)
         );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_private_dir_is_a_directory_that_the_user_owns_with_mode_0700() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+        let root = tempfile::tempdir().unwrap();
+        let made = |name: &str, dir: bool, mode: u32| {
+            let path = root.path().join(name);
+            if dir {
+                std::fs::create_dir(&path).unwrap();
+            } else {
+                std::fs::write(&path, "x").unwrap();
+            }
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).unwrap();
+            std::fs::metadata(&path).unwrap()
+        };
+        let private = made("private", true, 0o700);
+        let me = private.uid();
+        assert!(is_a_private_dir_of(&private, me));
+        assert!(is_a_private_dir_of(&made("sticky", true, 0o1700), me));
+        assert!(!is_a_private_dir_of(&private, me + 1), "another owner");
+        assert!(
+            !is_a_private_dir_of(&made("file", false, 0o700), me),
+            "a file"
+        );
+        for mode in [0o755, 0o770, 0o701, 0o600, 0o500] {
+            let open = made(&format!("mode-{mode:o}"), true, mode);
+            assert!(!is_a_private_dir_of(&open, me), "mode {mode:o}");
+        }
     }
 
     #[cfg(target_os = "macos")]

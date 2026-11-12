@@ -176,8 +176,6 @@ pub fn login_item_state(
     spec: &LoginItemSpec,
     dir: &crate::paths::LoginItemDir,
 ) -> std::io::Result<LoginItemState> {
-    use std::os::unix::fs::MetadataExt;
-
     let path = login_item_path(spec, dir);
     let meta = match std::fs::symlink_metadata(&path) {
         Ok(meta) => meta,
@@ -185,7 +183,7 @@ pub fn login_item_state(
         Err(e) => return Err(e),
     };
     let owner = unsafe { libc::geteuid() };
-    if !meta.is_file() || meta.mode() & 0o7777 != 0o644 || meta.uid() != owner {
+    if !is_the_plist_of(&meta, owner) {
         return Ok(LoginItemState::Stale);
     }
     if std::fs::read(&path)? == spec.plist().as_bytes() {
@@ -193,6 +191,15 @@ pub fn login_item_state(
     } else {
         Ok(LoginItemState::Stale)
     }
+}
+
+/// Whether `meta`, read without following a link, is a regular file with mode 0644 that
+/// `owner` owns, the only file whose bytes `login_item_state` compares.
+#[cfg(target_os = "macos")]
+fn is_the_plist_of(meta: &std::fs::Metadata, owner: u32) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    meta.is_file() && meta.mode() & 0o7777 == 0o644 && meta.uid() == owner
 }
 
 #[cfg(target_os = "macos")]
@@ -817,6 +824,35 @@ mod login_item_tests {
         let path = login_item_path(&other, &dir);
         assert_eq!(std::fs::read_to_string(path).unwrap(), LOGIN_ITEM_PLIST);
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn the_plist_is_a_regular_file_that_the_user_owns_with_mode_0644() {
+        let root = tempfile::tempdir().unwrap();
+        let made = |name: &str, mode: u32| {
+            let path = root.path().join(name);
+            std::fs::write(&path, LOGIN_ITEM_PLIST).unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).unwrap();
+            std::fs::symlink_metadata(&path).unwrap()
+        };
+        let plist = made("plist", 0o644);
+        let me = plist.uid();
+        assert!(is_the_plist_of(&plist, me));
+        assert!(!is_the_plist_of(&plist, me + 1), "another owner");
+        for mode in [0o664, 0o640, 0o600, 0o444, 0o755, 0o4644] {
+            let other = made(&format!("mode-{mode:o}"), mode);
+            assert!(!is_the_plist_of(&other, me), "mode {mode:o}");
+        }
+        let dir = root.path().join("dir");
+        std::fs::create_dir(&dir).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let dir_meta = std::fs::symlink_metadata(&dir).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(!is_the_plist_of(&dir_meta, me), "a directory");
+        let link = root.path().join("link");
+        std::os::unix::fs::symlink(root.path().join("plist"), &link).unwrap();
+        let link_meta = std::fs::symlink_metadata(&link).unwrap();
+        assert!(!is_the_plist_of(&link_meta, me), "a link");
     }
 
     #[test]
