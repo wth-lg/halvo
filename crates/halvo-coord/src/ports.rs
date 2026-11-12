@@ -3,8 +3,8 @@
 //! port and a port can call another while it runs, as `Runs::answer_confirm` calls `record`.
 
 use crate::types::{
-    Agent, AgentId, Answer, Body, ConfigView, Decision, Event, HandbackResult, Name, Reply, RunId,
-    RunSpec, Workflow,
+    Agent, AgentId, Answer, Body, ConfigView, Decision, Event, HandbackResult, Name, Reply,
+    RunHistory, RunId, RunSpec, Workflow, WorkflowId,
 };
 
 /// Why a port call did not do its work (I5.10). The coordinator answers a command with `busy`
@@ -37,6 +37,18 @@ pub trait Owner {
     fn agents(&self) -> Result<Vec<Agent<Self::Config>>, PortError>;
     /// Sends a body of A-A7.2 and gives its reply.
     fn send(&self, body: &Body) -> Result<Reply, PortError>;
+    /// The agent's last `runs` runs, newest first, each with its effects, as the reply of the
+    /// body `agent_history` gives them (I6.1, I2.6, ruling RD-10). An owner that does not read
+    /// them answers `no_service`, which is the answer of this default.
+    fn agent_history(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        runs: u32,
+    ) -> Result<Vec<RunHistory>, PortError> {
+        let _ = (workflow, agent, runs);
+        Err(PortError::NoService)
+    }
 }
 
 /// The runners of the agent-setup run, through its supervisor library.

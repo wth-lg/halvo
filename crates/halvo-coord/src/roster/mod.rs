@@ -5,8 +5,9 @@
 use crate::items::ConfirmState;
 use crate::schedule::{holds, next_slot, Hold};
 use crate::types::{
-    CardLine, Cause, ConfigView, Control, ControlText, Doing, Facts, FullWorkflow, ItemKind,
-    Limits, LineKey, LivePhase, Permission, Row, RunEnd, Runtime, StatusLine, Tier, What,
+    AgentId, Card, CardLine, CardRun, Cause, ConfigView, Control, ControlText, Doing, Facts,
+    FullWorkflow, ItemKind, Limits, LineKey, LivePhase, Permission, Row, RunEnd, RunHistory,
+    Runtime, StatusLine, Tier, What,
 };
 use crate::words;
 
@@ -259,4 +260,32 @@ pub fn order(rows: &mut [Placed]) {
             .then_with(|| a.row.name.as_bytes().cmp(b.row.name.as_bytes()))
             .then_with(|| a.row.agent.cmp(&b.row.agent))
     });
+}
+
+/// The card of an agent (I2.6): its settings lines and the first `history_runs` runs of
+/// `history`, which `Owner::agent_history` gives newest first, each with its day and the
+/// sentence of `line.run.<end>`.
+pub fn card<C: ConfigView>(
+    agent: &AgentId,
+    config: &C,
+    name: &str,
+    history: &[RunHistory],
+    limits: &Limits,
+) -> Result<Card, Cause> {
+    Ok(Card {
+        agent: agent.clone(),
+        name: name.to_owned(),
+        lines: lines(config),
+        runs: history
+            .iter()
+            .take(limits.history_runs as usize)
+            .map(|h| {
+                let end = RunEnd::from(h.run.outcome);
+                text(&format!("line.run.{}", end.name()), &[]).map(|text| CardRun {
+                    day: words::day(h.run.day),
+                    text,
+                })
+            })
+            .collect::<Result<_, _>>()?,
+    })
 }
