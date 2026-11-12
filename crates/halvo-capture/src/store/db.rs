@@ -1261,6 +1261,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "a measure of contention, 1,000,000 takes of the lock while another thread unlinks the file every 1 ms, 30 to 50 s on a Mac; the seam tests of the retry run by default; run it by hand when the code of WriterLock changes: cargo test -p halvo-capture --lib -- --ignored --exact store::db::tests::a_take_of_the_writer_lock_never_answers_not_found_while_another_thread_unlinks_the_file --nocapture"]
     fn a_take_of_the_writer_lock_never_answers_not_found_while_another_thread_unlinks_the_file() {
         use std::sync::atomic::{AtomicU64, Ordering};
         use std::sync::Arc;

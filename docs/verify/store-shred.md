@@ -1050,7 +1050,13 @@ unlinks the file every 1 ms. Without the retry 7 takes answered
 `Io(NotFound)`, the first at take 182,838; with it, none. Check 2 alone:
 4 failed runs in 376 before the fix, none in 300 after it, at a 1-minute
 load of 41 to 95. That test asserts only what every run shows: no take
-fails. Since ruling ST-24 the retry is decided by a seam and draws nothing
+fails. Since ruling ST-24 (b) it is ignored in the default run, because it
+costs 30 to 50 s and decides nothing that the seam tests below do not. Run
+it by hand when the code of `WriterLock` changes:
+`cargo test -p halvo-capture --lib -- --ignored --exact store::db::tests::a_take_of_the_writer_lock_never_answers_not_found_while_another_thread_unlinks_the_file --nocapture`.
+Its last run, at the commit that ignored it, on this Mac at a 1-minute load
+of 98 to 107: 1,000,000 takes, 14,469 unlinks, no take that answered
+`Io(NotFound)` and no other error, in 43.5 s. Since ruling ST-24 the retry is decided by a seam and draws nothing
 from the system: `WriterLock::take` opens the file through
 `WriterLock::take_with`, which takes the opener as a parameter, and a test
 passes an opener whose first k opens answer "no such file".
