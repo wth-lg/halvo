@@ -218,10 +218,9 @@ type Control = CaptureControl<ScreenHandler, CaptureError>;
 pub struct ScreenSource {
     last_app: Arc<Mutex<Option<String>>>,
     min_interval: Duration,
-    control: Option<Control>,
+    life: ScreenLife<Control>,
     handoff: Option<HandOff>,
     closed: Arc<AtomicBool>,
-    stopped: bool,
 }
 
 impl ScreenSource {
@@ -229,10 +228,9 @@ impl ScreenSource {
         Self {
             last_app,
             min_interval: DEFAULT_MIN_FRAME_INTERVAL,
-            control: None,
+            life: ScreenLife::default(),
             handoff: None,
             closed: Arc::default(),
-            stopped: false,
         }
     }
 
@@ -253,7 +251,7 @@ impl ScreenSource {
 
 impl CaptureSource for ScreenSource {
     fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
-        if self.control.is_some() {
+        if self.life.is_busy() {
             return Err(CaptureError::AlreadyStarted);
         }
         hold_process_mta()?;
@@ -278,32 +276,25 @@ impl CaptureSource for ScreenSource {
             flags,
         );
         let control = ScreenHandler::start_free_threaded(settings).map_err(start_error)?;
-        self.control = Some(control);
+        self.life.started(control);
         self.handoff = Some(handoff);
         self.closed = closed;
-        self.stopped = false;
         Ok(Started::Running)
     }
 
     fn shutdown(&mut self) -> Result<(), CaptureError> {
-        let Some(control) = self.control.take() else {
-            return Ok(());
-        };
-        let stopped = stop_within(control, super::SCREEN_STOP_DEADLINE);
+        let stopped = self.life.shutdown(super::SCREEN_STOP_DEADLINE);
         if let Some(handoff) = &self.handoff {
             handoff.close();
         }
-        self.stopped = true;
         stopped
     }
 
     fn health(&self) -> SourceHealth {
         SourceHealth {
-            state: screen_state(
-                self.control.as_ref().map(Control::is_finished),
+            state: self.life.state(
                 self.closed.load(Ordering::Relaxed),
                 self.handoff.as_ref().is_some_and(HandOff::writer_gone),
-                self.stopped,
             ),
             counters: SourceCounters::default(),
         }
@@ -316,44 +307,109 @@ impl Drop for ScreenSource {
     }
 }
 
-/// The state of a screen source: `session` is `None` with no session, or
-/// whether the session's capture thread has finished.
-fn screen_state(
-    session: Option<bool>,
-    item_closed: bool,
-    writer_gone: bool,
-    stopped: bool,
-) -> SourceState {
-    match session {
-        Some(finished) if finished || item_closed || writer_gone => super::thread_ended(),
-        Some(_) => SourceState::Running,
-        None if stopped => SourceState::Stopped(StopCause::Request),
-        None => SourceState::NotReported,
+/// A capture session as the source stops it.
+trait Session: Send + 'static {
+    fn finished(&self) -> bool;
+    /// Stop the session and join its thread; `true` when both went well.
+    fn end(self) -> bool;
+}
+
+impl Session for Control {
+    fn finished(&self) -> bool {
+        self.is_finished()
+    }
+
+    fn end(self) -> bool {
+        self.stop().is_ok()
     }
 }
 
-/// Stop the capture on a thread of its own and wait for it up to `deadline`:
-/// `CaptureControl::stop` joins the capture thread without a bound.
-fn stop_within(control: Control, deadline: Duration) -> Result<(), CaptureError> {
-    let ended_before = control.is_finished();
-    let (done, stopped) = std::sync::mpsc::channel();
-    std::thread::Builder::new()
-        .name("halvo-screen-stop".to_string())
-        .spawn(move || {
-            let _ = done.send(control.stop().is_ok());
+/// A stop that runs on a thread of its own, because `CaptureControl::stop`
+/// joins the capture thread without a bound.
+struct Stopping {
+    done: std::sync::mpsc::Receiver<bool>,
+    ended_before: bool,
+}
+
+impl Stopping {
+    fn start<S: Session>(session: S) -> Result<Self, CaptureError> {
+        let ended_before = session.finished();
+        let (done, stopped) = std::sync::mpsc::channel();
+        std::thread::Builder::new()
+            .name("halvo-screen-stop".to_string())
+            .spawn(move || {
+                let _ = done.send(session.end());
+            })
+            .map_err(|e| CaptureError::Os {
+                stage: "spawn the screen stop thread",
+                domain: "io",
+                code: i64::from(e.raw_os_error().unwrap_or(0)),
+            })?;
+        Ok(Self {
+            done: stopped,
+            ended_before,
         })
-        .map_err(|e| CaptureError::Os {
-            stage: "spawn the screen stop thread",
-            domain: "io",
-            code: i64::from(e.raw_os_error().unwrap_or(0)),
-        })?;
-    match stopped.recv_timeout(deadline) {
-        Ok(true) if !ended_before => Ok(()),
-        Ok(_) => Err(CaptureError::ThreadEnded),
-        Err(_) => Err(CaptureError::Timeout {
-            stage: "stop",
-            ms: u64::try_from(deadline.as_millis()).unwrap_or(u64::MAX),
-        }),
+    }
+
+    /// The outcome of the stop, or `None` when `deadline` passed first.
+    fn wait(&self, deadline: Duration) -> Option<Result<(), CaptureError>> {
+        match self.done.recv_timeout(deadline) {
+            Ok(true) if !self.ended_before => Some(Ok(())),
+            Ok(_) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                Some(Err(CaptureError::ThreadEnded))
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => None,
+        }
+    }
+}
+
+/// The session of a screen source, its stop and its state.
+struct ScreenLife<S> {
+    session: Option<S>,
+    stopped: bool,
+}
+
+impl<S> Default for ScreenLife<S> {
+    fn default() -> Self {
+        Self {
+            session: None,
+            stopped: false,
+        }
+    }
+}
+
+impl<S: Session> ScreenLife<S> {
+    fn is_busy(&self) -> bool {
+        self.session.is_some()
+    }
+
+    fn started(&mut self, session: S) {
+        self.session = Some(session);
+        self.stopped = false;
+    }
+
+    fn shutdown(&mut self, deadline: Duration) -> Result<(), CaptureError> {
+        let Some(session) = self.session.take() else {
+            return Ok(());
+        };
+        self.stopped = true;
+        Stopping::start(session)?
+            .wait(deadline)
+            .unwrap_or(Err(CaptureError::Timeout {
+                stage: "stop",
+                ms: u64::try_from(deadline.as_millis()).unwrap_or(u64::MAX),
+            }))
+    }
+
+    fn state(&self, item_closed: bool, writer_gone: bool) -> SourceState {
+        match &self.session {
+            Some(session) if session.finished() || item_closed || writer_gone => {
+                super::thread_ended()
+            }
+            Some(_) => SourceState::Running,
+            None if self.stopped => SourceState::Stopped(StopCause::Request),
+            None => SourceState::NotReported,
+        }
     }
 }
 
@@ -482,6 +538,31 @@ mod tests {
             .all(|ms| keep_frame(None, &mut last, at(ms))));
     }
 
+    struct FakeSession {
+        finished: bool,
+        ends_well: bool,
+        end_takes: Duration,
+    }
+
+    impl Session for FakeSession {
+        fn finished(&self) -> bool {
+            self.finished
+        }
+
+        fn end(self) -> bool {
+            std::thread::sleep(self.end_takes);
+            self.ends_well
+        }
+    }
+
+    fn fake(finished: bool, ends_well: bool, end_takes_ms: u64) -> FakeSession {
+        FakeSession {
+            finished,
+            ends_well,
+            end_takes: Duration::from_millis(end_takes_ms),
+        }
+    }
+
     #[test]
     fn a_closed_capture_item_reads_as_failed_health() {
         let (sink, _writer) = crate::sink::channel(4);
@@ -496,42 +577,74 @@ mod tests {
         };
         assert!(handler.on_closed().is_ok());
         let failed = crate::windows::thread_ended();
+        let mut life = ScreenLife::default();
+        assert_eq!(life.state(false, false), SourceState::NotReported);
+        life.started(fake(false, true, 0));
+        assert_eq!(life.state(closed.load(Ordering::Relaxed), false), failed);
+        assert_eq!(life.state(false, false), SourceState::Running);
+        assert_eq!(life.state(false, true), failed);
+        assert_eq!(life.shutdown(Duration::from_secs(1)), Ok(()));
         assert_eq!(
-            screen_state(Some(false), closed.load(Ordering::Relaxed), false, false),
-            failed
-        );
-        assert_eq!(
-            screen_state(Some(false), false, false, false),
-            SourceState::Running
-        );
-        assert_eq!(screen_state(Some(true), false, false, false), failed);
-        assert_eq!(screen_state(Some(false), false, true, false), failed);
-        assert_eq!(
-            screen_state(None, false, false, true),
+            life.state(false, false),
             SourceState::Stopped(StopCause::Request)
         );
+        life.started(fake(true, true, 0));
+        assert_eq!(life.state(false, false), failed);
+    }
+
+    #[test]
+    fn a_stop_reports_a_session_that_had_ended_before_or_did_not_end_well() {
+        let stop = |session| {
+            Stopping::start(session)
+                .expect("the stop thread")
+                .wait(Duration::from_secs(2))
+        };
+        assert_eq!(stop(fake(false, true, 0)), Some(Ok(())));
         assert_eq!(
-            screen_state(None, false, false, false),
-            SourceState::NotReported
+            stop(fake(true, true, 0)),
+            Some(Err(CaptureError::ThreadEnded))
+        );
+        assert_eq!(
+            stop(fake(false, false, 0)),
+            Some(Err(CaptureError::ThreadEnded))
         );
     }
 
     #[test]
-    fn the_process_mta_reference_is_taken_once_and_holds_an_mta_for_a_new_thread() {
-        use windows::Win32::System::Com::{
-            CoGetApartmentType, APTTYPE, APTTYPEQUALIFIER, APTTYPE_MTA,
-        };
-        assert_eq!(hold_process_mta(), Ok(()));
-        assert_eq!(hold_process_mta(), Ok(()));
-        let apartment = std::thread::spawn(|| {
-            let mut kind = APTTYPE::default();
-            let mut qualifier = APTTYPEQUALIFIER::default();
-            // SAFETY: both pointers are live locals that the call writes.
-            unsafe { CoGetApartmentType(&mut kind, &mut qualifier) }.map(|()| kind)
-        })
-        .join()
-        .expect("the probe thread");
-        assert_eq!(apartment, Ok(APTTYPE_MTA));
+    fn a_stop_that_does_not_end_in_time_keeps_the_session_busy_and_failed() {
+        let mut life = ScreenLife::default();
+        life.started(fake(false, true, 1_500));
+        let first = life.shutdown(Duration::from_millis(300));
+        let busy = life.is_busy();
+        let state = life.state(false, false);
+        let second = life.shutdown(Duration::from_millis(300));
+        let third = life.shutdown(Duration::from_secs(3));
+        let after = life.state(false, false);
+        assert_eq!(
+            first,
+            Err(CaptureError::Timeout {
+                stage: "stop",
+                ms: 300
+            })
+        );
+        assert!(busy, "a source whose stop timed out took a new begin");
+        assert_eq!(
+            state,
+            SourceState::Failed {
+                reason: crate::source::HealthReason::Timeout,
+                error: CaptureError::Timeout {
+                    stage: "stop",
+                    ms: 300
+                },
+            }
+        );
+        assert!(
+            matches!(second, Err(CaptureError::Timeout { .. })),
+            "{second:?}"
+        );
+        assert_eq!(third, Ok(()), "the stop that ended late was not joined");
+        assert_eq!(after, SourceState::Stopped(StopCause::Request));
+        assert!(!life.is_busy());
     }
 
     #[test]

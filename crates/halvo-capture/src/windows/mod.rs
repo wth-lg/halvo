@@ -867,6 +867,120 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn a_stop_that_timed_out_keeps_the_pump_known_until_it_ends() {
+        let (sink, _writer) = crate::sink::channel(4);
+        let mut life = Lifecycle::default();
+        let alive = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let body_alive = Arc::clone(&alive);
+        let started = life.begin(
+            &SourceContext::new(sink.clone()),
+            "halvo-test-forward",
+            move |_| {
+                spawn_pump("halvo-pump-stuck".to_string(), move |ready, _signal| {
+                    ready.report(Ok(()));
+                    std::thread::sleep(INPUT_STOP_DEADLINE * 3);
+                    body_alive.store(false, std::sync::atomic::Ordering::SeqCst);
+                })
+            },
+        );
+        assert_eq!(started, Ok(Started::Running));
+        let timeout = CaptureError::Timeout {
+            stage: "stop",
+            ms: 1_000,
+        };
+        let first = life.shutdown();
+        let state = life.health(SourceCounters::default()).state;
+        let second = life.begin(&SourceContext::new(sink), "halvo-test-forward-2", |_| {
+            spawn_pump("halvo-pump-second".to_string(), |ready, signal| {
+                ensure_message_queue();
+                ready.report(Ok(()));
+                pump_messages(&signal);
+            })
+        });
+        let still_alive = alive.load(std::sync::atomic::Ordering::SeqCst);
+        wait_until("the stuck pump did not end", || {
+            !alive.load(std::sync::atomic::Ordering::SeqCst)
+        });
+        let late = life.shutdown();
+        assert!(still_alive, "the stuck pump ended before the checks");
+        assert_eq!(first, Err(timeout.clone()));
+        assert_eq!(
+            state,
+            SourceState::Failed {
+                reason: HealthReason::Timeout,
+                error: timeout,
+            }
+        );
+        assert_eq!(second, Err(CaptureError::AlreadyStarted));
+        assert_eq!(late, Ok(()), "the pump that ended late was not joined");
+        assert_eq!(
+            life.health(SourceCounters::default()).state,
+            SourceState::Stopped(StopCause::Request)
+        );
+    }
+
+    #[test]
+    fn a_motion_sample_made_before_a_button_reaches_the_sink_before_it() {
+        let (sink, writer) = crate::sink::channel(16);
+        let handoff = HandOff::start(sink, "halvo-test-forward").expect("hand-off");
+        let producer = handoff.producer();
+        producer.push_motion(pointer("motion-0"));
+        let first = writer
+            .recv_timeout(Duration::from_secs(2))
+            .expect("the first motion sample is sent");
+        assert_eq!(first.event().foreground_app, "motion-0");
+        producer.push_motion(pointer("motion-1"));
+        std::thread::sleep(Duration::from_millis(20));
+        producer.push(pointer("button"));
+        let mut order = Vec::new();
+        for _ in 0..2 {
+            let received = writer
+                .recv_timeout(Duration::from_secs(2))
+                .expect("both packets reach the sink");
+            order.push(received.event().foreground_app.clone());
+        }
+        assert_eq!(order, ["motion-1", "button"]);
+    }
+
+    #[test]
+    fn packets_that_a_stopped_run_still_held_count_after_a_restart() {
+        let (sink, writer) = crate::sink::channel(1);
+        assert!(forward_one(&sink, pointer("filler")).is_ok());
+        let ctx = SourceContext::new(sink.clone());
+        let quiet_pump = || {
+            spawn_pump("halvo-pump-quiet".to_string(), |ready, signal| {
+                ensure_message_queue();
+                ready.report(Ok(()));
+                pump_messages(&signal);
+            })
+        };
+        let mut life = Lifecycle::default();
+        life.begin(&ctx, "halvo-test-forward-1", |producer| {
+            for _ in 0..5 {
+                producer.push(pointer("button"));
+            }
+            quiet_pump()
+        })
+        .expect("the first run");
+        wait_until("the forwarder took no packet", || {
+            life.handoff.as_ref().is_some_and(|h| h.queued() == 4)
+        });
+        assert_eq!(life.shutdown(), Ok(()));
+        life.begin(&ctx, "halvo-test-forward-2", |_| quiet_pump())
+            .expect("the second run");
+        drop(writer);
+        wait_until("the blocked emit was not refused", || {
+            sink.counts().of(Modality::Pointer).refused >= 1
+        });
+        wait_until("the old forwarder did not count what it held", || {
+            life.handoff_counts().lost >= 4
+        });
+        assert_eq!(sink.counts().of(Modality::Pointer).refused, 1);
+        assert_eq!(life.handoff_counts().lost, 4);
+        let _ = life.shutdown();
+    }
+
+    #[test]
     fn an_event_carries_the_time_of_its_os_event() {
         let (sink, writer) = crate::sink::channel(4);
         let before = std::time::SystemTime::now();
