@@ -13,4 +13,3 @@
           - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"You switched it off, so it does not start."}
           - {"name":"Switch on","role":"button"}
-          - {"name":"Delete","role":"button"}

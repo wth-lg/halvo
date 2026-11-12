@@ -13,4 +13,3 @@
           - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"It needs you to say whether its last task went through."}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}

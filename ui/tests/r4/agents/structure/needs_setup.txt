@@ -13,4 +13,3 @@
           - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"It needs a few answers from you before it can start."}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}

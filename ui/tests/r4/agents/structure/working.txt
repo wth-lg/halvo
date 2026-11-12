@@ -14,4 +14,3 @@
           - {"role":"paragraph","text":"It is doing its task now."}
           - {"name":"Stop","role":"button"}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}

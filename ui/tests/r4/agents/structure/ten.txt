@@ -14,7 +14,6 @@
           - {"role":"paragraph","text":"Last time, it found nothing to do."}
           - {"name":"Start now","role":"button"}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}
         - {"role":"listitem"}
           - {"level":4,"name":"Ordering from a shop on Site7","role":"heading"}
             - {"name":"Ordering from a shop on Site7","role":"button"}
@@ -23,7 +22,6 @@
           - {"role":"paragraph","text":"Last time, it finished its task."}
           - {"name":"Start now","role":"button"}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}
         - {"role":"listitem"}
           - {"level":4,"name":"Paying a utility bill on Site1","role":"heading"}
             - {"name":"Paying a utility bill on Site1","role":"button"}
@@ -32,7 +30,6 @@
           - {"role":"paragraph","text":"Last time, it finished its task."}
           - {"name":"Start now","role":"button"}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}
         - {"role":"listitem"}
           - {"level":4,"name":"Tidying a calendar on Site8","role":"heading"}
             - {"name":"Tidying a calendar on Site8","role":"button"}
@@ -41,7 +38,6 @@
           - {"role":"paragraph","text":"Last time, it finished its task."}
           - {"name":"Start now","role":"button"}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}
         - {"role":"listitem"}
           - {"level":4,"name":"Writing or answering email on Site5","role":"heading"}
             - {"name":"Writing or answering email on Site5","role":"button"}
@@ -50,7 +46,6 @@
           - {"role":"paragraph","text":"Last time, it finished its task."}
           - {"name":"Start now","role":"button"}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}
     - {"name":"Not yet","role":"region"}
       - {"level":3,"name":"Not yet","role":"heading"}
       - {"role":"list"}
@@ -61,7 +56,6 @@
           - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"Halvo cannot do this kind of task yet."}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}
         - {"role":"listitem"}
           - {"level":4,"name":"Handling a tenant's rent on Site2","role":"heading"}
             - {"name":"Handling a tenant's rent on Site2","role":"button"}
@@ -69,7 +63,6 @@
           - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"Halvo cannot do this kind of task yet."}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}
         - {"role":"listitem"}
           - {"level":4,"name":"Ordering a ride on Site9","role":"heading"}
             - {"name":"Ordering a ride on Site9","role":"button"}
@@ -77,7 +70,6 @@
           - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"Halvo cannot do this kind of task yet."}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}
         - {"role":"listitem"}
           - {"level":4,"name":"Renewing or changing a lease on Site3","role":"heading"}
             - {"name":"Renewing or changing a lease on Site3","role":"button"}
@@ -85,7 +77,6 @@
           - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"Halvo cannot do this kind of task yet."}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}
         - {"role":"listitem"}
           - {"level":4,"name":"Reviewing a tenant application on Site4","role":"heading"}
             - {"name":"Reviewing a tenant application on Site4","role":"button"}
@@ -93,4 +84,3 @@
           - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"Halvo cannot do this kind of task yet."}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}

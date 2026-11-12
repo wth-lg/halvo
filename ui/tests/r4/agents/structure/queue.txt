@@ -14,7 +14,6 @@
           - {"role":"paragraph","text":"It is doing its task now."}
           - {"name":"Stop","role":"button"}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}
     - {"name":"Waiting its turn","role":"region"}
       - {"level":3,"name":"Waiting its turn","role":"heading"}
       - {"role":"list"}
@@ -25,7 +24,6 @@
           - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"Only one agent works at a time, so it starts when its turn comes."}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}
         - {"role":"listitem"}
           - {"level":4,"name":"Writing or answering email on Site5","role":"heading"}
             - {"name":"Writing or answering email on Site5","role":"button"}
@@ -33,4 +31,3 @@
           - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"Only one agent works at a time, so it starts when its turn comes."}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}

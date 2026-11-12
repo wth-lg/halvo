@@ -14,4 +14,3 @@
           - {"role":"paragraph","text":"It is stuck and needs your help with one step."}
           - {"name":"Stop","role":"button"}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}

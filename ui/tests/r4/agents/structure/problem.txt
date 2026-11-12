@@ -14,7 +14,6 @@
           - {"role":"paragraph","text":"Last time, it took too long, so Halvo stopped it."}
           - {"name":"Start now","role":"button"}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}
         - {"role":"listitem"}
           - {"level":4,"name":"Ordering from a shop on Site7","role":"heading"}
             - {"name":"Ordering from a shop on Site7","role":"button"}
@@ -23,4 +22,3 @@
           - {"role":"paragraph","text":"It failed several times in a row, so Halvo switched it off."}
           - {"name":"Start now","role":"button"}
           - {"name":"Switch on","role":"button"}
-          - {"name":"Delete","role":"button"}

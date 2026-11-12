@@ -14,4 +14,3 @@
           - {"role":"paragraph","text":"It is ready to start when you are."}
           - {"name":"Start now","role":"button"}
           - {"name":"Switch off","role":"button"}
-          - {"name":"Delete","role":"button"}

@@ -1,6 +1,6 @@
 (function () {
   var ORDER = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
-  var CONTROL = { run_now: true, stop: true, switch_off: true, switch_on: true, delete: true };
+  var CONTROL = { run_now: true, stop: true, switch_off: true, switch_on: true };
   var CSS = [
     '.r4a{overflow-wrap:anywhere}',
     '.r4a-group{margin-top:16px}',
@@ -100,11 +100,7 @@
     b.setAttribute('aria-describedby', 'r4a-name-' + row.agent);
     b.addEventListener('click', function (event) {
       if (event.detail > 1 || busy[row.agent]) return;
-      if (c.control === 'delete') {
-        send(row.agent, 'interface_decision', { decision: 'delete', workflow: row.workflow });
-      } else {
-        send(row.agent, 'agents_control', { agent: row.agent, action: c.control });
-      }
+      send(row.agent, 'agents_control', { agent: row.agent, action: c.control });
     });
     return b;
   }
@@ -159,6 +155,42 @@
     return box;
   }
 
+  function listOf(value, each) {
+    return Array.isArray(value) && value.every(each);
+  }
+
+  function isText(value) {
+    return typeof value === 'string';
+  }
+
+  function isCard(reply, agent) {
+    return (
+      reply !== null &&
+      typeof reply === 'object' &&
+      reply.agent === agent &&
+      isText(reply.name) &&
+      listOf(reply.lines, function (l) {
+        return l !== null && isText(l.text);
+      }) &&
+      listOf(reply.runs, function (run) {
+        return (
+          run !== null &&
+          isText(run.day) &&
+          isText(run.text) &&
+          listOf(run.effects, function (e) {
+            return (
+              e !== null &&
+              isText(e.text) &&
+              listOf(e.fields, function (f) {
+                return f !== null && isText(f.label) && isText(f.from_text) && listOf(f.value, isText);
+              })
+            );
+          })
+        );
+      })
+    );
+  }
+
   function toggle(row) {
     var open = card !== null && card.agent === row.agent;
     var b = button(open ? 'close_card' : 'open_card', row.agent, row.name);
@@ -178,7 +210,7 @@
       var mine = asking;
       var asked = turn;
       send(row.agent, 'agents_card', { agent: row.agent }).then(function (reply) {
-        if (mine !== asking || asked !== turn || !reply || reply.agent !== row.agent || !Array.isArray(reply.runs)) return;
+        if (mine !== asking || asked !== turn || !isCard(reply, row.agent)) return;
         card = reply;
         render();
       });
@@ -264,8 +296,8 @@
   function next(mine) {
     call('agents_next', { after: seq })
       .then(function (reply) {
-        if (mine !== turn || !shown || !reply || reply.closed === 'yes') return;
-        if (typeof reply.seq === 'number' && reply.seq > seq) take(reply);
+        if (mine !== turn || !shown || !reply || reply.closed === 'yes' || typeof reply.seq !== 'number') return;
+        if (reply.seq > seq) take(reply);
         next(mine);
       })
       .catch(function () {});
