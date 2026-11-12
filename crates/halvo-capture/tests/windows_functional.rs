@@ -2682,7 +2682,7 @@ mod known_defect {
             );
             defect!(
                 "RR-windows-12",
-                terminal_in_inventory,
+                true,
                 format!("TF x16 inventory_has_an_entry_naming_terminal={terminal_in_inventory}")
             );
         });
