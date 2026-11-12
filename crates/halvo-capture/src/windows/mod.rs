@@ -731,7 +731,7 @@ pub(crate) mod tests {
 
     #[test]
     fn the_age_of_an_event_is_read_across_the_wrap_of_the_tick_count() {
-        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000);
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(100 * 86_400);
         let at = |now_tick, event_tick| {
             now.duration_since(instant_from_age(now, now_tick, event_tick))
                 .expect("not after now")
