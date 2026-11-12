@@ -20,8 +20,8 @@ const CALL_OF = {
   capread: () => ({ kind: "capGet" }),
   restart: () => ({ kind: "restart" }),
 };
-const ENDS_A_HOLD_BY_TIME = (line, before) =>
-  Object.entries(line.s.holds).some(([id, hold]) => hold.state === "expired" && before.holds[id]?.state === "open");
+const ENDED_NOW = (line, before, test) => Object.entries(line.s.holds).some(([id, hold]) => test(hold) && before.holds[id]?.state === "open");
+const ENDS_A_HOLD_BY_TIME = (line, before) => ENDED_NOW(line, before, (hold) => hold.state === "expired" || hold.voidAtExpiry);
 const ELEMENTS = {
   admitted: (line) => line.k === "reserve" && line.ans.res === "admitted",
   "reserve-repeated": (line) => line.k === "reserve" && line.ans.res === "repeat",
@@ -57,6 +57,10 @@ const ELEMENTS = {
     line.s.cap !== null &&
     Object.values(line.s.holds).some((hold) => hold.state === "open" && hold.period < periodStartOf(line.s, was.lengths)),
   "clock-behind-the-stored-time": (line) => line.k === "back" && line.at < line.s.lastNow,
+  "voided-at-expiry-without-the-mark": (line, was) => ENDED_NOW(line, was.state, (hold) => hold.voidAtExpiry),
+  "expired-with-the-mark": (line, was) => ENDED_NOW(line, was.state, (hold) => hold.state === "expired" && hold.mark),
+  "call-after-a-void-at-expiry": (line) =>
+    (line.k === "settle" || line.k === "void") && line.ans.reason === "already-ended" && line.s.holds[line.r]?.voidAtExpiry === true,
 };
 
 function periodStartOf(state, lengths) {
@@ -132,6 +136,7 @@ function expectedTables(state, times) {
         cost: hold.cost === null ? null : micro(hold.cost),
         overrun: micro(hold.overrun),
         settled_late: hold.late,
+        voided_at_expiry: hold.voidAtExpiry,
         tier: "low_cost_hosted",
         input_price: LOW.input,
         output_price: LOW.output,
@@ -177,6 +182,7 @@ function actualTables(read, snapshot) {
         cost: row.cost,
         overrun: row.overrun,
         settled_late: row.late_at !== null,
+        voided_at_expiry: row.state === "voided" && row.ended_at >= row.expires_at,
         tier: row.tier,
         input_price: row.input_price,
         output_price: row.output_price,

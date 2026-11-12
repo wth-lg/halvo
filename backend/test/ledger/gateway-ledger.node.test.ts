@@ -90,7 +90,8 @@ describe("the void branch (ruling B-4)", () => {
     expect([sent.status, JSON.parse(sent.text)]).toEqual([502, { result: "no-time-left", hold: "refused" }]);
     expect(gateway.calls).toEqual(["reserve", "void"]);
     expect(gateway.upstreamCalls()).toBe(0);
-    expect(gateway.hold("void-refused")).toMatchObject({ state: "expired", dispatched: 0 });
+    expect(gateway.hold("void-refused")).toMatchObject({ state: "voided", dispatched: 0, ended_by: "void", cost: null });
+    expect(gateway.rig.read().periods).toEqual([expect.objectContaining({ reported: 0, unreported: 0, open: 0 })]);
   });
 });
 
@@ -132,7 +133,8 @@ describe("a dispatch that the ledger answers with stop (ruling B-10)", () => {
     expect([sent.status, JSON.parse(sent.text)]).toEqual([409, { result: "stopped" }]);
     expect(gateway.calls).toEqual(["reserve", "dispatch"]);
     expect(gateway.upstreamCalls()).toBe(0);
-    expect(gateway.hold("expired-before-dispatch")).toMatchObject({ state: "expired", dispatched: 0 });
+    expect(gateway.hold("expired-before-dispatch")).toMatchObject({ state: "voided", dispatched: 0, ended_by: "dispatch", cost: null });
+    expect(gateway.rig.read().periods).toEqual([expect.objectContaining({ reported: 0, unreported: 0, open: 0 })]);
   });
 
   test("two dispatches of one request at once give one 200 and one 409 stopped", async () => {

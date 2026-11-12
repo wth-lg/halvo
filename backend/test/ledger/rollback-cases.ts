@@ -28,6 +28,7 @@ export function setUp(step: Step, ledger: Ledger): void {
     ledger.init(sql);
     ledger.setCap(sql, { amount: 10, period: "week" }, 0);
     ledger.reserve(sql, hold("due", 100), 0, { active: true, interval: 0 });
+    ledger.dispatch(sql, "due", 0);
     ledger.reserve(sql, hold("live", 200), 2000, { active: true, interval: 0 });
   });
 }
@@ -103,6 +104,8 @@ export function rangeCase(step: Step): unknown {
     ledger.setCap(sql, { amount: 10, period: "week" }, 0);
     ledger.reserve(sql, hold("first", 100), 0, active);
     ledger.reserve(sql, hold("second", 100), 0, active);
+    ledger.dispatch(sql, "first", 0);
+    ledger.dispatch(sql, "second", 0);
   });
   const first = step((sql) => ledger.settle(sql, "first", SUM_PAST_THE_RANGE, 1000));
   let second = "accepted";
@@ -175,7 +178,10 @@ function startWith(step: Step, holds: [string, number][]): Ledger {
   step((sql) => {
     ledger.init(sql);
     ledger.setCap(sql, { amount: 10, period: "week" }, 0);
-    for (const [requestId, at] of holds) ledger.reserve(sql, { requestId, tier: "low_cost_hosted", amount: 100, price: UNIT }, at, { active: true, interval: 0 });
+    for (const [requestId, at] of holds) {
+      ledger.reserve(sql, { requestId, tier: "low_cost_hosted", amount: 100, price: UNIT }, at, { active: true, interval: 0 });
+      ledger.dispatch(sql, requestId, at);
+    }
   });
   return ledger;
 }

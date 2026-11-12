@@ -29,6 +29,7 @@ interface Hold {
   expiresAt: Ms;
   state: HoldState;
   dispatched: boolean;
+  endedAt: Ms | null;
   cost: Micro | null;
   overrun: Micro;
   lateAt: Ms | null;
@@ -103,6 +104,7 @@ function holdOf(row: Row): Hold {
     expiresAt: int(row, "expires_at"),
     state: oneOf(row, "state", HOLD_STATES),
     dispatched: int(row, "dispatched") === 1,
+    endedAt: intOrNull(row, "ended_at"),
     cost: intOrNull(row, "cost"),
     overrun: int(row, "overrun"),
     lateAt: intOrNull(row, "late_at"),
@@ -116,7 +118,7 @@ function readCap(sql: Sql): CapRow | null {
 
 function readHold(sql: Sql, requestId: string): Hold | null {
   const row = sql.exec(
-    "SELECT request_id, tier, amount, input_price, output_price, period_start, expires_at, state, dispatched, cost, overrun, late_at FROM ledger_holds WHERE request_id = ?",
+    "SELECT request_id, tier, amount, input_price, output_price, period_start, expires_at, state, dispatched, ended_at, cost, overrun, late_at FROM ledger_holds WHERE request_id = ?",
     requestId,
   )[0];
   return row === undefined ? null : holdOf(row);
@@ -142,9 +144,17 @@ function switchPeriodType(call: Call): void {
   call.sql.exec("UPDATE ledger_cap SET period = ?, anchor = ?, next_period = ?, switch_at = ?", cap.nextPeriod, cap.switchAt, null, null);
 }
 
+function endAtExpiry(dispatched: boolean, amount: Micro): { state: "expired" | "voided"; unreported: Micro } {
+  return dispatched ? { state: "expired", unreported: amount } : { state: "voided", unreported: 0 };
+}
+
+function voidedAtExpiry(hold: Hold): boolean {
+  return (hold.endedAt ?? rowBroken("ended_at")) >= hold.expiresAt;
+}
+
 function expireDue(call: Call): void {
   const due = call.sql.exec(
-    "SELECT request_id, amount, period_start FROM ledger_holds WHERE state = ? AND expires_at <= ? ORDER BY expires_at, request_id",
+    "SELECT request_id, amount, period_start, dispatched FROM ledger_holds WHERE state = ? AND expires_at <= ? ORDER BY expires_at, request_id",
     "open",
     call.now,
   );
@@ -152,9 +162,10 @@ function expireDue(call: Call): void {
     const requestId = row.request_id;
     if (typeof requestId !== "string") rowBroken("request_id");
     const amount = int(row, "amount");
+    const end = endAtExpiry(int(row, "dispatched") === 1, amount);
     call.sql.exec(
       "UPDATE ledger_holds SET state = ?, ended_at = ?, ended_seq = ?, ended_by = ? WHERE request_id = ?",
-      "expired",
+      end.state,
       call.now,
       nextSeq(call),
       call.by,
@@ -163,7 +174,7 @@ function expireDue(call: Call): void {
     call.sql.exec(
       "UPDATE ledger_periods SET open = open - ?, unreported = unreported + ? WHERE period_start = ?",
       amount,
-      amount,
+      end.unreported,
       int(row, "period_start"),
     );
     call.expired += 1;
@@ -393,7 +404,7 @@ export function makeLedger(config: { holdLifeMs: number }): Ledger {
         if (hold === null) return { outcome: "refused", reason: "unknown-request" };
         switch (hold.state) {
           case "voided":
-            return { outcome: "voided" };
+            return voidedAtExpiry(hold) ? { outcome: "refused", reason: "already-ended" } : { outcome: "voided" };
           case "settled":
           case "expired":
             return { outcome: "refused", reason: "already-ended" };

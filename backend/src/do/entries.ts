@@ -140,6 +140,14 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     return earliest(times);
   }
 
+  function armAlarm(at: Ms | null): void {
+    try {
+      host.setAlarm(at);
+    } catch (caught) {
+      log({ event: "alarm-error", error: errorName(caught) });
+    }
+  }
+
   function step<T>(run: (open: Open) => T): T {
     let arm = false;
     let due: Ms | null = null;
@@ -165,7 +173,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       }
       return result;
     });
-    if (arm) host.setAlarm(tested ? null : due);
+    if (arm) armAlarm(tested ? null : due);
     return value;
   }
 
@@ -333,11 +341,11 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       count = ALARM_RETRY_LIMIT;
     }
     if (count < ALARM_RETRY_LIMIT) {
-      host.setAlarm(tested ? null : host.clock() + ALARM_RETRY_MS);
+      armAlarm(tested ? null : host.clock() + ALARM_RETRY_MS);
       return;
     }
     log({ event: "alarm-stopped", error: name });
-    host.setAlarm(null);
+    armAlarm(null);
   }
 
   function guarded<T>(hash: string, answers: { nothing: T; mismatch: T; pending: T }, onAccount: (open: Open, now: Ms) => T): T {
@@ -634,7 +642,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         return "stored" as const;
       });
       if (stored !== "stored") return { result: stored };
-      host.setAlarm(null);
+      armAlarm(null);
       let before: Ms | null = null;
       for (let runs = 0; runs < CLOCK_RUN_LIMIT; runs += 1) {
         const due = host.step((sql) => (holds(sql) ? dueOf(sql) : null));
