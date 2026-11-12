@@ -288,3 +288,57 @@ test("every answer in every state validates against its schema and agrees with r
     assert.deepEqual([...seen.get(name)].sort(), want.sort(), name);
   }
 });
+
+test("a credential that does not match changes nothing, also with a body", () => {
+  const app = makeApp(vendored);
+  route(app, "checkout-start", { body: '{"cap":{"amount":7,"period":"month"}}' });
+  assert.equal(result(route(app, "checkout-start", { credential: WRONG, body: '{"cap":{"amount":9,"period":"week"}}' })), "credential-mismatch");
+  app.complete();
+  assert.equal(result(route(app, "cap-set", { credential: WRONG, body: '{"cap":{"amount":9,"period":"week"}}' })), "credential-mismatch");
+  assert.deepEqual(JSON.parse(route(app, "cap-get").body).cap, { amount: 7, period: "month" });
+});
+
+test("the hash covers every character of the credential", () => {
+  const app = makeApp(vendored);
+  route(app, "checkout-start");
+  for (const at of [0, 31, 63]) {
+    const other = `${CRED.slice(0, at)}${CRED[at] === "f" ? "e" : "f"}${CRED.slice(at + 1)}`;
+    assert.equal(result(route(app, "status", { credential: other })), "credential-mismatch", String(at));
+  }
+});
+
+test("two content-type headers are joined and refused with 415", () => {
+  const app = makeApp(vendored);
+  const headers = [["halvo-account", ID], ["authorization", `Bearer ${CRED}`], ["content-type", "application/json"], ["content-type", "application/json"]];
+  assertRejected(call(app, "POST", "/v1/checkout", { headers, body: CAP }), 415, "two content-type headers");
+  assertNoState(app);
+});
+
+test("a new checkout keeps the cap of its body", () => {
+  const app = makeApp(vendored);
+  route(app, "checkout-start", { body: '{"cap":{"amount":7,"period":"month"}}' });
+  app.complete();
+  assert.deepEqual(JSON.parse(route(app, "cap-get").body).cap, { amount: 7, period: "month" });
+});
+
+test("expire drops only pending checkouts, and complete moves only pending checkouts", () => {
+  const app = makeApp(vendored);
+  route(app, "checkout-start");
+  app.complete();
+  route(app, "checkout-start", { id: OTHER_ID });
+  assert.equal(app.expire(), 1);
+  assert.equal(result(route(app, "status")), "active");
+  app.failPayment();
+  route(app, "checkout-start", { id: OTHER_ID });
+  assert.equal(app.complete(), 1);
+  assert.equal(result(route(app, "status")), "payment-failed");
+  app.cancel();
+  assert.equal(app.complete(), 0);
+  assert.equal(result(route(app, "status")), "cancelled");
+  assert.equal(result(route(app, "status", { id: OTHER_ID })), "cancelled");
+});
+
+test("bytes that are no request get 400 and the samples' rejected body", () => {
+  const app = makeApp(vendored);
+  assertRejected(app.malformed(), 400, "malformed");
+});

@@ -10,6 +10,7 @@ const hashOf = (credential) => createHash("sha256").update(credential, "ascii").
  * `handle({method, target, headers, body})` takes the method, the request target as received, the headers as
  * [name, value] pairs in their order and the body bytes, and returns `{status, type, body, result}`: the answer of
  * contracts.md 1.4 and 1.3, with `type` null for an empty body and `result` null for an answer that is no JSON.
+ * `malformed()` returns the answer for bytes that are no request: 400 with the samples' rejected body.
  * The control functions move the scripted states and return how many accounts changed.
  */
 export function makeApp({ schema, routes, samples }) {
@@ -113,6 +114,7 @@ export function makeApp({ schema, routes, samples }) {
 
   return {
     handle,
+    malformed: () => reject(400),
     complete: () => move(["pending"], "active"),
     expire: () => move(["pending"], null),
     cancel: () => move(["active", "payment-failed"], "cancelled"),

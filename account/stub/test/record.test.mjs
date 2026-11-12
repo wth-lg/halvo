@@ -84,38 +84,40 @@ test("two requests on one connection are two records of that connection, and its
   }
 });
 
-test("a request that the HTTP parser refuses is recorded with its connection and the error's code", async () => {
+test("bytes that are no request are recorded with their connection and the cause", async () => {
   const dir = fresh();
   const stub = await startStub({ record: dir });
   try {
     const bad = Buffer.from("GET /v1/subscription HTTP/1.1\r\nhost: 127.0.0.1\r\nbad header canary\r\n\r\n");
     const answer = parse(await exchange(portOf(stub.app), bad));
     assert.equal(answer.status, 400);
+    assert.equal(answer.body, '{"result":"rejected"}');
     const got = lines(dir);
     assert.equal(got.length, 1);
     assert.deepEqual(Object.keys(got[0]).sort(), ["connection", "error", "seq"]);
     assert.equal(got[0].seq, 1);
     assert.equal(got[0].connection, 1);
-    assert.match(got[0].error, /^HPE_[A-Z_]+$/);
+    assert.equal(got[0].error, "field-line");
     assert.deepEqual(readFileSync(join(dir, "connection-000001.raw")), bad);
   } finally {
     await stub.close();
   }
 });
 
-test("a body above the read cap is recorded up to and with the chunk that passed the cap", async () => {
+test("a body above the read cap keeps its first BODY_CAP bytes, and bytes is their count", async () => {
   const dir = fresh();
   const stub = await startStub({ record: dir });
   try {
     const big = Buffer.alloc(BODY_CAP * 2, 0x61);
+    big[BODY_CAP - 1] = 0x62;
     const answer = parse(await exchange(portOf(stub.app), request("POST", "/v1/webhook", [], big)));
     assert.equal(answer.status, 413);
     const [line] = lines(dir);
     assert.equal(line.status, 413);
     const kept = readFileSync(join(dir, line.body));
     assert.equal(kept.length, line.bytes);
-    assert.ok(kept.length > BODY_CAP && kept.length < big.length, String(kept.length));
-    assert.deepEqual(kept, big.subarray(0, kept.length));
+    assert.equal(kept.length, BODY_CAP);
+    assert.deepEqual(kept, big.subarray(0, BODY_CAP));
   } finally {
     await stub.close();
   }
@@ -148,4 +150,22 @@ test("the command line refuses a missing --record, a directory that is not empty
     assert.equal(run.ready, null, args.join(" "));
     assert.equal(await exited(run.child), 64, args.join(" "));
   }
+});
+
+test("the trailer fields of a chunked request stand in its line in order, byte for byte as the headers do", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir });
+  const head = `PUT /v1/cap HTTP/1.1\r\nhost: 127.0.0.1\r\nconnection: close\r\nhalvo-account: ${ID}\r\nauthorization: Bearer ${CRED}\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\n\r\n`;
+  const body = '24\r\n{"cap":{"amount":1,"period":"week"}}\r\n0\r\nX-Canary: caf\xc3\xa9\r\nauthorization: Bearer second\r\n\r\n';
+  const answer = parse(await exchange(portOf(stub.app), Buffer.from(head + body, "latin1")));
+  assert.equal(answer.status, 200);
+  const [line] = lines(dir);
+  assert.deepEqual(line.trailers, [["X-Canary", "caf\xc3\xa9"], ["authorization", "Bearer second"]]);
+  assert.equal(line.headers.filter(([name]) => name === "authorization").length, 1);
+  assert.deepEqual(readFileSync(join(dir, line.body)), Buffer.from('{"cap":{"amount":1,"period":"week"}}'));
+  assert.deepEqual(lines(dir).length, 1);
+  const plain = fresh();
+  const other = await startStub({ record: plain });
+  await exchange(portOf(other.app), request("GET", "/v1/done"));
+  assert.deepEqual(lines(plain)[0].trailers, []);
 });

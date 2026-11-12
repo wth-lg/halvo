@@ -1,13 +1,14 @@
-import { createServer } from "node:http";
-import { createServer as createSecureServer } from "node:https";
+import { createServer, STATUS_CODES } from "node:http";
+import { createServer as createPlainServer } from "node:net";
+import { createServer as createTlsServer } from "node:tls";
 import { readFileSync } from "node:fs";
 import { loadSchema } from "./schema.mjs";
 import { makeApp } from "./app.mjs";
+import { makeReader } from "./wire.mjs";
 import { openRecord, RecordError } from "./record.mjs";
 import { makeTestAuthority, writeAuthority, TlsError } from "./tls.mjs";
 
-/** The stub keeps the chunks of a body up to and with the one that takes it past this many bytes, and reads the rest without keeping it. */
-export const BODY_CAP = 1048576;
+export { BODY_CAP } from "./wire.mjs";
 const HOST = "127.0.0.1";
 const vendored = (name) => JSON.parse(readFileSync(new URL(`../../schema/${name}`, import.meta.url), "utf8"));
 
@@ -25,10 +26,10 @@ const listen = (server, scheme) =>
     });
   });
 
-const shut = (server) =>
+const shut = (server, sockets) =>
   new Promise((resolve) => {
     server.close(() => resolve());
-    server.closeAllConnections();
+    for (const socket of sockets) socket.destroy();
   });
 
 function send(res, { status, type, body }) {
@@ -40,30 +41,42 @@ function send(res, { status, type, body }) {
   res.end(bytes);
 }
 
-function pairs(raw) {
-  const out = [];
-  for (let index = 0; index < raw.length; index += 2) out.push([raw[index], raw[index + 1]]);
-  return out;
+function answerBytes(method, { status, type, body }, close) {
+  const bytes = Buffer.from(body, "utf8");
+  const lines = [`HTTP/1.1 ${status} ${STATUS_CODES[status]}`, `content-length: ${bytes.length}`];
+  if (bytes.length > 0) lines.push(`content-type: ${type}`);
+  if (close) lines.push("connection: close");
+  const head = Buffer.from(`${lines.join("\r\n")}\r\n\r\n`, "latin1");
+  return method === "HEAD" ? head : Buffer.concat([head, bytes]);
 }
 
-function serveApp(app, record, connectionOf) {
-  return (req, res) => {
-    const chunks = [];
-    let size = 0;
-    req.on("data", (chunk) => {
-      if (size > BODY_CAP) return;
-      chunks.push(chunk);
-      size += chunk.length;
-    });
-    req.on("end", () => {
-      const body = Buffer.concat(chunks);
-      const headers = pairs(req.rawHeaders);
-      const answer = app.handle({ method: req.method, target: req.url, headers, body });
-      record.request({ connection: connectionOf(req.socket), method: req.method, target: req.url, headers, body, status: answer.status, result: answer.result });
-      send(res, answer);
-    });
-    req.on("error", () => {});
-  };
+function closes({ version, headers }) {
+  const tokens = headers.filter(([name]) => name.toLowerCase() === "connection").flatMap(([, value]) => value.split(","));
+  return version === "1.0" || tokens.some((token) => token.trim().toLowerCase() === "close");
+}
+
+function serve(socket, connection, app, record) {
+  const reader = makeReader({
+    request(message) {
+      const { method, target, headers, trailers, body } = message;
+      const answer = app.handle({ method, target, headers, body });
+      record.request({ connection, method, target, headers, trailers, body, status: answer.status, result: answer.result });
+      const close = closes(message);
+      socket.write(answerBytes(method, answer, close));
+      if (close) socket.end();
+      return !close;
+    },
+    malformed(cause) {
+      record.refused({ connection, error: cause });
+      socket.end(answerBytes("", app.malformed(), true));
+    },
+  });
+  socket.on("data", (chunk) => reader.feed(chunk));
+  socket.on("end", () => {
+    reader.end();
+    socket.end();
+  });
+  socket.on("error", () => {});
 }
 
 function serveControl(app, stop) {
@@ -91,46 +104,52 @@ function serveControl(app, stop) {
   };
 }
 
-const PARSE_REFUSAL = "HTTP/1.1 400 Bad Request\r\nconnection: close\r\ncontent-length: 0\r\n\r\n";
-
 /**
  * Starts the stub: the app-facing routes and the control routes, each on a port of 127.0.0.1 that the system picks,
- * with every request to the app-facing port kept in the record directory `record` (see openRecord). With `tlsCa`,
- * the app-facing port serves HTTPS with a server certificate of a test authority made at this start
- * (see makeTestAuthority), whose certificate is written to the file `tlsCa`, which must not exist yet.
+ * with every request to the app-facing port kept in the record directory `record` (see openRecord). The app-facing
+ * port reads each request with its own HTTP/1.1 reader (see makeReader), so that every request reaches the judge of
+ * makeApp, and answers bytes that are no request with the rejection of a malformed request. With `tlsCa`, the
+ * app-facing port serves TLS with a server certificate of a test authority made at this start (see makeTestAuthority),
+ * whose certificate is written to the file `tlsCa`, which must not exist yet.
  * Resolves to `{app, control, stopped, close}`: the two base URLs, a promise that settles when the stub has stopped,
- * through `close()` or the control route `POST /stop`, and `close()`. Throws RecordError or TlsError for a bad directory or file.
+ * through `close()` or the control route `POST /stop`, and `close()`, which ends every open connection.
+ * Throws RecordError or TlsError for a bad directory or file.
  */
-export async function startStub({ record: dir, tlsCa }) {
+export async function startStub({ record: dir, tlsCa, now = Date.now }) {
   const record = openRecord(dir);
-  const app = makeApp(readVendored());
+  const app = makeApp({ ...readVendored(), now });
   let done;
   const stopped = new Promise((resolve) => {
     done = resolve;
   });
-  const numbers = new WeakMap();
-  const refuse = (error, socket) => {
-    if (error.code !== "ECONNRESET") record.refused({ connection: numbers.get(socket), error: String(error.code) });
-  };
-  const handler = serveApp(app, record, (socket) => numbers.get(socket));
-  let appServer = createServer(handler);
-  if (tlsCa !== undefined) {
+  const onSocket = (socket) => serve(socket, record.connection(socket), app, record);
+  let appServer;
+  if (tlsCa === undefined) {
+    appServer = createPlainServer({ allowHalfOpen: true }, onSocket);
+  } else {
     const made = makeTestAuthority(Date.now());
     writeAuthority(tlsCa, made.caPem);
-    appServer = createSecureServer({ key: made.keyPem, cert: made.certPem }, handler);
+    appServer = createTlsServer({ key: made.keyPem, cert: made.certPem, allowHalfOpen: true }, onSocket);
+    appServer.on("tlsClientError", (error) => {
+      if (error.code !== "ECONNRESET") record.refused({ error: String(error.code) });
+    });
   }
-  appServer.on(tlsCa === undefined ? "connection" : "secureConnection", (socket) => numbers.set(socket, record.connection(socket)));
-  appServer.on("clientError", (error, socket) => {
-    refuse(error, socket);
-    if (socket.writable) socket.end(PARSE_REFUSAL);
-    else socket.destroy();
+  const sockets = new Set();
+  appServer.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
   });
+  const controlSockets = new Set();
   let closing = null;
   const close = () => {
-    closing ??= Promise.all([shut(appServer), shut(controlServer)]).then(() => done());
+    closing ??= Promise.all([shut(appServer, sockets), shut(controlServer, controlSockets)]).then(() => done());
     return closing;
   };
   const controlServer = createServer(serveControl(app, close));
+  controlServer.on("connection", (socket) => {
+    controlSockets.add(socket);
+    socket.on("close", () => controlSockets.delete(socket));
+  });
   return { app: await listen(appServer, tlsCa === undefined ? "http" : "https"), control: await listen(controlServer, "http"), stopped, close };
 }
 

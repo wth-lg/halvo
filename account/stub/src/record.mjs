@@ -14,9 +14,9 @@ const number = (n) => String(n).padStart(6, "0");
 /**
  * Opens a record in `dir`, an empty directory that the caller made. The record keeps, as files of `dir`:
  * `connection-NNNNNN.raw`, every byte that a connection received, in order; `request-NNNNNN.body`, the body bytes
- * of request NNNNNN as the stub read them; and `requests.jsonl`, one line for each request in the order of its answer,
- * `{seq, connection, method, target, headers, body, bytes, status, result}`, or `{seq, connection, error}` for a request
- * that the HTTP parser refused. `connection(socket)` starts the raw file of a new connection and returns its number;
+ * that the stub kept of request NNNNNN; and `requests.jsonl`, one line for each request in the order of its answer,
+ * `{seq, connection, method, target, headers, trailers, body, bytes, status, result}`, or `{seq, connection, error}` for bytes
+ * that are no request. `connection(socket)` starts the raw file of a new connection and returns its number;
  * `request(...)` and `refused(...)` write one line each before the stub answers.
  */
 export function openRecord(dir) {
@@ -41,11 +41,11 @@ export function openRecord(dir) {
       socket.prependListener("data", (chunk) => appendFileSync(raw, chunk));
       return connections;
     },
-    request({ connection, method, target, headers, body, status, result }) {
+    request({ connection, method, target, headers, trailers, body, status, result }) {
       seq += 1;
       const name = `request-${number(seq)}.body`;
       writeFileSync(join(dir, name), body, { flag: "wx" });
-      line({ seq, connection, method, target, headers, body: name, bytes: body.length, status, result });
+      line({ seq, connection, method, target, headers, trailers, body: name, bytes: body.length, status, result });
     },
     refused({ connection, error }) {
       seq += 1;

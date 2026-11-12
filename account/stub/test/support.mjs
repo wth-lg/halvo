@@ -33,15 +33,42 @@ export function parse(bytes) {
   return { status, headers, body: bytes.subarray(end + 4).toString("utf8") };
 }
 
-/** Sends raw bytes to a port of 127.0.0.1 through `open` (net.connect by default) and resolves to every byte read until the peer closes. */
-export function exchange(port, bytes, open = (options) => connect(options)) {
+/** Parses the bytes of HTTP/1.1 responses that each carry content-length, in order. */
+export function parseAll(bytes) {
+  const out = [];
+  let rest = bytes;
+  while (rest.length > 0) {
+    const end = rest.indexOf("\r\n\r\n");
+    const one = parse(rest.subarray(0, end + 4));
+    const length = Number(one.headers.get("content-length"));
+    one.body = rest.subarray(end + 4, end + 4 + length).toString("utf8");
+    out.push(one);
+    rest = rest.subarray(end + 4 + length);
+  }
+  return out;
+}
+
+/**
+ * Sends raw bytes to a port of 127.0.0.1 through `open` (net.connect by default) and resolves to every byte read until
+ * the peer closes. `bytes` may be a list of parts, written 50 ms apart; with `half`, the client ends its side after the last part.
+ */
+export function exchange(port, bytes, open = (options) => connect(options), { half = false } = {}) {
   return new Promise((resolve, reject) => {
     const socket = open({ host: "127.0.0.1", port });
     const chunks = [];
     socket.on("data", (chunk) => chunks.push(chunk));
     socket.on("error", reject);
     socket.on("close", () => resolve(Buffer.concat(chunks)));
-    socket.write(bytes);
+    const parts = Array.isArray(bytes) ? bytes : [bytes];
+    const next = (index) => {
+      if (index === parts.length) {
+        if (half) socket.end();
+        return;
+      }
+      socket.write(parts[index]);
+      setTimeout(() => next(index + 1), 50);
+    };
+    next(0);
   });
 }
 
