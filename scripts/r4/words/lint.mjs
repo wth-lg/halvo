@@ -34,6 +34,7 @@ const LIST = 'scripts/r4/words/never-read.txt';
 const CASES = 'scripts/r4/words/never-read-cases.txt';
 const ALLOWED = 'scripts/r4/words/allowed.txt';
 const GLOSSARY = 'docs/r4/words.md';
+const NAMES = ['crates/halvo-coord/src/types/names.rs', 'crates/halvo-coord/src/types/cause.rs'];
 const MAX_WORDS = 20;
 const HEADING = /^\s*heading: "([^"\\]*)",$/u;
 
@@ -102,6 +103,20 @@ function parseList(text) {
     if (!patterns.some((p) => p.cls === cls)) throw new Stop('list', LIST);
   }
   return patterns;
+}
+
+function closedNames(repo) {
+  const names = new Set();
+  for (const rel of NAMES) {
+    const found = splitLines(readText(repo, rel, 'input'))
+      .map((l) => /^\s*[A-Z][A-Za-z0-9]* = "([a-z][a-z0-9_]*)",$/u.exec(l))
+      .filter(Boolean);
+    if (found.length === 0) throw new Stop('input', rel);
+    for (const m of found) if (m[1].includes('_')) names.add(m[1]);
+  }
+  if (names.size === 0) throw new Stop('input', NAMES[0]);
+  const alt = [...names].sort().map((n) => n.split('_').join('[-_]')).join('|');
+  return { cls: 'enum', re: new RegExp(`(?<![\\p{L}\\p{N}])(?:${alt})(?![\\p{L}\\p{N}])`, 'iu') };
 }
 
 function cells(line) {
@@ -395,13 +410,14 @@ function check(repo) {
       return null;
     }
   };
-  const patterns = attempt(() => parseList(readText(repo, LIST, 'list')));
+  const listed = attempt(() => parseList(readText(repo, LIST, 'list')));
+  const closed = attempt(() => closedNames(repo));
   const terms = attempt(() => parseGlossary(readText(repo, GLOSSARY, 'glossary')));
   const allowed = attempt(() => parseAllowed(readText(repo, ALLOWED, 'allowed'), terms));
   const read = attempt(() => readSentences(repo));
   const views = attempt(() => listViews(repo));
   if (causes.size > 0) return { out: problems, findings: [], cause: firstCause(causes) };
-  const ctx = { patterns, allowed };
+  const ctx = { patterns: [...listed, closed], allowed };
   const others = terms.filter((t) => t.run !== THIS_RUN);
   const { sentences, headingMissing, viewStrings } = read;
   if (headingMissing) causes.add('heading');
@@ -532,7 +548,7 @@ function setAt(doc, spec, value) {
 
 function selfTest(dir, repo) {
   const copies = {};
-  for (const rel of [LIST, CASES, ALLOWED, GLOSSARY]) copies[rel] = readText(repo, rel, 'input');
+  for (const rel of [LIST, CASES, ALLOWED, GLOSSARY, ...NAMES]) copies[rel] = readText(repo, rel, 'input');
   const patterns = parseList(copies[LIST]);
   const lines = [];
   const wrong = [];
@@ -1063,7 +1079,26 @@ function selfTest(dir, repo) {
     fixture('list-with-a-pattern-that-flag-u-refuses', { files: (f) => (f[LIST] = `${copies[LIST]}code\ta\\:b\n`) }),
     'FAIL:list',
   );
-  expect(fixture('letter-case-counts', { words: (w) => (w['line.time'] = 'The CLAUDE and the TIER are here.') }), 'PASS');
+  expect(
+    fixture('a-closed-name-with-a-hyphen-in-the-table', { words: say('It needs-you now.') }),
+    'FAIL:never_read',
+    { findings: [wordsFinding('never_read', 'enum', 'line.time')] },
+  );
+  expect(
+    fixture('a-closed-name-with-an-underscore-in-a-fixture', {
+      state: (s, doc) => {
+        if (s === 'queue') doc.snapshot.rows[0].line = 'It is waiting_turn.';
+      },
+    }),
+    'FAIL:never_read',
+    { findings: [`finding file=${FIXTURES}/state-queue.json line=1 rule=never_read class=enum key=snapshot.rows.1.line`] },
+  );
+  expect(fixture('a-cause-with-a-hyphen', { words: say('It stopped: queue-full.') }), 'FAIL:never_read');
+  expect(fixture('a-closed-name-with-a-hyphen-in-capitals', { words: say('It is ALL-SET now.') }), 'FAIL:never_read');
+  expect(fixture('a-closed-name-inside-a-longer-word-passes', { words: say('It needs-your answer on the sign-up page.') }), 'PASS');
+  expect(fixture('a-names-file-missing', { files: (f) => (f[NAMES[0]] = null) }), 'FAIL:input');
+  expect(fixture('a-names-file-with-no-names', { files: (f) => (f[NAMES[1]] = 'pub enum Cause {}\n') }), 'FAIL:input');
+  expect(fixture('letter-case-counts',{ words: (w) => (w['line.time'] = 'The CLAUDE and the TIER are here.') }), 'PASS');
 
   const cases = dataLines(copies[CASES]).map((l) => l.split('\t'));
   const misses = [];

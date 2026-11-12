@@ -3,9 +3,12 @@
 # compiled with the flag u alone, so letter case counts. never-read-cases.txt holds, for each
 # line by its number among the pattern lines, sentences that the line matches and sentences
 # that no line matches.
+# Beside these lines the check flags, as the class enum, a name of the code's closed lists
+# (the names of crates/halvo-coord/src/types/names.rs and cause.rs) that holds an underscore,
+# written with underscores or hyphens, in any letter case: needs_you, needs-you, Needs-You.
 model	\b(?:GPT|ChatGPT|OpenAI|Claude|Anthropic|Gemini|Gemma|Llama|Mistral|Mixtral|Qwen|DeepSeek|Grok|Ollama|Copilot)\b
 model	\b(?:gpt|chatgpt|openai|anthropic|deepseek|qwen|ollama)\b
-model	\b(?:[Gg][Pp][Tt]|[Cc]laude|[Gg]emini|[Gg]emma|[Ll]lama|[Mm]istral|[Mm]ixtral|[Qq]wen|[Pp]hi)[- ]?\d[\w.:-]*|\b(?:Sonnet|Opus|Haiku) \d
+model	\b(?:[Gg][Pp][Tt]|[Cc]laude|[Gg]emini|[Gg]emma|[Ll]lama|[Mm]istral|[Mm]ixtral|[Qq]wen|[Pp]hi)[- ]?\d[\w.:-]*|\b(?:Sonnet|Opus|Haiku|Fable) \d
 model	\b(?:LLMs?|AI models?|[Ll]anguage models?|MODELS?)\b
 tier	\b(?:[Ff]rontier|[Hh]osted|[Ll]ow[- ]cost hosted|[Oo]n[- ]device) (?:model|tier|AI)s?\b
 tier	\b[Ll]ow[- ]cost hosted\b|\b(?:[Mm]odel|AI) tiers?\b
@@ -58,3 +61,4 @@ prompt	\b(?:[Ii]ts|[Tt]he agent's|[Tt]he model's) reasoning\b|\b[Rr]easoning (?:
 prompt	\b(?:[Cc]hain[- ]of[- ]thought|[Ss]ystem (?:prompt|message)|[Tt]hought process)\b
 prompt	<\/?(?:system|user|assistant|thinking|think)>
 prompt	\bYou are (?:an? )?(?:helpful |AI |large )?(?:assistant|language model|AI model|chatbot)\b|\b(?:[Ll]et me think step by step|[Tt]hink step by step|[Aa]s an AI(?: language model)?|[Ii]gnore (?:all )?(?:previous|prior|above) instructions)\b
+model	(?<=[^\s.!?]\s+["'“‘(]?)\b(?:Sonnet|Opus|Haiku|Fable)s?\b

@@ -37,6 +37,7 @@
 3	model	match	It used Sonnet 4 today.
 3	model	match	It used Opus 4 today.
 3	model	match	It used Haiku 3 today.
+3	model	match	Fable 5 wrote this.
 3	model	miss	It wrote a sonnet for you.
 3	model	miss	Write a haiku today.
 4	model	match	An LLM wrote it.
@@ -56,8 +57,8 @@
 5	tier	match	It uses the on-device model.
 5	tier	match	It uses the Frontier tier.
 5	tier	miss	Your bank has a new frontier.
-5	tier	miss	On-device photos.
-5	tier	miss	It is on-device.
+5	tier	miss	On device photos.
+5	tier	miss	It is on device.
 5	tier	miss	The frontiersman walked.
 5	tier	miss	Pay for the hosted event.
 6	tier	match	The cost is low-cost hosted.
@@ -368,3 +369,10 @@
 55	prompt	miss	You are a helpful neighbour.
 55	prompt	miss	You are an AI fan.
 55	prompt	miss	Let me think about it.
+56	model	match	It asks Sonnet to write it.
+56	model	match	It used Opus today.
+56	model	match	Ask Haiku now.
+56	model	match	It used Fable today.
+56	model	match	It asks “Sonnet” now.
+56	model	miss	Sonnet is a kind of poem.
+56	model	miss	Write a sonnet. Haiku poems are short.
