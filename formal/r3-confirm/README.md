@@ -63,8 +63,8 @@ java -XX:+UseParallelGC -Xmx2g -Djava.io.tmpdir="$scratch" -cp "$JAR" tlc2.TLC -
 java -XX:+UseParallelGC -Xmx2g -Djava.io.tmpdir="$scratch" -cp "$JAR" tlc2.TLC -workers 1 -deadlock -metadir "$scratch/control" -config Control.cfg Confirm.tla
 ```
 
-The first two commands are the check, and both are needed: neither alone shows every
-invariant failing on its break. Each ends with status 0 and prints `Model checking
+The first two commands are what the check runs, and both are needed: neither alone shows
+every invariant failing on its break. Each ends with status 0 and prints `Model checking
 completed. No error has been found.`; the first prints `637933 distinct states found`, the
 second `61728 distinct states found`. The third is the control copy. It ends with status 12
 and prints `Error: Invariant P1 is violated.` with a behaviour of four states. A check that
@@ -89,8 +89,39 @@ seed and the count of `Export.cfg`, or with the same `--seed` and `--count`, a s
 writes the same bytes. The script prints one line, `export rows=3840 traces=400
 directed=304 seed=20261113`; `directed` is a key of that line and no key of the file.
 `sh formal/r3-confirm/export.sh --help` prints the options, the exit statuses and the three
-causes of a refusal. The script runs TLC in a directory from `mktemp -d` and leaves that
-directory in place.
+causes of a refusal. The script runs TLC in a directory from `mktemp -d` under `TMPDIR`, or
+under `/tmp` when that is not set, and leaves that directory in place.
+
+## The check in CI
+
+`scripts/r3/ci.d/30-r3-formal.sh` runs in both jobs of CI on every push, through
+`sh scripts/ci/run-ci-d.sh <job> 30-r3-formal`. It requires `Confirm.cfg`, `Rebinds.cfg`,
+`Full.cfg` and `Control.cfg` to be the texts that it writes itself, with the constants that
+the section "What the check reaches" gives and the list P1 to P11, so a change of a bound is
+a change of the check as well.
+It fetches the jar from the address of the line above into a directory from `mktemp -d`,
+which it leaves in place, and compares the size and the SHA-256; with `TLA2TOOLS_JAR` set it
+copies that file instead and compares it the same way. It runs TLC with three workers on
+`Confirm.cfg` and `Rebinds.cfg`, exports the two files again with the seed and the count of
+the committed first line of `traces.jsonl`, compares both byte for byte with the committed
+files, and runs `Control.cfg`, which must report P1 and nothing else. It prints:
+
+```
+formal configs files=4 same=4
+formal java major=<n>
+formal jar source=fetch bytes=2274532 same=yes
+formal states=699661 invariants=11 violated=0
+formal export status=0
+formal table rows=3840 same=yes
+formal traces count=400 same=yes
+formal control violated=1
+PASS 30-r3-formal
+```
+
+`--self-test` runs the control copy as if it were a file of the check, which must fail, and
+compares a table with one row removed with the export, which must differ. The check shows
+that P1 can fail, through the control copy; it does not show that any other invariant can
+fail. A change of `Confirm.tla` that weakens one of the others passes it.
 
 ## The decision
 
