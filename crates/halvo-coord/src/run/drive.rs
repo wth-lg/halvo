@@ -80,6 +80,14 @@ pub enum Act {
         /// The outcome, or none.
         outcome: Option<Outcome>,
     },
+    /// The first step of the app's quit (I5.7, ruling RD-8): every live run that no stop has
+    /// reached is stopped with `cancelled` and gets `Runs::cancel` once, and the queue is
+    /// emptied, so that no start leaves it.
+    StopAll,
+    /// The second step of the app's quit (I5.7, ruling RD-8): `Runs::kill` for every live run
+    /// and every dying tree, in the order of their starts, through the board; a run whose kill
+    /// succeeded leaves the board, and nothing is stored or sent.
+    KillAll,
 }
 
 /// What a move of the run drive did: the schedule's report of the move, and the runs that a
@@ -96,6 +104,8 @@ pub struct Done {
     pub gone: Vec<WorkflowId>,
     /// The agents for which the move raised the item `check` (ruling XB-18).
     pub checked: Vec<AgentId>,
+    /// The runs and dying trees that the second step of the quit killed.
+    pub killed: Vec<RunId>,
 }
 
 fn refused_with(error: &PortError, name: &str) -> bool {
@@ -111,6 +121,7 @@ fn answer(cause: Option<Cause>) -> Done {
         lost: Vec::new(),
         gone: Vec::new(),
         checked: Vec::new(),
+        killed: Vec::new(),
     }
 }
 
@@ -120,6 +131,7 @@ fn of_report(report: Report) -> Done {
         lost: Vec::new(),
         gone: Vec::new(),
         checked: Vec::new(),
+        killed: Vec::new(),
     }
 }
 
@@ -306,6 +318,7 @@ where
         lost,
         gone: gone.map(|g| g.seen).unwrap_or_default(),
         checked: raise_checks(ports, board, None),
+        killed: Vec::new(),
     }
 }
 
@@ -327,7 +340,11 @@ where
 /// before it, again at each tick while the kill fails; each run that the tick stops for a
 /// workflow that is gone is stopped in the guard's table; and a `stopping` run whose kill the
 /// library refused with `unknown_run` ends `interrupted` in that tick, with no `end_run`
-/// sent for it, so that its agent takes no start until the agent store has ended it.
+/// sent for it, so that its agent takes no start until the agent store has ended it. The
+/// first step of the app's quit stops every live run that no stop has reached, as the person's
+/// stop does, and empties the queue; the second kills every live run and every dying tree and
+/// stores no `run_ended`, so that recovery ends those runs `interrupted` in the next life
+/// (ruling RD-8).
 pub fn drive<P>(
     ports: &P,
     board: &mut Board<P::Config>,
@@ -382,7 +399,70 @@ where
             done.checked = raise_checks(ports, board, None);
             done
         }
+        Act::StopAll => stop_all(ports, board, table),
+        Act::KillAll => kill_all(ports, board),
     }
+}
+
+fn stop_all<P>(ports: &P, board: &mut Board<P::Config>, table: &mut Table) -> Done
+where
+    P: Runs + Clock + Owner,
+{
+    let mut done = answer(None);
+    let runs: Vec<RunId> = board
+        .runs
+        .iter()
+        .filter(|r| r.stop.is_none())
+        .map(|r| r.run.clone())
+        .collect();
+    for run in runs {
+        let stopped = stop(ports, board, table, &run, StopBy::Person);
+        done.report.stopped.extend(stopped.report.stopped);
+    }
+    while let Some(waiting) = board.queue.pop() {
+        if let Some(m) = board
+            .members
+            .iter_mut()
+            .find(|m| m.facts.agent == waiting.agent)
+        {
+            if let Doing::Queued(item) = &m.facts.doing {
+                m.facts.doing = Doing::Idle(item.clone());
+            }
+        }
+    }
+    done
+}
+
+fn kill_all<P, C>(ports: &P, board: &mut Board<C>) -> Done
+where
+    P: Runs,
+{
+    let mut trees: Vec<(u64, RunId)> = board
+        .runs
+        .iter()
+        .map(|r| (r.rank, r.run.clone()))
+        .chain(board.dying.iter().map(|d| (d.rank, d.run.clone())))
+        .collect();
+    trees.sort();
+    let mut done = answer(None);
+    for (_, run) in trees {
+        if ports.kill(&run).is_err() {
+            continue;
+        }
+        board.dying.retain(|d| d.run != run);
+        if let Some(k) = board.runs.iter().position(|r| r.run == run) {
+            let live = board.runs.remove(k);
+            if let Some(m) = board
+                .members
+                .iter_mut()
+                .find(|m| m.facts.agent == live.agent)
+            {
+                m.facts.doing = Doing::Idle(None);
+            }
+        }
+        done.killed.push(run);
+    }
+    done
 }
 
 fn phase<C>(board: &mut Board<C>, run: &RunId, mv: RunMove) -> Done {
