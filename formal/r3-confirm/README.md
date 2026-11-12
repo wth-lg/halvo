@@ -345,8 +345,11 @@ is stored before the request is let through; one request leaves per effect, and 
 the run's end; `commit` is stored after the reply; `used` is read in the step that stores
 the approve; `lose` comes at the run's end and at no other time; no row is ever removed). A
 change of one of them, or of A5.1 to A5.3, is a change of the model. The model was written
-before the code. When the crate with `decide_row` and `effect_step` exists, write here the
-commit at which the two were last compared.
+before the code. The crate halvo-policy compares the code with the two files on every push:
+its test `policy_table` compares `decide_row` with each row of `policy-table.tsv`, and its
+test `formal_traces` follows each trace of `traces.jsonl` with `effect_step`, which must
+accept and refuse each move as the model does and reach the same next state, with each of
+three ways of giving `d1`, `d2`, `e1` and `e2` values of the code's types.
 
 1. Change `Confirm.tla` first. Run the check and the control copy, and `Full.cfg` by hand.
 2. Run `export.sh` and commit the model and the two files together. The tests that read
