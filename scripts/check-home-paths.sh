@@ -1127,6 +1127,12 @@ self_test_hook() {
     printf 'x.txt\t/Users/%s\tthe account that runs the self-test\n' "$own_name"
   } >"$hook_home/$LIST_IN_THE_REPOSITORY" || die 'cannot write the list'
   push_case list-entry-for-the-pushing-account refused 'names the home directory of the account that runs this push' proof own
+  upper_name=$(printf '%s' "$own_name" | tr '[:lower:]' '[:upper:]') || die 'tr failed'
+  {
+    cat "$list"
+    printf 'x.txt\t-Users-%s-project\tthe account that runs the self-test, in the form with hyphens and in upper case\n' "$upper_name"
+  } >"$hook_home/$LIST_IN_THE_REPOSITORY" || die 'cannot write the list'
+  push_case list-entry-for-the-pushing-account-with-hyphens-in-upper-case refused 'names the home directory of the account that runs this push' proof own
   scan_case list-entry-for-the-running-account-in-a-range 0 'lines with a home path 0' --allow "$hook_home/$LIST_IN_THE_REPOSITORY" "$root_commit"
   cp "$list" "$hook_home/$LIST_IN_THE_REPOSITORY" || die 'cp failed'
 
