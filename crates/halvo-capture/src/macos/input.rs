@@ -537,6 +537,27 @@ mod tests {
     }
 
     #[test]
+    fn a_disable_event_reenables_the_tap() {
+        for etype in [
+            CGEventType::TapDisabledByTimeout,
+            CGEventType::TapDisabledByUserInput,
+        ] {
+            ENABLE_CALLS.with(|calls| calls.borrow_mut().clear());
+            let (mut ctx, writer) = context(|| SecureInputState::Inactive);
+            ctx.port = TapPort::with_enable(record_enable);
+            let tap = std::ptr::NonNull::<c_void>::dangling().as_ptr();
+            ctx.port.store(tap);
+            on_tap_event(&ctx, etype);
+            ENABLE_CALLS.with(|calls| {
+                assert_eq!(*calls.borrow(), [(tap as usize, true)], "{etype:?}");
+            });
+            assert_eq!(ctx.violations.count(), 0);
+            drop(ctx);
+            assert!(writer.recv().is_none(), "{etype:?} was recorded");
+        }
+    }
+
+    #[test]
     fn a_clone_of_the_port_calls_nothing_once_the_port_guard_drops() {
         let port = TapPort::with_enable(record_enable);
         let clone = port.clone();
