@@ -325,21 +325,23 @@ fn a_lapse_of_the_second_step_answers_decline_before_it_stops_the_run() {
         ),
         Err(Cause::Stale)
     );
-    let q = ports();
-    let mut l = ledger();
-    let mut t = Table::new();
-    let mut held = raise_bind(&q, &mut l, &t, &LIMITS, &ask()).unwrap();
-    let before = q.calls.borrow().len();
-    lapse_bind(&q, &mut l, &mut t, &mut held, OtherLapse::RunEnded, &LIMITS).unwrap();
-    let calls: Vec<Call> = q.calls.borrow()[before..]
-        .iter()
-        .map(|c| c.call.clone())
-        .collect();
-    assert!(
-        matches!(&calls[..], [Call::Log(rows)] if matches!(rows[0].what, What::ItemLapsed { lapsed: Lapsed::SignIn(OtherLapse::RunEnded), .. })),
-        "a run that ended gets no answer and no stop: {calls:?}"
-    );
-    assert!(!t.is_stopped(&run_id(1)));
+    for cause in [OtherLapse::RunEnded, OtherLapse::AppEnded] {
+        let q = ports();
+        let mut l = ledger();
+        let mut t = Table::new();
+        let mut held = raise_bind(&q, &mut l, &t, &LIMITS, &ask()).unwrap();
+        let before = q.calls.borrow().len();
+        lapse_bind(&q, &mut l, &mut t, &mut held, cause, &LIMITS).unwrap();
+        let calls: Vec<Call> = q.calls.borrow()[before..]
+            .iter()
+            .map(|c| c.call.clone())
+            .collect();
+        assert!(
+            matches!(&calls[..], [Call::Log(rows)] if matches!(rows[0].what, What::ItemLapsed { lapsed: Lapsed::SignIn(c), .. } if c == cause)),
+            "{cause}: a run that ended or an earlier life gets no answer and no stop: {calls:?}"
+        );
+        assert!(!t.is_stopped(&run_id(1)), "{cause}");
+    }
 }
 
 /// An `answer_bind` refused with `ended` is dropped: the row stays stored, nothing more is stored

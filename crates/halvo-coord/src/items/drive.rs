@@ -663,7 +663,10 @@ pub fn lapse_bind<P: Owner + Runs + Clock>(
         return Err(Cause::Stale);
     }
     let run = held.ask.run.clone();
-    let lives = cause == OtherLapse::WaitLimit;
+    let lives = match cause {
+        OtherLapse::WaitLimit => true,
+        OtherLapse::RunEnded | OtherLapse::AppEnded => false,
+    };
     if lives {
         let _ = ports.answer_bind(&run, BindResult::Decline);
     }

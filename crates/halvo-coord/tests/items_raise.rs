@@ -84,12 +84,46 @@ fn push(f: &mut Facts<Config>, what: What) {
     f.events.push(e);
 }
 
+/// A handback request of `run` with `reason`; a request `account_link` holds the base address of
+/// its adapter as its origin, as the runner fills it (A-A6.4).
 fn handback(run: u32, reason: HandbackReason) -> HandbackAsk {
     HandbackAsk {
         run: run_id(run),
         agent: support::agent_id(1),
         reason,
-        origin: None,
+        origin: (reason == HandbackReason::AccountLink)
+            .then(|| halvo_coord::types::Origin::parse("https://mail.site5.example:443").unwrap()),
+    }
+}
+
+/// A handback `account_link` with no origin cannot show the site that its item must show, so it
+/// raises no item and ends the run with `kind`, as a request outside the runner's contract does
+/// (I3.1, I3.4; A-A6.4 fills the origin of every `account_link`); with its origin it raises the
+/// item `link_account`.
+#[test]
+fn a_link_request_with_no_origin_ends_the_run_with_kind() {
+    let f = working();
+    let mut h = handback(1, HandbackReason::AccountLink);
+    assert_eq!(
+        raise_step(&f, Source::Handback(&h), &LIMITS),
+        Raise::Run(RunItemKind::LinkAccount)
+    );
+    h.origin = None;
+    assert_eq!(
+        raise_step(&f, Source::Handback(&h), &LIMITS),
+        Raise::End(RunEnd::Kind)
+    );
+    for reason in HandbackReason::ALL
+        .iter()
+        .filter(|r| **r != HandbackReason::AccountLink)
+    {
+        let mut other = handback(1, *reason);
+        other.origin = None;
+        assert_eq!(
+            raise_step(&f, Source::Handback(&other), &LIMITS),
+            Raise::Run(handback_kind(*reason)),
+            "{reason} needs no origin"
+        );
     }
 }
 

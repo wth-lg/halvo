@@ -178,7 +178,8 @@ fn answered_check<C>(facts: &Facts<C>, run: &RunId) -> Option<CheckAnswer> {
 /// What a source does to the agent of `facts` (I3.1 to I3.3), first that fits. A request of a
 /// run is refused with `state` unless the run is `working`; the run ends with `kind` for a
 /// request of a type that A-A6.2 does not list, a confirm request that names a class outside
-/// the six of A-A4.1, and a request while its run waits for an open item; a handback
+/// the six of A-A4.1, a handback `account_link` with no origin, whose item could not show its
+/// site (I3.4; A-A6.4 fills it), and a request while its run waits for an open item; a handback
 /// `effect_unknown` after the person answered the check of that run or of the agent's last run
 /// is answered from that answer; a request after the run raised `items_per_run` items ends the
 /// run with `budget`. A source of the coordinator's own is refused with `state` while the agent
@@ -226,6 +227,11 @@ pub fn raise_step<C>(facts: &Facts<C>, source: Source<'_>, limits: &Limits) -> R
                 return Raise::End(RunEnd::Kind);
             }
             RunItemKind::Confirm
+        }
+        Source::Handback(ask)
+            if ask.reason == HandbackReason::AccountLink && ask.origin.is_none() =>
+        {
+            return Raise::End(RunEnd::Kind)
         }
         Source::Handback(ask) => handback_kind(ask.reason),
         Source::Bind(_) => RunItemKind::SignIn,
