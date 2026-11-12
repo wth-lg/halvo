@@ -175,8 +175,9 @@ and an empty line are skipped, a carriage return at the end of a line is
 dropped, and a byte-order mark at the start of the list is read as none. An
 entry allows its path on each line of its file that holds it, and nothing
 else: no other path, no other file, no longer name. An entry is not one
-line, because a line number moves with every edit above it. A line of the
-list itself passes when its path is the path of an entry. A line with fewer
+line, because a line number moves with every edit above it. In a line of
+the list, a path that is the path of an entry is no hit, and the rest of the
+line is read. A line with fewer
 than three fields, with an empty file or reason, or with a path that is not
 one home path as a whole makes the list malformed. An entry is of one of
 three kinds, and its reason says which: a made-up name that a fixture holds
@@ -462,8 +463,18 @@ function added_entry(n, text,   rec, k, rest, path, name) {
   name = tolower(last_name)
   if (name == own_full || name == own_cut) print "OWN " commit " " n
 }
+function without_the_path_of_an_entry(text,   k, rest, j, path) {
+  k = index(text, "\t")
+  if (!k) return text
+  rest = substr(text, k + 1)
+  j = index(rest, "\t")
+  if (!j) return text
+  path = substr(rest, 1, j - 1)
+  if (!((list_path SUBSEP path) in allowed)) return text
+  return substr(text, 1, k) substr(rest, j)
+}
 function check(n, text,   forms) {
-  forms = scan_text(text, file, 1)
+  forms = scan_text(file == list_path ? without_the_path_of_an_entry(text) : text, file, 1)
   if (forms != "") {
     hits++
     print "HIT " substr(commit, 1, 12) " " n " " forms " " file
@@ -1162,6 +1173,11 @@ self_test_commits() {
   case_scan entry-for-the-shorter-name-refuses-a-name-with-a-blank 1 'twin.txt:1: a home path (windows-drive)' --allow "$work/list-ann" "$twin"
   case_scan entry-for-the-longer-text-allows-two-lines-of-its-file 1 'lines with a home path 1.' --allow "$work/list-ann-sam" "$twin"
   case_scan entry-allows-no-other-file 1 'other.txt:1: a home path (windows-drive)' --allow "$work/list-ann-sam" "$twin"
+  mkdir -p "$case_repo/scripts" || die 'mkdir failed'
+  expand_fixture "twin.txt${tab}C:\\{U}\\Ann Sam${tab}made up" >"$work/list-ann-sam-alone"
+  cp "$work/list-ann-sam-alone" "$case_repo/$LIST_IN_THE_REPOSITORY" || die 'cp failed'
+  list_line=$(commit_case 'the list holds an entry for a name with a blank') || die 'commit failed'
+  case_scan line-of-the-list-with-an-entry-for-a-name-with-a-blank 0 'lines with a home path 0' --allow "$work/list-ann-sam-alone" "$list_line^!"
 
   new_case_repo listed
   expand_fixture 'see /{U}/ada for the example' >"$case_repo/made-up.txt"
