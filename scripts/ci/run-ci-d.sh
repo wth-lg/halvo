@@ -745,11 +745,15 @@ own_self_test() {
   case_first="ended by TERM${nl}seconds 10-a "
   case_then='FAIL self-test:10-a (time limit 2 s)'
   own_case self-test-past-its-limit 1 'FAIL self-test:10-a (time limit 2 s)' macos --self-test 10-a 20-b
-  new_repo && add_script r1 10-a.sh "$good" "$prelude; trap '' TERM; sleep 60; $passes" && add_script r1 20-b.sh "$good" "$prelude; $passes"
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; printf '%s\\n' \"\$\$\" >\"\$CI_D_REPO/pid.10-a\"; trap '' TERM; sleep 60; $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; $passes" &&
+    add_script r1 30-c.sh "$good$nl# self-test: alone" "$prelude; read -r p <\"\$CI_D_REPO/pid.10-a\"; n=0; while kill -0 \"\$p\" 2>/dev/null; do [ \"\$n\" -lt 50 ] || { printf \"FAIL self-test:%s (the self-test past its limit still runs)\\n\" \"\$me\"; exit 1; }; sleep 0.1; n=\$((n + 1)); done; $passes"
   case_jobs=2
   case_limit=2
   case_max_s=30
-  own_case self-test-that-ignores-term-past-its-limit 1 'FAIL self-test:10-a (time limit 2 s)' macos --self-test 10-a 20-b
+  case_first='FAIL self-test:10-a (time limit 2 s)'
+  case_then='PASS self-test:30-c (1 failing fixtures rejected)'
+  own_case self-test-that-ignores-term-past-its-limit 1 'FAIL self-test:10-a (time limit 2 s)' macos --self-test 10-a 20-b 30-c
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" && printf 'a file\n' >"$fixture/target"
   own_case artifacts-directory-of-a-self-test-cannot-be-made 1 'FAIL 10-a (its artifacts directory cannot be made)' macos --self-test 10-a
   procs=$(getconf _NPROCESSORS_ONLN 2>/dev/null) || procs=
