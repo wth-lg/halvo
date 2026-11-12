@@ -275,7 +275,6 @@ st_track() {
   st_now=$(date +%s)
   eval "st_kind_$st_n=\$1 st_pid_$st_n=\$2 st_dir_$st_n=\$3 st_name_$st_n=\$4 st_since_$st_n=\$st_now st_state_$st_n=running"
   st_running="$st_running$st_n "
-  st_count=$((st_count + 1))
   st_n=$((st_n + 1))
   st_naps=0
 }
@@ -471,6 +470,7 @@ own_case() {
   want_exit=$2
   want_line=$3
   shift 3
+  [ -z "$case_max_s" ] || case_t0=$(date +%s)
   got_out=$(
     cd "$fixture/$case_cd" || exit 99
     unset CI CI_D_SCRIPTS CI_D_SELF_TEST_JOBS CI_D_SCRIPT_LIMIT_S
@@ -485,6 +485,7 @@ own_case() {
     printf 'a line on standard input\n' | RUN_CI_D_NESTED=yes sh "$self" "$@" 2>&1
   )
   got_exit=$?
+  [ -z "$case_max_s" ] || case_t1=$(date +%s)
   if [ "$want_exit" -eq 0 ]; then want=PASS; else want=FAIL; fi
   if [ "$got_exit" -ne "$want_exit" ]; then
     got=exit-$got_exit
@@ -497,6 +498,9 @@ own_case() {
         *"$nl$case_first"*"$nl$case_then"*) ;;
         *) got=misordered ;;
       esac
+    fi
+    if [ -n "$case_max_s" ] && [ "$((case_t1 - case_t0))" -gt "$case_max_s" ]; then
+      got=slower-than-$case_max_s-s
     fi
   fi
   printf 'case run-ci-d/%s want=%s got=%s\n' "$case_name" "$want" "$got"
@@ -514,6 +518,7 @@ own_case() {
   case_limit=
   case_first=
   case_then=
+  case_max_s=
 }
 
 # shellcheck disable=SC2016
@@ -535,6 +540,7 @@ own_self_test() {
   case_limit=
   case_first=
   case_then=
+  case_max_s=
   tab=$(printf '\t')
   usage_line='usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]'
   name_refusal='the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -'
@@ -733,10 +739,25 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" "$prelude; meet || $ran_alone; kill -s KILL \"\$PPID\"; sleep 1; $passes" && add_script r1 20-b.sh "$good" "$meets"
   case_jobs=2
   own_case driver-job-of-a-self-test-killed 1 'FAIL self-test:10-a (it ended without an exit status)' macos --self-test 10-a 20-b
-  new_repo && add_script r1 10-a.sh "$good" "$prelude; sleep 30; $passes" && add_script r1 20-b.sh "$good" "$prelude; $passes"
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; trap 'printf \"ended by TERM\\n\"; exit 143' TERM; sleep 30 & wait \"\$!\"; $passes" && add_script r1 20-b.sh "$good" "$prelude; $passes"
   case_jobs=2
   case_limit=2
+  case_first="ended by TERM${nl}seconds 10-a "
+  case_then='FAIL self-test:10-a (time limit 2 s)'
   own_case self-test-past-its-limit 1 'FAIL self-test:10-a (time limit 2 s)' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; trap '' TERM; sleep 60; $passes" && add_script r1 20-b.sh "$good" "$prelude; $passes"
+  case_jobs=2
+  case_limit=2
+  case_max_s=30
+  own_case self-test-that-ignores-term-past-its-limit 1 'FAIL self-test:10-a (time limit 2 s)' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" && printf 'a file\n' >"$fixture/target"
+  own_case artifacts-directory-of-a-self-test-cannot-be-made 1 'FAIL 10-a (its artifacts directory cannot be made)' macos --self-test 10-a
+  procs=$(getconf _NPROCESSORS_ONLN 2>/dev/null) || procs=
+  case $procs in '' | 0* | *[!0-9]*) procs=${NUMBER_OF_PROCESSORS:-1} ;; esac
+  if [ "$procs" -ge 2 ] 2>/dev/null; then
+    new_repo && add_script r1 10-a.sh "$good" "$meets" && add_script r1 20-b.sh "$good" "$meets"
+    own_case default-of-several-at-a-time 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  fi
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
     mkdir -p "$fixture/scripts/ci" && printf '99-gone it was renamed\n' >"$fixture/$alone_list"
   own_case alone-list-names-no-script 1 "FAIL run-ci-d ($alone_list names 99-gone, which is no script)" macos --self-test 10-a
