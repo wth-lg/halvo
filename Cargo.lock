@@ -1529,6 +1529,7 @@ version = "0.0.0"
 name = "halvo-route"
 version = "0.0.0"
 dependencies = [
+ "serde_json",
  "sha2",
 ]
 

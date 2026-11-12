@@ -22,7 +22,7 @@ const PINNED: [(&str, &str); 5] = [
     ),
     (
         "Cargo.toml",
-        "929ccd4db5a3d67ddc15d258a5b941f5d3949873365be684d22bed88ce4b12d0",
+        "42ed4aa130d163c0ece33201d1056146aecd2f15032e94a43fd4ec35a8f0da8c",
     ),
 ];
 
