@@ -6,6 +6,7 @@ pub(crate) enum Own {
     Binding,
     Playbook,
     Config,
+    Class,
     Length,
 }
 
@@ -15,6 +16,7 @@ impl Own {
             Own::Binding => "binding",
             Own::Playbook => "playbook",
             Own::Config => "config",
+            Own::Class => "class",
             Own::Length => "length",
         }
     }

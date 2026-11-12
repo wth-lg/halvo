@@ -1,9 +1,15 @@
-use halvo_schema::executable::{AgentBindings, AgentConfig, AgentPlaybook, Refusal};
-use halvo_schema::{AgentId, ErrorName, RowRead};
+use halvo_schema::executable::{
+    AgentBindings, AgentConfig, AgentLog, AgentPlaybook, AgentSession, Refusal,
+};
+use halvo_schema::{AgentId, ErrorName, RowRead, TypedRecord};
+
+use crate::errors::refused;
 
 pub(crate) const AGENT_CONFIG: &str = "agent_config";
 pub(crate) const AGENT_PLAYBOOK: &str = "agent_playbook";
 pub(crate) const AGENT_BINDINGS: &str = "agent_bindings";
+pub(crate) const AGENT_LOG: &str = "agent_log";
+pub(crate) const AGENT_SESSION: &str = "agent_session";
 
 fn parsed<T>(
     rows: &dyn RowRead,
@@ -22,6 +28,16 @@ fn parsed<T>(
     Ok(out)
 }
 
+pub(crate) fn record(
+    kind: &'static str,
+    json: Result<String, Refusal>,
+) -> Result<TypedRecord, ErrorName> {
+    Ok(TypedRecord {
+        kind,
+        json: json.map_err(refused)?,
+    })
+}
+
 pub(crate) fn configs(rows: &dyn RowRead) -> Result<Vec<AgentConfig>, ErrorName> {
     parsed(rows, AGENT_CONFIG, AgentConfig::parse)
 }
@@ -32,6 +48,14 @@ pub(crate) fn playbooks(rows: &dyn RowRead) -> Result<Vec<AgentPlaybook>, ErrorN
 
 pub(crate) fn bindings(rows: &dyn RowRead) -> Result<Vec<AgentBindings>, ErrorName> {
     parsed(rows, AGENT_BINDINGS, AgentBindings::parse)
+}
+
+pub(crate) fn logs(rows: &dyn RowRead) -> Result<Vec<AgentLog>, ErrorName> {
+    parsed(rows, AGENT_LOG, AgentLog::parse)
+}
+
+pub(crate) fn sessions(rows: &dyn RowRead) -> Result<Vec<AgentSession>, ErrorName> {
+    parsed(rows, AGENT_SESSION, AgentSession::parse)
 }
 
 pub(crate) fn newest_config(
