@@ -264,6 +264,33 @@ fn expiry_at_open_reads_the_bound_of_the_entry_that_names_the_kind() {
     clock.set_day(DAY + 20);
     drop(open_entries(&scratch, plain(&clock), &[&BOUND_93]).unwrap());
     assert_eq!(bodies(&scratch, "test_bound").len(), 1);
+    clock.set_day(DAY + 9);
     drop(open_entries(&scratch, plain(&clock), &[&BOUND_10]).unwrap());
+    assert_eq!(bodies(&scratch, "test_bound").len(), 1);
+    clock.set_day(DAY + 10);
+    drop(open_entries(&scratch, plain(&clock), &[&BOUND_10]).unwrap());
+    assert_eq!(bodies(&scratch, "test_bound").len(), 0);
+}
+
+#[test]
+fn expiry_at_open_removes_a_row_past_its_bound_of_a_kind_that_the_open_does_not_name() {
+    let scratch = Scratch::new("expiry-unnamed-kind");
+    let clock = TestClock::at_day(DAY);
+    let emitted = Rc::new(RefCell::new(vec![TypedRecord {
+        kind: "test_bound",
+        json: format!(r#"{{"v":1,"day":{DAY}}}"#),
+    }]));
+    let host = Host::new(Box::new(clock.clone()), Box::new(NoProposals))
+        .step("test", Box::new(Emit(Rc::clone(&emitted))));
+    let mut store = open_entries(&scratch, host, &[&BOUND_10]).unwrap();
+    store
+        .commit_batch(&store_id(1), &[], position(1, 0), &mut Seq(1))
+        .unwrap();
+    drop(store);
+    clock.set_day(DAY + 9);
+    drop(open_host(&scratch, plain(&clock)).unwrap());
+    assert_eq!(bodies(&scratch, "test_bound").len(), 1);
+    clock.set_day(DAY + 10);
+    drop(open_host(&scratch, plain(&clock)).unwrap());
     assert_eq!(bodies(&scratch, "test_bound").len(), 0);
 }

@@ -321,6 +321,53 @@ fn a_page_holds_whole_items_while_the_reply_stays_inside_its_bound() {
     }
 }
 
+/// A first item and a small second one under one workflow of the site `w<n>.test`, the first tuned so that the reply
+/// that holds it with the id of its summary as `next` has `bytes` bytes.
+fn pair(n: u64, bytes: usize) -> (Episode, Episode) {
+    let next = Some(summary_id(n));
+    let mut steps = 200;
+    while evidence_reply_len(&[&big(n, steps + 1, 0)], next.clone()) <= bytes {
+        steps += 1;
+    }
+    let rest = bytes - evidence_reply_len(&[&big(n, steps, 0)], next.clone());
+    let first = big(n, steps, rest);
+    let mut second = episode(n + 1, DAY, domain(&format!("w{n}.test")));
+    second.steps.clear();
+    assert_eq!(evidence_reply_len(&[&first], next), bytes);
+    (first, second)
+}
+
+#[test]
+fn a_page_counts_the_id_under_next_against_the_bound() {
+    let scratch = Scratch::new("reply-next");
+    let clock = TestClock::at_day(DAY);
+    let (fits, after_fits) = pair(10, REPLY_MAX);
+    let (over, after_over) = pair(20, REPLY_MAX + 1);
+    let fixed = Rc::new(RefCell::new(vec![
+        proposal(site("w10.test"), "com.example.browser", &[10, 11]),
+        proposal(site("w20.test"), "com.example.browser", &[20, 21]),
+    ]));
+    let host = Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(&fixed))));
+    let mut store = open_host(&scratch, host).unwrap();
+    store
+        .commit_batch(
+            &store_id(1),
+            &[fits, after_fits, over, after_over],
+            position(1, 0),
+            &mut Seq(1),
+        )
+        .unwrap();
+    let page = evidence(&store, workflow_of(&store, "w10.test"), None).unwrap();
+    assert_eq!(reply_len(&page), 261_120);
+    assert!(
+        matches!(&page, ReplyResult::Evidence(p) if p.evidence.len() == 1 && p.next == Some(summary_id(10)))
+    );
+    assert_eq!(
+        evidence(&store, workflow_of(&store, "w20.test"), None).err(),
+        Some(Error::Refused(ErrorName::TooLarge))
+    );
+}
+
 struct ReadsOne {
     workflow: WorkflowId,
     found: Rc<RefCell<Vec<String>>>,
