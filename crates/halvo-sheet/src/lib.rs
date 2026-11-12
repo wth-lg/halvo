@@ -1,6 +1,7 @@
 //! The sheet executor of the agent-setup run (contracts.md A11.3).
 
 mod book;
+mod carry;
 mod error;
 mod parts;
 mod patch;
@@ -150,7 +151,13 @@ impl Folder {
     /// regular file). It writes a prepared copy under a name of this call's own,
     /// `<name>.halvo-prepared-<run id>-<part of its own><ext>`, which no other call writes or
     /// removes. Both get the workbook's permissions: its permission bits on Unix, its read-only
-    /// attribute on Windows. Once the run's checkpoint is made, no call of this crate removes
+    /// attribute on Windows; and what the workbook holds besides its bytes: on macOS its
+    /// extended attributes (a quarantine mark among them, which the system writes again with
+    /// its flags kept) and its access list, on Windows its named streams (the zone of a file
+    /// from the web among them) and its access list. When the system cannot carry them,
+    /// `prepare` removes the file that it made and fails with [`Error::Io`]; a checkpoint of
+    /// the run that is already there is taken as it is. Once the run's checkpoint is made, no
+    /// call of this crate removes
     /// it, neither on a miss nor on a drop: no call removes a checkpoint of a run that has not
     /// ended, and the one call that removes one is `remove` of the crate halvo-checkpoint,
     /// which the supervisor library makes for a run whose end is stored, with the SHA-256,

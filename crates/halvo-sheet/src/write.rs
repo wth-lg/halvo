@@ -9,6 +9,7 @@ use std::sync::OnceLock;
 use halvo_checkpoint::{checkpoint_name, own_name, regular, Locks, Root, RunId, Sha256};
 
 use crate::book::{self, guarded};
+use crate::carry;
 use crate::error::{Error, Kept, Refusal};
 use crate::parts;
 use crate::patch;
@@ -174,7 +175,7 @@ pub(crate) fn prepare(
     book::readable(&original, sheet)?;
     let checkpoint = workbook.with_file_name(checkpoint_name(&workbook, run).unwrap_or_default());
     let held = locks.hold(directory(&workbook)).map_err(Error::Lock)?;
-    keep_checkpoint(&checkpoint, &original, meta.permissions())?;
+    keep_checkpoint(&checkpoint, &original, &workbook, meta.permissions())?;
     let copy = write_copy(&workbook, run, &changed, meta.permissions())?;
     drop(held);
     drop(changed);
@@ -217,9 +218,10 @@ pub(crate) fn replace(prepared: &Prepared) -> Result<(), Error> {
         .map_err(|error| Error::NotReplaced(Kept::Rename(error.kind())))
 }
 
-/// Creates `path`, which must not exist, with the bytes and then the workbook's permissions.
-/// On Unix the file is made readable by its owner alone until it is full.
-fn create(path: &Path, bytes: &[u8], permissions: Permissions) -> io::Result<()> {
+/// Creates `path`, which must not exist, with the bytes, then the workbook's permissions and
+/// what [`carry::carry`] carries; removes it when any of them fails. On Unix the file is made
+/// readable by its owner alone until it is full.
+fn create(path: &Path, bytes: &[u8], workbook: &Path, permissions: Permissions) -> io::Result<()> {
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
@@ -228,7 +230,9 @@ fn create(path: &Path, bytes: &[u8], permissions: Permissions) -> io::Result<()>
         options.mode(0o600);
     }
     let file = options.open(path)?;
-    let filled = fill(file, bytes).and_then(|()| fs::set_permissions(path, permissions));
+    let filled = fill(file, bytes)
+        .and_then(|()| fs::set_permissions(path, permissions))
+        .and_then(|()| carry::carry(workbook, path));
     if filled.is_err() {
         let _ = fs::remove_file(path);
     }
@@ -245,9 +249,10 @@ fn fill(mut file: File, bytes: &[u8]) -> io::Result<()> {
 fn keep_checkpoint(
     checkpoint: &Path,
     original: &[u8],
+    workbook: &Path,
     permissions: Permissions,
 ) -> Result<(), Error> {
-    match create(checkpoint, original, permissions) {
+    match create(checkpoint, original, workbook, permissions) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
             regular(checkpoint).map_err(|_| Error::Checkpoint)?;
@@ -276,7 +281,7 @@ fn write_copy(
         let call = CALLS.fetch_add(1, Ordering::Relaxed);
         let own = format!("{:08x}{call:08x}", std::process::id());
         let copy = beside(workbook, &format!("prepared-{}-{own}", run.as_str()));
-        match create(&copy, bytes, permissions.clone()) {
+        match create(&copy, bytes, workbook, permissions.clone()) {
             Ok(()) => return Ok(copy),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
             Err(error) => return Err(error.into()),
