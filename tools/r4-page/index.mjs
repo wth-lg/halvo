@@ -1178,6 +1178,10 @@ async function walkCheck(h) {
 
 function structure(nodes, depth = 0, lines = []) {
   for (const node of nodes || []) {
+    if (typeof node === 'string') {
+      lines.push('  '.repeat(depth) + '- ' + JSON.stringify(node));
+      continue;
+    }
     const own = {};
     for (const k of Object.keys(node).sort()) if (k !== 'children') own[k] = node[k];
     lines.push('  '.repeat(depth) + '- ' + JSON.stringify(own));
