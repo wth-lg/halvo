@@ -2115,60 +2115,227 @@ fn registry_chains_the_kinds_of_this_run_and_the_four_lists_of_later_runs_in_the
 
 const DECLARED_ERROR_NAMES: &str = "let lists: [&'static [&'static str]; 4] = [crate::executable::ERROR_NAMES, crate::coordinator::ERROR_NAMES, crate::learning::ERROR_NAMES, crate::routing::ERROR_NAMES,]; lists.into_iter().flatten().copied()";
 
+fn unescape(body: &str) -> Option<String> {
+    let mut out = String::new();
+    let mut chars = body.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next()? {
+            'n' => out.push('\n'),
+            't' => out.push('\t'),
+            'r' => out.push('\r'),
+            '0' => out.push('\0'),
+            '\\' => out.push('\\'),
+            '"' => out.push('"'),
+            '\'' => out.push('\''),
+            'x' => {
+                let hex: String = [chars.next()?, chars.next()?].iter().collect();
+                out.push(char::from(
+                    u8::from_str_radix(&hex, 16).ok().filter(|b| *b < 0x80)?,
+                ));
+            }
+            'u' => {
+                if chars.next()? != '{' {
+                    return None;
+                }
+                let hex: String = chars.by_ref().take_while(|c| *c != '}').collect();
+                out.push(char::from_u32(
+                    u32::from_str_radix(&hex.replace('_', ""), 16).ok()?,
+                )?);
+            }
+            '\n' => {
+                while chars.peek().is_some_and(|c| c.is_whitespace()) {
+                    chars.next();
+                }
+            }
+            _ => return None,
+        }
+    }
+    Some(out)
+}
+
+fn string_value(token: &TokenTree) -> Option<String> {
+    let TokenTree::Literal(literal) = token else {
+        return None;
+    };
+    let text = literal.to_string();
+    if let Some(rest) = text.strip_prefix('r') {
+        let hashes = rest.len() - rest.trim_start_matches('#').len();
+        let body = rest[hashes..]
+            .strip_prefix('"')?
+            .strip_suffix(&"#".repeat(hashes))?
+            .strip_suffix('"')?;
+        return Some(body.to_owned());
+    }
+    unescape(text.strip_prefix('"')?.strip_suffix('"')?)
+}
+
+fn is_punct(token: Option<&TokenTree>, c: char) -> bool {
+    matches!(token, Some(TokenTree::Punct(p)) if p.as_char() == c)
+}
+
+fn is_word(token: Option<&TokenTree>, word: &str) -> bool {
+    matches!(token, Some(TokenTree::Ident(i)) if i == word)
+}
+
+fn is_group(token: Option<&TokenTree>, delimiter: Delimiter) -> bool {
+    matches!(token, Some(TokenTree::Group(g)) if g.delimiter() == delimiter)
+}
+
+fn is_doc(attribute: &TokenTree) -> bool {
+    let TokenTree::Group(group) = attribute else {
+        return false;
+    };
+    let inner: Vec<TokenTree> = group.stream().into_iter().collect();
+    inner.len() == 3
+        && is_word(inner.first(), "doc")
+        && is_punct(inner.get(1), '=')
+        && string_value(&inner[2]).is_some()
+}
+
+fn error_names_of(text: &str) -> Result<Vec<String>, String> {
+    let stream = TokenStream::from_str(text).map_err(|e| format!("the lexer refuses it: {e}"))?;
+    let top: Vec<TokenTree> = stream.into_iter().collect();
+    let starts: Vec<usize> = (0..top.len())
+        .filter(|&i| {
+            is_word(top.get(i), "pub")
+                && is_word(top.get(i + 1), "const")
+                && is_word(top.get(i + 2), "ERROR_NAMES")
+        })
+        .collect();
+    let [at] = starts[..] else {
+        return Err(format!(
+            "holds {} items `pub const ERROR_NAMES` at the top level of the file, not one",
+            starts.len()
+        ));
+    };
+    let mut before = at;
+    while before >= 2 && is_punct(top.get(before - 2), '#') {
+        if !is_doc(&top[before - 1]) {
+            return Err("puts an attribute on its list ERROR_NAMES".to_owned());
+        }
+        before -= 2;
+    }
+    let form = is_punct(top.get(at + 3), ':')
+        && is_punct(top.get(at + 4), '&')
+        && is_group(top.get(at + 5), Delimiter::Bracket)
+        && top[at + 5].to_string() == TokenStream::from_str("[&str]").unwrap().to_string()
+        && is_punct(top.get(at + 6), '=')
+        && is_punct(top.get(at + 7), '&')
+        && is_group(top.get(at + 8), Delimiter::Bracket)
+        && is_punct(top.get(at + 9), ';');
+    if !form {
+        return Err(
+            "does not write its list as `pub const ERROR_NAMES: &[&str] = &[..];`".to_owned(),
+        );
+    }
+    let TokenTree::Group(list) = &top[at + 8] else {
+        unreachable!()
+    };
+    let elements: Vec<TokenTree> = list.stream().into_iter().collect();
+    let mut names = Vec::new();
+    for (k, element) in elements.iter().enumerate() {
+        if k % 2 == 1 {
+            if !is_punct(Some(element), ',') {
+                return Err(format!("holds `{element}` between two names of its list"));
+            }
+            continue;
+        }
+        match string_value(element) {
+            Some(name) => names.push(name),
+            None => {
+                return Err(format!(
+                    "holds `{element}`, which is no string literal, in its list"
+                ))
+            }
+        }
+    }
+    Ok(names)
+}
+
 #[test]
 fn each_file_of_a_later_run_lists_its_error_names_as_string_literals() {
-    let form = |text: &str| -> Result<usize, String> {
-        let t = tokens(text);
-        let named = t.iter().filter(|x| bare(x) == "ERROR_NAMES").count();
-        let mut head = tokens("pub const ERROR_NAMES: &[&str] = &");
-        head.push("[".to_owned());
-        let at = find(&t, &head.iter().map(String::as_str).collect::<Vec<_>>());
-        if named != 1 || at.len() != 1 {
-            return Err(format!("names ERROR_NAMES {named} times, {} of them in the form `pub const ERROR_NAMES: &[&str] = &[..];`", at.len()));
-        }
-        let open = at[0] + head.len() - 1;
-        let close = matching(&t, open);
-        let inner = &t[open + 1..close];
-        let literal =
-            |x: &String| x.starts_with('"') || x.starts_with("r\"") || x.starts_with("r#");
-        if t.get(close + 1).is_none_or(|x| x != ";")
-            || inner
-                .iter()
-                .enumerate()
-                .any(|(k, x)| if k % 2 == 0 { !literal(x) } else { x != "," })
-        {
-            return Err(
-                "holds in its list ERROR_NAMES another token than string literals and commas"
-                    .to_owned(),
-            );
-        }
-        Ok(inner.len().div_ceil(2))
-    };
     for module in LATER {
         let file = format!("{module}.rs");
         assert!(
-            form(&source(&file)).is_ok(),
+            error_names_of(&source(&file)).is_ok(),
             "src/{file}: {:?}",
-            form(&source(&file))
+            error_names_of(&source(&file))
         );
     }
     for (text, names) in [
-        ("pub const ERROR_NAMES: &[&str] = &[];\n", 0),
-        ("pub const ERROR_NAMES: &[&str] = &[\"a\", \"b_2\"];\n", 2),
-        ("pub const ERROR_NAMES: &[&str] = &[\n    \"a\",\n];\n", 1),
+        ("pub const ERROR_NAMES: &[&str] = &[];\n", vec![]),
+        ("pub const ERROR_NAMES: &[&str] = &[\"a\", \"b_2\"];\n", vec!["a", "b_2"]),
+        ("pub const ERROR_NAMES: &[&str] = &[\n    \"a\",\n];\n", vec!["a"]),
+        ("/// The names.\npub const ERROR_NAMES: &[&str] = &[r#\"raw\"#, \"esc\\x61pe\"];\n", vec!["raw", "escape"]),
+        ("pub const ERROR_NAMES: &[&str] = &[r\"one\", r#\"two\"#, r##\"three\"##];\n", vec!["one", "two", "three"]),
+        ("pub mod inner {\n    pub const ERROR_NAMES: &[&str] = &[\"inner\"];\n}\npub const ERROR_NAMES: &[&str] = &[\"top\"];\n", vec!["top"]),
     ] {
-        assert_eq!(form(text), Ok(names), "{text}");
+        let want: Vec<String> = names.iter().map(|n| (*n).to_owned()).collect();
+        assert_eq!(error_names_of(text), Ok(want), "{text}");
     }
-    for text in [
-        "pub const ERROR_NAMES: &[&str] = &[env!(\"X\")];\n",
-        "pub const ERROR_NAMES: &[&str] = &[concat!(\"a\", \"b\")];\n",
-        "pub const ERROR_NAMES: &[&str] = OTHER;\n",
-        "pub static ERROR_NAMES: Names = Names;\n",
-        "pub const ERROR_NAMES: &[&str] = &[\"a\"];\npub use self::ERROR_NAMES as MORE;\n",
-        "pub const ERROR_NAMES: &[&str] = &[\"a\" \"b\"];\n",
+    let raw_identifier = "pub const ERROR_NAMES: &[&str] = &[r#LATER_NAME];\nconst LATER_NAME: &str = match option_env!(\"HALVO_U11D_NAME\") {\n    Some(name) => name,\n    None => \"later_name\",\n};\n";
+    let glob = "pub mod shown {\n    pub const ERROR_NAMES: &[&str] = &[];\n}\nmod names;\npub use names::*;\n";
+    let macro_rewrite = "macro_rules! listed {\n    (pub const $list:ident : $ty:ty = & [ $($name:literal),* $(,)? ] ;) => {\n        pub const $list: $ty = &[$(concat!($name, \"_x\")),*];\n    };\n}\nlisted! {\n    pub const ERROR_NAMES: &[&str] = &[\"learned\"];\n}\n";
+    for (text, fault) in [
+        (
+            raw_identifier,
+            "holds `r#LATER_NAME`, which is no string literal, in its list",
+        ),
+        (
+            glob,
+            "holds 0 items `pub const ERROR_NAMES` at the top level of the file, not one",
+        ),
+        (
+            macro_rewrite,
+            "holds 0 items `pub const ERROR_NAMES` at the top level of the file, not one",
+        ),
+        (
+            "pub const ERROR_NAMES: &[&str] = &[NAME];\n",
+            "holds `NAME`, which is no string literal, in its list",
+        ),
+        (
+            "pub const ERROR_NAMES: &[&str] = &[b\"a\"];\n",
+            "holds `b\"a\"`, which is no string literal, in its list",
+        ),
+        (
+            "pub const ERROR_NAMES: &[&str] = &[\"a\"x];\n",
+            "holds `\"a\"x`, which is no string literal, in its list",
+        ),
+        (
+            "pub const ERROR_NAMES: &[&str] = &[\"a\" \"b\"];\n",
+            "holds `\"b\"` between two names of its list",
+        ),
+        (
+            "#[cfg(all())]\npub const ERROR_NAMES: &[&str] = &[\"a\"];\n",
+            "puts an attribute on its list ERROR_NAMES",
+        ),
+        (
+            "pub static ERROR_NAMES: &[&str] = &[\"a\"];\n",
+            "holds 0 items `pub const ERROR_NAMES` at the top level of the file, not one",
+        ),
+        (
+            "pub const ERROR_NAMES: &[&str] = OTHER;\n",
+            "does not write its list as `pub const ERROR_NAMES: &[&str] = &[..];`",
+        ),
     ] {
-        assert!(form(text).is_err(), "{text}");
+        assert_eq!(error_names_of(text), Err(fault.to_owned()), "{text}");
     }
+}
+
+#[test]
+fn declared_error_names_yields_the_literals_that_the_four_later_files_list_in_order() {
+    let mut listed = Vec::new();
+    for module in LATER {
+        listed.extend(error_names_of(&source(&format!("{module}.rs"))).unwrap_or_default());
+    }
+    let declared: Vec<String> = halvo_schema::kinds::declared_error_names()
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(declared, listed);
 }
 
 #[test]

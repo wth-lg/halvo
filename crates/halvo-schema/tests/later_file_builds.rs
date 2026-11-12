@@ -113,6 +113,11 @@ const CASES: &[Case] = &[
         later: &["pub struct Key(());\ncrate::ids::strict_struct! {\n    pub struct Note {\n        pub n: u32,\n    }\n    rules(_n) {\n        Ok(())\n    }\n}\n"],
         codes: &["E0277"],
     },
+    Case {
+        name: "declared-name-by-hand",
+        later: &["pub fn forged() -> crate::request::ErrorName {\n    crate::request::ErrorName::Declared(crate::request::DeclaredName(\"nobody_declares_this\"))\n}\n"],
+        codes: &["E0603"],
+    },
 ];
 
 const TWIN: &[&str] = &[
@@ -122,6 +127,7 @@ const TWIN: &[&str] = &[
     "pub fn rule_of(e: crate::ids::ParseError) -> &'static str {\n    e.rule()\n}\n",
     "pub fn written() -> Option<String> {\n    serde_json::to_string(&broken()).ok()\n}\n",
     "pub fn checked(r: &crate::record::Recurrence) -> bool {\n    serde_json::to_vec(r).is_ok()\n}\n",
+    "pub fn declared(name: &str) -> Option<crate::request::ErrorName> {\n    crate::request::ErrorName::read(name).ok()\n}\n",
 ];
 
 const READ_AS_CODE: &[(&str, &[&str])] = &[
