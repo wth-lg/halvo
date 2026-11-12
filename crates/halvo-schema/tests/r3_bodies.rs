@@ -1893,3 +1893,57 @@ fn a_log_line_ends_a_run_with_the_cause_secret_and_no_other_spelling() {
         );
     }
 }
+
+#[test]
+fn the_reply_of_create_agent_is_revision_1_and_set_bindings_and_add_origin_take_any_revision() {
+    let bodies: Vec<CoordinatorCall> = coordinator_bodies()
+        .iter()
+        .map(|b| CoordinatorCall::parse(b.as_bytes()).unwrap())
+        .collect();
+    let answered = |text: &str| -> Vec<&str> {
+        let reply = CoordinatorReply::parse(text.as_bytes()).unwrap();
+        bodies
+            .iter()
+            .filter(|b| reply.answers(b))
+            .map(|b| b.op())
+            .collect()
+    };
+    assert_eq!(
+        answered(r#"{"rev":1}"#),
+        ["create_agent", "set_bindings", "add_origin"]
+    );
+    for rev in [2, 7, 4_294_967_295_u32] {
+        assert_eq!(
+            answered(&format!(r#"{{"rev":{rev}}}"#)),
+            ["set_bindings", "add_origin"],
+            "{rev}"
+        );
+    }
+}
+
+#[test]
+fn a_load_reply_whose_bindings_name_an_origin_twice_is_refused() {
+    let load = |origins: &str| {
+        format!(
+            r#"{{"config":{CONFIG},"playbook":null,"bindings":{{"rev":3,{origins},{SLOTS}}},"sessions":[]}}"#
+        )
+    };
+    assert!(RunnerReply::parse(load(ORIGINS).as_bytes()).is_ok());
+    expect(
+        RunnerReply::parse(
+            load(r#""origins":["http://pay.test:18090","http://pay.test:18090"]"#).as_bytes(),
+        ),
+        "LoadedBindings",
+        "repeated_name",
+        "origins",
+    );
+    expect(
+        RunnerReply::parse(
+            load(r#""origins":["http://pay.test:18090","http://utility.test:18090","http://pay.test:18090"]"#)
+                .as_bytes(),
+        ),
+        "LoadedBindings",
+        "repeated_name",
+        "origins",
+    );
+}

@@ -582,21 +582,22 @@ impl CoordinatorReply {
         }
     }
 
-    /// Whether the reply has the form that the body's call answers with.
+    /// Whether the reply has the form that the body's call answers with: `create_agent` is answered by the
+    /// revision 1 alone, `set_bindings` and `add_origin` by any revision.
     pub fn answers(&self, call: &CoordinatorCall) -> bool {
-        matches!(
-            (self, call),
+        match (self, call) {
+            (CoordinatorReply::Rev(r), CoordinatorCall::CreateAgent(_)) => r.rev.get() == 1,
             (
                 CoordinatorReply::Rev(_),
-                CoordinatorCall::CreateAgent(_)
-                    | CoordinatorCall::SetBindings(_)
-                    | CoordinatorCall::AddOrigin(_)
-            ) | (CoordinatorReply::State(_), CoordinatorCall::SetState(_))
-                | (
-                    CoordinatorReply::Accepted(_),
-                    CoordinatorCall::StartRun(_) | CoordinatorCall::EndRun(_)
-                )
-        )
+                CoordinatorCall::SetBindings(_) | CoordinatorCall::AddOrigin(_),
+            )
+            | (CoordinatorReply::State(_), CoordinatorCall::SetState(_))
+            | (
+                CoordinatorReply::Accepted(_),
+                CoordinatorCall::StartRun(_) | CoordinatorCall::EndRun(_),
+            ) => true,
+            _ => false,
+        }
     }
 }
 

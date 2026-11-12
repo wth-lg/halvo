@@ -775,7 +775,7 @@ fn the_origin_of_each_of_100000_drawn_addresses_is_the_one_that_the_reader_of_th
 
 #[test]
 fn a_refused_address_names_the_rule_that_refused_it_and_no_text_of_the_address() {
-    let cases: [(&str, &str); 18] = [
+    let cases: [(&str, &str); 21] = [
         ("http://pay.test/ x", "address_control"),
         ("http://pay.test/\u{7f}", "address_control"),
         ("http://pay\u{0}.test/", "address_control"),
@@ -791,6 +791,9 @@ fn a_refused_address_names_the_rule_that_refused_it_and_no_text_of_the_address()
         ("http://0x7f.0.0.1/", "address_ipv4"),
         ("http://pay.123/", "address_ipv4"),
         ("http://pay..test/", "address_host"),
+        ("http://pay.test../", "address_host"),
+        ("http://./", "address_host"),
+        ("http:///", "address_host"),
         ("http://pay_now.test/", "address_host"),
         ("http://xn--b\u{fc}cher.test/", "address_host"),
         (
@@ -892,5 +895,38 @@ fn a_label_takes_the_a_label_that_another_encoder_of_rfc_3492_gives() {
             Some(format!("http://xn--{encoded}.test:80")),
             "function: {label}"
         );
+    }
+}
+
+#[test]
+fn a_long_label_is_taken_while_its_a_label_fits_63_bytes() {
+    let taken = [
+        "\u{fc}".repeat(57),
+        format!("{}\u{fc}", "a".repeat(50)),
+        format!("{}\u{fc}", "a".repeat(55)),
+    ];
+    for label in &taken {
+        let address = format!("http://{label}.test/");
+        let origin =
+            origin_of(&address).unwrap_or_else(|| panic!("{} letters", label.chars().count()));
+        assert_eq!(Some(origin.clone()), read_origin(&address));
+        let host = origin
+            .trim_start_matches("http://")
+            .trim_end_matches(".test:80");
+        assert!(host.starts_with("xn--") && host.len() <= 63, "{host}");
+    }
+    assert_eq!(
+        origin_of(&format!("http://{}.test/", "\u{fc}".repeat(57))),
+        Some(format!("http://xn--tda{}.test:80", "a".repeat(56)))
+    );
+    for label in ["\u{fc}".repeat(58), format!("{}\u{fc}", "a".repeat(56))] {
+        let address = format!("http://{label}.test/");
+        assert_eq!(
+            origin_of(&address),
+            None,
+            "{} letters",
+            label.chars().count()
+        );
+        assert_eq!(read_origin(&address), None);
     }
 }
