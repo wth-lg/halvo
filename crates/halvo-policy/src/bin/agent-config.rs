@@ -3,6 +3,8 @@
 //! answer is `valid`, 1 for a cause, 2 for a refusal, which prints one line `REFUSED <cause>: <detail>` on
 //! standard error and nothing on standard output; the causes of a refusal are `usage` and `file`.
 
+use std::ffi::OsString;
+use std::path::Path;
 use std::process::ExitCode;
 
 use halvo_policy::{preset, validate};
@@ -56,14 +58,18 @@ fn presets() -> ExitCode {
         SeedCategory::ALL.len()
     ));
     println!("{}", lines.join("\n"));
-    if valid == SeedCategory::ALL.len() && unattended == 0 {
+    if presets_pass(valid, unattended) {
         ExitCode::SUCCESS
     } else {
         ExitCode::from(1)
     }
 }
 
-fn validate_file(path: &str) -> ExitCode {
+fn presets_pass(valid: usize, unattended: usize) -> bool {
+    valid == SeedCategory::ALL.len() && unattended == 0
+}
+
+fn validate_file(path: &Path) -> ExitCode {
     let Ok(bytes) = std::fs::read(path) else {
         return refuse("file", "the file cannot be read");
     };
@@ -80,10 +86,23 @@ fn validate_file(path: &str) -> ExitCode {
 }
 
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let args: Vec<OsString> = std::env::args_os().skip(1).collect();
     match args.as_slice() {
         [command] if command == "presets" => presets(),
-        [command, path] if command == "validate" => validate_file(path),
+        [command, path] if command == "validate" => validate_file(Path::new(path)),
         _ => refuse("usage", USAGE),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::presets_pass;
+
+    #[test]
+    fn presets_pass_only_with_ten_valid_and_none_unattended() {
+        assert!(presets_pass(10, 0));
+        assert!(!presets_pass(10, 1));
+        assert!(!presets_pass(9, 0));
+        assert!(!presets_pass(11, 0));
     }
 }

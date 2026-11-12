@@ -145,3 +145,54 @@ fn bad_usage_is_refused_with_usage_and_exit_2() {
         assert_eq!(out.status.code(), Some(2), "{args:?}");
     }
 }
+
+fn not_unicode(prefix: &str) -> std::ffi::OsString {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStringExt;
+        let mut bytes = prefix.as_bytes().to_vec();
+        bytes.push(0xff);
+        std::ffi::OsString::from_vec(bytes)
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStringExt;
+        let mut wide: Vec<u16> = prefix.encode_utf16().collect();
+        wide.push(0xd800);
+        std::ffi::OsString::from_wide(&wide)
+    }
+}
+
+fn run_os(args: &[std::ffi::OsString]) -> Output {
+    match Command::new(env!("CARGO_BIN_EXE_agent-config"))
+        .args(args)
+        .output()
+    {
+        Ok(output) => output,
+        Err(e) => panic!("agent-config did not start: {e}"),
+    }
+}
+
+#[test]
+fn a_file_argument_that_is_not_unicode_is_refused_with_file_and_exit_2() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("halvo-policy-agent-config");
+    let mut missing = dir.into_os_string();
+    missing.push("/no-such-record-");
+    let missing = not_unicode(&missing.to_string_lossy());
+    let out = run_os(&["validate".into(), missing]);
+    assert_eq!(text(&out.stdout), "");
+    let err = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(err.starts_with("REFUSED file: "), "{err}");
+    assert_eq!(err.lines().count(), 1, "{err}");
+    assert_eq!(out.status.code(), Some(2), "{err}");
+}
+
+#[test]
+fn a_command_word_that_is_not_unicode_is_refused_with_usage_and_exit_2() {
+    let out = run_os(&[not_unicode("presets")]);
+    assert_eq!(text(&out.stdout), "");
+    let err = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(err.starts_with("REFUSED usage: "), "{err}");
+    assert_eq!(err.lines().count(), 1, "{err}");
+    assert_eq!(out.status.code(), Some(2), "{err}");
+}
