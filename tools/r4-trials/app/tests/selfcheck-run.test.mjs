@@ -30,7 +30,8 @@ test('the window run reads the system through the readers it is handed, and ever
 });
 
 test('a step that the system does not show is a miss of that key, whatever the app answered', async () => {
-  assert.equal((await run('main', 'show_kept')).show, 'miss');
+  assert.equal((await run('main', 'show_kept_first')).show, 'miss');
+  assert.equal((await run('main', 'show_kept_later')).show, 'miss');
   assert.equal((await run('a', 'hide_kept')).hide, 'miss');
   assert.equal((await run('b', 'destroy_kept')).destroy, 'miss');
   assert.equal((await run('main', 'quit_stays')).quit, 'miss');

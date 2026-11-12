@@ -1,8 +1,9 @@
 // A stand-in for the trial app in tests: it opens no window and makes no tray item. It speaks the
 // control lines of I11.3, prints the core's and the page's lines as the app does, and writes the
 // state of its window (onscreen, hidden or absent) to the file FAKE_STATE, which the readers of
-// fake-readers.mjs read. FAKE_FAULT names faults, comma-separated: show_kept, hide_kept,
-// destroy_kept, quit_stays, wrong_pid, counts_frozen, hidden_unmarked, get_open, lose_last.
+// fake-readers.mjs read. FAKE_FAULT names faults, comma-separated: show_kept, show_kept_first,
+// show_kept_later, hide_kept, destroy_kept, quit_stays, wrong_pid, counts_frozen, hidden_unmarked,
+// get_open, lose_last.
 import fs from 'node:fs';
 import net from 'node:net';
 
@@ -26,6 +27,7 @@ let runningSince = null;
 let slowNext = false;
 let sending = false;
 let sendOf = 0;
+let shows = 0;
 
 function print(line) {
   process.stdout.write(`${line}\n`);
@@ -123,7 +125,9 @@ function answer(line) {
     }
     if (!page) newPage();
     hiddenMark = false;
-    if (!faults.has('show_kept')) setWindow('onscreen');
+    shows += 1;
+    const kept = faults.has('show_kept') || (faults.has('show_kept_first') && shows === 1) || (faults.has('show_kept_later') && shows > 1);
+    if (!kept) setWindow('onscreen');
     quietLines();
     if (page.hidden) {
       page.hidden = false;
