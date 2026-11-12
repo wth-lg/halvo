@@ -6,6 +6,8 @@ pub const BACKGROUND_ARG: &str = "--background";
 
 pub const LOGIN_ITEM_LABEL: &str = APP_BUNDLE_ID;
 
+pub const CAPTURE_AGENT_LABEL: &str = "com.halvo.capture";
+
 pub const DATA_DIR_ARG: &str = "--data-dir";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -37,7 +39,9 @@ impl LoginItemSpec {
         program: &std::path::Path,
         data_dir: Option<&crate::paths::DataDir>,
     ) -> Result<Self, SpecError> {
-        let capture_agent = label == "com.halvo.capture" || label.starts_with("com.halvo.capture.");
+        let capture_agent = label
+            .strip_prefix(CAPTURE_AGENT_LABEL)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'));
         let label_ok = !label.is_empty()
             && !capture_agent
             && !label.starts_with('.')
@@ -102,17 +106,22 @@ impl LoginItemSpec {
 \t<true/>\n\
 \t<key>LimitLoadToSessionType</key>\n\
 \t<string>Aqua</string>\n\
-\t<key>KeepAlive</key>\n\
-\t<dict>\n\
-\t\t<key>SuccessfulExit</key>\n\
-\t\t<false/>\n\
-\t</dict>\n\
+{keep_alive}\
 </dict>\n\
 </plist>\n",
             label = xml_escape(&self.label),
+            keep_alive = KEEP_ALIVE_RESTART_AFTER_FAILURE_ONLY,
         )
     }
 }
+
+#[cfg(target_os = "macos")]
+const KEEP_ALIVE_RESTART_AFTER_FAILURE_ONLY: &str = "\t<key>KeepAlive</key>
+\t<dict>
+\t\t<key>SuccessfulExit</key>
+\t\t<false/>
+\t</dict>
+";
 
 #[cfg(target_os = "macos")]
 fn plist_text(path: &std::path::Path) -> Result<String, SpecError> {
@@ -201,9 +210,7 @@ pub fn install_login_item(
         std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755))?;
     }
     let path = login_item_path(spec, dir);
-    let temp = dir
-        .path()
-        .join(format!(".{}.{}.tmp", spec.file_name(), std::process::id()));
+    let temp = dir.path().join(temp_file_name(spec));
     match std::fs::remove_file(&temp) {
         Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e),
         _ => {}
@@ -213,6 +220,11 @@ pub fn install_login_item(
         return Err(e);
     }
     Ok(InstallOutcome::Written)
+}
+
+#[cfg(target_os = "macos")]
+fn temp_file_name(spec: &LoginItemSpec) -> String {
+    format!(".{}.{}.tmp", spec.file_name(), std::process::id())
 }
 
 #[cfg(target_os = "macos")]
@@ -262,14 +274,19 @@ pub struct StartValueSpec {
 
 impl StartValueSpec {
     pub fn new(program: &std::path::Path) -> Result<Self, SpecError> {
-        Self::with_key(RUN_KEY, RUN_VALUE_NAME, program)
+        Self::under(RUN_KEY, RUN_VALUE_NAME, program)
     }
 
+    #[cfg(test)]
     pub fn with_key(
         key: &str,
         value_name: &str,
         program: &std::path::Path,
     ) -> Result<Self, SpecError> {
+        Self::under(key, value_name, program)
+    }
+
+    fn under(key: &str, value_name: &str, program: &std::path::Path) -> Result<Self, SpecError> {
         let program = program.to_str().ok_or(SpecError::Text)?;
         if !is_windows_absolute(program) {
             return Err(SpecError::RelativeProgram);
@@ -795,7 +812,20 @@ mod login_item_tests {
     }
 
     #[test]
+    fn the_temp_file_of_an_install_is_hidden_and_never_ends_in_plist() {
+        for label in [LOGIN_ITEM_LABEL, "com.halvo.check-l"] {
+            let spec = LoginItemSpec::new(label, Path::new(APP), None).unwrap();
+            let name = temp_file_name(&spec);
+            assert!(name.starts_with('.'), "{name}");
+            assert!(!name.ends_with(".plist"), "{name}");
+            assert_ne!(name, spec.file_name());
+        }
+    }
+
+    #[test]
     fn the_builder_refuses_the_capture_agent_label() {
+        assert_eq!(CAPTURE_AGENT_LABEL, "com.halvo.capture");
+        assert_eq!(crate::paths::FALLBACK_SOCKET_DIR, CAPTURE_AGENT_LABEL);
         for label in ["com.halvo.capture", "com.halvo.capture.test"] {
             assert_eq!(
                 LoginItemSpec::new(label, Path::new(APP), None),

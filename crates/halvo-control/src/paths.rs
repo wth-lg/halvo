@@ -388,7 +388,7 @@ fn resolved(path: &Path) -> PathBuf {
 
 pub const SOCKET_PATH_MAX_BYTES: usize = 104;
 
-pub const FALLBACK_SOCKET_DIR: &str = "com.halvo.capture";
+pub const FALLBACK_SOCKET_DIR: &str = crate::service::CAPTURE_AGENT_LABEL;
 
 pub fn endpoint_hash(text: &str) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
