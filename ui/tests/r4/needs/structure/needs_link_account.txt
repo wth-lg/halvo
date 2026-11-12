@@ -6,5 +6,8 @@
       - {"role":"listitem"}
         - {"level":3,"name":"Link your account for “Writing or answering email on Site5”","role":"heading"}
         - {"role":"paragraph","text":"Link your mail or calendar account in its own window, then choose Done."}
+        - {"role":"term","text":"Site of your account"}
+        - {"role":"definition","text":"site5.example"}
+        - {"role":"definition","text":"Set by Halvo"}
         - {"name":"Stop this time","role":"button"}
         - {"name":"Done","role":"button"}
