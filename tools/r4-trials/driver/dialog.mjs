@@ -14,9 +14,9 @@ const WORDS = {
   found: ['yes', 'no'],
   trusted: ['yes', 'no'],
   text: ['same', 'differ', '-'],
-  default: ['reject', 'allow', 'none', 'other', '-'],
-  cancel: ['reject', 'allow', 'none', 'other', 'via_close', '-'],
-  close: ['yes', 'no', '-'],
+  default: ['reject', 'allow', 'none', 'other', 'unread', '-'],
+  cancel: ['reject', 'allow', 'none', 'other', 'via_close', 'unread', '-'],
+  close: ['yes', 'no', 'unread', '-'],
 };
 
 export function parseRead(line) {

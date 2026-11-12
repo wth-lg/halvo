@@ -255,8 +255,8 @@ async function dialogCellOf(machine, form, bin) {
       return null;
     }
     const { read } = first;
-    for (const key of ['default', 'cancel']) {
-      if (read[key] === 'other') throw new Miss(`miss trial=dialog machine=${machine} form=${form} run=1 step=${key}`);
+    for (const key of ['default', 'cancel', 'close']) {
+      if (read[key] === 'other' || read[key] === 'unread') throw new Miss(`miss trial=dialog machine=${machine} form=${form} run=1 step=${key}`);
     }
     if (first.answer === 'miss') throw new Miss(`miss trial=dialog machine=${machine} form=${form} run=1 step=${first.which}`);
     const close = first.which === 'close' ? first.answer : 'none';

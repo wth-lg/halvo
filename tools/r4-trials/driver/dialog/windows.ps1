@@ -1,6 +1,6 @@
 # The reader of the trial's native dialog on Windows, through UI Automation and MSAA; run by dialog.mjs.
 # usage: windows.ps1 -Mode read -Id <pid> | -Mode press -Id <pid> -Press <close|allow|reject>
-# read prints `dialog found=<yes|no> trusted=yes text=<same|differ|-> default=<reject|allow|none|other|-> cancel=<reject|allow|none|other|via_close|-> close=<yes|no|->`;
+# read prints `dialog found=<yes|no> trusted=yes text=<same|differ|-> default=<reject|allow|none|other|unread|-> cancel=<reject|allow|none|other|via_close|unread|-> close=<yes|no|unread|->`;
 # press prints `pressed=<yes|no>`. It posts no input event: a control is pressed by its Invoke pattern.
 param(
   [Parameter(Mandatory = $true)][ValidateSet('read', 'press')][string]$Mode,
@@ -10,11 +10,15 @@ param(
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
-Add-Type -ReferencedAssemblies Accessibility -TypeDefinition @'
+$Accessibility = (Add-Type -AssemblyName Accessibility -PassThru | Select-Object -First 1).Assembly.Location
+Add-Type -ReferencedAssemblies $Accessibility -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 using Accessibility;
 public static class R4Msaa {
+  [DllImport("user32.dll")]
+  static extern int GetWindowLong(IntPtr hwnd, int index);
+  public static bool HasSystemMenu(IntPtr hwnd) { return (GetWindowLong(hwnd, -16) & 0x80000) != 0; }
   [DllImport("oleacc.dll")]
   static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out object obj);
   public static int State(IntPtr hwnd) {
@@ -71,13 +75,26 @@ function Read-Dialog {
   $texts = @($window.FindAll($Scope::Descendants, $Text) | ForEach-Object { $_.Current.Name.Replace("`r`n", "`n") })
   $same = ($window.Current.Name -eq $Title) -and ($texts -contains $Body)
   $controls = @(Get-Buttons $window | Where-Object { $_.Current.Name -eq $RejectLabel -or $_.Current.Name -eq $AllowLabel })
-  $default = $controls | Where-Object { $_.Current.NativeWindowHandle -ne 0 -and (([R4Msaa]::State([IntPtr]$_.Current.NativeWindowHandle)) -band $STATE_SYSTEM_DEFAULT) -ne 0 } | Select-Object -First 1
+  $states = @($controls | ForEach-Object {
+    $handle = $_.Current.NativeWindowHandle
+    if ($handle -eq 0) { -1 } else { [R4Msaa]::State([IntPtr]$handle) }
+  })
+  $defaultWord = 'none'
+  if ($controls.Count -ne 2 -or $states -contains -1) {
+    $defaultWord = 'unread'
+  } else {
+    for ($i = 0; $i -lt 2; $i++) {
+      if (($states[$i] -band $STATE_SYSTEM_DEFAULT) -ne 0) { $defaultWord = Get-Label $controls[$i]; break }
+    }
+  }
   $cancelButton = @(Get-Buttons $window | Where-Object { $_.Current.AutomationId -eq $IDCANCEL }) | Select-Object -First 1
   $close = Get-Close $window
   $cancel = if ($null -ne $cancelButton) { Get-Label $cancelButton } elseif ($null -ne $close) { 'via_close' } else { 'none' }
   $sameWord = if ($same) { 'same' } else { 'differ' }
-  $closeWord = if ($null -ne $close) { 'yes' } else { 'no' }
-  "dialog found=yes trusted=yes text=$sameWord default=$(Get-Label $default) cancel=$cancel close=$closeWord"
+  $menu = [R4Msaa]::HasSystemMenu([IntPtr]$window.Current.NativeWindowHandle)
+  $closeWord = if ($null -ne $close) { 'yes' } elseif ($menu) { 'unread' } else { 'no' }
+  if ($closeWord -eq 'unread' -and $cancel -eq 'none') { $cancel = 'unread' }
+  "dialog found=yes trusted=yes text=$sameWord default=$defaultWord cancel=$cancel close=$closeWord"
 }
 
 function Press-Control {

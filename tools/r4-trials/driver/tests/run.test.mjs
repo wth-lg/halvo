@@ -113,6 +113,7 @@ test('the dialog reader lines are parsed with their closed words', () => {
     'dialog found=yes trusted=yes text=same default=reject cancel=none close=no extra=1']) {
     assert.throws(() => parseRead(bad), String(bad));
   }
+  assert.equal(parseRead('dialog found=yes trusted=yes text=same default=unread cancel=unread close=unread').close, 'unread');
   assert.equal(parsePressed('pressed=yes'), true);
   assert.equal(parsePressed('pressed=no'), false);
   assert.throws(() => parsePressed('pressed=maybe'));
