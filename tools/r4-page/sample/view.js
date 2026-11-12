@@ -12,7 +12,7 @@
     '.r4s input[type="radio"] { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; margin: 0 8px 0 0; border: 2px solid #1a1a1a; border-radius: 50%; background: #ffffff; vertical-align: middle; }',
     '.r4s input[type="radio"]:checked { border-width: 8px; }',
     '.r4s input[type="text"] { min-height: 32px; border: 2px solid #1a1a1a; border-radius: 4px; padding: 4px 8px; font: inherit; }',
-    '.r4s button:focus, .r4s input:focus { outline: 3px solid #0b57d0; outline-offset: 2px; }',
+    '.r4s button:focus, .r4s input:focus, .r4s-dialog:focus { outline: 3px solid #0b57d0; outline-offset: 2px; }',
     '.r4s fieldset { border: 1px solid #6b6b6b; margin: 8px 0; padding: 8px; }',
     '.r4s label { display: block; margin: 4px 0; }',
     '.r4s-dialog { border: 2px solid #1a1a1a; padding: 16px; max-width: 28rem; background: #ffffff; color: #1a1a1a; }',
@@ -184,6 +184,7 @@
     var d = document.createElement('dialog');
     d.className = 'r4s-dialog';
     if (fault !== 'dialog_plain') d.setAttribute('role', 'alertdialog');
+    d.setAttribute('tabindex', '-1');
     if (fault !== 'dialog_no_modal') d.setAttribute('aria-modal', 'true');
     if (fault !== 'dialog_no_label') d.setAttribute('aria-labelledby', 'r4s-title-' + item.item);
     if (fault !== 'dialog_no_description') d.setAttribute('aria-describedby', 'r4s-fields-' + item.item);
@@ -213,7 +214,6 @@
       b.type = 'button';
       b.setAttribute('data-act', c.choice);
       b.setAttribute('data-param', item.item);
-      if (c.safe === 'yes') b.autofocus = true;
       b.addEventListener('click', function () {
         if (c.safe === 'yes' && fault === 'dialog_role') {
           d.setAttribute('role', 'group');
@@ -281,9 +281,10 @@
         items.appendChild(d);
         if (fault === 'focus_escapes' || fault === 'dialog_not_inert' || fault === 'escape_row') {
           d.show();
-          d.querySelector('[autofocus]').focus();
+          d.focus();
         } else {
           d.showModal();
+          d.focus();
         }
         if (fault === 'dialog_blur') document.activeElement.blur();
       } else {

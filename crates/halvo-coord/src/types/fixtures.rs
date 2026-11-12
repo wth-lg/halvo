@@ -1,5 +1,5 @@
 //! The page's fixtures (I8.3), written from the Rust types. `facts(state)` gives the facts that
-//! each row of a state was written from (I1.3), and `write(dir)` writes the 35 files.
+//! each row of a state was written from (I1.3), and `write(dir)` writes the 37 files.
 //!
 //! What a state holds beyond the words of I9.4, and the other choices that I8.3 leaves to this
 //! file. The clock stands at 2026-11-03T12:00:00Z (day 20760); `seq` is 1. In each state the
@@ -39,6 +39,8 @@
 //! | `working` | `utility_bill_payment`: `working.working`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run in the phase `working` |
 //! | `queue` | `utility_bill_payment` as in `working`; `email` and `shop_order`: `waiting_turn.queued`; `switch_off`, `delete` | `email` and `shop_order` as in `ten`, each with a start in the queue |
 //! | `no_service` | none | `note` the text of `note.no_service` |
+//! | `needs_confirm_mixed` | `email` as in `needs_confirm_page` | its `confirm` item asks for one effect of the class `send` and one of the class `delete`, so it takes the mixed title and controls, and the fields of each effect follow its action line (ruling RD-10 (b), IG-4) |
+//! | `needs_confirm_changed` | `email` as in `needs_confirm_page` | its `confirm` item asks for one effect of the class `send` whose newest released decision in the run is `allow_once`, so the line `confirm.changed` stands above its values (ruling RD-10 (b), IG-25) |
 //!
 //! Choices of this file beyond the table: `reply-next-same.json` is the snapshot with `seq` 1,
 //! empty lists and the note null. The `values` of the argument `choice` of `agents_answer` are
@@ -71,7 +73,7 @@ const DAY_NS: i64 = 86_400_000_000_000;
 const NOON_NS: i64 = 43_200_000_000_000;
 
 names! {
-    /// The 18 states of I9.4, each a file `state-<state>.json`.
+    /// The 20 states of I9.4 and ruling RD-10 (b), each a file `state-<state>.json`.
     State {
         Empty = "empty",
         Ten = "ten",
@@ -91,6 +93,8 @@ names! {
         Working = "working",
         Queue = "queue",
         NoService = "no_service",
+        NeedsConfirmMixed = "needs_confirm_mixed",
+        NeedsConfirmChanged = "needs_confirm_changed",
     }
 }
 
@@ -300,12 +304,14 @@ fn specs(state: State) -> Vec<Spec> {
     match state {
         State::Empty | State::NoService => vec![],
         State::Ten | State::Card => ten(),
-        State::NeedsConfirmPage => vec![Spec {
-            live: Some(LivePhase::Waiting),
-            item: Some(ItemKind::Confirm),
-            controls: LIVE.to_vec(),
-            ..email(StatusLine::NeedsYou(ItemKind::Confirm))
-        }],
+        State::NeedsConfirmPage | State::NeedsConfirmMixed | State::NeedsConfirmChanged => {
+            vec![Spec {
+                live: Some(LivePhase::Waiting),
+                item: Some(ItemKind::Confirm),
+                controls: LIVE.to_vec(),
+                ..email(StatusLine::NeedsYou(ItemKind::Confirm))
+            }]
+        }
         State::NeedsConfirmNative => vec![utility_waiting(ItemKind::Confirm)],
         State::NeedsSignIn => vec![first_run_waiting(Category::ShopOrder, ItemKind::SignIn)],
         State::NeedsLinkAccount => {
@@ -716,6 +722,28 @@ const SEND: [[Bound; 3]; 3] = [
     ],
 ];
 
+const MIXED_SEND: [Bound; 3] = [
+    ("to", BoundFrom::Extract, "Ann Lee"),
+    ("subject", BoundFrom::Extract, "Rent receipt for October"),
+    (
+        "body",
+        BoundFrom::Model,
+        "Thank you. Your rent for October came in.",
+    ),
+];
+
+const MIXED_DELETE: [Bound; 1] = [("items", BoundFrom::Extract, "Draft to Ann Lee from October")];
+
+const CHANGED_SEND: [Bound; 3] = [
+    ("to", BoundFrom::Extract, "Ben Ola"),
+    ("subject", BoundFrom::Extract, "Viewing on Friday"),
+    (
+        "body",
+        BoundFrom::Model,
+        "Friday at 11 works for the viewing.",
+    ),
+];
+
 fn fields(class: Class, bound: &[Bound]) -> Vec<Field> {
     bound
         .iter()
@@ -729,6 +757,48 @@ fn fields(class: Class, bound: &[Bound]) -> Vec<Field> {
             }
         })
         .collect()
+}
+
+fn halvo_line(key: &str) -> Field {
+    Field {
+        label: t(key),
+        value: vec![],
+        from: FieldFrom::Halvo,
+        from_text: t(&format!("from.{}", FieldFrom::Halvo.name())),
+    }
+}
+
+fn mixed(id: ItemId, agent: AgentId) -> Item {
+    let effects: [(Class, &[Bound]); 2] =
+        [(Class::Send, &MIXED_SEND), (Class::Delete, &MIXED_DELETE)];
+    let count = [("count", "2")];
+    Item::confirm(
+        id,
+        agent,
+        Presenter::Page,
+        YesNo::Yes,
+        tp("confirm.mixed.title", &count),
+        effects
+            .iter()
+            .flat_map(|(class, bound)| {
+                let mut f = vec![halvo_line(&format!("confirm.{}.action", class.name()))];
+                f.extend(fields(*class, bound));
+                f
+            })
+            .collect(),
+        vec![
+            ChoiceText {
+                choice: Choice::Reject,
+                text: tp("confirm.mixed.reject", &count),
+                safe: YesNo::Yes,
+            },
+            ChoiceText {
+                choice: Choice::Allow,
+                text: tp("confirm.mixed.allow", &count),
+                safe: YesNo::No,
+            },
+        ],
+    )
 }
 
 fn choice(kind: ItemKind, choice: Choice, safe: bool) -> ChoiceText {
@@ -766,16 +836,17 @@ fn param(param: Param, candidate: Option<&str>) -> ParamEntry {
 }
 
 fn confirm(state: State, id: ItemId, agent: AgentId) -> Item {
-    let (class, presenter, bound): (Class, Presenter, Vec<&[Bound]>) =
-        if state == State::NeedsConfirmNative {
-            (Class::Payment, Presenter::Native, vec![&PAYMENT[..]])
-        } else {
-            (
-                Class::Send,
-                Presenter::Page,
-                SEND.iter().map(|e| &e[..]).collect(),
-            )
-        };
+    let (class, presenter, bound): (Class, Presenter, Vec<&[Bound]>) = match state {
+        State::NeedsConfirmMixed => return mixed(id, agent),
+        State::NeedsConfirmNative => (Class::Payment, Presenter::Native, vec![&PAYMENT[..]]),
+        State::NeedsConfirmChanged => (Class::Send, Presenter::Page, vec![&CHANGED_SEND[..]]),
+        _ => (
+            Class::Send,
+            Presenter::Page,
+            SEND.iter().map(|e| &e[..]).collect(),
+        ),
+    };
+    let changed = (state == State::NeedsConfirmChanged).then(|| halvo_line("confirm.changed"));
     let count = bound.len().to_string();
     let entry = |c: Choice, key: &str, safe: bool| ChoiceText {
         choice: c,
@@ -807,7 +878,10 @@ fn confirm(state: State, id: ItemId, agent: AgentId) -> Item {
         presenter,
         (presenter == Presenter::Page).into(),
         t(&format!("confirm.{}.title", class.name())),
-        bound.iter().flat_map(|e| fields(class, e)).collect(),
+        changed
+            .into_iter()
+            .chain(bound.iter().flat_map(|e| fields(class, e)))
+            .collect(),
         choices,
     )
 }
@@ -967,7 +1041,7 @@ fn line<T: Serialize>(value: &T) -> String {
     text
 }
 
-/// Writes the 35 files of I8.3 into `dir`, which it makes if needed, and returns their count;
+/// Writes the 37 files of I8.3 into `dir`, which it makes if needed, and returns their count;
 /// a second call writes the same bytes.
 pub fn write(dir: &Path) -> std::io::Result<u32> {
     std::fs::create_dir_all(dir)?;
