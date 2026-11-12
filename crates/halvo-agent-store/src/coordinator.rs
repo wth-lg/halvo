@@ -8,10 +8,10 @@ use halvo_schema::executable::names::{AgentState, Mode};
 use halvo_schema::executable::{CoordinatorCall, CoordinatorReply, Runtime};
 use halvo_schema::{Category, ErrorName, TypedRecord, Workflow, WorkflowState};
 
-use crate::bind;
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
 use crate::rows;
+use crate::{bind, bindings};
 
 /// Answers one coordinator body of A7.2, read from its bytes with the typed parser: the reply, or the error name of
 /// the first check that refuses it, with nothing stored. A body that is not the form is `malformed`. The checks,
@@ -26,6 +26,12 @@ use crate::rows;
 ///   refusal.
 /// - `start_run`: `no_workflow`; `binding`; `state` unless the workflow is `approved` or `active` for `compile`
 ///   and `active` for `replay`. It stores nothing.
+/// - `set_bindings`: `no_workflow`; `binding`; `binding` for a slot `workbook` that `workbook_path` refuses in the
+///   system's form. It stores the next revision of the agent's bindings, revision 1 where none is stored: each slot
+///   of the body replaces the stored slot of its name in its place or is added at the end, and the other slots and
+///   the origins stay. It answers the revision stored.
+/// - `add_origin`: `no_workflow`; `binding`. Where the newest revision holds the origin it stores nothing and
+///   answers that revision; else it stores the next revision with the origin added at the end and answers it.
 pub fn coordinator(
     host: &mut dyn Host,
     _now: Now,
@@ -33,11 +39,11 @@ pub fn coordinator(
 ) -> Result<CoordinatorReply, ErrorName> {
     match CoordinatorCall::parse(body).map_err(refused)? {
         CoordinatorCall::CreateAgent(b) => create_agent(host, &b),
-        CoordinatorCall::SetBindings(_) => Err(ErrorName::Unsupported),
+        CoordinatorCall::SetBindings(b) => bindings::set_bindings(host, &b),
         CoordinatorCall::SetState(b) => set_state(host, &b),
         CoordinatorCall::StartRun(b) => start_run(&*host, &b),
         CoordinatorCall::EndRun(_) => Err(ErrorName::Unsupported),
-        CoordinatorCall::AddOrigin(_) => Err(ErrorName::Unsupported),
+        CoordinatorCall::AddOrigin(b) => bindings::add_origin(host, &b),
     }
 }
 

@@ -5,14 +5,17 @@
 //! workflow by the state call; it reads no clock, no file and no network.
 
 mod bind;
+mod bindings;
 mod coordinator;
 mod errors;
 mod host;
 mod memory;
 mod rows;
 mod runner;
+mod workbook;
 
 pub use coordinator::coordinator;
 pub use host::{Host, Now};
 pub use memory::{CommitRefused, MemoryStore, AGENT_KINDS};
 pub use runner::runner;
+pub use workbook::{workbook_path, PathForm, PathRefused};
