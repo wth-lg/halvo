@@ -106,6 +106,10 @@ self_test() {
   printf '1\n' >"$scratch/exit-1-with-passed-counts/state/vitest.exit"
   expect FAIL exit-1-with-passed-counts
 
+  fixture exit-2-with-passed-counts
+  printf '2\n' >"$scratch/exit-2-with-passed-counts/state/vitest.exit"
+  expect FAIL exit-2-with-passed-counts
+
   fixture vitest-missing
   mv "$scratch/vitest-missing/backend/node_modules" "$scratch/vitest-missing/node_modules.moved" || exit 2
   expect FAIL vitest-missing

@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Each check of the backend's gate, backend/gate/checks/NN-name.sh, has one stamped record docs/r7/gate/NN-name.txt of the line that the gate printed for it, its UTC stamp, the 1-minute load and the tree of backend/ that it ran on, which is the tree of backend/ at HEAD; docs/r7/gate/ holds no other file.
+# rule: Each check of the backend's gate, backend/gate/checks/NN-name.sh, has one stamped record docs/r7/gate/NN-name.txt of the line that the gate printed for it, its UTC stamp, the 1-minute load, and the trees of backend/ and of the model formal/r7-ledger/ that it ran on, which are their trees at HEAD; docs/r7/gate/ holds no other file.
 set -u
 name=22-r7-backend-records
 records=docs/r7/gate
@@ -13,8 +13,9 @@ records_in() {
   : >"$problems" || return 2
   cd "$repo" || return 2
   tree=$(git rev-parse --verify --quiet "$rev:backend")
-  if [ -z "$tree" ]; then
-    printf 'git names no tree of backend/ at %s\n' "$rev" >>"$problems"
+  model=$(git rev-parse --verify --quiet "$rev:formal/r7-ledger")
+  if [ -z "$tree" ] || [ -z "$model" ]; then
+    printf 'git names no tree of backend/ or of formal/r7-ledger/ at %s\n' "$rev" >>"$problems"
     counts='checks=0 records=0'
     return 1
   fi
@@ -52,14 +53,15 @@ records_in() {
   tab=$(printf '\t')
   while IFS="$tab" read -r record check; do
     tr -d '\r' <"$record" >"$work/record" || return 2
-    awk -v check="$check" -v tree="$tree" -v record="$record" '
+    awk -v check="$check" -v tree="$tree" -v model="$model" -v record="$record" '
       NR == 1 { ok1 = $0 ~ ("^line: (PASS|FAIL) " check ": .") }
       NR == 2 { ok2 = $0 ~ /^stamp: [0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]Z$/ }
       NR == 3 { ok3 = $0 ~ /^load: [0-9]+(\.[0-9]+)?$/ }
       NR == 4 { ok4 = $0 ~ /^tree: [0-9a-f]+$/; named = substr($0, 7) }
+      NR == 5 { ok5 = $0 ~ /^model: [0-9a-f]+$/; named_model = substr($0, 8) }
       END {
-        if (NR != 4 || !ok1 || !ok2 || !ok3 || !ok4) { print "malformed"; exit }
-        if (named != tree) { print "stale"; exit }
+        if (NR != 5 || !ok1 || !ok2 || !ok3 || !ok4 || !ok5) { print "malformed"; exit }
+        if (named != tree || named_model != model) { print "stale"; exit }
         print "ok"
       }
     ' "$work/record" >"$work/verdict" || return 2
@@ -74,7 +76,7 @@ records_in() {
         ;;
       stale)
         stale=$((stale + 1))
-        printf 'names another tree than HEAD:backend: %s\n' "$record" >>"$problems"
+        printf 'names another tree than HEAD:backend or HEAD:formal/r7-ledger: %s\n' "$record" >>"$problems"
         ;;
       *) printf 'malformed: %s\n' "$record" >>"$problems" ;;
     esac
@@ -103,28 +105,30 @@ measure() {
 }
 
 record() {
-  printf 'line: %s\nstamp: 2026-11-12T10:00:00Z\nload: 3.25\ntree: %s\n' "$2" "${3:-TREE}" >"$1"
+  printf 'line: %s\nstamp: 2026-11-12T10:00:00Z\nload: 3.25\ntree: TREE\nmodel: MODEL\n' "$2" >"$1"
 }
 
 fixture() {
   dir=$scratch/$1
-  mkdir -p "$dir/backend/gate/checks" "$dir/$records" || exit 2
+  mkdir -p "$dir/backend/gate/checks" "$dir/formal/r7-ledger" "$dir/$records" || exit 2
   git -C "$dir" init -q || exit 2
   printf 'echo\n' >"$dir/backend/gate/checks/10-subscription.sh"
   printf 'echo\n' >"$dir/backend/gate/checks/95-model.sh"
   printf 'x\n' >"$dir/backend/other.txt"
+  printf 'x\n' >"$dir/formal/r7-ledger/m.tla"
   record "$dir/$records/10-subscription.txt" 'PASS subscription: active=1'
   record "$dir/$records/95-model.txt" 'FAIL model: states=unmeasured; first failure: no tool'
 }
 
 seal() {
   dir=$scratch/$1
-  git -C "$dir" add -A backend || exit 2
+  git -C "$dir" add -A backend formal || exit 2
   tree=$(git -C "$dir" write-tree) || exit 2
   backend=$(git -C "$dir" rev-parse "$tree:backend") || exit 2
+  model=$(git -C "$dir" rev-parse "$tree:formal/r7-ledger") || exit 2
   for file in "$dir/$records"/*.txt; do
     [ -f "$file" ] || continue
-    sed "s/^tree: TREE$/tree: $backend/" "$file" >"$file.sealed" && mv "$file.sealed" "$file" || exit 2
+    sed -e "s/^tree: TREE$/tree: $backend/" -e "s/^model: MODEL$/model: $model/" "$file" >"$file.sealed" && mv "$file.sealed" "$file" || exit 2
   done
   git -C "$dir" add -A . || exit 2
   sealed=$(git -C "$dir" write-tree) || exit 2
@@ -187,6 +191,24 @@ self_test() {
   git -C "$scratch/tree-of-an-older-backend" add -A . || exit 2
   sealed=$(git -C "$scratch/tree-of-an-older-backend" write-tree) || exit 2
   expect FAIL tree-of-an-older-backend
+
+  fixture tree-of-an-older-model
+  seal tree-of-an-older-model
+  printf 'y\n' >>"$scratch/tree-of-an-older-model/formal/r7-ledger/m.tla"
+  git -C "$scratch/tree-of-an-older-model" add -A . || exit 2
+  sealed=$(git -C "$scratch/tree-of-an-older-model" write-tree) || exit 2
+  expect FAIL tree-of-an-older-model
+
+  fixture record-without-the-model
+  sed '/^model: /d' "$scratch/record-without-the-model/$records/95-model.txt" >"$scratch/record-without-the-model/x" || exit 2
+  mv "$scratch/record-without-the-model/x" "$scratch/record-without-the-model/$records/95-model.txt" || exit 2
+  seal record-without-the-model
+  expect FAIL record-without-the-model
+
+  fixture line-of-a-check-whose-name-starts-the-same
+  record "$scratch/line-of-a-check-whose-name-starts-the-same/$records/95-model.txt" 'PASS models: states=1'
+  seal line-of-a-check-whose-name-starts-the-same
+  expect FAIL line-of-a-check-whose-name-starts-the-same
 
   fixture line-of-another-check
   record "$scratch/line-of-another-check/$records/95-model.txt" 'PASS schema: seed=1'

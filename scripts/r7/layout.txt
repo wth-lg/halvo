@@ -84,3 +84,4 @@ P4	backend/docs/baseline/first-fail/concurrency.txt
 P4	backend/docs/baseline/first-fail/model.txt
 P4	formal/r7-ledger/**
 F.1	backend/.shellcheckrc
+F.1	formal/r7-ledger/.gitattributes

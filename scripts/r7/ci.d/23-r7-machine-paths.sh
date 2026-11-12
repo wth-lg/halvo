@@ -1,30 +1,48 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: backend/scripts/check-machine-paths.sh, the backend's own check, finds no home-directory path of any platform in the tracked files under backend/, and git lists at least one such file.
+# rule: backend/scripts/check-machine-paths.sh, the backend's own check, finds no home-directory path of any platform in the tracked files under backend/ and under formal/r7-ledger/, the model, and git lists at least one file under each.
 set -u
 name=23-r7-machine-paths
+
+verdict_of() {
+  case $1 in
+    0) ;;
+    1) cause="the check found home-directory paths under $2; the list is among the artifacts" ;;
+    *) cause="the check could not read the index of $2 (exit $1)" ;;
+  esac
+}
 
 paths_in() {
   repo=$1
   out=$2
   cd "$repo" || return 2
   files=$(git -c core.quotepath=off ls-files -- backend/ | wc -l | tr -d ' ')
+  model_files=$(git -c core.quotepath=off ls-files -- formal/r7-ledger/ | wc -l | tr -d ' ')
   if [ ! -f backend/scripts/check-machine-paths.sh ]; then
-    counts="files=$files found=unmeasured exit=none"
+    counts="files=$files model-files=$model_files found=unmeasured exit=none"
     cause="backend/scripts/check-machine-paths.sh is missing"
     return 1
   fi
   sh backend/scripts/check-machine-paths.sh >"$out/paths.txt" 2>"$out/stderr.txt"
   code=$?
+  model=$(mktemp -d "${TMPDIR:-/tmp}/$name-model.XXXXXX") || return 2
+  git init -q "$model" || return 2
+  : >"$out/model-paths.txt"
+  model_code=2
+  if git -c core.quotepath=off ls-files -z -- formal/r7-ledger/ >"$out/model-files.z" &&
+    git checkout-index -z --force --stdin --prefix="$model/" <"$out/model-files.z" &&
+    git -C "$model" add -A .; then
+    (cd "$model" && sh "$repo/backend/scripts/check-machine-paths.sh") >"$out/model-paths.txt" 2>"$out/model-stderr.txt"
+    model_code=$?
+  fi
   found=$(grep -c '^[^:]*:[0-9][0-9]*:' "$out/paths.txt")
-  counts="files=$files found=$found exit=$code"
+  model_found=$(grep -c '^[^:]*:[0-9][0-9]*:' "$out/model-paths.txt")
+  counts="files=$files found=$found exit=$code model-files=$model_files model-found=$model_found model-exit=$model_code"
   cause=
-  case $code in
-    0) ;;
-    1) cause="the check found $found home-directory paths; the list is paths.txt among the artifacts" ;;
-    *) cause="the check could not read the index (exit $code)" ;;
-  esac
+  verdict_of "$code" backend/
+  [ -n "$cause" ] || verdict_of "$model_code" formal/r7-ledger/
   [ -n "$cause" ] || [ "$files" -gt 0 ] || cause="git lists no tracked file under backend/"
+  [ -n "$cause" ] || [ "$model_files" -gt 0 ] || cause="git lists no tracked file under formal/r7-ledger/"
   [ -z "$cause" ]
 }
 
@@ -48,10 +66,11 @@ home_path() {
 
 fixture() {
   dir=$scratch/$1
-  mkdir -p "$dir/backend/scripts" "$dir/other" "$dir/out" || exit 2
+  mkdir -p "$dir/backend/scripts" "$dir/formal/r7-ledger" "$dir/other" "$dir/out" || exit 2
   git -C "$dir" init -q || exit 2
   cp "$check" "$dir/backend/scripts/check-machine-paths.sh" || exit 2
   printf 'a file without a path\n' >"$dir/backend/notes.txt"
+  printf 'a file without a path\n' >"$dir/formal/r7-ledger/m.tla"
   printf 'a file without a path\n' >"$dir/other/notes.txt"
 }
 
@@ -113,6 +132,27 @@ self_test() {
   stage home-path-staged-but-not-in-the-work-tree
   printf 'a file without a path\n' >"$scratch/home-path-staged-but-not-in-the-work-tree/backend/notes.txt"
   expect FAIL home-path-staged-but-not-in-the-work-tree
+
+  fixture home-path-in-the-model
+  home_path >"$scratch/home-path-in-the-model/formal/r7-ledger/m.tla"
+  stage home-path-in-the-model
+  expect FAIL home-path-in-the-model
+
+  fixture home-path-in-the-model-staged-but-not-in-the-work-tree
+  home_path >"$scratch/home-path-in-the-model-staged-but-not-in-the-work-tree/formal/r7-ledger/m.tla"
+  stage home-path-in-the-model-staged-but-not-in-the-work-tree
+  printf 'a file without a path\n' >"$scratch/home-path-in-the-model-staged-but-not-in-the-work-tree/formal/r7-ledger/m.tla"
+  expect FAIL home-path-in-the-model-staged-but-not-in-the-work-tree
+
+  fixture no-file-under-the-model
+  mv "$scratch/no-file-under-the-model/formal" "$scratch/no-file-under-the-model/formal.moved" || exit 2
+  stage no-file-under-the-model
+  expect FAIL no-file-under-the-model
+
+  fixture check-exits-2-with-files-listed
+  printf '#!/bin/sh\nexit 2\n' >"$scratch/check-exits-2-with-files-listed/backend/scripts/check-machine-paths.sh"
+  stage check-exits-2-with-files-listed
+  expect FAIL check-exits-2-with-files-listed
 
   fixture home-path-outside-backend-is-not-read
   home_path >"$scratch/home-path-outside-backend-is-not-read/other/notes.txt"

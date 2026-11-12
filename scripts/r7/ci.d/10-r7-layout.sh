@@ -124,6 +124,9 @@ expect() {
     1) got=FAIL ;;
     *) got=exit-$code ;;
   esac
+  if [ "$got" = PASS ] && [ -n "${3:-}" ] && ! grep -q -x -F "$3" "$work/owners"; then
+    got=PASS-with-another-owner
+  fi
   printf 'case %s/%s want=%s got=%s\n' "$name" "$case_name" "$want" "$got"
   if [ "$got" != "$want" ]; then
     wrong="$wrong $case_name"
@@ -145,6 +148,17 @@ self_test() {
   printf 'x\n' >"$scratch/stray-file/backend/loose.md"
   stage "$scratch/stray-file"
   expect FAIL stray-file
+
+  fixture stray-below-the-first-level
+  mkdir -p "$scratch/stray-below-the-first-level/backend/deep/er" || exit 2
+  printf 'x\n' >"$scratch/stray-below-the-first-level/backend/deep/er/loose.md"
+  stage "$scratch/stray-below-the-first-level"
+  expect FAIL stray-below-the-first-level
+
+  fixture most-specific-pattern-owns
+  printf 'P2\tbackend/src/a/two.ts\n' >>"$scratch/most-specific-pattern-owns/$layout"
+  stage "$scratch/most-specific-pattern-owns"
+  expect PASS most-specific-pattern-owns "P2${tab}backend/src/a/two.ts"
 
   fixture star-does-not-cross-a-slash
   printf 'root\tbackend/\nroot\tformal/r7-ledger/\n0.1\tbackend/one.json\nP4\tbackend/src/*\nP4\tformal/r7-ledger/**\n' >"$scratch/star-does-not-cross-a-slash/$layout"

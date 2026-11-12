@@ -133,6 +133,10 @@ self_test() {
   printf 'Checked 0 files in 1ms. No fixes applied.\n' >"$scratch/lint-of-the-model-reads-no-file/state/model.out"
   expect FAIL lint-of-the-model-reads-no-file
 
+  fixture lint-of-backend-prints-no-count
+  : >"$scratch/lint-of-backend-prints-no-count/state/backend.out"
+  expect FAIL lint-of-backend-prints-no-count
+
   fixture lint-prints-no-count
   : >"$scratch/lint-prints-no-count/state/model.out"
   expect FAIL lint-prints-no-count
