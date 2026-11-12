@@ -1207,6 +1207,11 @@ fn each_lib_rs_holds_its_form() {
         ("pub fn later() {}\n", "pub fn later ( ) { }"),
         ("pub mod later;\n", "pub mod later"),
         (
+            "pub use kinds::KindEntry as Entry;\n",
+            "pub use kinds : : KindEntry as Entry",
+        ),
+        ("pub use kinds::{self};\n", "pub use kinds : : { self }"),
+        (
             "pub use crate::learning::KINDS;\n",
             "pub use crate : : learning : : KINDS",
         ),
@@ -1527,7 +1532,7 @@ fn field_pair(pair: &[TokenTree]) -> Result<(), String> {
         _ => None,
     }
     .ok_or_else(|| outside(pair))?;
-    if tuple.len() != 6 || !is_punct(tuple.get(1), ',') {
+    if !is_punct(tuple.get(1), ',') {
         return Err(outside(pair));
     }
     string_value(&tuple[0])?;
@@ -1642,6 +1647,27 @@ fn without_three_slash_lines(text: &str) -> String {
         .join("\n")
 }
 
+fn three_slash_docs(text: &str) -> Option<Vec<String>> {
+    let mut docs = Vec::new();
+    for line in text.split('\n') {
+        let start = line.trim_start();
+        if !start.starts_with("///") || start.starts_with("////") {
+            continue;
+        }
+        match TokenStream::from_str(start)
+            .ok()?
+            .into_iter()
+            .collect::<Vec<_>>()[..]
+        {
+            [ref hash, ref doc] if is_punct(Some(hash), '#') && is_doc(doc) => {
+                docs.push(doc.to_string())
+            }
+            _ => return None,
+        }
+    }
+    Some(docs)
+}
+
 fn list_file(text: &str) -> Result<Listed, String> {
     let first = text.split('\n').next().unwrap_or_default();
     if first != USE_LINE && !(first.starts_with("///") && !first.starts_with("////")) {
@@ -1659,12 +1685,16 @@ fn list_file(text: &str) -> Result<Listed, String> {
         error_names: Vec::new(),
     };
     let mut kept: Vec<TokenTree> = Vec::new();
+    let mut docs: Vec<String> = Vec::new();
     let (mut items, mut kinds, mut names) = (0, 0, 0);
     let mut i = 0;
     while i < top.len() {
         while is_punct(top.get(i), '#') {
             match top.get(i + 1) {
-                Some(attribute) if is_doc(attribute) => i += 2,
+                Some(attribute) if is_doc(attribute) => {
+                    docs.push(attribute.to_string());
+                    i += 2;
+                }
                 _ => return Err("holds an attribute other than a doc comment".to_owned()),
             }
         }
@@ -1735,7 +1765,7 @@ fn list_file(text: &str) -> Result<Listed, String> {
             out
         })
         .unwrap_or_default();
-    if stripped != flat(&kept) {
+    if stripped != flat(&kept) || three_slash_docs(text) != Some(docs) {
         return Err("holds a doc comment that is no line of the three-slash form".to_owned());
     }
     Ok(listed)
@@ -2102,6 +2132,18 @@ fn the_grammar_of_a_list_file_refuses_each_form_outside_it() {
             outside(&trees("crate :: kinds :: RetentionClass :: Kept")),
         ),
         (
+            changed("origin: Origin::Own", "origin: Origins::Own"),
+            outside(&trees("Origins :: Own")),
+        ),
+        (
+            changed("class: RetentionClass::Kept", "class: Origin::Kept"),
+            outside(&trees("Origin :: Kept")),
+        ),
+        (
+            changed("(\"v\", FieldType::Version)]", "(\"v\", Origin::Version)]"),
+            outside(&trees("(\"v\" , Origin :: Version)")),
+        ),
+        (
             changed("origin: Origin::Own", "origin: Origin::Own.clone()"),
             outside(&trees("Origin :: Own . clone ()")),
         ),
@@ -2136,6 +2178,24 @@ fn the_grammar_of_a_list_file_refuses_each_form_outside_it() {
         ),
         (
             changed("/// The error names.\n", "#[doc = \"The error names.\"]\n"),
+            three.to_owned(),
+        ),
+        (
+            changed(
+                "/// The error names.\n",
+                "/*\n/// */ #[doc = \"The error names: \\x41.\"] /*\n*/\n",
+            ),
+            three.to_owned(),
+        ),
+        (
+            changed(
+                "/// The error names.\n",
+                "/*\n/// */ /** The error names. */ /*\n*/\n",
+            ),
+            three.to_owned(),
+        ),
+        (
+            changed("/// The error names.\n", "/*\n/// The error names.\n*/\n"),
             three.to_owned(),
         ),
         (
