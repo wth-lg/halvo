@@ -482,7 +482,7 @@ fn a_failed_add_leaves_the_file_and_answers_locked_with_its_code() {
 }
 
 #[test]
-fn a_move_that_loses_the_race_for_the_keychain_item_keeps_the_file_and_answers_locked() {
+fn a_move_that_loses_the_race_for_the_keychain_item_keeps_the_file_and_the_next_read_finishes_it() {
     let store = mac(
         Keeps::Keychain,
         File::holding(FILE),
@@ -496,6 +496,10 @@ fn a_move_that_loses_the_race_for_the_keychain_item_keeps_the_file_and_answers_l
     assert_file_kept(&store);
     assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
     assert!(!store.keychain.keychain.ops().contains(&"data"));
+    assert_eq!(found(store.read()), FILE);
+    assert_eq!(store.file.bytes(), None);
+    assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
+    assert_eq!(adds(&store.keychain.keychain), 1);
 }
 
 #[test]
@@ -544,12 +548,11 @@ fn a_read_back_that_fails_or_finds_nothing_leaves_the_file_and_answers_locked() 
 #[test]
 fn a_file_that_is_not_removed_after_an_equal_read_back_answers_locked() {
     for (fails, answer) in [
-        (Fails::Fault(Fault { code: 5 }), moved(5)),
         (Fails::Locked(refused(13)), moved(13)),
         (Fails::Locked(Locked::Mode), moved(-1)),
         (Fails::Absent, moved(-1)),
     ] {
-        let store = mac(
+        let mut store = mac(
             Keeps::Keychain,
             File::holding(FILE).failing_delete(fails),
             Keys::empty(),
@@ -562,30 +565,75 @@ fn a_file_that_is_not_removed_after_an_equal_read_back_answers_locked() {
         assert_eq!(store.file.ops(), ["read", "delete"]);
         assert_eq!(store.file.bytes(), Some(FILE.to_vec()));
         assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
+        store.file.delete_fails = None;
+        assert_eq!(found(store.read()), FILE);
+        assert_eq!(store.file.bytes(), None);
+        assert_eq!(adds(&store.keychain.keychain), 1);
     }
 }
 
 #[test]
+fn a_move_whose_removal_of_the_file_faults_answers_the_fault_and_the_next_read_finishes_it() {
+    let mut store = mac(
+        Keeps::Keychain,
+        File::holding(FILE).failing_delete(Fails::Fault(Fault { code: 5 })),
+        Keys::empty(),
+    );
+    let read = store.read();
+    assert!(matches!(read, Read::Fault(Fault { code: 5 })), "{read:?}");
+    assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
+    store.file.delete_fails = None;
+    assert_eq!(found(store.read()), FILE);
+    assert_eq!(store.file.bytes(), None);
+    assert_eq!(adds(&store.keychain.keychain), 1);
+}
+
+#[test]
 fn with_both_places_full_a_build_with_the_feature_answers_locked_and_changes_nothing() {
-    for in_file in [FILE, b"in the keychain"] {
-        let store = mac(
-            Keeps::Keychain,
-            File::holding(in_file),
-            Keys::holding(&[b"in the keychain"]),
-        );
-        for _ in 0..2 {
-            let read = store.read();
-            assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
-        }
-        assert_eq!(store.file.bytes(), Some(in_file.to_vec()));
-        assert_eq!(
-            store.keychain.keychain.items(),
-            [b"in the keychain".to_vec()]
-        );
-        assert_eq!(adds(&store.keychain.keychain), 0);
-        assert!(!store.keychain.keychain.ops().contains(&"delete"));
-        assert!(!store.file.ops().contains(&"delete"));
+    let store = mac(
+        Keeps::Keychain,
+        File::holding(FILE),
+        Keys::holding(&[b"in the keychain"]),
+    );
+    for _ in 0..2 {
+        let read = store.read();
+        assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
     }
+    assert_eq!(store.file.bytes(), Some(FILE.to_vec()));
+    assert_eq!(
+        store.keychain.keychain.items(),
+        [b"in the keychain".to_vec()]
+    );
+    assert_eq!(adds(&store.keychain.keychain), 0);
+    assert!(!store.keychain.keychain.ops().contains(&"delete"));
+    assert!(!store.file.ops().contains(&"delete"));
+}
+
+#[test]
+fn both_places_holding_equal_bytes_finish_the_move_that_stopped_before_the_file_was_removed() {
+    let store = mac(Keeps::Keychain, File::holding(FILE), Keys::holding(&[FILE]));
+    assert_eq!(found(store.read()), FILE);
+    assert_eq!(store.file.bytes(), None);
+    assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
+    assert_eq!(found(store.read()), FILE);
+    assert_eq!(adds(&store.keychain.keychain), 0);
+
+    let store = mac(
+        Keeps::Keychain,
+        File::holding(FILE).failing_delete(Fails::Locked(refused(13))),
+        Keys::holding(&[FILE]),
+    );
+    let read = store.read();
+    assert!(
+        matches!(read, Read::Locked(locked) if locked == moved(13)),
+        "{read:?}"
+    );
+    assert_eq!(store.file.bytes(), Some(FILE.to_vec()));
+
+    let unsigned = mac(Keeps::File, File::holding(FILE), Keys::holding(&[FILE]));
+    let read = unsigned.read();
+    assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+    assert_eq!(unsigned.file.bytes(), Some(FILE.to_vec()));
 }
 
 #[test]

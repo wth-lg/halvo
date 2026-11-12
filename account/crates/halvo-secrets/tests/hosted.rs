@@ -239,12 +239,11 @@ mod moves {
         );
         assert_eq!(found(file.read()), EARLIER);
         assert_eq!(keychain_items::count(&name(label)), 1);
-        let next = store(label).read();
-        assert!(matches!(next, Read::Locked(Locked::OtherStore)), "{next:?}");
-        assert_eq!(found(file.read()), EARLIER);
+        assert_eq!(found(store(label).read()), EARLIER);
+        assert!(matches!(file.read(), Read::NotStored));
+        assert_eq!(keychain_items::count(&name(label)), 1);
         assert_eq!(store(label).delete(), Delete::Deleted);
-        assert_eq!(file.delete(), Delete::Deleted);
-        println!("\na read back that differs left the file and answered {read:?}, then {next:?}");
+        println!("\na read back that differs left the file and answered {read:?}; the next read of equal bytes finished the move");
     }
 
     #[test]

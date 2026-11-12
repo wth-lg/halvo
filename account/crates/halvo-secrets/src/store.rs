@@ -44,13 +44,16 @@ use crate::{Directory, Name, Secret};
 /// Keychain cannot be searched, a read that finds no file answers the Keychain's `Locked`
 /// or `Fault`, never `NotStored`. Its write and its delete never touch the Keychain.
 /// A build with the feature also reads the file `<dir>/<name>`. When the Keychain item and
-/// the file both stand, a read answers `Locked::OtherStore` and changes nothing. When the
-/// file stands and the Keychain holds no item, the read moves the file once: it adds its
-/// bytes to the Keychain (only-create), reads the item back, and only when the bytes are
-/// equal removes the file and answers `Found`. When a step fails, it answers
-/// `Locked::Move` with that step's code and keeps the file; an item that the add made
-/// stays. When the Keychain item stands and the file cannot be read, a read gives the
-/// item. Its write and its delete touch the Keychain alone.
+/// the file both stand with other bytes, a read answers `Locked::OtherStore` and changes
+/// nothing. When the file stands and the Keychain holds no item, the read moves the file
+/// once: it adds its bytes to the Keychain (only-create), reads the item back, and only
+/// when the bytes are equal removes the file and answers `Found`. When the add or the read
+/// back fails or the removal is refused, it answers `Locked::Move` with that step's code
+/// and keeps the file; a removal that faults answers that `Fault`. An item that the add
+/// made stays, so when the item and the file stand with equal bytes, a read removes the
+/// file and answers `Found`: it finishes a move that stopped there. When the Keychain item
+/// stands and the file cannot be read, a read gives the item. Its write and its delete
+/// touch the Keychain alone.
 /// `Store::in_directory` reads and writes the file alone.
 ///
 /// The place on Windows: the crate makes the directory with a protected access list that

@@ -46,6 +46,9 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
     fn read_and_move(&self) -> Read {
         match self.keychain.read() {
             Read::Found(secret) => match self.file.read() {
+                Read::Found(other) if other.expose() == secret.expose() => {
+                    self.remove_the_file(secret)
+                }
                 Read::Found(_) => Read::Locked(Locked::OtherStore),
                 _ => Read::Found(secret),
             },
@@ -71,11 +74,15 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
             Read::Locked(locked) => return not_moved(Some(Err(locked))),
             Read::Fault(fault) => return not_moved(Some(Ok(fault))),
         }
+        self.remove_the_file(secret)
+    }
+
+    fn remove_the_file(&self, secret: Secret) -> Read {
         match self.file.delete() {
             Delete::Deleted => Read::Found(secret),
             Delete::NotStored => not_moved(None),
             Delete::Locked(locked) => not_moved(Some(Err(locked))),
-            Delete::Fault(fault) => not_moved(Some(Ok(fault))),
+            Delete::Fault(fault) => Read::Fault(fault),
         }
     }
 

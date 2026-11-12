@@ -116,12 +116,13 @@ pub enum Locked {
     Duplicate,
     /// On macOS, the store that this build does not keep its secret in holds an item under
     /// the name too: a build without the feature `keychain` found a Keychain item, or a
-    /// build with it found the file of the file store beside its own Keychain item. The
-    /// store picks neither.
+    /// build with it found the file of the file store beside its own Keychain item, with
+    /// other bytes. The store picks neither.
     OtherStore,
-    /// On macOS, a build with the feature `keychain` found the file of the file store and no
-    /// Keychain item, and the move of that file into the Keychain did not finish: the add,
-    /// the read back or the removal of the file failed. The file is kept.
+    /// On macOS, a build with the feature `keychain` found the file of the file store, and
+    /// the move of that file into the Keychain did not finish: the add or the read back
+    /// failed, or the removal of the file was refused. The file is kept, and an item that
+    /// the add made stays; a later read that finds equal bytes in both removes the file.
     Move {
         /// The OSStatus or errno with which that step was refused or failed, or -1 when the
         /// step answered without one: an item already stood in the Keychain, the read back
