@@ -353,7 +353,7 @@ BEGIN {
     if (!local) continue
     print "local"
     for (i = 1; i <= n; i++) {
-      if (!under(read[i], account) && !under(read[i], target)) print "outside\t" read[i]
+      if (!under(read[i], account) && !under(read[i], target) && !seen[read[i]]++) print "outside\t" read[i]
     }
   }
 }'
