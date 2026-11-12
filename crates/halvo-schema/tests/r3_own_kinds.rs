@@ -344,3 +344,74 @@ fn the_checkpoint_rows_hold_the_four_states_of_the_shape() {
         .into();
     assert_eq!(states, all);
 }
+
+fn first_states(class: &str) -> &'static [&'static str] {
+    match class {
+        "local_edit" => &["cleared", "refused"],
+        "payment" | "purchase" | "sign" => &["held", "refused"],
+        "send" | "delete" | "submit" => &["cleared", "held", "refused"],
+        _ => &[],
+    }
+}
+
+const MOVES: [(&str, &str); 10] = [
+    ("held", "held"),
+    ("approved", "held"),
+    ("held", "approved"),
+    ("held", "rejected"),
+    ("cleared", "rejected"),
+    ("approved", "rejected"),
+    ("cleared", "releasing"),
+    ("approved", "releasing"),
+    ("releasing", "committed"),
+    ("releasing", "unknown"),
+];
+
+#[test]
+fn the_rows_of_each_effect_start_as_a5_1_decides_for_the_class_and_move_as_a5_2_allows() {
+    let mut effects: Vec<(String, Vec<serde_json::Value>)> = Vec::new();
+    for line in own_lines("agent_effect") {
+        let row: serde_json::Value = serde_json::from_str(&line).unwrap();
+        let id = row["effect"].as_str().unwrap().to_owned();
+        match effects.iter_mut().find(|(e, _)| *e == id) {
+            Some((_, rows)) => rows.push(row),
+            None => effects.push((id, vec![row])),
+        }
+    }
+    assert!(!effects.is_empty());
+    for (id, rows) in &effects {
+        let class = rows[0]["class"].as_str().unwrap();
+        let mut before: Option<&serde_json::Value> = None;
+        for (i, row) in rows.iter().enumerate() {
+            assert_eq!(row["seq"].as_u64(), Some(i as u64 + 1), "{id}");
+            assert_eq!(row["class"].as_str(), Some(class), "{id}");
+            let state = row["state"].as_str().unwrap();
+            match before.map(|b| b["state"].as_str().unwrap()) {
+                None => assert!(
+                    first_states(class).contains(&state),
+                    "{id}: a {class} effect cannot start {state}"
+                ),
+                Some(from) => {
+                    assert!(MOVES.contains(&(from, state)), "{id}: {from} to {state}");
+                    let money = ["purchase", "payment", "sign"].contains(&class);
+                    assert!(
+                        !(money && state == "releasing" && from != "approved"),
+                        "{id}"
+                    );
+                }
+            }
+            let approval = row["approval"].as_str();
+            match state {
+                "held" | "cleared" | "refused" => assert_eq!(approval, None, "{id}: {state}"),
+                "approved" => assert!(approval.is_some(), "{id}: approved"),
+                "releasing" | "committed" | "unknown" => assert_eq!(
+                    approval,
+                    before.and_then(|b| b["approval"].as_str()),
+                    "{id}: {state}"
+                ),
+                _ => {}
+            }
+            before = Some(row);
+        }
+    }
+}

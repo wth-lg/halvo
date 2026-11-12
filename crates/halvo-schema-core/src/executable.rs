@@ -122,7 +122,7 @@ pub const KINDS: &[KindEntry] = &[
             ("approval", FieldType::Id),
             ("cause", FieldType::Name),
         ],
-        example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","effect":"60606060606060606060606060606060","seq":1,"day":20768,"at":1794339000000000001,"state":"held","class":"local_edit","digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","kept":[{"name":"file","value":["/data/books/bills.xlsx"]},{"name":"range","value":["B2:D6"]}],"fields":2,"approval":null,"cause":null}"#,
+        example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","effect":"60606060606060606060606060606060","seq":1,"day":20768,"at":1794339000000000001,"state":"cleared","class":"local_edit","digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","kept":[{"name":"file","value":["/data/books/bills.xlsx"]},{"name":"range","value":["B2:D6"]}],"fields":2,"approval":null,"cause":null}"#,
     },
     KindEntry {
         name: "agent_log",
