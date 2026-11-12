@@ -42,6 +42,10 @@ pub const DRIVER_STEPS: [&str; 4] = [
     "driver_killed_port_relay",
 ];
 
+/// The rows of the relay's list of U0.7b (A13.7), which `--rows relay --round 2` runs: three that
+/// decide and `own_traffic`, which is recorded.
+pub const RELAY_STEPS: [&str; 4] = ["list_refuse", "list_hops", "list_close", "own_traffic"];
+
 /// The one start flag that the rows of A13.7 add: it puts the payment frame of the fixture on
 /// `port` into a process of its own.
 pub fn isolate_flag(port: u16) -> String {
@@ -63,6 +67,27 @@ pub const FIRST_FLAGS: [&str; 11] = [
 ];
 
 pub const RESOLVER_RULE: &str = "--host-resolver-rules=MAP *.test 127.0.0.1,MAP * ~NOTFOUND";
+
+/// The start flags that U0.7b adds to the first flag set, the resolver rule and the relay's flags,
+/// each to close a way out of A13.7: lookups for links, hyperlink pings, the browser's extensions,
+/// and the features of fetches after a document is gone, discovery on the local network, signed
+/// exchanges, prerendering, prefetch through a proxy, reports, federated sign-in, payment handlers,
+/// a passkey on another device and the measurement interfaces.
+pub const ROUND2_FLAGS: [&str; 5] = [
+    "--dns-prefetch-disable",
+    "--no-pings",
+    "--disable-extensions",
+    "--disable-component-extensions-with-background-pages",
+    "--disable-features=FetchLaterAPI,MediaRouter,DialMediaRouteProvider,CastMediaRouteProvider,SignedHTTPExchange,SignedExchangeSubresourcePrefetch,Prerender2,PrefetchProxy,NetworkErrorLogging,Reporting,DocumentReporting,FedCm,PaymentHandler,WebAuthenticationCable,AttributionReporting,PrivacySandboxAdsAPIs,InterestFeedContentSuggestions,OptimizationHints,Translate",
+];
+
+/// The `Local State` of the agent's new profile: secure lookups off.
+pub const AGENT_LOCAL_STATE: &str = r#"{"dns_over_https":{"mode":"off","templates":""}}"#;
+
+/// The `Default/Preferences` of the agent's new profile: every permission that a page can ask for
+/// denied, prediction and prefetch off, no saved password or payment method, safe browsing,
+/// suggestions and spell checking off.
+pub const AGENT_PREFERENCES: &str = r#"{"profile":{"default_content_setting_values":{"notifications":2,"geolocation":2,"media_stream_camera":2,"media_stream_mic":2,"clipboard":2,"midi_sysex":2,"usb_guard":2,"serial_guard":2,"hid_guard":2,"bluetooth_guard":2,"bluetooth_scanning":2,"file_system_write_guard":2,"file_system_read_guard":2,"automatic_downloads":2,"sensors":2,"idle_detection":2,"window_placement":2,"local_fonts":2,"payment_handler":2,"protocol_handlers":2,"ar":2,"vr":2,"nfc":2,"storage_access":2},"password_manager_enabled":false},"credentials_enable_service":false,"autofill":{"profile_enabled":false,"credit_card_enabled":false},"payments":{"can_make_payment_enabled":false},"net":{"network_prediction_options":2},"safebrowsing":{"enabled":false},"search":{"suggest_enabled":false},"browser":{"enable_spellchecking":false},"dns_prefetching":{"enabled":false}}"#;
 
 pub fn variants_of(step: &str) -> &'static [&'static str] {
     match step {
@@ -230,6 +255,25 @@ mod tests {
         let mut rows = ISOLATION_STEPS.to_vec();
         rows.sort_unstable();
         assert_eq!(taken, rows);
+    }
+
+    #[test]
+    fn the_agent_settings_are_json_with_secure_lookups_off_and_permissions_denied() {
+        let local: serde_json::Value = serde_json::from_str(AGENT_LOCAL_STATE).expect("json");
+        assert_eq!(local["dns_over_https"]["mode"], "off");
+        let prefs: serde_json::Value = serde_json::from_str(AGENT_PREFERENCES).expect("json");
+        let settings = &prefs["profile"]["default_content_setting_values"];
+        for key in [
+            "notifications",
+            "clipboard",
+            "geolocation",
+            "file_system_write_guard",
+        ] {
+            assert_eq!(settings[key], 2, "{key}");
+        }
+        assert_eq!(prefs["net"]["network_prediction_options"], 2);
+        assert_eq!(prefs["credentials_enable_service"], false);
+        assert!(ROUND2_FLAGS.iter().any(|f| f.contains("FetchLaterAPI")));
     }
 
     #[test]

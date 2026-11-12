@@ -3,7 +3,7 @@ use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use r3_web::{browser_kind, CANDIDATE, DRIVER_STEPS, ISOLATION_STEPS, STEPS};
+use r3_web::{browser_kind, CANDIDATE, DRIVER_STEPS, ISOLATION_STEPS, RELAY_STEPS, STEPS};
 
 #[derive(Default)]
 struct Args {
@@ -13,6 +13,8 @@ struct Args {
     step: Option<String>,
     isolation: bool,
     driver: bool,
+    relay_rows: bool,
+    round2: bool,
     add_flags: Vec<String>,
     machine: Option<String>,
     repo: Option<PathBuf>,
@@ -79,7 +81,8 @@ fn parse(argv: &[String]) -> Result<Args, String> {
             "--rows" => match take()?.as_str() {
                 "isolation" => a.isolation = true,
                 "driver" => a.driver = true,
-                _ => return Err("--rows takes isolation or driver".into()),
+                "relay" => a.relay_rows = true,
+                _ => return Err("--rows takes isolation, driver or relay".into()),
             },
             "--add-flag" => a.add_flags.push(take()?),
             "--machine" => {
@@ -101,6 +104,12 @@ fn parse(argv: &[String]) -> Result<Args, String> {
             "--snapshot-pay" => a.mode = Mode::SnapshotPay,
             "--headed" => a.headed = true,
             "--relay" => a.relay = true,
+            "--round" => {
+                if take()? != "2" {
+                    return Err("--round takes 2".into());
+                }
+                a.round2 = true;
+            }
             "--routes" => a.routes = true,
             _ => return Err(format!("unknown argument {flag}")),
         }
@@ -126,7 +135,9 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     if a.fault.is_some() && a.mode != Mode::Cells {
         return Err("--fault runs cells only".into());
     }
-    let rows: &[&str] = if a.driver {
+    let rows: &[&str] = if a.relay_rows {
+        &RELAY_STEPS
+    } else if a.driver {
         &DRIVER_STEPS
     } else if a.isolation {
         &ISOLATION_STEPS
@@ -140,6 +151,12 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     }
     if (a.isolation || a.driver) && (a.mode != Mode::Cells || a.fault.is_some()) {
         return Err("--rows isolation and --rows driver run cells with no fault".into());
+    }
+    if (a.round2 || a.relay_rows) && !a.relay && !a.driver {
+        return Err("--round 2 and --rows relay need --relay".into());
+    }
+    if a.relay_rows && !a.round2 {
+        return Err("--rows relay belongs to --round 2".into());
     }
     if !a.isolation && !a.add_flags.is_empty() {
         return Err("--add-flag belongs to --rows isolation".into());
@@ -226,11 +243,11 @@ mod driver {
     };
     use r3_web::fixture::{count, fixture_program, origin, Control, Seed, Server, PAY, UTILITY};
     use r3_web::pipe::PipeBrowser;
-    use r3_web::relay::{relay_flags, Relay};
+    use r3_web::relay::{relay_flags, HostPort, Relay, RelayHandle};
     use r3_web::tls::{make_certificate, openssl_runs, CertFault, Listener};
     use r3_web::{
         extract_amount, major_of, median, variants_of, CANDIDATE, FIRST_FLAGS, ISOLATION_STEPS,
-        RESOLVER_RULE, STEPS,
+        RELAY_STEPS, RESOLVER_RULE, ROUND2_FLAGS, STEPS,
     };
 
     use super::{out, Args, Mode};
@@ -302,6 +319,8 @@ mod driver {
         added_flags: Vec<String>,
         routes: bool,
         relayed: bool,
+        round2: bool,
+        relay: Option<RelayHandle>,
         repo: PathBuf,
     }
 
@@ -807,6 +826,9 @@ mod driver {
     }
 
     async fn block_websocket(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        if ctx.round2 {
+            return block_websocket_at_relay(ex, ctx).await;
+        }
         signin(ex, ctx).await?;
         arm_isolation_rule(ex, ctx).await?;
         ex.open(&ctx.u("/bill")).await?;
@@ -831,6 +853,9 @@ mod driver {
         let program = ctx.repo.join("tools/r3-trials/web/tls-listener.mjs");
         let mut listener =
             Listener::start_tls(&program, &cert, &key).map_err(|e| Fault::new("listener", e))?;
+        if let Some(r) = &ctx.relay {
+            r.allow(UTILITY, listener.port);
+        }
         let address = format!("https://{UTILITY}:{}/", listener.port);
         let opened = ex.navigate_error(&address).await;
         let counts = listener.counts().map_err(|e| Fault::new("listener", e));
@@ -851,6 +876,254 @@ mod driver {
         }
     }
 
+    fn fixture_list(ctx: &Ctx) -> Vec<HostPort> {
+        vec![(UTILITY.to_string(), ctx.port), (PAY.to_string(), ctx.port)]
+    }
+
+    fn relay_of(ctx: &Ctx) -> Res<RelayHandle> {
+        ctx.relay
+            .clone()
+            .ok_or_else(|| Fault::new("relay", "no relay"))
+    }
+
+    async fn refused_after(relay: &RelayHandle, host: &str, port: u16, before: usize) -> bool {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if relay.refusals_of(host, port) > before {
+                return true;
+            }
+            if Instant::now() > deadline {
+                return false;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+
+    async fn alive(ex: &Executor) -> bool {
+        matches!(
+            ex.run_page_script("document.readyState").await,
+            Ok(serde_json::Value::String(_))
+        )
+    }
+
+    fn outcome(misses: Vec<String>, ms: Option<u128>) -> Res<Option<u128>> {
+        if misses.is_empty() {
+            Ok(ms)
+        } else {
+            Err(Fault::new("check", misses.join(".")))
+        }
+    }
+
+    async fn block_websocket_at_relay(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        let relay = relay_of(ctx)?;
+        signin(ex, ctx).await?;
+        arm_isolation_rule(ex, ctx).await?;
+        ex.open(&ctx.u("/bill")).await?;
+        let keys = [EVIL];
+        let before = read_counters(ctx, &keys)?;
+        let refused = relay.refusals_of("evil.agent.test", ctx.port);
+        let t0 = Instant::now();
+        let ran = ex.run_page_script(&socket_script(ctx.port)).await?;
+        check(ran == serde_json::Value::Bool(true), "script")?;
+        let mut misses = Vec::new();
+        let seen = refused_after(&relay, "evil.agent.test", ctx.port, refused).await;
+        let ms = t0.elapsed().as_millis();
+        if !seen {
+            misses.push("refusal_none".to_string());
+        }
+        tokio::time::sleep(Duration::from_millis(2_000)).await;
+        let second = read_counters(ctx, &keys)?;
+        let third = read_counters(ctx, &keys)?;
+        if second != before || third != before {
+            misses.push("evil".to_string());
+        }
+        if !alive(ex).await {
+            misses.push("ended".to_string());
+        }
+        outcome(misses, Some(ms))
+    }
+
+    async fn list_refuse(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        let relay = relay_of(ctx)?;
+        ex.open(&ctx.u("/bill")).await?;
+        let keys = [EVIL];
+        let before = read_counters(ctx, &keys)?;
+        let e = format!("evil.agent.test:{}", ctx.port);
+        let kinds = [
+            ("document", "(() => { const f = document.createElement('iframe'); f.src = 'http://EVIL_HOST/doc'; document.body.appendChild(f); return true; })()"),
+            ("fetch", "(() => { fetch('http://EVIL_HOST/fetch', { mode: 'no-cors' }).catch(() => {}); return true; })()"),
+            ("image", "(() => { new Image().src = 'http://EVIL_HOST/img'; return true; })()"),
+            ("form", "(() => { const i = document.createElement('iframe'); i.name = 'halvoSink'; document.body.appendChild(i); const f = document.createElement('form'); f.method = 'post'; f.action = 'http://EVIL_HOST/form'; f.target = 'halvoSink'; document.body.appendChild(f); f.submit(); return true; })()"),
+            ("ws", "(() => { new WebSocket('ws://EVIL_HOST/'); return true; })()"),
+            ("wss", "(() => { new WebSocket('wss://EVIL_HOST/'); return true; })()"),
+        ];
+        let mut misses = Vec::new();
+        for (kind, script) in kinds {
+            let n0 = relay.refusals_of("evil.agent.test", ctx.port);
+            let ran = ex.run_page_script(&script.replace("EVIL_HOST", &e)).await;
+            if ran.is_err() || !refused_after(&relay, "evil.agent.test", ctx.port, n0).await {
+                misses.push(format!("refusal_{kind}"));
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(2_000)).await;
+        if read_counters(ctx, &keys)? != before {
+            misses.push("evil".to_string());
+        }
+        if !alive(ex).await {
+            misses.push("ended".to_string());
+        }
+        outcome(misses, None)
+    }
+
+    fn chain_listener(ctx: &Ctx) -> Res<Listener> {
+        Listener::start_chain(&ctx.repo.join("tools/r3-trials/web/chain-listener.mjs"))
+            .map_err(|e| Fault::new("listener", e))
+    }
+
+    async fn list_hops(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        let relay = relay_of(ctx)?;
+        let mut listener = chain_listener(ctx)?;
+        let l = listener.port;
+        let hop = |n: u8| format!("hop{n}.agent.test");
+        relay.set_list(Some(vec![(hop(1), l)]));
+        let adding = relay.clone();
+        ex.on_main_document(Some(std::sync::Arc::new(move |h: &str, p: u16| {
+            adding.allow(h, p)
+        })));
+        ex.arm_rule(
+            (1..=3).map(|n| format!("http://{}:{l}", hop(n))).collect(),
+            false,
+        )
+        .await?;
+        let mut misses = Vec::new();
+        let opened = ex.open(&format!("http://{}:{l}/start", hop(1))).await;
+        if opened.is_err() {
+            misses.push("chain".to_string());
+        }
+        ex.on_main_document(None);
+        let here = ex
+            .frame_url(&ex.main_frame().await?)
+            .await
+            .unwrap_or_default();
+        if !here.starts_with(&format!("http://{}:{l}/end", hop(3))) {
+            misses.push("not_on_hop3".to_string());
+        }
+        relay.set_list(Some(vec![(hop(3), l)]));
+        let n0 = relay.refusals_of(&hop(1), l);
+        let before = listener
+            .host_counts()
+            .map_err(|e| Fault::new("listener", e))?;
+        ex.run_page_script(&format!(
+            "(() => {{ fetch('http://{}:{l}/f', {{ mode: 'no-cors' }}).catch(() => {{}}); return true; }})()",
+            hop(1)
+        ))
+        .await?;
+        if !refused_after(&relay, &hop(1), l, n0).await {
+            misses.push("earlier_hop_not_refused".to_string());
+        }
+        tokio::time::sleep(Duration::from_millis(1_000)).await;
+        let after = listener
+            .host_counts()
+            .map_err(|e| Fault::new("listener", e))?;
+        listener.stop();
+        for n in 1..=2 {
+            if before.get(&hop(n)).copied().unwrap_or(0) != 1 {
+                misses.push(format!("hop{n}_count"));
+            }
+        }
+        if before.get(&hop(3)).copied().unwrap_or(0) == 0 {
+            misses.push("hop3_count".to_string());
+        }
+        if after.get(&hop(1)) != before.get(&hop(1)) {
+            misses.push("hop1_reached_after".to_string());
+        }
+        if !alive(ex).await {
+            misses.push("ended".to_string());
+        }
+        outcome(misses, None)
+    }
+
+    async fn list_close(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        let relay = relay_of(ctx)?;
+        let listener = chain_listener(ctx)?;
+        let l = listener.port;
+        let moments = ["chain", "handback", "new-origin", "finish"];
+        let host = |m: &str| format!("{m}.close.agent.test");
+        let mut list = fixture_list(ctx);
+        list.extend(moments.iter().map(|m| (host(m), l)));
+        relay.set_list(Some(list.clone()));
+        ex.open(&ctx.u("/bill")).await?;
+        let mut misses = Vec::new();
+        for m in moments {
+            let h = host(m);
+            let fetch = format!(
+                "(() => {{ fetch('http://{h}:{l}/f', {{ mode: 'no-cors' }}).catch(() => {{}}); return true; }})()"
+            );
+            ex.run_page_script(&fetch).await?;
+            let deadline = Instant::now() + Duration::from_secs(5);
+            let mut open = false;
+            while Instant::now() < deadline {
+                if relay
+                    .open_tunnels()
+                    .iter()
+                    .any(|(oh, op)| *oh == h && *op == l)
+                {
+                    open = true;
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            if !open {
+                misses.push(format!("open_{m}"));
+                continue;
+            }
+            if m == "finish" {
+                relay.set_list(Some(Vec::new()));
+            } else {
+                list.retain(|(lh, _)| *lh != h);
+                relay.set_list(Some(list.clone()));
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            let closed = relay.closed().iter().any(|(ch, cp)| *ch == h && *cp == l)
+                && !relay
+                    .open_tunnels()
+                    .iter()
+                    .any(|(oh, op)| *oh == h && *op == l);
+            if !closed {
+                misses.push(format!("closed_{m}"));
+            }
+            let n0 = relay.refusals_of(&h, l);
+            ex.run_page_script(&fetch).await?;
+            if !refused_after(&relay, &h, l, n0).await {
+                misses.push(format!("refused_{m}"));
+            }
+        }
+        listener.stop();
+        outcome(misses, None)
+    }
+
+    async fn own_traffic(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        let relay = relay_of(ctx)?;
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        let refusals = relay.refusals();
+        let mut distinct: Vec<&HostPort> = refusals.iter().collect();
+        distinct.sort();
+        distinct.dedup();
+        eprintln!(
+            "own_traffic machine={} browser={} refused={} distinct={} tunnels={}",
+            ctx.machine,
+            ctx.kind,
+            refusals.len(),
+            distinct.len(),
+            relay.tunnels()
+        );
+        let mut misses = Vec::new();
+        if !alive(ex).await {
+            misses.push("ended".to_string());
+        }
+        outcome(misses, None)
+    }
+
     async fn step(ex: &mut Executor, ctx: &Ctx, name: &str, i: u32) -> Res<Option<u128>> {
         let whole = |r: Res<()>| r.map(|_| None);
         match name {
@@ -869,6 +1142,10 @@ mod driver {
             "block_frame_post" => block_frame_post(ex, ctx).await,
             "block_websocket" => block_websocket(ex, ctx).await,
             "cert_error" => cert_error(ex, ctx, i).await,
+            "list_refuse" => list_refuse(ex, ctx).await,
+            "list_hops" => list_hops(ex, ctx).await,
+            "list_close" => list_close(ex, ctx).await,
+            "own_traffic" => own_traffic(ex, ctx).await,
             _ => Err(Fault::new("usage", name.to_string())),
         }
     }
@@ -949,12 +1226,17 @@ mod driver {
         ctx.control
             .reset(variants_of(name))
             .map_err(|e| NotRun::new("fixture", e))?;
-        let started = ctx
-            .stop
-            .or(Executor::start(
-                &ctx.options(&format!("p-{name}-{i}"), None),
-            ))
-            .await;
+        if ctx.round2 {
+            if let Some(r) = &ctx.relay {
+                r.set_list(Some(fixture_list(ctx)));
+            }
+        }
+        let opts = ctx.options(&format!("p-{name}-{i}"), None);
+        let started = if ctx.round2 {
+            ctx.stop.or(Executor::start_settled(&opts)).await
+        } else {
+            ctx.stop.or(Executor::start(&opts)).await
+        };
         let mut ex = match started {
             Ok(ex) => ex,
             Err(f) if f.0 == "signal" => return Err(NotRun::new("signal", "")),
@@ -1093,12 +1375,27 @@ mod driver {
                         .join(",")
                 ));
             }
+            if *name == "own_traffic" {
+                out(&format!(
+                    "way row=own_traffic machine={} browser={} closed={} runs={runs}",
+                    ctx.machine,
+                    ctx.kind,
+                    if ok == runs { "yes" } else { "no" }
+                ));
+                continue;
+            }
             out(&format!(
                 "cell candidate={CANDIDATE} machine={} browser={} major={major} step={name} ok={ok} of={runs} median_ms={}",
                 ctx.machine,
                 ctx.kind,
                 median(&mut times)
             ));
+            if ctx.round2 && ctx.relayed && STEPS.contains(name) {
+                out(&format!(
+                    "relay_cell machine={} browser={} form=port_relay step={name} ok={ok} of={runs}",
+                    ctx.machine, ctx.kind
+                ));
+            }
             if ctx.routes {
                 out(&format!(
                     "route candidate={CANDIDATE} machine={} browser={} step={name} relay={} fixture_conns={} from_driver={} from_other={}",
@@ -2032,12 +2329,15 @@ mod driver {
             added_flags: args.add_flags.clone(),
             routes: args.routes,
             relayed: args.relay,
+            round2: args.round2,
+            relay: None,
             repo: repo.clone(),
         };
         let relay = if args.relay {
             match Relay::start().await {
                 Ok(r) => {
                     ctx.added_flags.extend(relay_flags(r.port));
+                    ctx.relay = Some(r.handle());
                     Some(r)
                 }
                 Err(e) => {
@@ -2052,18 +2352,25 @@ mod driver {
         } else {
             None
         };
+        if args.round2 {
+            ctx.added_flags
+                .extend(ROUND2_FLAGS.iter().map(|f| f.to_string()));
+        }
         out(&format!(
-            "start candidate={CANDIDATE} machine={machine} browser={kind} fixture_pid={} flags={} added_flags={} rows={} headless={}",
+            "start candidate={CANDIDATE} machine={machine} browser={kind} fixture_pid={} flags={} added_flags={} rows={} round={} headless={}",
             server.pid(),
             FIRST_FLAGS.len(),
             ctx.added_flags.len(),
-            if args.driver {
+            if args.relay_rows {
+                "relay"
+            } else if args.driver {
                 "driver"
             } else if args.isolation {
                 "isolation"
             } else {
                 "nine"
             },
+            if args.round2 { 2 } else { 1 },
             if ctx.headless { "yes" } else { "no" }
         ));
         let code = match args.mode {
@@ -2077,6 +2384,7 @@ mod driver {
             Mode::Cells => {
                 let steps: Vec<&str> = match &args.step {
                     Some(s) => vec![s.as_str()],
+                    None if args.relay_rows => RELAY_STEPS.to_vec(),
                     None if args.isolation => ISOLATION_STEPS.to_vec(),
                     None => STEPS.to_vec(),
                 };

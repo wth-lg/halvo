@@ -5,6 +5,9 @@ use std::time::{Duration, Instant};
 
 use chromiumoxide::browser::BrowserConfig;
 use chromiumoxide::cdp::browser_protocol::accessibility::{AxNode, GetFullAxTreeParams};
+use chromiumoxide::cdp::browser_protocol::browser::{
+    SetDownloadBehaviorBehavior, SetDownloadBehaviorParams,
+};
 use chromiumoxide::cdp::browser_protocol::dom::{
     BackendNodeId, DescribeNodeParams, FocusParams, GetContentQuadsParams, ResolveNodeParams,
     ScrollIntoViewIfNeededParams, SetFileInputFilesParams,
@@ -88,6 +91,7 @@ pub struct PausedRequest {
     pub origin: String,
     pub path: String,
     pub frame: String,
+    pub resource: String,
     pub let_through: bool,
     pub outcome: Outcome,
     pub body: Vec<u8>,
@@ -201,6 +205,15 @@ fn start_failed(opts: &StartOptions, e: CdpError) -> Fault {
     )
 }
 
+fn write_settings(profile: &Path) -> Res<()> {
+    let fault = |e: std::io::Error| Fault::new("start", format!("settings {}", e.kind()));
+    std::fs::write(profile.join("Local State"), crate::AGENT_LOCAL_STATE).map_err(fault)?;
+    let default = profile.join("Default");
+    std::fs::create_dir(&default).map_err(fault)?;
+    std::fs::write(default.join("Preferences"), crate::AGENT_PREFERENCES).map_err(fault)?;
+    Ok(())
+}
+
 pub fn launch_args(opts: &StartOptions) -> Vec<String> {
     let mut args: Vec<String> = opts.flags.clone();
     if cfg!(target_os = "macos") {
@@ -211,9 +224,36 @@ pub fn launch_args(opts: &StartOptions) -> Vec<String> {
 
 impl Executor {
     pub async fn start(opts: &StartOptions) -> Res<Executor> {
+        Executor::start_inner(opts, false).await
+    }
+
+    /// Starts as `start` does, with the agent's settings of U0.7b: before the launch it writes into
+    /// the new profile the settings of `crate::AGENT_LOCAL_STATE` and `crate::AGENT_PREFERENCES`
+    /// (secure lookups off, every permission that a page can ask for denied, prediction off, no
+    /// saved password or payment method), and after it the browser refuses every download.
+    pub async fn start_settled(opts: &StartOptions) -> Res<Executor> {
+        Executor::start_inner(opts, true).await
+    }
+
+    async fn start_inner(opts: &StartOptions, settled: bool) -> Res<Executor> {
         let (profile, temp) = session::make_dirs(&opts.profile)?;
         let made = session::RemoveOnDrop::new(&profile, &temp);
-        match Executor::launch(opts, &temp).await {
+        let launched = async {
+            if settled {
+                write_settings(&profile)?;
+            }
+            let ex = Executor::launch(opts, &temp).await?;
+            if settled {
+                let deny = SetDownloadBehaviorParams::new(SetDownloadBehaviorBehavior::Deny);
+                if let Err(e) = ex.browser.execute(deny).await {
+                    let _ = ex.stop().await;
+                    return Err(Fault::new("start", e.to_string()));
+                }
+            }
+            Ok(ex)
+        }
+        .await;
+        match launched {
             Ok(mut started) => {
                 made.disarm();
                 started.profile = Some(profile);
@@ -1221,6 +1261,13 @@ impl Executor {
                 hold: true,
             })
             .await
+    }
+
+    /// Calls `hook` with the host and port of every document request of the executor's own page
+    /// that the rule lets through, before the request goes on: the runner adds each hop of the
+    /// first navigation to the relay's list this way (A11.1). `None` takes the hook away.
+    pub fn on_main_document(&self, hook: Option<wire::Hook>) {
+        self.wire.set_main_document_hook(hook);
     }
 
     /// The WebSocket address of the browser's debugging channel.

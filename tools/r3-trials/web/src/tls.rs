@@ -99,6 +99,22 @@ fn parse_keys<const N: usize>(line: &str, keys: [&str; N]) -> Option<[u64; N]> {
     Some(out)
 }
 
+/// Reads the line `count <host>=<n> ...` or `count -` of the chain listener.
+pub fn parse_host_counts(line: &str) -> Option<std::collections::BTreeMap<String, u64>> {
+    let rest = line.trim().strip_prefix("count ")?;
+    let mut out = std::collections::BTreeMap::new();
+    if rest == "-" {
+        return Some(out);
+    }
+    for pair in rest.split(' ') {
+        let (k, v) = pair.split_once('=')?;
+        if out.insert(k.to_string(), v.parse::<u64>().ok()?).is_some() {
+            return None;
+        }
+    }
+    Some(out)
+}
+
 /// Reads the line `count requests=<n> handshakes=<n> tls_errors=<n>` of the TLS listener.
 pub fn parse_counts(line: &str) -> Option<Counts> {
     let [requests, handshakes, tls_errors] =
@@ -150,6 +166,17 @@ impl Listener {
                 key.as_os_str(),
             ],
         )
+    }
+
+    /// Starts `chain-listener.mjs`, the hosts of the rows `list_hops` and `list_close`.
+    pub fn start_chain(program: &Path) -> Result<Listener, String> {
+        Listener::spawn(program, &[])
+    }
+
+    /// Asks the chain listener for its count of each host and waits at most `ANSWER_WAIT`.
+    pub fn host_counts(&mut self) -> Result<std::collections::BTreeMap<String, u64>, String> {
+        let line = self.count_line()?;
+        parse_host_counts(&line).ok_or_else(|| "answer form".to_string())
     }
 
     /// Starts `record-listener.mjs` for the request path `path`.
@@ -335,6 +362,36 @@ mod tests {
         assert_eq!(counts.tls_errors, 1);
         assert_eq!(counts.requests, 0);
         assert_eq!(counts.handshakes, 0);
+    }
+
+    #[test]
+    fn parse_host_counts_takes_each_host_once() {
+        let c = parse_host_counts("count hop1.agent.test=1 hop2.agent.test=2").expect("form");
+        assert_eq!(c.get("hop2.agent.test"), Some(&2));
+        assert_eq!(parse_host_counts("count -").map(|c| c.len()), Some(0));
+        assert_eq!(parse_host_counts("count a=1 a=2"), None);
+        assert_eq!(parse_host_counts("listening 127.0.0.1:1"), None);
+    }
+
+    #[test]
+    fn the_chain_listener_redirects_hop1_to_hop2_and_counts_by_host() {
+        let program = Path::new(env!("CARGO_MANIFEST_DIR")).join("chain-listener.mjs");
+        let mut listener = Listener::start_chain(&program).expect("listener");
+        let mut plain = TcpStream::connect(("127.0.0.1", listener.port)).expect("connect");
+        plain
+            .write_all(b"GET /start HTTP/1.0\r\nHost: hop1.agent.test\r\n\r\n")
+            .expect("write");
+        let mut answer = String::new();
+        use std::io::Read;
+        plain.read_to_string(&mut answer).expect("read");
+        let counts = listener.host_counts().expect("counts");
+        listener.stop();
+        assert!(answer.starts_with("HTTP/1.1 302"), "{answer}");
+        assert!(
+            answer.contains("Location: http://hop2.agent.test:"),
+            "{answer}"
+        );
+        assert_eq!(counts.get("hop1.agent.test"), Some(&1));
     }
 
     #[test]

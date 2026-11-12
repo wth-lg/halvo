@@ -50,6 +50,13 @@ starts the browser headless with a new profile for every run, and stops both at 
                     or one page (signin_500, history_changed, prefs_500, frame_hangs,
                     upload_input_gone, pay_now_renamed, prefs_get_form, password_plain).
   --scratch DIR     the directory for profiles and upload files; default a new mktemp directory.
+  --round 2         runs the second round of A13.7 (U0.7b): needs --relay; every browser starts with
+                    the agent's settings in its new profile and the start flags of U0.7b, and the
+                    relay holds a list: the fixture's utility and pay hosts on its port, and what a
+                    row adds.
+  --rows relay      with --round 2, runs the rows of the relay's list: list_refuse, list_hops,
+                    list_close and own_traffic (tools/r3-trials/web/chain-listener.mjs serves the
+                    hops).
   --relay           runs the cells with the relay of ruling CP-24 in the trial program's own
                     process: every browser gets it as its only route, with the flags that the
                     README names.
@@ -78,7 +85,7 @@ refuse() {
 }
 
 candidate='' browser='' port='' runs='' step='' mode=cells out='' fault='' scratch='' rows=nine
-relay='' routes=''
+relay='' routes='' round=''
 while [ $# -gt 0 ]; do
   case "$1" in
     --help) usage; exit 0 ;;
@@ -94,6 +101,7 @@ while [ $# -gt 0 ]; do
     --port) port=$2 ;;
     --runs) runs=$2 ;;
     --step) step=$2 ;;
+    --round) round=$2 ;;
     --rows) rows=$2 ;;
     --driver) refuse usage "--driver belongs to the webdriver candidate, which has no adapter" ;;
     --snapshot-pay) mode=snapshot; out=$2 ;;
@@ -145,7 +153,14 @@ case "$rows" in
       *) refuse usage "--step with --rows driver takes one of the four forms of driver_killed" ;;
     esac
     ;;
-  *) refuse usage "--rows takes isolation or driver" ;;
+  relay)
+    [ "$round" = 2 ] || refuse usage "--rows relay belongs to --round 2"
+    case "$step" in
+      '' | list_refuse | list_hops | list_close | own_traffic) ;;
+      *) refuse usage "--step with --rows relay takes one of list_refuse, list_hops, list_close and own_traffic" ;;
+    esac
+    ;;
+  *) refuse usage "--rows takes isolation, driver or relay" ;;
 esac
 case "$fault" in
   '') ;;
@@ -225,6 +240,8 @@ case "$mode" in
     [ "$rows" = driver ] && set -- "$@" --rows driver
     [ -n "$relay" ] && set -- "$@" --relay
     [ -n "$routes" ] && set -- "$@" --routes
+    [ "$rows" = relay ] && set -- "$@" --rows relay
+    [ -n "$round" ] && set -- "$@" --round "$round"
     ;;
   extras)
     with=$(wc -c <"$bin" | tr -d ' ')

@@ -5,7 +5,7 @@ use chromiumoxide::cdp::browser_protocol::fetch::{
     ContinueRequestParams, EnableParams as FetchEnableParams, EventRequestPaused,
     FailRequestParams, RequestPattern, RequestStage,
 };
-use chromiumoxide::cdp::browser_protocol::network::ErrorReason;
+use chromiumoxide::cdp::browser_protocol::network::{ErrorReason, ResourceType};
 use chromiumoxide::cdp::browser_protocol::target::{
     ActivateTargetParams, SessionId, SetAutoAttachParams, TargetId,
 };
@@ -54,6 +54,7 @@ pub(crate) struct Book {
     pub home: Option<String>,
     pub paused: Vec<PausedRequest>,
     pub answered: HashSet<String>,
+    pub on_main_document: Option<Hook>,
 }
 
 struct Order {
@@ -61,6 +62,26 @@ struct Order {
     session: Option<String>,
     params: Value,
     reply: oneshot::Sender<Result<Value, String>>,
+}
+
+/// A call of the runner's that the executor makes for a request that the rule lets through.
+pub type Hook = std::sync::Arc<dyn Fn(&str, u16) + Send + Sync>;
+
+/// The host and the port of an origin `scheme://host[:port]`, with the port of the scheme where it
+/// has none.
+pub fn host_port(origin: &str) -> Option<(String, u16)> {
+    let (scheme, rest) = origin.split_once("://")?;
+    let default = match scheme {
+        "http" | "ws" => 80,
+        "https" | "wss" => 443,
+        _ => return None,
+    };
+    match rest.rsplit_once(':') {
+        Some((h, p)) if !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()) => {
+            Some((h.to_string(), p.parse().ok()?))
+        }
+        _ => Some((rest.to_string(), default)),
+    }
 }
 
 #[derive(Clone)]
@@ -156,6 +177,12 @@ impl Wire {
             .lock()
             .map(|b| b.paused.clone())
             .unwrap_or_default()
+    }
+
+    pub(crate) fn set_main_document_hook(&self, hook: Option<Hook>) {
+        if let Ok(mut b) = self.book.lock() {
+            b.on_main_document = hook;
+        }
     }
 
     pub(crate) fn set_home(&self, target: &str) {
@@ -270,6 +297,20 @@ impl Wire {
             .unwrap_or(false);
         let id = ev.request_id.clone();
         let hold = self.rule().map(|r| r.hold).unwrap_or(false);
+        let document = matches!(ev.resource_type, ResourceType::Document);
+        if let_through && document {
+            let (home, hook) = match self.book.lock() {
+                Ok(b) => (b.home.clone(), b.on_main_document.clone()),
+                Err(_) => (None, None),
+            };
+            if let (Some(home), Some(hook)) = (home, hook) {
+                if home == *ev.frame_id.inner() {
+                    if let Some((host, port)) = host_port(&origin) {
+                        hook(&host, port);
+                    }
+                }
+            }
+        }
         let answered = if !let_through && hold {
             Ok(Outcome::Held)
         } else if let_through {
@@ -295,6 +336,7 @@ impl Wire {
                 origin,
                 path,
                 frame: ev.frame_id.inner().clone(),
+                resource: format!("{:?}", ev.resource_type),
                 let_through,
                 outcome: answered.unwrap_or(Outcome::Refused),
                 body,
@@ -403,6 +445,19 @@ async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn host_port_reads_the_port_or_the_scheme_default() {
+        assert_eq!(
+            host_port("http://hop1.agent.test:18190"),
+            Some(("hop1.agent.test".to_string(), 18190))
+        );
+        assert_eq!(
+            host_port("https://utility.agent.test"),
+            Some(("utility.agent.test".to_string(), 443))
+        );
+        assert_eq!(host_port("data:text/html,x"), None);
+    }
 
     #[test]
     fn the_rule_passes_a_read_of_an_allowed_origin_and_nothing_else_when_it_holds_state() {
