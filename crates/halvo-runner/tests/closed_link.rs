@@ -140,3 +140,24 @@ fn closed_after_the_begin_of_the_edit_was_acknowledged() {
     );
     assert_eq!(files.names(), checkpoint_and_workbook(&sup));
 }
+
+#[test]
+fn closed_while_the_runner_waits_for_a_secret_reply() {
+    let mut sup = Supervisor::new(25, Category::Email, Vec::new());
+    sup.origins = vec![
+        halvo_schema::executable::WebOrigin::parse("http://mail.agent.test:8080")
+            .expect("an origin"),
+    ];
+    let seen = sup.serve(
+        |frame, _| {
+            if matches!(frame, FromRunner::Secret(_)) {
+                Act::Close
+            } else {
+                Act::Answer
+            }
+        },
+        LONG,
+    );
+    ended_by_the_close(&seen, "secret reply");
+    assert!(matches!(seen.frames.last(), Some(FromRunner::Secret(_))));
+}

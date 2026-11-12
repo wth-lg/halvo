@@ -10,6 +10,7 @@ mod file;
 mod link;
 mod playbook;
 mod run;
+mod secret;
 
 use std::ffi::OsString;
 use std::io::Write;

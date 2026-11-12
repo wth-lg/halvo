@@ -76,6 +76,7 @@ pub(crate) struct Runner {
     pub(crate) playbook: Option<NonZeroU32>,
     pub(crate) effects: Vec<Tracked>,
     pub(crate) kept: HashMap<String, Vec<Vec<Value>>>,
+    pub(crate) linked: bool,
 }
 
 /// Carries out one run on the link and returns the exit status: 0 once `done` is written after a stored
@@ -94,6 +95,7 @@ pub(crate) fn run(args: Args, link: Link) -> i32 {
         playbook: None,
         effects: Vec::new(),
         kept: HashMap::new(),
+        linked: false,
     };
     let end = runner.carry_out();
     runner.close(end)
@@ -147,6 +149,7 @@ impl Runner {
                 self.file_read(step, target, loaded)
             }
             Some(Target::File(target)) => self.file_write(step, target, loaded),
+            Some(Target::Api(target)) => self.api_call(target, loaded),
             _ => Err(Failure::Step(Cause::StepFailed)),
         }
     }
