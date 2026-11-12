@@ -17,6 +17,11 @@ pub struct Facts<C> {
     pub runs: Vec<PastRun>,
     /// Its ledger events in ascending `seq` (I7.1).
     pub events: Vec<Event>,
+    /// Whether the agent store has ended the agent's newest run: no run of the agent was
+    /// started, or the store's newest run record names the newest run that was started. The
+    /// coordinator reads it from the owner for each start, through `Owner::agents` (I5.1, I5.5
+    /// step 3, ruling XB-2).
+    pub store_ended: bool,
     /// The day of the coordinator's `Clock` (I5.9).
     pub today: u32,
     /// Its run state and its open item.
