@@ -490,3 +490,28 @@ impl Drop for Rig {
         }
     }
 }
+pub const PAYMENT: &str = r#"{"v":1,"workflow":"{workflow}","agent":"{agent}","run":"{run}","effect":"EFFECT","seq":SEQ,"day":20768,"at":1794339000000000001,"state":"STATE","class":"payment","digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","kept":[{"name":"payee","value":["Northwind Power"]},{"name":"amount","value":["84.20"]},{"name":"instrument","value":["card 4242"]},{"name":"origin","value":["http://pay.test:18090"]}],"fields":4,"approval":APPROVAL,"cause":null}"#;
+
+pub fn ask_store(id: &str, body: &str) -> String {
+    let envelope = r#"{"v":1,"id":"ID","request":"runner","body":BODY}"#
+        .replace("ID", id)
+        .replace("BODY", body);
+    format!(r#"ask {{"t":"store","request":{envelope}}}"#)
+}
+
+pub fn effect(effect: &str, seq: u32, state: &str) -> String {
+    let approval = match state {
+        "approved" | "releasing" => r#""70707070707070707070707070707070""#,
+        _ => "null",
+    };
+    let record = PAYMENT
+        .replace("EFFECT", effect)
+        .replace("SEQ", &seq.to_string())
+        .replace("STATE", state)
+        .replace("APPROVAL", approval);
+    r#"{"op":"effect","agent":"{agent}","run":"{run}","record":RECORD}"#.replace("RECORD", &record)
+}
+
+pub fn id(n: u8) -> String {
+    format!("{n:02x}").repeat(16)
+}

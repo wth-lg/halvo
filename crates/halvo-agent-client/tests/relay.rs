@@ -4,23 +4,14 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use common::{wait_until, Rig, Script};
+use common::{ask_store, effect, id, wait_until, Rig, Script};
 use halvo_agent_client::{CallError, EndRun};
 use halvo_schema::executable::names::{EffectState, Outcome};
 use halvo_schema::executable::text::EffectId;
 
 const SHORT: Duration = Duration::from_secs(10);
 
-const PAYMENT: &str = r#"{"v":1,"workflow":"{workflow}","agent":"{agent}","run":"{run}","effect":"EFFECT","seq":SEQ,"day":20768,"at":1794339000000000001,"state":"STATE","class":"payment","digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","kept":[{"name":"payee","value":["Northwind Power"]},{"name":"amount","value":["84.20"]},{"name":"instrument","value":["card 4242"]},{"name":"origin","value":["http://pay.test:18090"]}],"fields":4,"approval":APPROVAL,"cause":null}"#;
-
 const RUN_RECORD: &str = r#"{"v":1,"workflow":"{workflow}","agent":"{agent}","run":"{run}","day":20768,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":2,"handbacks":1,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":41,"model":null}"#;
-
-fn ask_store(id: &str, body: &str) -> String {
-    let envelope = r#"{"v":1,"id":"ID","request":"runner","body":BODY}"#
-        .replace("ID", id)
-        .replace("BODY", body);
-    format!(r#"ask {{"t":"store","request":{envelope}}}"#)
-}
 
 fn send_store(id: &str, body: &str) -> String {
     ask_store(id, body).replacen("ask ", "send ", 1)
@@ -30,26 +21,9 @@ fn load() -> String {
     r#"{"op":"load","agent":"{agent}","run":"{run}"}"#.to_owned()
 }
 
-fn effect(effect: &str, seq: u32, state: &str) -> String {
-    let approval = match state {
-        "approved" | "releasing" => r#""70707070707070707070707070707070""#,
-        _ => "null",
-    };
-    let record = PAYMENT
-        .replace("EFFECT", effect)
-        .replace("SEQ", &seq.to_string())
-        .replace("STATE", state)
-        .replace("APPROVAL", approval);
-    r#"{"op":"effect","agent":"{agent}","run":"{run}","record":RECORD}"#.replace("RECORD", &record)
-}
-
 fn finish() -> String {
     r#"{"op":"finish","agent":"{agent}","run":"{run}","record":RECORD}"#
         .replace("RECORD", RUN_RECORD)
-}
-
-fn id(n: u8) -> String {
-    format!("{n:02x}").repeat(16)
 }
 
 fn sent_by_runner(script: &Script, rig: &Rig) -> Vec<String> {

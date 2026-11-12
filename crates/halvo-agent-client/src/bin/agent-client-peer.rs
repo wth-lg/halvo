@@ -14,6 +14,9 @@ use std::time::Duration;
 use halvo_agent_client::process;
 use halvo_agent_client::wire::{read_frame, write_frame};
 
+#[path = "agent-client-peer/host.rs"]
+mod host;
+
 fn sleep_forever() -> ! {
     loop {
         thread::sleep(Duration::from_secs(3600));
@@ -352,6 +355,7 @@ fn main() {
             sleep_forever();
         }
         Some("child") => sleep_forever(),
+        Some("host") => host::run(&args[1..]),
         _ if args.iter().any(|a| a == "--run") => runner(&args),
         _ => std::process::exit(64),
     }
