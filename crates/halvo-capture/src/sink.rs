@@ -713,6 +713,44 @@ mod tests {
     }
 
     #[test]
+    fn a_queue_of_capacity_zero_drops_a_frame_unless_a_receive_waits() {
+        let (handle, writer) = channel(0);
+        let unwaited = handle
+            .emit(unnumbered(Modality::ScreenFrame, 0, 0))
+            .unwrap();
+        assert_eq!(unwaited, EmitOutcome::Dropped);
+        assert!(matches!(writer.try_recv(), Err(TryRecvError::Empty)));
+        let emitter = {
+            let handle = handle.clone();
+            thread::spawn(move || {
+                let deadline = std::time::Instant::now() + Duration::from_secs(5);
+                loop {
+                    match handle.emit(unnumbered(Modality::ScreenFrame, 0, 1)) {
+                        Ok(EmitOutcome::Queued) => return true,
+                        Ok(EmitOutcome::Dropped) if std::time::Instant::now() < deadline => {
+                            thread::sleep(Duration::from_millis(1));
+                        }
+                        _ => return false,
+                    }
+                }
+            })
+        };
+        let received = writer
+            .recv_timeout(Duration::from_secs(5))
+            .expect("a frame emitted while a receive waited");
+        assert_eq!(received.event().segment_ref.byte_offset, 1);
+        assert_eq!(received.number(), ArrivalNumber::for_test(0));
+        assert!(
+            emitter.join().unwrap(),
+            "no frame was queued while a receive waited"
+        );
+        let frames = handle.counts().of(Modality::ScreenFrame);
+        assert_eq!(frames.accepted, 1);
+        assert!(frames.dropped >= 1);
+        assert_eq!(handle.dropped_count(), frames.dropped);
+    }
+
+    #[test]
     fn a_dropped_frame_takes_no_number() {
         let (handle, writer) = bounded(NonZeroUsize::MIN);
         let frame = || unnumbered(Modality::ScreenFrame, 0, 0);
