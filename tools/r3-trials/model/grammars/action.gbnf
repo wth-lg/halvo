@@ -1,0 +1,5 @@
+root   ::= "{\"action\":" action ",\"ref\":" ref ",\"slot\":" name ",\"key\":" key ",\"name\":" name "}"
+action ::= "\"click\"" | "\"fill\"" | "\"select\"" | "\"press\"" | "\"extract\"" | "\"handback\"" | "\"done\""
+ref    ::= "\"e" [1-9] [0-9]{0,5} "\"" | "null"
+name   ::= "\"" [a-z0-9_]{1,32} "\"" | "null"
+key    ::= "\"Enter\"" | "\"Tab\"" | "\"Escape\"" | "null"
