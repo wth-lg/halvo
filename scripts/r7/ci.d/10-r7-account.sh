@@ -351,14 +351,16 @@ BEGIN {
   target = normal(ENVIRON["DEP_INFO_TARGET"])
   files = 0; unread = 0
   while ((getline file) > 0) {
-    n = 0; local = 0; bad = 0
+    n = 0; heads = 0; local = 0; bad = 0
     while ((getline line < file) > 0) {
       if (line == "" || substr(line, 1, 1) == "#") continue
       relative = 0
       if (line ~ /:$/) {
         read[++n] = converted(substr(line, 1, length(line) - 1))
         if (relative) local = 1
-      } else if (!(index(line, ": ") > 1 && under(normal(converted(substr(line, 1, index(line, ": ") - 1))), target))) {
+      } else if (index(line, ": ") > 1) {
+        head[++heads] = converted(substr(line, 1, index(line, ": ") - 1))
+      } else {
         bad = 1
       }
     }
@@ -366,6 +368,10 @@ BEGIN {
     if (!local) continue
     files++
     unread += bad
+    for (i = 1; i <= heads; i++) {
+      dir = head[i]; sub(/\/[^\/]*$/, "", dir)
+      if (!seen_head[dir]++) print "head\t" dir "\t.\t" normal(dir)
+    }
     for (i = 1; i <= n; i++) {
       if (seen[read[i]]++) continue
       dir = read[i]; sub(/\/[^\/]*$/, "", dir)
@@ -408,7 +414,7 @@ check_sources() {
           printf 'a dep-info file of account/ holds a line that names no file whole\n'
         fi
         ;;
-      path)
+      head | path)
         if [ "$dir" != "$last_dir" ]; then
           last_dir=$dir
           resolved_dir=$(cd -P "$dir" 2>/dev/null && pwd -P) || resolved_dir=
@@ -418,6 +424,19 @@ check_sources() {
         else
           file=$lexical
         fi
+      ;;
+    esac
+    case $kind in
+      head)
+        case $file in
+          "$target_physical"/* | "$target_drive"/* | "$target"/*) ;;
+          *)
+            outside=$((outside + 1))
+            printf 'a dep-info file of account/ holds a line that names no file whole\n'
+            ;;
+        esac
+        ;;
+      path)
         case $file in
           "$account_dir"/* | "$account_drive"/* | "$target_physical"/*/build/*/out/* | "$target_drive"/*/build/*/out/* | "$target"/*/build/*/out/*) ;;
           "${account_dir%/*}"/*)
