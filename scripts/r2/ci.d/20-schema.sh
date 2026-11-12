@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: The tests of halvo-schema pass, and export-names writes on two runs the names file that the crate commits as tests/golden/names.txt.
+# rule: The tests of halvo-schema-core and halvo-schema pass, and export-names writes on two runs the names file that the crate commits as tests/golden/names.txt.
 set -u
 name=20-schema
 golden=crates/halvo-schema/tests/golden/names.txt
@@ -29,11 +29,13 @@ measure() {
   mkdir -p "$artifacts" || fail "the artifacts directory cannot be made"
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail "mktemp failed"
 
-  cargo test --locked -p halvo-schema >"$artifacts/cargo-test.txt" 2>&1
-  code=$?
-  [ "$code" -eq 0 ] || fail "cargo test --locked -p halvo-schema exited $code"
-  passed=$(grep -c '\.\.\. ok' "$artifacts/cargo-test.txt")
-  printf 'cargo test --locked -p halvo-schema: tests passed %s\n' "$passed"
+  for package in halvo-schema-core halvo-schema; do
+    cargo test --locked -p "$package" >"$artifacts/cargo-test-$package.txt" 2>&1
+    code=$?
+    [ "$code" -eq 0 ] || fail "cargo test --locked -p $package exited $code"
+    passed=$(grep -c '\.\.\. ok' "$artifacts/cargo-test-$package.txt")
+    printf 'cargo test --locked -p %s: tests passed %s\n' "$package" "$passed"
+  done
 
   [ -f "$golden" ] || fail "$golden is missing"
   lines=$(grep -c '' "$golden")
@@ -67,7 +69,7 @@ check() {
     CI_D_REPO=$repo
     CI_D_ARTIFACTS=${art:-$work/artifacts/$1}
     STUB_RUNS=$work/runs
-    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_RUNS STUB_TEST_EXIT STUB_RUN_EXIT STUB_RUN2_EXIT STUB_OUT STUB_FIRST STUB_SECOND
+    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_RUNS STUB_CORE_EXIT STUB_TEST_EXIT STUB_RUN_EXIT STUB_RUN2_EXIT STUB_OUT STUB_FIRST STUB_SECOND
     sh "$self" 2>&1
   )
   code=$?
@@ -82,6 +84,7 @@ check() {
     *) got=$got-without-the-text ;;
   esac
   note "$1" "$2" "$got"
+  STUB_CORE_EXIT=0
   STUB_TEST_EXIT=0
   STUB_RUN_EXIT=0
   STUB_RUN2_EXIT=0
@@ -107,6 +110,10 @@ address_field'
   cat >"$work/bin/cargo" <<'EOF'
 #!/bin/sh
 case $* in
+  'test --locked -p halvo-schema-core')
+    printf 'test the_notice_is_the_one_row_of_the_public_suffix_list ... ok\n'
+    exit "$STUB_CORE_EXIT"
+    ;;
   'test --locked -p halvo-schema')
     printf 'test golden_names ... ok\ntest golden_parse ... ok\n'
     exit "$STUB_TEST_EXIT"
@@ -135,6 +142,7 @@ EOF
   chmod +x "$work/bin/cargo" || self_fail "the stub cargo cannot be made executable"
   rejected=0
   wrong=
+  STUB_CORE_EXIT=0
   STUB_TEST_EXIT=0
   STUB_RUN_EXIT=0
   STUB_RUN2_EXIT=0
@@ -142,9 +150,12 @@ EOF
   STUB_FIRST=$names
   STUB_SECOND=$names
 
-  check all-hold PASS "tests passed 2
+  check all-hold PASS "cargo test --locked -p halvo-schema-core: tests passed 1
+cargo test --locked -p halvo-schema: tests passed 2
 export-names runs=2 lines=3 same_as_golden=yes same_on_second_run=yes
 PASS $name"
+  STUB_CORE_EXIT=101
+  check core-tests-fail FAIL "FAIL $name (cargo test --locked -p halvo-schema-core exited 101)"
   STUB_TEST_EXIT=101
   check tests-fail FAIL "FAIL $name (cargo test --locked -p halvo-schema exited 101)"
   STUB_RUN_EXIT=2
