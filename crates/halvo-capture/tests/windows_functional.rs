@@ -1430,7 +1430,7 @@ fn exclude_from_capture(hwnd: HWND) -> Result<(), String> {
 
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
-fn c8_a_window_can_be_excluded_from_capture() {
+fn c8_display_affinity_exclude_from_capture_is_set_and_read_back() {
     with_deadline("c8", Duration::from_secs(60), || {
         env_report("c8");
         let window =
