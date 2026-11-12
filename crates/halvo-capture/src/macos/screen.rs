@@ -156,7 +156,18 @@ fn stream_configuration(
     config
 }
 
-/// The screen capture source. Created, started and stopped on one thread.
+/// The screen capture source. Created, started and stopped on one thread: the
+/// type is not `Send`.
+///
+/// ```
+/// fn on_one_thread<T>() {}
+/// on_one_thread::<halvo_capture::macos::screen::ScreenSource>();
+/// ```
+///
+/// ```compile_fail
+/// fn across_threads<T: Send>() {}
+/// across_threads::<halvo_capture::macos::screen::ScreenSource>();
+/// ```
 pub struct ScreenSource {
     cap: FrameRateCap,
     foreground: ForegroundReader,
