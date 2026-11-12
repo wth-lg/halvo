@@ -148,7 +148,8 @@ daemon() {
         name-leak) : > "$data/store/$leak_text.note" ;;
         camera-row) printf '%s %s camera 0\n' "$t" "$day" >> "$state/events" ;;
       esac
-      if [ "$screen" = on ] && { [ "$scenario" = no-exclusion ] || helper_outside "$root"; }; then printf '%s %s screen_frame 0\n' "$t" "$day" >> "$state/events"; fi
+      if [ "$scenario" = dead-after-resume ] && [ "${resumes:-0}" -ge 2 ]; then :
+      elif [ "$screen" = on ] && { [ "$scenario" = no-exclusion ] || helper_outside "$root"; }; then printf '%s %s screen_frame 0\n' "$t" "$day" >> "$state/events"; fi
       if [ "$scenario" = typed ]; then printf '%s %s keystroke 0\n%s %s pointer 0\n%s %s foreground_app 0\n' "$t" "$day" "$t" "$day" "$t" "$day" >> "$state/events"; fi
     fi
     printf '%s\n' "$capture" > "$state/capture.new" && mv "$state/capture.new" "$state/capture"

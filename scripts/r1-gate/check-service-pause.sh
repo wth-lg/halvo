@@ -4,6 +4,15 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 . "$DIR/lib.sh"
 name=service-pause
 
+pause_interval() {
+  printf '%s %s\n' "$(($1 + 1))" "$(($2 - 1))"
+}
+
+pause_interval_is() {
+  interval_got=$(pause_interval "$2" "$3")
+  [ "$interval_got" = "$1" ]
+}
+
 interval_defect() {
   interval_line=$(grep -m 1 '^floor interval ' "$1")
   case $interval_line in "floor interval from=$3 to=$4 records="*) ;; *) printf 'the floor report holds no interval line for from=%s to=%s: %s\n' "$3" "$4" "${interval_line:-none}"; return 1 ;; esac
@@ -53,9 +62,11 @@ pause_steps() {
   ctl_or_defect pause pause || return 1
   pause_said=$(sed -n 1p "$ctl_out")
   [ "$pause_said" = capture=paused ] || { gate_defect="ctl pause printed $pause_said"; return 1; }
-  t1=$(( $(date +%s) + 1 ))
+  answered_at=$(date +%s)
   hold_for "$pause_wait" || return 1
-  t2=$(( $(date +%s) - 1 ))
+  resume_at=$(date +%s)
+  interval_pair=$(pause_interval "$answered_at" "$resume_at")
+  t1=${interval_pair% *}; t2=${interval_pair#* }
   ctl_or_defect paused-end inventory || return 1
   paused_end=$ctl_out
   ctl_or_defect resume-again resume || return 1
@@ -90,7 +101,7 @@ measure() {
   stop_children
   where=$(service_line)
   [ "$ok" = yes ] || { emit_fail "$name" "$gate_defect; $where"; return 1; }
-  result="0 records in the paused interval $interval, growth $before_counts before it and $after_counts after it, still paused after a restart"
+  result="0 records in the paused interval $interval, whose ends lie within one second inside the pause answer and the resume request, the step of --from and --to, growth $before_counts before it and $after_counts after it, still paused after a restart"
   if [ "$gate_input" = none ]; then
     emit_no_input "$name" "input=none, and the done-when wants input during the pause: $result; $where"
     return 3
@@ -118,6 +129,11 @@ cases() {
   printf 'floor records=9 undecodable=0 forbidden_fields=0\n' > "$gate_scratch/floor-no-interval"
   t interval-empty PASS predicate_interval_empty "$gate_scratch/floor-0" 2026-11-12T09:00:01Z 2026-11-12T09:00:10Z
   t events-in-interval-3 FAIL predicate_interval_empty "$gate_scratch/floor-3" 2026-11-12T09:00:01Z 2026-11-12T09:00:10Z
+  printf 'floor records=9 undecodable=0 forbidden_fields=0\nfloor interval from=2026-11-12T09:00:01Z to=2026-11-12T09:00:10Z records=1\n' > "$gate_scratch/floor-1"
+  printf 'floor records=9 undecodable=0 forbidden_fields=0\nfloor interval from=2026-11-12T09:00:01Z to=2026-11-12T09:00:10Z records=2\n' > "$gate_scratch/floor-2"
+  t events-in-interval-1 FAIL predicate_interval_empty "$gate_scratch/floor-1" 2026-11-12T09:00:01Z 2026-11-12T09:00:10Z
+  t events-in-interval-2 FAIL predicate_interval_empty "$gate_scratch/floor-2" 2026-11-12T09:00:01Z 2026-11-12T09:00:10Z
+  t interval-of-the-answer-and-the-resume PASS pause_interval_is "101 199" 100 200
   t interval-line-missing FAIL predicate_interval_empty "$gate_scratch/floor-no-interval" 2026-11-12T09:00:01Z 2026-11-12T09:00:10Z
   t interval-of-another-span FAIL predicate_interval_empty "$gate_scratch/floor-0" 2026-11-12T10:00:01Z 2026-11-12T10:00:10Z
   printf 'store_id=0123456789abcdef0123456789abcdef\nrow day=2026-11-12 modality=foreground_app events=4 bytes=1\ntotal events=4 bytes=1 disk_bytes=1\n' > "$gate_scratch/inv-4"
@@ -132,6 +148,8 @@ cases() {
   t total-moves-after-restart FAIL predicate_restart_paused "$paused" "$gate_scratch/inv-4" "$gate_scratch/inv-9"
   t standin-good-run-with-no-input NO-INPUT against_the_standin good none
   t standin-main-names-the-mode PASS says 'FAIL service-pause (no --service-run mode' main none
+  t standin-dead-after-the-resume FAIL against_the_standin dead-after-resume none
+  t privacy-line-before-the-service PASS privacy_line_first main none
 }
 
 check_main "$@"
