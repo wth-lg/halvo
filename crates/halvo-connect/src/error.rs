@@ -7,7 +7,9 @@ pub enum CallError {
     NotSent,
     /// The provider answered 401: the token is not valid for it.
     Unauthorized,
-    /// The provider answered this status, which is neither 401 nor in 200 to 299. No redirect is followed.
+    /// The provider answered this status, which is neither 401 nor the success status that Microsoft Graph
+    /// documents for the request and the fixture answers: 200 for a GET and for the PATCH, 201 for createReply,
+    /// 202 for send, 204 for DELETE. Another 2xx is such a status too. No redirect is followed.
     Status(u16),
     /// The request left and its answer did not arrive whole within the time limit of the adapter.
     NoAnswer,
@@ -34,7 +36,7 @@ pub enum Effect {
     /// The provider made nothing: the request did not leave, or the provider answered a status from 400 to 499.
     NotMade,
     /// Nothing says whether the provider made it: the request left and no whole answer came, or the provider
-    /// answered a status outside 200 to 299 and 400 to 499.
+    /// answered a status that is neither the request's success status nor in 400 to 499.
     Unknown,
 }
 

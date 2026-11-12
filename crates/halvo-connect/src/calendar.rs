@@ -140,7 +140,7 @@ impl EventToDelete {
 
 impl Calendar for Graph {
     fn calendar_list(&self, token: &Token, day: RunDay) -> Result<Events, CallError> {
-        let answer = self.json(token, Method::GET, &window(day), None)?;
+        let answer = self.json(token, Method::GET, &window(day), None, 200)?;
         listed(&answer, day).map(Events)
     }
 
@@ -149,6 +149,7 @@ impl Calendar for Graph {
             token,
             Method::DELETE,
             &format!("/v1.0/me/events/{}", segment(&event.0.id)),
+            204,
         )
     }
 }

@@ -146,7 +146,7 @@ fn https_builds_on_the_system_route_with_the_os_trust_store() {
 fn the_token_goes_in_the_authorization_header_alone() {
     let (port, seen) = listen(answer("200 OK", "{\"value\":[]}"));
     let got = graph(port, LIMIT)
-        .json(&token(), Method::GET, "/v1.0/me/x", None)
+        .json(&token(), Method::GET, "/v1.0/me/x", None, 200)
         .expect("an answer");
     assert_eq!(got, json!({"value": []}));
     let request = text(&seen).to_ascii_lowercase();
@@ -161,7 +161,13 @@ fn a_body_goes_as_json() {
     let (port, seen) = listen(answer("200 OK", "{\"id\":\"d1\"}"));
     let body = json!({"body": {"content": "Noted."}});
     let got = graph(port, LIMIT)
-        .json(&token(), Method::PATCH, "/v1.0/me/messages/d1", Some(&body))
+        .json(
+            &token(),
+            Method::PATCH,
+            "/v1.0/me/messages/d1",
+            Some(&body),
+            200,
+        )
         .expect("an answer");
     assert_eq!(got, json!({"id": "d1"}));
     let request = text(&seen);
@@ -179,7 +185,7 @@ fn a_body_goes_as_json() {
 fn status_401_is_unauthorized_and_makes_nothing() {
     let (port, seen) = listen(answer("401 Unauthorized", "{\"error\":{}}"));
     let error = graph(port, LIMIT)
-        .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send")
+        .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send", 202)
         .expect_err("a 401");
     assert_eq!(error, CallError::Unauthorized);
     assert_eq!(error.effect(), Effect::NotMade);
@@ -193,11 +199,11 @@ fn another_status_outside_2xx_is_named() {
         let (port, _seen) = listen(answer(line, "{}"));
         let client = graph(port, LIMIT);
         assert_eq!(
-            client.effect(&token(), Method::DELETE, "/v1.0/me/events/e1"),
+            client.effect(&token(), Method::DELETE, "/v1.0/me/events/e1", 204),
             Err(CallError::Status(status))
         );
         assert_eq!(
-            client.json(&token(), Method::GET, "/v1.0/me/x", None),
+            client.json(&token(), Method::GET, "/v1.0/me/x", None, 200),
             Err(CallError::Status(status))
         );
     }
@@ -210,7 +216,7 @@ fn a_redirect_is_not_followed() {
             .to_owned(),
     ));
     let error = graph(port, LIMIT)
-        .effect(&token(), Method::DELETE, "/v1.0/me/events/e1")
+        .effect(&token(), Method::DELETE, "/v1.0/me/events/e1", 204)
         .expect_err("a 302");
     assert_eq!(error, CallError::Status(302));
     assert_eq!(error.effect(), Effect::Unknown);
@@ -219,12 +225,42 @@ fn a_redirect_is_not_followed() {
 }
 
 #[test]
-fn every_2xx_makes_the_effect_and_its_body_is_not_read() {
-    for line in ["202 Accepted", "204 No Content", "200 OK"] {
+fn the_success_status_alone_makes_the_effect_and_its_body_is_not_read() {
+    for (line, success) in [("202 Accepted", 202), ("204 No Content", 204)] {
         let (port, _seen) = listen(answer(line, "not json"));
         assert_eq!(
-            graph(port, LIMIT).effect(&token(), Method::POST, "/v1.0/me/messages/d1/send"),
-            Ok(())
+            graph(port, LIMIT).effect(&token(), Method::POST, "/v1.0/me/x", success),
+            Ok(()),
+            "{line}"
+        );
+    }
+}
+
+#[test]
+fn every_other_status_is_named_and_its_effect_is_unknown() {
+    let others = [
+        ("200 OK", 200),
+        ("201 Created", 201),
+        ("203 Other", 203),
+        ("204 No Content", 204),
+        ("299 Other", 299),
+        ("300 Multiple Choices", 300),
+        ("301 Moved Permanently", 301),
+    ];
+    for (line, status) in others {
+        let (port, _seen) = listen(answer(line, "{}"));
+        let error = graph(port, LIMIT)
+            .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send", 202)
+            .expect_err("not the success status of send");
+        assert_eq!(error, CallError::Status(status), "{line}");
+        assert_eq!(error.effect(), Effect::Unknown, "{line}");
+    }
+    for (line, status) in others.into_iter().skip(1) {
+        let (port, _seen) = listen(answer(line, "{\"value\":[]}"));
+        assert_eq!(
+            graph(port, LIMIT).json(&token(), Method::GET, "/v1.0/me/x", None, 200),
+            Err(CallError::Status(status)),
+            "{line}"
         );
     }
 }
@@ -233,7 +269,7 @@ fn every_2xx_makes_the_effect_and_its_body_is_not_read() {
 fn an_answer_that_is_not_json_is_refused() {
     let (port, _seen) = listen(answer("200 OK", "not json"));
     assert_eq!(
-        graph(port, LIMIT).json(&token(), Method::GET, "/v1.0/me/x", None),
+        graph(port, LIMIT).json(&token(), Method::GET, "/v1.0/me/x", None, 200),
         Err(CallError::Answer(AnswerFault::Form))
     );
 }
@@ -245,7 +281,7 @@ fn a_closed_port_is_not_sent() {
         listener.local_addr().expect("its address").port()
     };
     let error = graph(port, LIMIT)
-        .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send")
+        .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send", 202)
         .expect_err("no listener");
     assert_eq!(error, CallError::NotSent);
     assert_eq!(error.effect(), Effect::NotMade);
@@ -255,7 +291,7 @@ fn a_closed_port_is_not_sent() {
 fn a_held_answer_is_no_answer_and_its_effect_unknown() {
     let (port, seen) = listen(Reply::Hold);
     let error = graph(port, Duration::from_millis(300))
-        .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send")
+        .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send", 202)
         .expect_err("no answer");
     assert_eq!(error, CallError::NoAnswer);
     assert_eq!(error.effect(), Effect::Unknown);
@@ -268,7 +304,7 @@ fn an_https_origin_speaks_tls_first_and_a_failed_handshake_sends_nothing() {
     let client =
         Graph::new(&origin("https", port), Route::Loopback, LIMIT).expect("the client builds");
     assert_eq!(
-        client.json(&token(), Method::GET, "/v1.0/me/x", None),
+        client.json(&token(), Method::GET, "/v1.0/me/x", None, 200),
         Err(CallError::NotSent)
     );
     let first = seen.recv_timeout(LIMIT).expect("a connection");

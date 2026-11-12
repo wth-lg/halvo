@@ -347,3 +347,85 @@ fn a_draft_id_that_is_not_new_is_refused_before_its_patch() {
         );
     }
 }
+
+fn reply_stub(create: u16, patch: u16, send: u16) -> Stub {
+    let inbox = json!({"value": [message("m1", false, "ann@people.test", &["me@home.test"])]});
+    Stub::start(vec![
+        (format!("GET {INBOX}"), 200, inbox.to_string()),
+        (
+            "POST /v1.0/me/messages/m1/createReply".to_owned(),
+            create,
+            json!({"id": "d1"}).to_string(),
+        ),
+        (
+            "PATCH /v1.0/me/messages/d1".to_owned(),
+            patch,
+            draft("d1", "ann@people.test", "RE: s-m1"),
+        ),
+        (
+            "POST /v1.0/me/messages/d1/send".to_owned(),
+            send,
+            String::new(),
+        ),
+    ])
+}
+
+fn reply_rule() -> ReplyRule {
+    ReplyRule::new(
+        "me@home.test".to_owned(),
+        vec!["ann@people.test".to_owned()],
+    )
+}
+
+#[test]
+fn each_request_takes_its_own_success_status_alone() {
+    for send in [200, 204] {
+        let stub = reply_stub(201, 200, send);
+        let graph = stub.graph("mail");
+        let messages = graph
+            .mail_list(&token(), &reply_rule())
+            .expect("mail_list answers");
+        let drafts = graph
+            .mail_draft_reply(&token(), messages, "Thanks.")
+            .expect("mail_draft_reply answers");
+        let handle = drafts.into_sends().next().expect("a draft");
+        let error = graph.mail_send(&token(), handle).expect_err("not 202");
+        assert_eq!(error, CallError::Status(send));
+        assert_eq!(error.effect(), Effect::Unknown, "send answered {send}");
+    }
+    for (create, patch, status) in [(200, 200, 200), (201, 204, 204)] {
+        let stub = reply_stub(create, patch, 202);
+        let graph = stub.graph("mail");
+        let messages = graph
+            .mail_list(&token(), &reply_rule())
+            .expect("mail_list answers");
+        assert_eq!(
+            graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
+            Some(CallError::Status(status)),
+            "createReply answered {create}, the PATCH {patch}"
+        );
+    }
+    let window =
+        "/v1.0/me/calendarView?startDateTime=2026-10-13T00:00:00Z&endDateTime=2026-11-13T00:00:00Z";
+    let view = json!({"value": [event("e1", "2026-11-01T10:00:00", true, "organizer")]});
+    for delete in [200, 202] {
+        let stub = Stub::start(vec![
+            (format!("GET {window}"), 200, view.to_string()),
+            (
+                "DELETE /v1.0/me/events/e1".to_owned(),
+                delete,
+                String::new(),
+            ),
+        ]);
+        let graph = stub.graph("calendar");
+        let events = graph
+            .calendar_list(&token(), RunDay::from_unix_seconds(1_794_441_600))
+            .expect("calendar_list answers");
+        let handle = events.into_deletes().next().expect("an event");
+        let error = graph
+            .calendar_delete(&token(), handle)
+            .expect_err("not 204");
+        assert_eq!(error, CallError::Status(delete));
+        assert_eq!(error.effect(), Effect::Unknown, "DELETE answered {delete}");
+    }
+}

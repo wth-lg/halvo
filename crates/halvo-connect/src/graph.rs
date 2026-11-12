@@ -82,8 +82,9 @@ impl Graph {
         method: Method,
         path: &str,
         body: Option<&Value>,
+        success: u16,
     ) -> Result<Value, CallError> {
-        let response = self.send(token, method, path, body)?;
+        let response = self.send(token, method, path, body, success)?;
         let bytes = response.bytes().map_err(|_| CallError::NoAnswer)?;
         serde_json::from_slice(&bytes).map_err(|_| FORM)
     }
@@ -93,8 +94,9 @@ impl Graph {
         token: &Token,
         method: Method,
         path: &str,
+        success: u16,
     ) -> Result<(), CallError> {
-        self.send(token, method, path, None).map(drop)
+        self.send(token, method, path, None, success).map(drop)
     }
 
     fn send(
@@ -103,6 +105,7 @@ impl Graph {
         method: Method,
         path: &str,
         body: Option<&Value>,
+        success: u16,
     ) -> Result<Response, CallError> {
         let mut request = self
             .client
@@ -121,7 +124,7 @@ impl Graph {
             }
         })?;
         match response.status().as_u16() {
-            200..=299 => Ok(response),
+            status if status == success => Ok(response),
             401 => Err(CallError::Unauthorized),
             status => Err(CallError::Status(status)),
         }

@@ -235,7 +235,7 @@ impl DraftToSend {
 
 impl Mail for Graph {
     fn mail_list(&self, token: &Token, rule: &ReplyRule) -> Result<Messages, CallError> {
-        let answer = self.json(token, Method::GET, INBOX, None)?;
+        let answer = self.json(token, Method::GET, INBOX, None, 200)?;
         kept(&answer, rule).map(Messages)
     }
 
@@ -254,6 +254,7 @@ impl Mail for Graph {
                 Method::POST,
                 &format!("/v1.0/me/messages/{}/createReply", segment(&message.id)),
                 Some(&json!({})),
+                201,
             )?;
             let id = answer::id(&created)?;
             ids.first(&id)?;
@@ -262,6 +263,7 @@ impl Mail for Graph {
                 Method::PATCH,
                 &format!("/v1.0/me/messages/{}", segment(&id)),
                 Some(&content),
+                200,
             )?;
             drafts.push(Draft {
                 to: recipients(&patched)?,
@@ -278,6 +280,7 @@ impl Mail for Graph {
             token,
             Method::POST,
             &format!("/v1.0/me/messages/{}/send", segment(&draft.0.id)),
+            202,
         )
     }
 }
