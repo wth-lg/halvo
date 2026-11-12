@@ -122,7 +122,12 @@ fn reap_answers_alive_for_a_runner_that_lives_and_cannot_be_ended_and_keeps_its_
 #[test]
 fn a_group_whose_leader_number_another_process_has_taken_gets_no_signal() {
     let rig = Rig::new("reap-reused");
-    let (p, created) = sleeper("browser-with-child", true);
+    let role = if cfg!(windows) {
+        "browser"
+    } else {
+        "browser-with-child"
+    };
+    let (p, created) = sleeper(role, true);
     let pid = p.0.id();
     let run = common::run_id();
     write_mark(
