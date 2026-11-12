@@ -14,7 +14,11 @@ extern "C" {
 
 /// Whether the OS is currently withholding keystrokes from event taps.
 pub fn secure_input_active() -> bool {
-    // SAFETY: a parameterless C predicate with no side effects.
+    // SAFETY: a parameterless C predicate with no side effects. CarbonEventsCore.h
+    // marks it "Not thread safe" (line 3056 of the SDK on this Mac), so no other
+    // thread may call it or the hold and release below at the same time. That is
+    // not held until macos-2: the tap thread reads it on every event while the
+    // run thread may hold or release.
     secure_input_on(unsafe { IsSecureEventInputEnabled() })
 }
 
@@ -25,14 +29,20 @@ pub struct SecureInputHold(());
 
 /// Hold secure input until the returned [`SecureInputHold`] drops.
 pub fn hold_secure_input() -> SecureInputHold {
-    // SAFETY: parameterless Carbon call.
+    // SAFETY: parameterless Carbon call. CarbonEventsCore.h marks it "Not thread
+    // safe" (line 2996 of the SDK on this Mac), so no other thread may call it or
+    // the release and the predicate at the same time. That is not held until
+    // macos-2: the tap thread may read the predicate meanwhile.
     unsafe { EnableSecureEventInput() };
     SecureInputHold(())
 }
 
 impl Drop for SecureInputHold {
     fn drop(&mut self) {
-        // SAFETY: parameterless Carbon call.
+        // SAFETY: parameterless Carbon call. CarbonEventsCore.h marks it "Not
+        // thread safe" (line 3032 of the SDK on this Mac), so no other thread
+        // may call it or the hold and the predicate at the same time. That is
+        // not held until macos-2: the tap thread may read the predicate meanwhile.
         unsafe { DisableSecureEventInput() };
     }
 }
