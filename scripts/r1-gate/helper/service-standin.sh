@@ -146,6 +146,8 @@ daemon() {
 status() {
   capture=$(cat "$state/capture" 2>/dev/null)
   [ -n "$capture" ] || capture=starting
+  store_word=open
+  [ "$capture" != starting ] || store_word=opening
   lease=$(cat "$state/lease")
   status_now=$(date +%s)
   if [ "$lease" -eq 0 ]; then lease_word=none
@@ -162,6 +164,7 @@ status() {
     -e "s/^rss_peak_bytes=.*/rss_peak_bytes=$((peak * 1024 + 65536))/" \
     -e "s/^desired=.*/desired=$desired/" \
     -e "s/^capture=.*/capture=$capture/" \
+    -e "s/^store=.*/store=$store_word/" \
     -e "s/^lease=.*/lease=$lease_word/" \
     -e "s/^store_id=.*/store_id=$store_id/" \
     -e "s/^enabled_sources=.*/enabled_sources=$sources/" \
