@@ -157,6 +157,31 @@ ensure_cargo_deny() {
   echo "prerequisites: $version"
 }
 
+ensure_pnpm() {
+  prefix=$1
+  pinned=$(sed -n 's/.*"packageManager": "pnpm@\([0-9.]*\).*/\1/p' backend/package.json)
+  if [ -z "$pinned" ]; then
+    echo "prerequisites: error: backend/package.json pins no pnpm version under packageManager" >&2
+    return 1
+  fi
+  PATH="$prefix/bin:$prefix:$PATH"
+  export PATH
+  if command -v pnpm >/dev/null 2>&1; then
+    echo "prerequisites: pnpm $(pnpm --version) present; backend/package.json pins $pinned"
+    return
+  fi
+  echo "prerequisites: installing pnpm $pinned for the user into $prefix"
+  npm install --global --prefix "$prefix" "pnpm@$pinned" || return
+  echo "prerequisites: pnpm $(pnpm --version)"
+}
+
+ensure_backend() {
+  ensure_pnpm "$1" || return
+  echo "prerequisites: installing the packages of backend/pnpm-lock.yaml with install scripts off"
+  (cd backend && pnpm install --frozen-lockfile --ignore-scripts) || return
+  sh backend/scripts/fetch-tools.sh
+}
+
 self_test() {
   asset=$(cargo_release_asset) || {
     echo "prerequisites: self-test FAIL: no prebuilt cargo-release matches $(uname -s) $(uname -m), so this platform has no case"
@@ -392,6 +417,81 @@ EOF
   [ "$(cat "$CARGO_HOME/bin/$deny_executable" 2>/dev/null)" = "$deny_built" ] || problems="$problems; bin/$deny_executable is not the one that cargo install wrote"
   verdict "$name"
 
+  new_backend_case() {
+    new_case "$1"
+    mkdir -p "$case_dir/repo/backend/scripts" "$case_dir/home"
+    printf '{\n  "packageManager": "pnpm@12.14.0+sha512.0"\n}\n' >"$case_dir/repo/backend/package.json"
+    cat >"$case_dir/repo/backend/scripts/fetch-tools.sh" <<EOF
+echo "fetch-tools \$(pwd -P)" >>'$case_dir/calls'
+EOF
+    cat >"$case_dir/pnpm" <<EOF
+#!/bin/sh
+case "\$1" in
+  --version) echo 12.14.0 ;;
+  *)
+    echo "pnpm \$* in \$(pwd -P)" >>'$case_dir/calls'
+    exit "\$(cat '$case_dir/pnpm.exit' 2>/dev/null || echo 0)"
+    ;;
+esac
+EOF
+    cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+mkdir -p '$case_dir/home/.local/bin' && cp '$case_dir/pnpm' '$case_dir/home/.local/bin/pnpm'
+EOF
+    chmod +x "$case_dir/pnpm" "$case_dir/stubs/npm"
+    backend_dir=$(cd "$case_dir/repo/backend" && pwd -P)
+    repo_dir=$(cd "$case_dir/repo" && pwd -P)
+  }
+
+  run_ensure_backend() {
+    status=0
+    (
+      cd "$case_dir/repo" || exit 2
+      PATH="$case_dir/stubs:/usr/bin:/bin"
+      ensure_backend "$case_dir/home/.local"
+    ) >>"$case_dir/output" 2>&1 || status=$?
+    case "$1:$status" in
+      ok:0 | fails:[1-9]*) ;;
+      *) problems="$problems; ensure_backend exited $status, wanted $1" ;;
+    esac
+  }
+
+  name='with no pnpm on the path, npm installs the pinned pnpm for the user, the backend packages and tools are installed, and a second run installs no pnpm'
+  new_backend_case backend-no-pnpm
+  run_ensure_backend ok
+  run_ensure_backend ok
+  [ "$(count "npm install --global --prefix $case_dir/home/.local pnpm@12.14.0" "$case_dir/calls")" = 1 ] || problems="$problems; npm did not install pnpm@12.14.0 under the user's .local once"
+  [ "$(count "pnpm install --frozen-lockfile --ignore-scripts in $backend_dir" "$case_dir/calls")" = 2 ] || problems="$problems; pnpm install did not run in backend/ with the frozen lockfile and no install scripts on each run"
+  [ "$(count "fetch-tools $repo_dir" "$case_dir/calls")" = 2 ] || problems="$problems; backend/scripts/fetch-tools.sh did not run on each run"
+  [ "$(count 'prerequisites: pnpm 12.14.0 present' "$case_dir/output")" = 1 ] || problems="$problems; the second run did not report pnpm present"
+  verdict "$name"
+
+  name='a pnpm on the path is used, and npm installs nothing'
+  new_backend_case backend-pnpm-present
+  cp "$case_dir/pnpm" "$case_dir/stubs/pnpm"
+  run_ensure_backend ok
+  [ "$(count 'npm install --global' "$case_dir/calls")" = 0 ] || problems="$problems; npm installed pnpm"
+  [ "$(count "pnpm install --frozen-lockfile --ignore-scripts in $backend_dir" "$case_dir/calls")" = 1 ] || problems="$problems; pnpm install did not run once in backend/"
+  [ "$(count "fetch-tools $repo_dir" "$case_dir/calls")" = 1 ] || problems="$problems; backend/scripts/fetch-tools.sh did not run once"
+  verdict "$name"
+
+  name='a backend/package.json that pins no pnpm stops the step before anything is installed'
+  new_backend_case backend-no-pin
+  printf '{\n  "name": "halvo-backend"\n}\n' >"$case_dir/repo/backend/package.json"
+  run_ensure_backend fails
+  [ ! -s "$case_dir/calls" ] || problems="$problems; a command ran: $(tr '\n' ';' <"$case_dir/calls")"
+  [ "$(count 'backend/package.json pins no pnpm version' "$case_dir/output")" = 1 ] || problems="$problems; no line names the missing pin"
+  verdict "$name"
+
+  name='a failed package install fails the step, and no tool is fetched'
+  new_backend_case backend-install-fails
+  cp "$case_dir/pnpm" "$case_dir/stubs/pnpm"
+  echo 1 >"$case_dir/pnpm.exit"
+  run_ensure_backend fails
+  [ "$(count 'fetch-tools ' "$case_dir/calls")" = 0 ] || problems="$problems; the tools were fetched after the failed install"
+  verdict "$name"
+
   if [ "$failures" -gt 0 ]; then
     echo "prerequisites: self-test FAIL: cases failed: $failures"
     return 1
@@ -439,5 +539,6 @@ npm ci --no-audit --no-fund
 ensure_cargo_release
 ensure_cargo_deny
 cargo fetch --locked --manifest-path account/Cargo.toml
+ensure_backend "$HOME/.local"
 
 echo "prerequisites: done"
