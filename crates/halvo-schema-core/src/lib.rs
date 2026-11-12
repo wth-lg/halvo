@@ -1,13 +1,17 @@
 #![forbid(unsafe_code)]
 
 pub mod category;
+#[allow(unused_imports)]
 pub mod coordinator;
+#[allow(unused_imports)]
 pub mod executable;
 pub mod ids;
 pub mod kinds;
+#[allow(unused_imports)]
 pub mod learning;
 pub mod record;
 pub mod request;
+#[allow(unused_imports)]
 pub mod routing;
 pub mod site;
 
