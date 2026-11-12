@@ -207,6 +207,33 @@ mod tests {
     }
 
     #[test]
+    fn a_stored_key_time_is_a_multiple_of_the_resolution() {
+        use super::cases::keep;
+        use super::payload::{Button, FoldClass, FoldCount, PointerFold};
+        use crate::event::{AppIdentity, EventClock, FloorEvent, FoldEvent};
+        use crate::secure_input::{check, FixedProbe, SecureInputReading};
+
+        fn fixed() -> std::time::SystemTime {
+            std::time::UNIX_EPOCH + Duration::new(1_800_000_000, 123_456_789)
+        }
+        let clock = EventClock::new(fixed);
+        let app = || AppIdentity::bundle_id("com.apple.Terminal".to_string());
+        let cleared = check(&FixedProbe(SecureInputReading::Inactive), None).unwrap();
+        let key = FloorEvent::keystroke(keep(app(), 7), cleared, KeyClass::Enter, None, &clock);
+        let click = FloorEvent::click(keep(app(), 7), Button::Secondary, None, &clock);
+        let fold = PointerFold::new(FoldClass::Move, FoldCount::one());
+        let moved = FoldEvent::new(keep(app(), 7), fold, None, &clock).into_event();
+        let front = FloorEvent::foreground_app(keep(app(), 7), None, &clock);
+        let frame = FloorEvent::screen_frame(keep(app(), 7), None, &clock);
+        let second = 1_800_000_000 * 1_000_000_000;
+        assert_eq!(key.at(), second);
+        assert_eq!(click.at(), second);
+        for fine in [moved.at(), front.at(), frame.at()] {
+            assert_eq!(fine, second + 123_000_000);
+        }
+    }
+
+    #[test]
     fn each_switch_off_refuses_its_kind() {
         use super::exclude::{DropReason, FloorHandle, NoLineage, PrivateWindow, Subject, Verdict};
         use crate::event::AppIdentity;

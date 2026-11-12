@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use super::kind::Recorded;
 use super::{switch_of, Switch, Switches};
-use crate::event::{AppIdentity, Modality};
+use crate::event::{AppIdentity, FloorEvent, Modality};
 use crate::secure_input::{SecureInputProbe, SecureInputReading};
 
 /// The most parent steps of one lineage walk; a longer walk is an unknown
@@ -209,6 +209,26 @@ impl FloorHandle {
 
     pub fn switches(&self) -> Switches {
         self.switches
+    }
+
+    /// The owner's second line over a received value: the rules that need no
+    /// live state (the switches, the static list and the tree rule over the
+    /// stored subject pid). Here an unknown lineage keeps the event, because
+    /// the source decided on the live process table.
+    pub fn recheck(&self, event: &FloorEvent) -> Result<(), DropReason> {
+        if switch_of(event.kind()).is_some_and(|switch| !self.switches.is_on(switch)) {
+            return Err(DropReason::SwitchOff);
+        }
+        if is_listed(event.app()) {
+            return Err(DropReason::ListedApp);
+        }
+        match self
+            .root
+            .map(|root| walk(root, event.pid(), &*self.lineage))
+        {
+            Some(Tree::In) => Err(DropReason::ExclusionTree),
+            Some(Tree::Out | Tree::Unknown) | None => Ok(()),
+        }
     }
 
     /// The decision for one event of kind `K` about `subject`. `window` counts
@@ -552,5 +572,36 @@ mod tests {
             panic!("a keystroke was dropped");
         };
         assert_eq!(format!("{keep:?}"), "Keep(keystroke)");
+    }
+
+    #[test]
+    fn the_recheck_drops_a_listed_app_and_keeps_a_process_that_has_gone() {
+        use crate::event::EventClock;
+        let event = |name: &str, pid: u32| {
+            let subject = Subject::new(app(name), ProcessId::new(pid));
+            let keep = Keep::<kind::ForegroundApp>::issue(subject, false);
+            FloorEvent::foreground_app(keep, None, EventClock::system())
+        };
+        let floor = handle(Some(APP), Switches::default());
+        assert_eq!(floor.recheck(&event("com.apple.Terminal", 200)), Ok(()));
+        assert_eq!(floor.recheck(&event("com.apple.Terminal", 555)), Ok(()));
+        assert_eq!(floor.recheck(&event("com.apple.Terminal", 300)), Ok(()));
+        assert_eq!(
+            floor.recheck(&event("com.apple.Passwords", 200)),
+            Err(DropReason::ListedApp)
+        );
+        assert_eq!(
+            floor.recheck(&event("com.apple.Terminal", 102)),
+            Err(DropReason::ExclusionTree)
+        );
+        let frame = {
+            let subject = Subject::new(app("com.apple.Terminal"), ProcessId::new(200));
+            let keep = Keep::<kind::ScreenFrame>::issue(subject, false);
+            FloorEvent::screen_frame(keep, None, EventClock::system())
+        };
+        assert_eq!(floor.recheck(&frame), Err(DropReason::SwitchOff));
+        let mut on = Switches::default();
+        on.set(Switch::ScreenActivity, true);
+        assert_eq!(handle(Some(APP), on).recheck(&frame), Ok(()));
     }
 }
