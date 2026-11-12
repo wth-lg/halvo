@@ -274,11 +274,11 @@ pub struct OnboardingState {
 pub struct AssessInput<'a> {
     pub required: &'a [Permission],
     pub now: Grants,
-    pub at_start: PermissionSet,
+    pub granted_at_capture_start: PermissionSet,
     pub asked: PermissionSet,
     pub once_granted: PermissionSet,
     pub macos_major: Option<u32>,
-    pub entry_name: &'a str,
+    pub settings_entry_name: &'a str,
     pub screen_activity: bool,
 }
 
@@ -303,12 +303,16 @@ pub fn assess(input: &AssessInput<'_>) -> OnboardingState {
                 pane: pane_name,
                 lost,
                 asked: input.asked.contains(permission),
-                entry: input.entry_name,
+                entry: input.settings_entry_name,
                 alert_button: macos_row(input.macos_major).alert_button,
             }));
         }
         if restart.is_none()
-            && needs_restart_step(permission, grant, input.at_start.contains(permission))
+            && needs_restart_step(
+                permission,
+                grant,
+                input.granted_at_capture_start.contains(permission),
+            )
         {
             restart = Some((permission, pane_name));
         }
@@ -460,11 +464,11 @@ mod tests {
         AssessInput {
             required,
             now,
-            at_start: now.granted(),
+            granted_at_capture_start: now.granted(),
             asked: PermissionSet::EMPTY,
             once_granted: PermissionSet::EMPTY,
             macos_major: Some(26),
-            entry_name: "Halvo",
+            settings_entry_name: "Halvo",
             screen_activity: false,
         }
     }
@@ -495,18 +499,18 @@ mod tests {
                         .with(Screen, screen)
                         .with(Accessibility, accessibility)
                         .with(InputMonitoring, input_monitoring);
-                    for at_start in sets() {
+                    for granted_at_capture_start in sets() {
                         for asked in sets() {
                             for once_granted in sets() {
                                 for macos_major in [None, Some(26), Some(27)] {
                                     let input = AssessInput {
                                         required: &Permission::R1_MACOS,
                                         now,
-                                        at_start,
+                                        granted_at_capture_start,
                                         asked,
                                         once_granted,
                                         macos_major,
-                                        entry_name: "Halvo",
+                                        settings_entry_name: "Halvo",
                                         screen_activity: false,
                                     };
                                     visit(&input, &assess(&input));
@@ -662,15 +666,15 @@ mod tests {
             (InputMonitoring, GrantState::Granted),
         ];
         let mut input = input(&Permission::R1_MACOS, &granted);
-        input.at_start = [Screen, Accessibility].into_iter().collect();
+        input.granted_at_capture_start = [Screen, Accessibility].into_iter().collect();
         let state = assess(&input);
         assert!(state.all_granted);
         assert_eq!(state.walkback.len(), 1);
         assert_eq!(state.walkback[0].action, WalkbackAction::RestartCapture);
         assert_eq!(state.walkback[0].permission, InputMonitoring);
-        input.at_start = [Screen, InputMonitoring].into_iter().collect();
+        input.granted_at_capture_start = [Screen, InputMonitoring].into_iter().collect();
         assert!(assess(&input).walkback.is_empty());
-        input.at_start = Permission::R1_MACOS.into_iter().collect();
+        input.granted_at_capture_start = Permission::R1_MACOS.into_iter().collect();
         assert!(assess(&input).walkback.is_empty());
     }
 
@@ -699,7 +703,8 @@ mod tests {
                 .count();
             let wanted = input.required.iter().any(|&p| {
                 p.restarts_capture()
-                    && (input.now.of(p) != GrantState::Granted || !input.at_start.contains(p))
+                    && (input.now.of(p) != GrantState::Granted
+                        || !input.granted_at_capture_start.contains(p))
             });
             assert_eq!(restarts, usize::from(wanted));
             if wanted {
@@ -947,7 +952,7 @@ mod tests {
     #[test]
     fn the_entry_name_is_an_input() {
         let mut input = input(&[Accessibility], &[]);
-        input.entry_name = "Halvo Dev";
+        input.settings_entry_name = "Halvo Dev";
         for action in [
             WalkbackAction::RequestFromSystem,
             WalkbackAction::OpenSettingsPane,

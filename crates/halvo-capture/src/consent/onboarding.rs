@@ -17,11 +17,11 @@ pub fn assess(
     halvo_control::onboarding::assess(&AssessInput {
         required,
         now,
-        at_start: now.granted(),
+        granted_at_capture_start: now.granted(),
         asked: PermissionSet::EMPTY,
         once_granted: once_granted.iter().copied().collect(),
         macos_major: probe.macos_major_version(),
-        entry_name: "Halvo",
+        settings_entry_name: "Halvo",
         screen_activity: false,
     })
 }
