@@ -744,6 +744,11 @@ fn a_delete_removes_the_item_that_a_read_gives_and_nothing_when_a_read_gives_non
         [b"in the keychain".to_vec()]
     );
 
+    let store = mac(Keeps::File, File::holding(FILE), Keys::empty());
+    assert_eq!(store.delete(), Delete::Deleted);
+    assert_eq!(store.file.bytes(), None);
+    assert!(matches!(store.read(), Read::NotStored));
+
     let store = mac(Keeps::File, File::empty(), Keys::holding(&[FILE]));
     assert_eq!(store.delete(), Delete::Locked(Locked::OtherStore));
     assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
