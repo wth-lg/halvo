@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 import { config } from "../../../stress/config.mjs";
 import * as driver from "../../../stress/driver.mjs";
 import * as rule from "../../../stress/rule.mjs";
-import { testEntryApi } from "../../../stress/targets.mjs";
+import { spikeApi, testEntryApi } from "../../../stress/targets.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RECORDS = join(HERE, "records");
@@ -19,7 +19,7 @@ function judgeInput(record) {
   if (record.row && row >= 0) input.final.holds[row] = { ...input.final.holds[row], ...record.row };
   if (record.periods) input.final.periods = record.periods;
   if (record.mockEvents) input.mockEvents = record.mockEvents;
-  return { ...input, chatStatus: testEntryApi.chatStatus, ledger: testEntryApi.ledger };
+  return { ...input, chatStatus: testEntryApi.chatStatus, ledger: record.ledger === "spike" ? spikeApi.ledger : testEntryApi.ledger };
 }
 
 const pairs = (violations) => violations.map((violation) => `${violation.clause} ${violation.id ?? "-"}`).sort();
@@ -42,6 +42,19 @@ function readSend(record) {
   if (typeof driver.lostOnTheWayIn !== "function") return { good, problems: ["stress/driver.mjs exports no lostOnTheWayIn"] };
   const got = driver.lostOnTheWayIn(record.attempt);
   return { good, problems: got === good ? [] : [`sent again is ${got}, expected ${good}`] };
+}
+
+function readSendsAgain(record) {
+  const good = record.expect.sendsAgain;
+  if (typeof driver.sendsAgain !== "function") return { good, problems: ["stress/driver.mjs exports no sendsAgain"] };
+  const got = driver.sendsAgain(record.attempt, record.paused);
+  return { good, problems: got === good ? [] : [`sent again is ${got}, expected ${good}`] };
+}
+
+function readLostAttempt(record) {
+  if (typeof driver.lostAttemptOf !== "function") return { good: true, problems: ["stress/driver.mjs exports no lostAttemptOf"] };
+  const got = driver.lostAttemptOf(record.attempt);
+  return { good: true, problems: isDeepStrictEqual(got, record.expect.entry) ? [] : [`the entry is ${JSON.stringify(got)}, expected ${JSON.stringify(record.expect.entry)}`] };
 }
 
 function readReceipt(record) {
@@ -116,7 +129,7 @@ async function readAttemptLine(record) {
   return { good: true, problems: got === record.expect.line ? [] : [`the line is "${got}", expected "${record.expect.line}"`] };
 }
 
-const READINGS = { judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway, attempts: readAttempts, line: readLine, "attempt-line": readAttemptLine };
+const READINGS = { judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway, attempts: readAttempts, line: readLine, "attempt-line": readAttemptLine, "sends-again": readSendsAgain, "lost-attempt": readLostAttempt };
 
 const files = readdirSync(RECORDS)
   .filter((name) => name.endsWith(".json"))

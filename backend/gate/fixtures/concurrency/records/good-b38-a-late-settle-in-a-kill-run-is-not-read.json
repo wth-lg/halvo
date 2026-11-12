@@ -1,0 +1,73 @@
+{
+  "kind": "judge",
+  "ruling": "B-38",
+  "about": "the same late settle in a run with the kill: no-late-settle is read in runs without the kill only",
+  "source": "by hand; written from the record bad-b38-late-settle-in-an-attempt-that-is-not-slow for the review of builder-47 (evidence/builder-47/review/verdicts.txt)",
+  "request": {
+    "status": 200,
+    "body": "",
+    "headersAt": 1100,
+    "endedAt": 4600,
+    "trailer": {
+      "settled": true,
+      "outcome": "expired",
+      "cost": 19,
+      "settle_ms": 1
+    }
+  },
+  "row": {
+    "state": "expired",
+    "dispatched": 1,
+    "ended_by": "expire",
+    "input_tokens": 1,
+    "output_tokens": 1,
+    "cost": 19,
+    "late_at": 4500,
+    "late_seq": 3
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 0,
+      "unreported": 100,
+      "open": 0
+    }
+  ],
+  "mockEvents": [
+    {
+      "t": 1050,
+      "id": "r",
+      "ev": "request"
+    },
+    {
+      "t": 4450,
+      "id": "r",
+      "ev": "usage",
+      "final": true,
+      "input_tokens": 1,
+      "output_tokens": 1
+    },
+    {
+      "t": 4490,
+      "id": "r",
+      "ev": "end",
+      "clean": true
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": [],
+    "facts": {
+      "lateSettles": 1,
+      "slow": false
+    }
+  },
+  "top": {
+    "kill": {
+      "at": 1500,
+      "inFlight": 1
+    },
+    "restartReadyAt": 3000,
+    "firstLedgerReadAt": 3100
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "kind": "judge",
+  "ruling": "B-33",
+  "about": "a slow attempt of the void cell whose one row the gateway voided before its expiry: every row was voided, and still the slow attempt does not count",
+  "source": "by hand; written from the record good-b33-a-void-cell-reads-its-own-hold-life for the review of builder-47 (evidence/builder-47/review/verdicts.txt)",
+  "top": {
+    "cell": {
+      "name": "void@20",
+      "kind": "void",
+      "level": 3,
+      "switch": "usage-last"
+    },
+    "requests": [
+      {
+        "id": "q0",
+        "index": 0,
+        "status": 503,
+        "body": "{\"result\":\"voided\"}",
+        "sentAt": 1000,
+        "headersAt": 2301,
+        "endedAt": 2302,
+        "hold": 100,
+        "receipt": {
+          "requestId": "q0",
+          "amount": 100,
+          "now": 1010,
+          "expiresAt": 2710
+        },
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      },
+      {
+        "id": "q1",
+        "index": 1,
+        "status": 403,
+        "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+        "sentAt": 1000,
+        "headersAt": 2301,
+        "endedAt": 2302,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      },
+      {
+        "id": "q2",
+        "index": 2,
+        "status": 403,
+        "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+        "sentAt": 1000,
+        "headersAt": 2301,
+        "endedAt": 2302,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      }
+    ],
+    "final": {
+      "now": 20000,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 20000,
+        "seq": 0
+      },
+      "periods": [
+        {
+          "period_start": 1000,
+          "reported": 0,
+          "unreported": 0,
+          "open": 0
+        }
+      ],
+      "holds": [
+        {
+          "request_id": "q0",
+          "period_start": 1000,
+          "amount": 100,
+          "expires_at": 2710,
+          "state": "voided",
+          "dispatched": 0,
+          "created_at": 1010,
+          "created_seq": 1,
+          "ended_at": 2300,
+          "ended_seq": 2,
+          "ended_by": "void",
+          "input_tokens": null,
+          "output_tokens": null,
+          "cost": null,
+          "overrun": 0,
+          "late_at": null,
+          "late_seq": null
+        }
+      ],
+      "alarm": null,
+      "databaseSize": null,
+      "seq": 2
+    },
+    "gateway": {
+      "holdLifeMs": 1700,
+      "deadlineMs": 1500,
+      "marginMs": 400
+    }
+  },
+  "expect": {
+    "counted": false,
+    "violations": [],
+    "facts": {
+      "slow": true,
+      "voided": 1
+    }
+  }
+}

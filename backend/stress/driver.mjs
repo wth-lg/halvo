@@ -321,6 +321,10 @@ const LOST_BEFORE_AN_ANSWER = new Set(["ECONNRESET", "EPIPE"]);
 const resetBeforeTheServerAccepted = (record) => record.status === null && LOST_BEFORE_AN_ANSWER.has(record.error);
 /** True when an attempt was lost on its way to the gateway and the driver sends it again under its id. */
 export const lostOnTheWayIn = (record) => resetBeforeTheServerAccepted(record) || record.status === 500;
+/** True when the driver sends an attempt again: it was lost on its way in, the traffic is not paused, and fewer than MAX_RESENDS earlier attempts were sent again. */
+export const sendsAgain = (record, paused) => !paused && record.lost.length < MAX_RESENDS && lostOnTheWayIn(record);
+/** The entry that the driver keeps in a request's record for an attempt that it sends again. */
+export const lostAttemptOf = (record) => (resetBeforeTheServerAccepted(record) ? { why: "reset", body: "" } : { why: "500", body: record.body });
 
 class Traffic {
   constructor(plan, level, port, chat) {
@@ -388,8 +392,8 @@ class Traffic {
         await this.issue(this.plan[index], record);
         this.active--;
         this.wake();
-        if (this.paused || record.lost.length >= MAX_RESENDS || !lostOnTheWayIn(record)) break;
-        record.lost.push(resetBeforeTheServerAccepted(record) ? { why: "reset", body: "" } : { why: "500", body: record.body });
+        if (!sendsAgain(record, this.paused)) break;
+        record.lost.push(lostAttemptOf(record));
         Object.assign(record, { sentAt: null, status: null, headersAt: null, endedAt: null, error: null, body: "", endedCleanly: false });
         await sleep(25 * record.lost.length);
       }

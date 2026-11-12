@@ -1,0 +1,15 @@
+{
+  "kind": "sends-again",
+  "ruling": "B-35",
+  "about": "an attempt answered 200 is not sent again",
+  "source": "by hand",
+  "attempt": {
+    "status": 200,
+    "error": null,
+    "lost": []
+  },
+  "paused": false,
+  "expect": {
+    "sendsAgain": false
+  }
+}
