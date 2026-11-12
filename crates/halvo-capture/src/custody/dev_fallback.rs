@@ -150,10 +150,10 @@ mod keychain {
         }
     }
 
-    fn new_root(root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
+    pub(super) fn create_root(root_id: RootId) -> Result<(), CustodyError> {
         match existing_root(root_id)? {
             Some(_) => Err(CustodyError::RootExists),
-            None => make_root(root_id),
+            None => make_root(root_id).map(drop),
         }
     }
 
@@ -169,13 +169,6 @@ mod keychain {
 
     pub(super) fn wrap(root_id: RootId, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
         seal(root_id, existing_or_new_root(root_id)?, key)
-    }
-
-    pub(super) fn wrap_under_new_root(
-        root_id: RootId,
-        key: &StoreKey,
-    ) -> Result<WrappedKey, CustodyError> {
-        seal(root_id, new_root(root_id)?, key)
     }
 
     pub(super) fn unwrap(root_id: RootId, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
@@ -214,11 +207,8 @@ mod dpapi {
         user_roots()?.wrap(root_id, key)
     }
 
-    pub(super) fn wrap_under_new_root(
-        root_id: RootId,
-        key: &StoreKey,
-    ) -> Result<WrappedKey, CustodyError> {
-        user_roots()?.wrap_under_new_root(root_id, key)
+    pub(super) fn create_root(root_id: RootId) -> Result<(), CustodyError> {
+        user_roots()?.create_root(root_id)
     }
 
     pub(super) fn unwrap(root_id: RootId, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
@@ -259,10 +249,7 @@ mod unsupported {
         Err(no_root())
     }
 
-    pub(super) fn wrap_under_new_root(
-        _root_id: RootId,
-        _key: &StoreKey,
-    ) -> Result<WrappedKey, CustodyError> {
+    pub(super) fn create_root(_root_id: RootId) -> Result<(), CustodyError> {
         Err(no_root())
     }
 
@@ -344,8 +331,8 @@ impl KeyCustody for DevFallbackCustody {
         platform::wrap(self.root_id, key)
     }
 
-    fn wrap_store_key_under_new_root(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        platform::wrap_under_new_root(self.root_id, key)
+    fn create_root(&self) -> Result<(), CustodyError> {
+        platform::create_root(self.root_id)
     }
 
     fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
@@ -532,9 +519,7 @@ mod tests {
     }
 
     fn destroying_its_root_twice_is_no_error(custody: &dyn KeyCustody) {
-        custody
-            .wrap_store_key_under_new_root(&StoreKey::from_bytes([0x5c; 32]))
-            .unwrap();
+        custody.create_root().unwrap();
         let first = custody.destroy_root();
         let second = custody.destroy_root();
         assert!(

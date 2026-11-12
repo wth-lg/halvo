@@ -103,10 +103,10 @@ impl<P: Protector> FileRoots<P> {
         }
     }
 
-    fn new_root(&self, root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
+    pub(crate) fn create_root(&self, root_id: RootId) -> Result<(), CustodyError> {
         match self.existing_root(root_id)? {
             Some(_) => Err(CustodyError::RootExists),
-            None => self.make_root(root_id),
+            None => self.make_root(root_id).map(drop),
         }
     }
 
@@ -124,14 +124,6 @@ impl<P: Protector> FileRoots<P> {
 
     pub(crate) fn wrap(&self, root_id: RootId, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
         seal(root_id, self.existing_or_new_root(root_id)?, key)
-    }
-
-    pub(crate) fn wrap_under_new_root(
-        &self,
-        root_id: RootId,
-        key: &StoreKey,
-    ) -> Result<WrappedKey, CustodyError> {
-        seal(root_id, self.new_root(root_id)?, key)
     }
 
     pub(crate) fn unwrap(
@@ -269,11 +261,8 @@ pub(crate) mod test_support {
             self.roots.wrap(self.root_id, key)
         }
 
-        fn wrap_store_key_under_new_root(
-            &self,
-            key: &StoreKey,
-        ) -> Result<WrappedKey, CustodyError> {
-            self.roots.wrap_under_new_root(self.root_id, key)
+        fn create_root(&self) -> Result<(), CustodyError> {
+            self.roots.create_root(self.root_id)
         }
 
         fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {

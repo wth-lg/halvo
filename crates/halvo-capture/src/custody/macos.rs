@@ -41,7 +41,7 @@ impl KeyCustody for SecureEnclaveCustody {
         Ok(WrappedKey(blob))
     }
 
-    fn wrap_store_key_under_new_root(&self, _key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+    fn create_root(&self) -> Result<(), CustodyError> {
         Err(CustodyError::NotImplemented("secure-enclave root creation"))
     }
 

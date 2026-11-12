@@ -93,10 +93,13 @@ pub trait KeyCustody {
 
     fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError>;
 
-    /// Make a new root for this store and wrap `key` under it. Fails
-    /// [`CustodyError::RootExists`] when a root with this id exists, so that a
-    /// create never takes the root of another store.
-    fn wrap_store_key_under_new_root(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError>;
+    /// Make the root of a new store. Fails [`CustodyError::RootExists`] when a
+    /// root with this id exists, and with the custody's own error when the root
+    /// of this id cannot be read, so that a create never takes or destroys the
+    /// root of another store. A call that fails leaves no root that it made;
+    /// where it began a root file and cannot remove it, it returns the error of
+    /// that removal.
+    fn create_root(&self) -> Result<(), CustodyError>;
 
     fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError>;
 

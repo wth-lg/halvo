@@ -496,6 +496,7 @@ impl EncryptedStore {
         remove_dir_if_present(&segment::segments_root(dir))?;
         let store_key = StoreKey::random()?;
         let db = Db::open(dir, store_key.expose()).map_err(|e| Self::without_database(dir, e))?;
+        let db = Self::under_a_new_root(dir, custody.as_ref(), db)?;
         match Self::write_key_file(dir, custody.as_ref(), &store_key) {
             Ok(()) => Ok(Self {
                 dir: dir.to_path_buf(),
@@ -504,16 +505,19 @@ impl EncryptedStore {
                 keyed: Keyed::Open { db, store_key },
                 _writer_lock,
             }),
-            Err(StoreError::Custody(CustodyError::RootExists)) => {
-                drop(db);
-                Err(Self::without_database(
-                    dir,
-                    StoreError::Custody(CustodyError::RootExists),
-                ))
-            }
             Err(e) => {
                 drop(db);
                 Err(Self::abandon_create(dir, custody.as_ref(), e))
+            }
+        }
+    }
+
+    fn under_a_new_root(dir: &Path, custody: &dyn KeyCustody, db: Db) -> StoreResult<Db> {
+        match custody.create_root() {
+            Ok(()) => Ok(db),
+            Err(e) => {
+                drop(db);
+                Err(Self::without_database(dir, StoreError::Custody(e)))
             }
         }
     }
@@ -523,7 +527,7 @@ impl EncryptedStore {
         custody: &dyn KeyCustody,
         store_key: &StoreKey,
     ) -> StoreResult<()> {
-        let wrapped = custody.wrap_store_key_under_new_root(store_key)?;
+        let wrapped = custody.wrap_store_key(store_key)?;
         KeyFile {
             version: 1,
             custody_kind: custody.kind(),

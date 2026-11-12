@@ -139,8 +139,8 @@ impl KeyCustody for DpapiCustody {
         user_roots()?.wrap(self.root_id, key)
     }
 
-    fn wrap_store_key_under_new_root(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        user_roots()?.wrap_under_new_root(self.root_id, key)
+    fn create_root(&self) -> Result<(), CustodyError> {
+        user_roots()?.create_root(self.root_id)
     }
 
     fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {

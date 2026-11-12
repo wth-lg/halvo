@@ -98,8 +98,8 @@ impl KeyCustody for FlakyCustody {
     fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
         self.inner.wrap_store_key(key)
     }
-    fn wrap_store_key_under_new_root(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        self.inner.wrap_store_key_under_new_root(key)
+    fn create_root(&self) -> Result<(), CustodyError> {
+        self.inner.create_root()
     }
     fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
         self.inner.unwrap_store_key(wrapped)
@@ -373,11 +373,8 @@ impl KeyCustody for WrapThenFail {
             "wrap failed after the root was made".to_string(),
         ))
     }
-    fn wrap_store_key_under_new_root(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        self.0.wrap_store_key_under_new_root(key)?;
-        Err(CustodyError::Crypto(
-            "wrap failed after the root was made".to_string(),
-        ))
+    fn create_root(&self) -> Result<(), CustodyError> {
+        self.0.create_root()
     }
     fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
         self.0.unwrap_store_key(wrapped)
@@ -862,7 +859,7 @@ impl KeyCustody for FailingUnwrap {
     fn wrap_store_key(&self, _key: &StoreKey) -> Result<WrappedKey, CustodyError> {
         Err((self.error)())
     }
-    fn wrap_store_key_under_new_root(&self, _key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+    fn create_root(&self) -> Result<(), CustodyError> {
         Err((self.error)())
     }
     fn unwrap_store_key(&self, _wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
@@ -1201,10 +1198,10 @@ impl KeyCustody for DirectoryAtTheKeyFile {
     fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
         self.inner.wrap_store_key(key)
     }
-    fn wrap_store_key_under_new_root(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        let wrapped = self.inner.wrap_store_key_under_new_root(key)?;
+    fn create_root(&self) -> Result<(), CustodyError> {
+        self.inner.create_root()?;
         std::fs::create_dir(&self.key_file).unwrap();
-        Ok(wrapped)
+        Ok(())
     }
     fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
         self.inner.unwrap_store_key(wrapped)
@@ -2000,4 +1997,221 @@ fn a_create_never_takes_the_root_of_another_store() {
             root_id,
         ))
     });
+}
+
+fn names_in_store_dir(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+fn a_create_meets_a_root_of_another_store_that_it_cannot_read(
+    state: &str,
+    second_protector: TestProtector,
+    make_unreadable: &dyn Fn(&Path, RootId) -> Vec<u8>,
+    expected: fn(&StoreError) -> bool,
+) -> Vec<String> {
+    let dir = tempfile::tempdir().unwrap();
+    let (first_dir, second_dir, roots_dir) = (
+        dir.path().join("first"),
+        dir.path().join("second"),
+        dir.path().join("roots"),
+    );
+    let root_id = RootId::fresh();
+    let mut first = EncryptedStore::create(
+        &first_dir,
+        Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            root_id,
+        )),
+        DEFAULT_RETENTION,
+    )
+    .unwrap();
+    let (segment, _) = first
+        .write_segment(&mut Cursor::new(b"the first store"))
+        .unwrap();
+    drop(first);
+    let root_path =
+        FileRoots::new(roots_dir.clone(), TestProtector::new(0x5a).0).root_path(root_id);
+    let healthy = std::fs::read(&root_path).unwrap();
+    let held = make_unreadable(&root_path, root_id);
+
+    let second = EncryptedStore::create(
+        &second_dir,
+        Box::new(file_root_custody(&roots_dir, second_protector, root_id)),
+        DEFAULT_RETENTION,
+    );
+    let answer = second.as_ref().err().map(|e| format!("{e:?}"));
+    let answered_its_state = second.as_ref().err().is_some_and(expected);
+    drop(second);
+    #[cfg(unix)]
+    if root_path.exists() {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&root_path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    let left = std::fs::read(&root_path).ok();
+    let second_names = names_in_store_dir(&second_dir);
+    std::fs::write(&root_path, &healthy).unwrap();
+    let reopened = EncryptedStore::open_with(&first_dir, DEFAULT_RETENTION, |_, _| {
+        Ok(Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            root_id,
+        )))
+    });
+    let read = reopened
+        .as_ref()
+        .map(|store| {
+            store
+                .read_segment(segment.segment_id, &mut Vec::new())
+                .is_ok()
+        })
+        .map_err(|e| format!("{e:?}"));
+
+    let mut problems = Vec::new();
+    if !answered_its_state {
+        problems.push(format!(
+            "a create under a root that is {state} answered {answer:?}"
+        ));
+    }
+    if left.as_deref() != Some(held.as_slice()) {
+        problems.push(format!(
+            "a create under a root that is {state} removed or changed that root: it holds {:?} bytes",
+            left.map(|bytes| bytes.len())
+        ));
+    }
+    if second_names != ["writer.lock"] {
+        problems.push(format!(
+            "a create under a root that is {state} left {second_names:?}"
+        ));
+    }
+    if !matches!(read, Ok(true)) {
+        problems.push(format!(
+            "after a create under its root that was {state}, the first store does not read: {read:?}"
+        ));
+    }
+    problems
+}
+
+#[test]
+fn a_create_under_a_root_of_another_store_that_it_cannot_read_fails_and_leaves_that_root() {
+    let as_it_is = |path: &Path, _: RootId| std::fs::read(path).unwrap();
+    let mut problems = a_create_meets_a_root_of_another_store_that_it_cannot_read(
+        "locked",
+        TestProtector::failing_once(0x5a, CustodyError::RootLocked(5)).0,
+        &as_it_is,
+        |e| matches!(e, StoreError::Custody(CustodyError::RootLocked(5))),
+    );
+    problems.extend(a_create_meets_a_root_of_another_store_that_it_cannot_read(
+        "corrupt",
+        TestProtector::failing_once(
+            0x5a,
+            CustodyError::Crypto("the root does not decode".to_string()),
+        )
+        .0,
+        &as_it_is,
+        |e| matches!(e, StoreError::Custody(CustodyError::Crypto(_))),
+    ));
+    problems.extend(a_create_meets_a_root_of_another_store_that_it_cannot_read(
+        "of the wrong length",
+        TestProtector::new(0x5a).0,
+        &|path, root_id| {
+            let blob = TestProtector::new(0x5a)
+                .0
+                .protect(&[0x17; 33], root_id.as_bytes())
+                .unwrap();
+            std::fs::write(path, &blob).unwrap();
+            blob
+        },
+        |e| matches!(e, StoreError::Custody(CustodyError::RootCorrupt)),
+    ));
+    #[cfg(unix)]
+    problems.extend(a_create_meets_a_root_of_another_store_that_it_cannot_read(
+        "denied",
+        TestProtector::new(0x5a).0,
+        &|path, _| {
+            use std::os::unix::fs::PermissionsExt;
+            let bytes = std::fs::read(path).unwrap();
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o200)).unwrap();
+            bytes
+        },
+        |e| matches!(e, StoreError::Custody(CustodyError::RootDenied)),
+    ));
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+struct ARootThatCannotBeRead {
+    root_id: RootId,
+    answer: fn() -> CustodyError,
+    destroy_calls: Arc<AtomicUsize>,
+}
+
+impl KeyCustody for ARootThatCannotBeRead {
+    fn kind(&self) -> CustodyKind {
+        CustodyKind::DevFallback
+    }
+    fn root_id(&self) -> RootId {
+        self.root_id
+    }
+    fn wrap_store_key(&self, _key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+        Err((self.answer)())
+    }
+    fn create_root(&self) -> Result<(), CustodyError> {
+        Err((self.answer)())
+    }
+    fn unwrap_store_key(&self, _wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
+        Err((self.answer)())
+    }
+    fn destroy_root(&self) -> Result<(), CustodyError> {
+        self.destroy_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+}
+
+#[test]
+fn a_create_whose_custody_cannot_read_the_root_of_its_id_destroys_no_root() {
+    let states: [(&str, fn() -> CustodyError); 4] = [
+        ("locked", || CustodyError::RootLocked(-25308)),
+        ("denied", || CustodyError::RootDenied),
+        ("corrupt", || {
+            CustodyError::Crypto("the root does not decode".to_string())
+        }),
+        ("of the wrong length", || CustodyError::RootCorrupt),
+    ];
+    let mut problems = Vec::new();
+    for (state, answer) in states {
+        let dir = tempfile::tempdir().unwrap();
+        let destroy_calls = Arc::new(AtomicUsize::new(0));
+        let custody = ARootThatCannotBeRead {
+            root_id: RootId::fresh(),
+            answer,
+            destroy_calls: Arc::clone(&destroy_calls),
+        };
+        let created = EncryptedStore::create(dir.path(), Box::new(custody), DEFAULT_RETENTION);
+        let got = created.as_ref().err().map(|e| format!("{e:?}"));
+        let expected = format!("{:?}", StoreError::Custody(answer()));
+        if got.as_deref() != Some(expected.as_str()) {
+            problems.push(format!(
+                "a create under a root that is {state} answered {got:?} in place of {expected}"
+            ));
+        }
+        let destroyed = destroy_calls.load(Ordering::SeqCst);
+        if destroyed != 0 {
+            problems.push(format!(
+                "a create under a root that is {state} destroyed that root ({destroyed} calls)"
+            ));
+        }
+        drop(created);
+        let names = names_in_store_dir(dir.path());
+        if names != ["writer.lock"] {
+            problems.push(format!(
+                "a create under a root that is {state} left {names:?}"
+            ));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }

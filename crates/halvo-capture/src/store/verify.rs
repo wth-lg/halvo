@@ -412,11 +412,8 @@ mod tests {
         ) -> Result<WrappedKey, CustodyError> {
             Ok(WrappedKey(Vec::new()))
         }
-        fn wrap_store_key_under_new_root(
-            &self,
-            _key: &crate::custody::StoreKey,
-        ) -> Result<WrappedKey, CustodyError> {
-            Ok(WrappedKey(Vec::new()))
+        fn create_root(&self) -> Result<(), CustodyError> {
+            Ok(())
         }
         fn unwrap_store_key(
             &self,
