@@ -228,8 +228,9 @@ through a directory called home or Users (../home/<page>), a route at the
 root of a site (/home/<page>), the home of a container's or a runner's
 account (/home/<service>), and -home-<word> after a blank; give each an entry
 of the third kind. A placeholder that is a word (username after /Users/) is
-refused: write it with a sign (/Users/<name>). A file whose name holds a tab
-or a line break cannot be listed. The list and the name of the exempt commit
+refused: write it with a sign (/Users/<name>). A file whose name holds a tab,
+a line break, a quote or a backslash is listed by the name that git prints,
+in quotes and with its escapes ("a\tb.txt"). The list and the name of the exempt commit
 are read from the work tree, not from the pushed commits. The hook does not
 run for git push --no-verify, or in a clone where sh scripts/prerequisites.sh
 has not set core.hooksPath, and when this script is not beside
@@ -1180,6 +1181,18 @@ self_test_commits() {
   case_scan entry-for-the-shorter-name-refuses-a-name-with-a-blank 1 'twin.txt:1: a home path (windows-drive)' --allow "$work/list-ann" "$twin"
   case_scan entry-for-the-longer-text-allows-two-lines-of-its-file 1 'lines with a home path 1.' --allow "$work/list-ann-sam" "$twin"
   case_scan entry-allows-no-other-file 1 'other.txt:1: a home path (windows-drive)' --allow "$work/list-ann-sam" "$twin"
+  case $(uname -s) in
+    MINGW* | MSYS* | CYGWIN*) printf 'case %s/file-name-with-a-tab not run: this system has no such file name\n' "$NAME" ;;
+    *)
+      tab_name="a${tab}b.txt"
+      expand_fixture 'see /{U}/ada' >"$case_repo/$tab_name"
+      tab_commit=$(commit_case 'a name with a tab') || die 'commit failed'
+      case_scan file-name-with-a-tab-unlisted 1 '"a\tb.txt":1: a home path (macos)' --allow "$work/empty-list" "$tab_commit^!"
+      rejected=$((rejected - 1))
+      expand_fixture "\"a\\tb.txt\"$tab/{U}/ada${tab}made up" >"$work/list-tab-name"
+      case_scan file-name-with-a-tab-listed-by-its-quoted-name 0 'lines with a home path 0' --allow "$work/list-tab-name" "$tab_commit^!"
+      ;;
+  esac
   mkdir -p "$case_repo/scripts" || die 'mkdir failed'
   expand_fixture "twin.txt${tab}C:\\{U}\\Ann Sam${tab}made up" >"$work/list-ann-sam-alone"
   cp "$work/list-ann-sam-alone" "$case_repo/$LIST_IN_THE_REPOSITORY" || die 'cp failed'
