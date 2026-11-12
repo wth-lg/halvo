@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "file": "formal/CapLedger.cfg",
+      "find": "CONSTANT Ids = {1, 2, 3}",
+      "replace": "CONSTANT Ids = {1}"
+    }
+  ],
+  "line": ["FAIL model: ", "states=605", "first failure: TLC counted 605 distinct states at the bounds of formal/CapLedger.cfg, not the 186993 that formal/counts.json records"]
+}

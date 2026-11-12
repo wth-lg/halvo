@@ -1,0 +1,14 @@
+{
+  "edits": [],
+  "then": [
+    [
+      "node",
+      "-e",
+      "const fs=require(\"fs\");const f=\"contract/names/forbidden-names.json\";const j=JSON.parse(fs.readFileSync(f,\"utf8\"));j.names=j.names.filter((entry)=>false);fs.writeFileSync(f,JSON.stringify(j,null,2)+\"\\n\")"
+    ]
+  ],
+  "line": [
+    "forbidden=0 of 0",
+    "first failure: the names file holds 0 names, below its floor of 35"
+  ]
+}

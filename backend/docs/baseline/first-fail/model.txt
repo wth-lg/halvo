@@ -1,0 +1,1 @@
+FAIL model: states=unmeasured gateway-states=unmeasured properties=unmeasured violated=unmeasured seed=unmeasured traces=unmeasured actions=unmeasured differences=unmeasured elements=unmeasured; first failure: formal/CapLedger.tla does not exist, so the checker cannot run

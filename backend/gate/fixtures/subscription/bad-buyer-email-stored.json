@@ -1,0 +1,13 @@
+{
+  "about": "the reduction takes the buyer's email for the customer id",
+  "edits": [
+    {
+      "file": "src/billing/stripe/reduce.ts",
+      "find": "  const customerId = idOf(session.customer);",
+      "replace": "  const customerId = idOf(session.customer_email);"
+    }
+  ],
+  "line": [
+    "pii-in-storage=1"
+  ]
+}

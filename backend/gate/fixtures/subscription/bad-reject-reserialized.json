@@ -1,0 +1,14 @@
+{
+  "about": "the signature check signs a re-indented copy of the body",
+  "edits": [
+    {
+      "file": "src/billing/stripe/signature.ts",
+      "find": "  const prefix = encoder.encode(`${signed.timestamp}.`);",
+      "replace": "  try {\n    rawBody = encoder.encode(JSON.stringify(JSON.parse(new TextDecoder().decode(rawBody)), null, 2));\n  } catch {}\n  const prefix = encoder.encode(`${signed.timestamp}.`);"
+    }
+  ],
+  "line": [
+    "rejected=4 of 5",
+    "re-serialized"
+  ]
+}

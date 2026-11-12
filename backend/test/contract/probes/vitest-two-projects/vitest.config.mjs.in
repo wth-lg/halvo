@@ -1,0 +1,17 @@
+import { cloudflareTest } from "@cloudflare/vitest-plugin";
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  cacheDir: "vite-cache",
+  test: {
+    projects: [
+      {
+        plugins: [cloudflareTest({ wrangler: { configPath: "./wrangler.jsonc" } })],
+        test: { name: "workerd", include: ["tests/**/*.test.ts"], exclude: ["tests/**/*.node.test.ts"] },
+      },
+      {
+        test: { name: "node", include: ["tests/**/*.node.test.ts"], environment: "node" },
+      },
+    ],
+  },
+});

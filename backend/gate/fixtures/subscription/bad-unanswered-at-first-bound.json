@@ -1,0 +1,13 @@
+{
+  "about": "the accounts module removes a pending checkout at its first bound on a read that gives no answer",
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "  if (read === \"failed\" && now >= expiresAt + PENDING_KEEP_MS) return \"unanswered\";",
+      "replace": "  if (read === \"failed\" && now >= expiresAt + PENDING_DROP_MS) return \"unanswered\";"
+    }
+  ],
+  "line": [
+    "the test \"a read that gives no answer keeps the pending checkout at the first bound and removes it at the second\""
+  ]
+}

@@ -1,0 +1,7 @@
+node_modules/
+.tools/
+.stack/
+.tmp/
+.wrangler/
+.claude/
+test/contract/rust/target/

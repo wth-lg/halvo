@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "file": "src/ledger/periods.ts",
+      "find": "const start = now - remainder(now - anchor, WEEK_MS);",
+      "replace": "const start = anchor;"
+    }
+  ],
+  "line": ["FAIL cap: ", "roll=differs"]
+}

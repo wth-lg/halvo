@@ -1,0 +1,11 @@
+{
+  "name": "halvo-backend-spike-s4",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Spike S4 only: the Better Auth instance behind the sign-in pages of the passkey and Google-style candidates. It has its own lockfile because better-auth depends on a telemetry package, which the root lockfile must not hold.",
+  "type": "module",
+  "dependencies": {
+    "@better-auth/passkey": "1.7.18",
+    "better-auth": "1.7.18"
+  }
+}

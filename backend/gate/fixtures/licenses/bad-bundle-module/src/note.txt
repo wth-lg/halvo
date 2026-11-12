@@ -1,0 +1,1 @@
+A module that wrangler writes beside the bundle.

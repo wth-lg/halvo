@@ -1,0 +1,44 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "halvo-backend-test",
+  "main": "src/gateway/index.ts",
+  "compatibility_date": "2026-11-01",
+  "send_metrics": false,
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ACCOUNT",
+        "class_name": "AccountObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "AccountObject"
+      ]
+    }
+  ],
+  "vars": {
+    "PROVIDER_BASE_URL": "",
+    "PUBLIC_ORIGIN": "",
+    "PROVIDER_PRICE_ID": "",
+    "PROVIDER_METER_ID": "",
+    "PROVIDER_METER_EVENT": "",
+    "HOLD_LIFE_MS": "3000",
+    "UPSTREAM_DEADLINE_MS": "1500",
+    "DISPATCH_MARGIN_MS": "400",
+    "SYNC_INTERVAL_SECONDS": "3600",
+    "SYNC_MARGIN_SECONDS": "300",
+    "TEST_CLOCK": "1",
+    "UPSTREAM_BASE_URL": ""
+  },
+  "observability": {
+    "enabled": false,
+    "logs": {
+      "enabled": false,
+      "invocation_logs": false
+    }
+  }
+}

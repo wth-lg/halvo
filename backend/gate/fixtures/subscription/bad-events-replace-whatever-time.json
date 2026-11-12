@@ -1,0 +1,13 @@
+{
+  "about": "subscription events replace the stored state whatever their provider time",
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "  if (stored.providerTime === null) return true;",
+      "replace": "  if (stored.providerTime !== undefined) return true;"
+    }
+  ],
+  "line": [
+    "reordered=1 of 4"
+  ]
+}

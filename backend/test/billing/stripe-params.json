@@ -1,0 +1,16 @@
+{
+  "about": "The parameter names that the Stripe adapter sends on each endpoint, in the order it sends them. Unit 3.2 compares every recorded request with this list.",
+  "POST /v1/checkout/sessions": [
+    "mode",
+    "line_items[0][price]",
+    "success_url",
+    "client_reference_id",
+    "subscription_data[metadata][halvo_account]",
+    "expires_at",
+    "allowed_payment_method_types[0]"
+  ],
+  "GET /v1/checkout/sessions/{id}": [],
+  "POST /v1/billing_portal/sessions": ["customer", "return_url"],
+  "DELETE /v1/subscriptions/{id}": ["invoice_now"],
+  "GET /v1/subscriptions/{id}": []
+}

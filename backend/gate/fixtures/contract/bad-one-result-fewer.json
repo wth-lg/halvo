@@ -1,0 +1,36 @@
+{
+  "edits": [
+    {
+      "file": "src/contract/schemas.ts",
+      "find": "result: z.enum([\"pending\", \"active\", \"payment-failed\", \"cancelled\", \"no-such-account\", \"credential-mismatch\"]),",
+      "replace": "result: z.enum([\"active\", \"payment-failed\", \"cancelled\", \"no-such-account\", \"credential-mismatch\"]),"
+    },
+    {
+      "file": "src/contract/routes.ts",
+      "find": "      results: {\n        pending: [],\n        active: [],",
+      "replace": "      results: {\n        active: [],"
+    },
+    {
+      "file": "contract/samples/v1.json",
+      "find": "    \"status\": {\n      \"pending\": {\n        \"result\": \"pending\"\n      },\n",
+      "replace": "    \"status\": {\n"
+    }
+  ],
+  "then": [
+    [
+      "node",
+      "scripts/contract-rules",
+      "export",
+      "schema",
+      "--write"
+    ],
+    [
+      "node",
+      "scripts/contract-rules",
+      "export",
+      "routes",
+      "--write"
+    ]
+  ],
+  "line": "samples=31 of 31"
+}

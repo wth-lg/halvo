@@ -1,0 +1,13 @@
+{
+  "about": "the prompt budget gives the 3-D Secure challenge another class",
+  "edits": [
+    {
+      "file": "gate/prompt-budget.json",
+      "find": "      \"id\": \"three-d-secure\",\n      \"label\": \"3-D Secure challenge\",\n      \"where\": \"checkout page\",\n      \"class\": \"card\",",
+      "replace": "      \"id\": \"three-d-secure\",\n      \"label\": \"3-D Secure challenge\",\n      \"where\": \"checkout page\",\n      \"class\": \"outside\","
+    }
+  ],
+  "line": [
+    "three-d-secure=differs"
+  ]
+}

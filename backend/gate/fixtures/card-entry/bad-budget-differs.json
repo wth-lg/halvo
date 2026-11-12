@@ -1,0 +1,13 @@
+{
+  "about": "the prompt budget puts the wallet prompt in another place",
+  "edits": [
+    {
+      "file": "gate/prompt-budget.json",
+      "find": "      \"id\": \"wallet-prompt\",\n      \"label\": \"wallet prompt (Apple Pay or Google Pay in place of the card)\",\n      \"where\": \"browser\",",
+      "replace": "      \"id\": \"wallet-prompt\",\n      \"label\": \"wallet prompt (Apple Pay or Google Pay in place of the card)\",\n      \"where\": \"checkout page\","
+    }
+  ],
+  "line": [
+    "wallet-prompt=differs"
+  ]
+}

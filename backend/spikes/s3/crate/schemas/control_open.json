@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "cap_set"
+    },
+    "tier": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "plus"
+      ]
+    },
+    "cap": {
+      "type": "object",
+      "properties": {
+        "amount_minor": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "currency": {
+          "type": "string",
+          "enum": [
+            "usd",
+            "eur"
+          ]
+        },
+        "period": {
+          "type": "object",
+          "properties": {
+            "unit": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ]
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12
+            }
+          },
+          "required": [
+            "unit",
+            "count"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "amount_minor",
+        "currency",
+        "period"
+      ]
+    },
+    "device": {
+      "type": "object",
+      "properties": {
+        "platform": {
+          "type": "string",
+          "enum": [
+            "macos",
+            "windows"
+          ]
+        },
+        "install_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        }
+      },
+      "required": [
+        "platform",
+        "install_id"
+      ],
+      "additionalProperties": false
+    },
+    "locale": {
+      "type": "string",
+      "enum": [
+        "en",
+        "de"
+      ]
+    }
+  },
+  "required": [
+    "kind",
+    "tier",
+    "cap",
+    "device"
+  ],
+  "additionalProperties": false,
+  "title": "Request"
+}

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Halvo: subscription (app stand-in)</title>
+    <style>
+      body { font: 16px/1.5 system-ui, sans-serif; margin: 2rem auto; max-width: 26rem; padding: 0 1rem; }
+      button { font: inherit; padding: 0.5rem 1rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Subscription</h1>
+      <p>Monthly spend cap: <output id="cap-amount"></output></p>
+      <button id="subscribe" type="button">Subscribe</button>
+      <p id="state" data-state="none">No subscription yet.</p>
+    </main>
+    <script type="module">
+      const CAP_DEFAULT = { amount: 20, currency: 'USD' };
+      const candidate = new URLSearchParams(location.search).get('candidate');
+      const hex = (bytes) => Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+      const random = () => hex(crypto.getRandomValues(new Uint8Array(32)));
+      const secret = random();
+      const reference = random();
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
+      const secretSha256 = hex(new Uint8Array(digest));
+
+      const state = document.getElementById('state');
+      const subscribe = document.getElementById('subscribe');
+      document.getElementById('cap-amount').textContent = `${CAP_DEFAULT.amount} ${CAP_DEFAULT.currency}`;
+
+      async function api(path, body) {
+        const response = await fetch(path, {
+          method: body ? 'POST' : 'GET',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${secret}` },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        return response.json();
+      }
+
+      function show(account) {
+        const done = account.subscription === 'active' && account.cap;
+        state.dataset.state = done ? 'active-with-cap' : account.subscription;
+        state.textContent = done
+          ? `Active. Spend cap: ${account.cap.amount} ${account.cap.currency} a month.`
+          : 'Waiting for the payment page.';
+        return done;
+      }
+
+      async function poll() {
+        if (!show(await api(`/api/state?reference=${reference}`))) setTimeout(poll, 100);
+      }
+
+      subscribe.addEventListener('click', async () => {
+        subscribe.disabled = true;
+        const { url } = await api('/api/start', { candidate, reference, secretSha256, cap: CAP_DEFAULT });
+        window.open(url, '_blank');
+        poll();
+      });
+      document.body.dataset.ready = 'yes';
+    </script>
+  </body>
+</html>

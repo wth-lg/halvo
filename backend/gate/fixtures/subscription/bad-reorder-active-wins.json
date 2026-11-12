@@ -1,0 +1,14 @@
+{
+  "about": "a subscription event that says active replaces the state whatever its provider time",
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "  if (event.providerTime !== stored.providerTime) return event.providerTime > stored.providerTime;",
+      "replace": "  if (event.providerTime !== stored.providerTime) return event.state === \"active\" || event.providerTime > stored.providerTime;"
+    }
+  ],
+  "line": [
+    "reordered=3 of 4",
+    "active with a later payment failed"
+  ]
+}

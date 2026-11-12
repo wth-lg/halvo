@@ -1,0 +1,13 @@
+{
+  "about": "the accounts module keeps a pending checkout past its first bound when its reads show the session open",
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "  if ((read === \"open\" || read === \"unknown\") && now >= expiresAt + PENDING_DROP_MS) return \"dropped\";",
+      "replace": "  if (read === \"unknown\" && now >= expiresAt + PENDING_DROP_MS) return \"dropped\";"
+    }
+  ],
+  "line": [
+    "dropped-at-bound=0"
+  ]
+}

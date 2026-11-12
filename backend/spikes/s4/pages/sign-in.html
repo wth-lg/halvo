@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Sign in to Halvo (stand-in)</title>
+    <style>
+      body { font: 16px/1.5 system-ui, sans-serif; margin: 2rem auto; max-width: 26rem; padding: 0 1rem; }
+      button { font: inherit; padding: 0.5rem 1rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Sign in to Halvo</h1>
+      <button id="passkey" type="button" hidden>Continue with a passkey</button>
+      <button id="google" type="button" hidden>Continue with Google</button>
+      <p id="status" role="status"></p>
+    </main>
+    <script type="module">
+      const query = new URLSearchParams(location.search);
+      const candidate = query.get('candidate');
+      const reference = query.get('reference');
+      const status = document.getElementById('status');
+
+      async function call(path, body) {
+        const response = await fetch(path, {
+          method: body ? 'POST' : 'GET',
+          headers: { 'content-type': 'application/json' },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        const result = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(`${path.split('?')[0]} answered ${response.status}: ${JSON.stringify(result)}`);
+        return result;
+      }
+
+      async function toCheckout() {
+        const { url } = await call('/api/checkout', { reference });
+        location.assign(url);
+      }
+
+      const steps = {
+        async passkey() {
+          const options = await call(`/api/auth/passkey/generate-register-options?context=${reference}`);
+          const publicKey = PublicKeyCredential.parseCreationOptionsFromJSON(options);
+          const created = await navigator.credentials.create({ publicKey });
+          await call('/api/auth/passkey/verify-registration', { response: created.toJSON(), createSession: true });
+          await toCheckout();
+        },
+        async google() {
+          const callbackURL = `/sign-in?candidate=google&reference=${reference}&signed-in=1`;
+          const { url } = await call('/api/auth/sign-in/social', { provider: 'google-style', callbackURL });
+          location.assign(url);
+        },
+      };
+
+      function guard(step) {
+        return step().catch((error) => {
+          status.dataset.state = 'error';
+          status.textContent = String(error.message ?? error);
+        });
+      }
+
+      if (query.get('signed-in') === '1') {
+        guard(toCheckout);
+      } else if (steps[candidate]) {
+        const button = document.getElementById(candidate);
+        button.hidden = false;
+        button.addEventListener('click', () => {
+          button.disabled = true;
+          guard(steps[candidate]);
+        });
+      }
+      document.body.dataset.ready = 'yes';
+    </script>
+  </body>
+</html>
