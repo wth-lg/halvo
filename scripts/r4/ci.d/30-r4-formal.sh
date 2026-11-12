@@ -286,8 +286,8 @@ models() {
 }
 
 stamp_of() {
-  (cd "$1" && cat Schedule.tla Schedule.cfg Confirm4.tla Confirm4.cfg ScheduleTrace.tla Confirm4Trace.tla \
-    TraceText.tla limits.json) >"$2.bin" || return 1
+  (cd "$1" && cat Schedule.tla Schedule.cfg Schedule-holds.cfg Schedule-left.cfg Schedule-reap.cfg \
+    Confirm4.tla Confirm4.cfg ScheduleTrace.tla Confirm4Trace.tla TraceText.tla limits.json) >"$2.bin" || return 1
   tr -d '\r' <"$2.bin" >"$2.txt" || return 1
   stamp=$(sha256 <"$2.txt") || return 1
   stamp=${stamp%% *}
@@ -332,7 +332,7 @@ stamps() {
     [ -e "$f" ] || continue
     case ${f##*/} in
       Schedule.tla | Schedule.cfg | Confirm4.tla | Confirm4.cfg | ScheduleTrace.tla | Confirm4Trace.tla) ;;
-      TraceText.tla | limits.json) ;;
+      TraceText.tla | limits.json | Schedule-holds.cfg | Schedule-left.cfg | Schedule-reap.cfg) ;;
       *) grep -q -x -F -e "${f##*/}" "$tmp/table-files.txt" || outside=$((outside + 1)) ;;
     esac
   done
@@ -852,6 +852,13 @@ INVARIANT C7/'
   edit other-models README.md "$elsewhere"
   printf '\n' >>"$fdir/Confirm4.tla" || fail selftest
   expect other-models "1:FAIL $name (traces)" good
+
+  for file in Schedule-holds.cfg Schedule-left.cfg Schedule-reap.cfg; do
+    fixture "other-$file"
+    edit "other-$file" README.md "$elsewhere"
+    printf '\n' >>"$fdir/$file" || fail selftest
+    expect "other-$file" "1:FAIL $name (traces)" good
+  done
 
   fixture no-jobs-line
   edit no-jobs-line README.md '/^export compared in jobs:/d'
