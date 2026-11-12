@@ -1,12 +1,12 @@
-// usage: node tools/r4-trials/floor/selftest.mjs
-// Runs the cases of every tests/*.test.mjs of the floor trial, one after another, and prints a
-// line per failed case and `floor self-test: K of N ok`. It starts no app and no browser.
-// Exit: 0 when every case passes, 1 when one fails.
+// usage: node tools/r4-trials/floor/selftest.mjs [DIR]
+// Runs the cases of every *.test.mjs of DIR, by default the trial's tests/, one after another,
+// and prints a line per failed case and `floor self-test: K of N ok`. It starts no app and no
+// browser. Exit: 0 when every case passes and there is one, 1 otherwise.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'tests');
+const dir = process.argv[2] ? path.resolve(process.argv[2]) : path.join(path.dirname(fileURLToPath(import.meta.url)), 'tests');
 const files = fs.readdirSync(dir).filter((f) => f.endsWith('.test.mjs')).sort();
 let total = 0;
 let passed = 0;

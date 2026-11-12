@@ -58,6 +58,31 @@ export const cases = [
     assert.notEqual(changed, text);
     assert.ok(problemsOf(changed).includes(expected), problemsOf(changed));
   }]),
+  ['list_refuses_the_floor_page_on_a_later_line', () => {
+    const moved = [lines[1], lines[0], ...lines.slice(2)].join('\n');
+    assert.ok(problemsOf(moved).includes("line 1 names no page of the floor's Safari release notes"));
+  }],
+  ['an_allow_line_at_the_floor_stands', () => {
+    const at = firstOf('allow');
+    const copy = lines.slice();
+    copy[at - 1] = copy[at - 1].replace(/Safari \S+ of/, 'Safari 17.0 of');
+    copy[at] = copy[at].replace(/^(allow\t[^\t]+\t)[^\t]+/, '$117.0');
+    assert.deepEqual(parseList(copy.join('\n')).problems, []);
+  }],
+  ['a_case_line_out_of_form_is_a_problem', () => {
+    for (const line of ['use\tobject_group_by', 'use\tobject_group_by\t', 'free', 'free\ta\tb', 'take\tx\ty', 'use\tBad\tx']) {
+      assert.deepEqual(parseCases(`${line}\n`).problems, ['cases line 1 is neither "use, name, text" nor "free, text"'], line);
+    }
+  }],
+  ['check_finds_a_probe_that_is_not_the_lists', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'r4-floor-probe-'));
+    const stale = path.join(dir, 'probe.js');
+    fs.writeFileSync(stale, fs.readFileSync(PROBE, 'utf8').replace(/\n {2}\["[a-z0-9_]+", [^\n]*\n/, '\n'));
+    const r = run(['check', '--probe', stale]);
+    assert.equal(r.code, 1);
+    assert.match(r.out, /^miss probe\.js is not the probe of the list: /m);
+    assert.equal(run(['check', '--probe', PROBE]).code, 0);
+  }],
   ['versions_compare_field_by_field', () => {
     assert.equal(compareVersions('17.10', '17.4'), 1);
     assert.equal(compareVersions('17', '17.0'), 0);

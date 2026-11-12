@@ -71,6 +71,7 @@ export const cases = [
     assert.equal(systemOf('win32', '\r\nMicrosoft Windows [Version 10.0.26100.4652]\r\n'), '10.0.26100.4652');
     assert.equal(systemOf('darwin', 'ProductVersion: 15.7.1\n'), null);
     assert.equal(systemOf('win32', 'Microsoft Windows\r\n'), null);
+    assert.equal(systemOf('win32', 'Node 26.0.0\r\n'), null);
   }],
   ['the_machine_follows_r4_guest_and_the_system', () => {
     assert.equal(machineOf({ R4_GUEST: '1' }, 'darwin'), 'guest-mac14');

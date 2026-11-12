@@ -1,7 +1,8 @@
-// usage: node tools/r4-trials/floor/list.mjs check [--list FILE] [--cases FILE] [VIEW...]
+// usage: node tools/r4-trials/floor/list.mjs check [--list FILE] [--cases FILE] [--probe FILE] [VIEW...]
 //        node tools/r4-trials/floor/list.mjs probe [--list FILE] [--write]
 // check: the form of docs/r4/page-features.txt (contracts.md I11.4), every deny pattern against
-// the cases of cases.txt, and every view file given against every deny pattern.
+// the cases of cases.txt, probe.js against the list, and every view file given against every
+// deny pattern.
 // probe: prints the source of probe.js for the allow lines of the list, or writes it with --write.
 // Exit: 0 when every check holds, 1 when one misses, 2 on a refusal.
 import fs from 'node:fs';
@@ -192,11 +193,11 @@ class Refused extends Error {}
 
 function parseArgs(argv) {
   const [mode, ...rest] = argv;
-  const options = { mode, list: LIST, cases: CASES, write: false, views: [] };
+  const options = { mode, list: LIST, cases: CASES, probe: PROBE, write: false, views: [] };
   if (mode !== 'check' && mode !== 'probe') throw new Refused('give check or probe');
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
-    if ((a === '--list' || a === '--cases') && rest[i + 1] !== undefined) options[a.slice(2)] = rest[++i];
+    if ((a === '--list' || a === '--cases' || (a === '--probe' && mode === 'check')) && rest[i + 1] !== undefined) options[a.slice(2)] = rest[++i];
     else if (a === '--write' && mode === 'probe') options.write = true;
     else if (mode === 'check' && !a.startsWith('-')) options.views.push(a);
     else throw new Refused(`unknown argument ${JSON.stringify(a)}`);
@@ -241,8 +242,7 @@ export function main(argv, out = (s) => process.stdout.write(s), err = (s) => pr
   }
   const parsed = parseCases(casesText);
   const all = [...problems, ...parsed.problems, ...checkCases(features, parsed.cases)];
-  const probe = read(PROBE);
-  if (options.list === LIST && probe !== probeSource(features)) all.push('probe.js is not the probe of the list: run node tools/r4-trials/floor/list.mjs probe --write');
+  if (read(options.probe) !== probeSource(features)) all.push('probe.js is not the probe of the list: run node tools/r4-trials/floor/list.mjs probe --write');
   let found = 0;
   for (const view of options.views) {
     const text = read(view);
