@@ -1,15 +1,17 @@
 import { connect } from "node:net";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after } from "node:test";
 import { startStub as start } from "../src/stub.mjs";
 
 const ends = [];
+const made = [];
 after(async () => {
   for (const end of ends) await Promise.race([end(), new Promise((resolve) => setTimeout(resolve, 5000))]);
+  for (const dir of made) rmSync(dir, { recursive: true, maxRetries: 5 });
 });
 
 /** Starts the stub in this process, as startStub does, and closes it after the last test of the file, also after a failure. */
@@ -98,15 +100,25 @@ export const appHeaders = (credential = CRED) => [
 
 export const portOf = (url) => Number(new URL(url).port);
 
-/** Makes a new empty directory under the system's temp directory for one record. */
-export const fresh = () => mkdtempSync(join(tmpdir(), "halvo-stub-record-"));
+/**
+ * Makes a new empty directory under the system's temp directory for one record, and removes it with all it holds after
+ * the last test of the file, once every stub and command line that the file started has stopped.
+ */
+export function fresh() {
+  const dir = mkdtempSync(join(tmpdir(), "halvo-stub-record-"));
+  made.push(dir);
+  return dir;
+}
 
 /** Starts the stub's command line with `args`; resolves to the child, its first line of standard output parsed as JSON, and its standard error. */
 export function spawnStub(args) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [STUB, ...args], { stdio: ["ignore", "pipe", "pipe"] });
+    const gone = new Promise((done) => child.on("exit", done));
     ends.push(() => {
-      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+      if (child.exitCode !== null || child.signalCode !== null) return undefined;
+      child.kill("SIGKILL");
+      return gone;
     });
     let out = "";
     let err = "";
