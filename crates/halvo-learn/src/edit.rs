@@ -45,6 +45,29 @@ pub enum EditAnswer {
     Edit,
 }
 
+/// The move of an edit that was served to a run (L3.7), the first of these that holds:
+/// `use_fail_counted` when the run's log holds a counted `step_failed` line of the edit's
+/// step, whatever the run's outcome; `use_ok` when the run is verified and its log holds
+/// `step_ok` for the step; `use_fail_other` when the log holds any line of the step. `None`
+/// when the log holds no line of the step. Each flag reads the lines of the edit's own step
+/// alone.
+pub fn use_move(
+    counted_line: bool,
+    verified: bool,
+    step_ok: bool,
+    any_line: bool,
+) -> Option<EditMove> {
+    if counted_line {
+        Some(EditMove::UseFailCounted)
+    } else if verified && step_ok {
+        Some(EditMove::UseOk)
+    } else if any_line {
+        Some(EditMove::UseFailOther)
+    } else {
+        None
+    }
+}
+
 /// One step of an edit by the 57 rows of L3.7: the next state and the next `clean` for a
 /// state, a move and the `clean` passed in. `provisional` with `use_ok` takes the guard
 /// `clean_below` when `clean` + 1 is below [`K_CLEAN`], and `clean_reaches` when it equals

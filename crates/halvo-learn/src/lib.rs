@@ -40,12 +40,17 @@ macro_rules! tokens {
 
 mod admit;
 mod edit;
+mod run;
 
 pub use admit::{
     admit, brought, build_list, is_rejected, new_locators, value_hit, AdmitCause, AdmitFacts,
     Locator, RunMode, Target,
 };
-pub use edit::{edit_step, EditAnswer, EditMove, EditState};
+pub use edit::{edit_step, use_move, EditAnswer, EditMove, EditState};
+pub use run::{
+    candidate_move, counted, verify_run, CandidateFacts, CandidateMove, EditCause, LogCause,
+    Outcome, RunCause, RunFacts,
+};
 
 /// The clean uses that make a `provisional` edit `active` (L3.6).
 pub const K_CLEAN: u32 = 2;
