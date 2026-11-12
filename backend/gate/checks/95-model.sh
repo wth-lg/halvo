@@ -5,7 +5,7 @@ ROOT=${HALVO_ROOT:-$(cd "$(dirname "$0")/../.." && pwd -P)}
 FIXTURES="$ROOT/gate/fixtures/model"
 
 if [ "${1:-}" != --self-test ]; then
-  HALVO_ROOT=$ROOT node "$ROOT/formal/check.mjs"
+  HALVO_ROOT=$ROOT node "$ROOT/../formal/r7-ledger/check.mjs"
   exit $?
 fi
 
@@ -14,10 +14,12 @@ mkdir -p "$STATE"
 
 scratch_copy() {
   copy=$(mktemp -d "$STATE/model-copy-$1.XXXXXX") || return 1
-  (cd "$ROOT" && git ls-files -z --cached --others --exclude-standard | tar --null -T - -cf -) | tar -xf - -C "$copy" || return 1
-  ln -s "$ROOT/node_modules" "$copy/node_modules"
-  ln -s "$ROOT/.tools" "$copy/.tools"
-  printf '%s\n' "$copy"
+  mkdir -p "$copy/backend" "$copy/formal/r7-ledger" || return 1
+  (cd "$ROOT" && git ls-files -z --cached --others --exclude-standard | tar --null -T - -cf -) | tar -xf - -C "$copy/backend" || return 1
+  (cd "$ROOT/../formal/r7-ledger" && git ls-files -z --cached --others --exclude-standard | tar --null -T - -cf -) | tar -xf - -C "$copy/formal/r7-ledger" || return 1
+  ln -s "$ROOT/node_modules" "$copy/backend/node_modules"
+  ln -s "$ROOT/.tools" "$copy/backend/.tools"
+  printf '%s\n' "$copy/backend"
 }
 
 field() {
@@ -32,9 +34,9 @@ expect() {
   only=$5
   log="$STATE/model-self-test-$fixture.log"
   if [ "$only" = replay ]; then
-    env -u HALVO_ROOT "HALVO_ROOT=$dir" node "$dir/formal/check.mjs" --replay-only ${traces:+"$traces"} > "$log" 2>&1
+    env -u HALVO_ROOT "HALVO_ROOT=$dir" node "$dir/../formal/r7-ledger/check.mjs" --replay-only ${traces:+"$traces"} > "$log" 2>&1
   else
-    env -u HALVO_ROOT "HALVO_ROOT=$dir" node "$dir/formal/check.mjs" > "$log" 2>&1
+    env -u HALVO_ROOT "HALVO_ROOT=$dir" node "$dir/../formal/r7-ledger/check.mjs" > "$log" 2>&1
   fi
   status=$?
   line=$(grep -E '^(PASS|FAIL) model: ' "$log" | tail -1)
@@ -89,7 +91,7 @@ done
 want=
 expect good checkout "$ROOT" "" "" || exit 1
 log="$STATE/model-self-test-view.log"
-HALVO_ROOT=$ROOT node "$ROOT/formal/controls.mjs" view > "$log" 2>&1
+HALVO_ROOT=$ROOT node "$ROOT/../formal/r7-ledger/controls.mjs" view > "$log" 2>&1
 status=$?
 sed 's/^/  /' "$log"
 if [ "$status" -ne 0 ]; then

@@ -319,7 +319,7 @@ async function main(path) {
 
 const [path, ...more] = process.argv.slice(2);
 if (path === undefined || more.length > 0) {
-  console.error("usage: node test/ledger/model-replay.mjs TRACES\n\nTRACES is the file of JSON lines that TLC prints from formal/CapLedgerTrace.tla: a header, then one line for each action.\nExit 0 when the object follows every trace, 1 when it differs, 64 on bad usage or a file that is no such trace.");
+  console.error("usage: node test/ledger/model-replay.mjs TRACES\n\nTRACES is the file of JSON lines that TLC prints from formal/r7-ledger/CapLedgerTrace.tla: a header, then one line for each action.\nExit 0 when the object follows every trace, 1 when it differs, 64 on bad usage or a file that is no such trace.");
   process.exit(BAD_USAGE);
 }
 try {

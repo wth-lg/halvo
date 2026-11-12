@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { missingTool, OUTPUT_LIMIT, ROOT, scratch, tlc, WORKERS } from "./tlc.mjs";
+import { MODEL, missingTool, OUTPUT_LIMIT, ROOT, scratch, tlc, WORKERS } from "./tlc.mjs";
 
 const BAD_USAGE = 64;
 const ARGUMENTS = process.argv.slice(2);
@@ -53,13 +53,13 @@ const stop = (sentence) => {
 };
 
 function checkTheProperties(work) {
-  const recorded = JSON.parse(readFileSync(join(ROOT, "formal", COUNTS), "utf8"));
+  const recorded = JSON.parse(readFileSync(join(MODEL, COUNTS), "utf8"));
   for (const { config } of CONFIGURATIONS) {
     const named = readFileSync(join(work, config), "utf8")
       .split("\n")
       .filter((each) => /^(INVARIANT|PROPERTY) /.test(each));
     tokens.properties = String(new Set(named.map((each) => /^PROPERTY Step([A-H])$/.exec(each)?.[1]).filter((each) => each !== undefined)).size);
-    if (named.join(", ") !== NAMED.join(", ")) stop(`formal/${config} names ${named.join(", ") || "nothing to check"}, not ${NAMED.join(", ")}`);
+    if (named.join(", ") !== NAMED.join(", ")) stop(`formal/r7-ledger/${config} names ${named.join(", ") || "nothing to check"}, not ${NAMED.join(", ")}`);
   }
   for (const { config, run: name, token } of CONFIGURATIONS) {
     const run = tlc(work, name, ["-workers", WORKERS, "-config", config, "CapLedger"]);
@@ -67,11 +67,11 @@ function checkTheProperties(work) {
     if (run.distinct !== null) tokens[token] = run.distinct;
     if (run.violated.length > 0) {
       tokens.violated = run.violated.join(",");
-      stop(`TLC reports that ${run.violated.map(letterOf).join(" and ")} is violated at the bounds of formal/${config}, with its trace in the output of the checker`);
+      stop(`TLC reports that ${run.violated.map(letterOf).join(" and ")} is violated at the bounds of formal/r7-ledger/${config}, with its trace in the output of the checker`);
     }
-    if (!run.complete) stop(`TLC did not complete the check at the bounds of formal/${config} (exit ${run.status})`);
+    if (!run.complete) stop(`TLC did not complete the check at the bounds of formal/r7-ledger/${config} (exit ${run.status})`);
     if (tokens[token] !== String(recorded[config])) {
-      stop(`TLC counted ${tokens[token]} distinct states at the bounds of formal/${config}, not the ${recorded[config]} that formal/${COUNTS} records`);
+      stop(`TLC counted ${tokens[token]} distinct states at the bounds of formal/r7-ledger/${config}, not the ${recorded[config]} that formal/r7-ledger/${COUNTS} records`);
     }
   }
   tokens.violated = "none";
@@ -89,7 +89,7 @@ function generateTheTraces(work) {
   writeFileSync(path, `${lines.join("\n")}\n`);
   const header = lines[0] === undefined ? {} : JSON.parse(lines[0]);
   if (run.status !== 0 || header.header !== true || lines.length !== header.count * header.depth + 1) {
-    stop(`TLC did not print the traces of formal/CapLedgerTrace.tla (exit ${run.status}, ${lines.length} lines)`);
+    stop(`TLC did not print the traces of formal/r7-ledger/CapLedgerTrace.tla (exit ${run.status}, ${lines.length} lines)`);
   }
   return path;
 }
@@ -109,12 +109,12 @@ function replay(traces) {
 }
 
 function main() {
-  for (const name of [...SPEC_FILES, COUNTS]) if (!existsSync(join(ROOT, "formal", name))) stop(`formal/${name} does not exist, so the checker cannot run`);
+  for (const name of [...SPEC_FILES, COUNTS]) if (!existsSync(join(MODEL, name))) stop(`formal/r7-ledger/${name} does not exist, so the checker cannot run`);
   if (!existsSync(join(ROOT, REPLAY))) stop(`${REPLAY} does not exist, so no trace can be replayed`);
   const missing = missingTool();
   if (missing !== null) stop(missing);
   const work = scratch("model");
-  for (const name of SPEC_FILES) copyFileSync(join(ROOT, "formal", name), join(work, name));
+  for (const name of SPEC_FILES) copyFileSync(join(MODEL, name), join(work, name));
   if (!ONLY_THE_REPLAY) checkTheProperties(work);
   replay(GIVEN_TRACES === "" ? generateTheTraces(work) : GIVEN_TRACES);
   if (ONLY_THE_REPLAY) stop("the two searches were left out, so this run cannot pass: it was asked for the replay alone");
@@ -122,7 +122,7 @@ function main() {
 
 if (ARGUMENTS.length > 0 && !ONLY_THE_REPLAY) {
   console.error(
-    "usage: node formal/check.mjs [--replay-only [TRACES]]\n\nCheck 95: TLC on the two configurations of formal/, each held to the count that formal/counts.json records, then the walk and the replay.\nIt prints one line, PASS model: ... or FAIL model: ...; first failure: ...\n--replay-only leaves the two searches out and, with TRACES, replays that file in place of the traces of the walk. Such a run can fail and never passes; the self-test of the check uses it for the bad fixtures of the replay.\nExit 0 on PASS, 1 on FAIL, 64 on bad usage.",
+    "usage: node formal/r7-ledger/check.mjs [--replay-only [TRACES]]\n\nCheck 95: TLC on the two configurations of formal/r7-ledger/, each held to the count that formal/r7-ledger/counts.json records, then the walk and the replay.\nIt prints one line, PASS model: ... or FAIL model: ...; first failure: ...\n--replay-only leaves the two searches out and, with TRACES, replays that file in place of the traces of the walk. Such a run can fail and never passes; the self-test of the check uses it for the bad fixtures of the replay.\nExit 0 on PASS, 1 on FAIL, 64 on bad usage.",
   );
   process.exit(BAD_USAGE);
 }

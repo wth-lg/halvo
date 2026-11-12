@@ -1,15 +1,15 @@
 {
   "edits": [
     {
-      "file": "formal/LoopbackTlc.java",
+      "file": "../formal/r7-ledger/LoopbackTlc.java",
       "find": "        tlc2.TLC.main(args);",
       "replace": "        Runtime.getRuntime().addShutdownHook(new Thread(() -> {\n            System.out.flush();\n            Runtime.getRuntime().halt(75);\n        }));\n        tlc2.TLC.main(args);"
     },
     {
-      "file": "formal/CapLedger.cfg",
+      "file": "../formal/r7-ledger/CapLedger.cfg",
       "find": "CONSTANT Ids = {1, 2, 3}",
       "replace": "CONSTANT Ids = {1}"
     }
   ],
-  "line": ["FAIL model: ", "states=605", "first failure: TLC did not complete the check at the bounds of formal/CapLedger.cfg (exit 75)"]
+  "line": ["FAIL model: ", "states=605", "first failure: TLC did not complete the check at the bounds of formal/r7-ledger/CapLedger.cfg (exit 75)"]
 }

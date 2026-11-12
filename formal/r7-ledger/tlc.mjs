@@ -4,13 +4,14 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const ROOT = process.env.HALVO_ROOT ?? join(dirname(fileURLToPath(import.meta.url)), "..");
+export const ROOT = process.env.HALVO_ROOT ?? join(dirname(fileURLToPath(import.meta.url)), "..", "..", "backend");
+export const MODEL = join(ROOT, "..", "formal", "r7-ledger");
 export const STATE = process.env.GATE_STATE ?? join(ROOT, ".tmp");
 export const OUTPUT_LIMIT = 1 << 28;
 export const WORKERS = process.env.MODEL_WORKERS ?? "12";
 const JAR = join(ROOT, ".tools", "tla2tools.jar");
 const JAR_PIN = "tla2tools-1.7.4.jar";
-const LAUNCHER = join(ROOT, "formal", "LoopbackTlc.java");
+const LAUNCHER = join(MODEL, "LoopbackTlc.java");
 const LONGEST_RUN_MS = 1_800_000;
 const JVM = [
   "-XX:+UseParallelGC",

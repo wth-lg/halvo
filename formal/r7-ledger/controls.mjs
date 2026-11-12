@@ -1,6 +1,6 @@
 import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { missingTool, ROOT, scratch, tlc, WORKERS } from "./tlc.mjs";
+import { MODEL, missingTool, scratch, tlc, WORKERS } from "./tlc.mjs";
 
 const BAD_USAGE = 64;
 const STATE_PARTS = ["A", "B", "F", "G"];
@@ -108,7 +108,7 @@ const countedSteps = (steps) => [
 
 function usage() {
   console.error(
-    "usage: node formal/controls.mjs [reach | break | view] [NAME...]\n       node formal/controls.mjs all\n\nShows that the model reaches what it must reach, that each property can fail and that the view hides no state.\nreach: for each element, TLC must violate the invariant that says the model never reaches it.\nbreak: one change of a copy of the spec for each break, after which TLC must report the property that the break aims at.\nview: three searches of a copy of the spec that counts its steps, up to a number of steps: without a view, with the view, and with a weaker view that leaves out when a hold is due. The search with the view must keep exactly the views that the search without one reaches, and the weaker view must not.\nNAME limits the run to those elements or breaks, as in the two lists of this file; after view it is the number of steps.\nall: one search of formal/CapLedgerAll.cfg, three request ids with every feature at once. It is no part of check 95 and of no other kind: it takes far longer, at most 90 minutes, and prints its count and TLC's time.\nEach run keeps its copy of the spec and TLC's output, with the trace, in a new directory under .tmp/.\nExit 0 when every control ends as expected, 1 when one does not, 64 on bad usage.",
+    "usage: node formal/r7-ledger/controls.mjs [reach | break | view] [NAME...]\n       node formal/r7-ledger/controls.mjs all\n\nShows that the model reaches what it must reach, that each property can fail and that the view hides no state.\nreach: for each element, TLC must violate the invariant that says the model never reaches it.\nbreak: one change of a copy of the spec for each break, after which TLC must report the property that the break aims at.\nview: three searches of a copy of the spec that counts its steps, up to a number of steps: without a view, with the view, and with a weaker view that leaves out when a hold is due. The search with the view must keep exactly the views that the search without one reaches, and the weaker view must not.\nNAME limits the run to those elements or breaks, as in the two lists of this file; after view it is the number of steps.\nall: one search of formal/r7-ledger/CapLedgerAll.cfg, three request ids with every feature at once. It is no part of check 95 and of no other kind: it takes far longer, at most 90 minutes, and prints its count and TLC's time.\nEach run keeps its copy of the spec and TLC's output, with the trace, in a new directory under .tmp/.\nExit 0 when every control ends as expected, 1 when one does not, 64 on bad usage.",
   );
   process.exit(BAD_USAGE);
 }
@@ -182,15 +182,15 @@ if (missing !== null) {
 }
 if (kind === "all") {
   const work = scratch("model-all");
-  for (const name of ["CapLedger.tla", "CapLedgerAll.cfg"]) copyFileSync(join(ROOT, "formal", name), join(work, name));
+  for (const name of ["CapLedger.tla", "CapLedgerAll.cfg"]) copyFileSync(join(MODEL, name), join(work, name));
   const run = tlc(work, "all", ["-workers", WORKERS, "-config", "CapLedgerAll.cfg", "CapLedger"], LONGEST_SEARCH_OF_ALL_MS);
   const time = /^Finished in (.*) at /m.exec(run.output)?.[1] ?? "no time";
   const found = run.violated.length > 0 ? `${run.violated.join(",")} violated` : run.complete ? `no property violated in ${run.distinct} distinct states` : `TLC did not complete (exit ${run.status})`;
-  console.log(`all: ${found} at the bounds of formal/CapLedgerAll.cfg; TLC's time ${time}; output ${run.file}`);
+  console.log(`all: ${found} at the bounds of formal/r7-ledger/CapLedgerAll.cfg; TLC's time ${time}; output ${run.file}`);
   process.exit(run.complete ? 0 : 1);
 }
-const spec = readFileSync(join(ROOT, "formal", "CapLedger.tla"), "utf8");
-const constants = constantsOf(readFileSync(join(ROOT, "formal", "CapLedgerGateway.cfg"), "utf8"));
+const spec = readFileSync(join(MODEL, "CapLedger.tla"), "utf8");
+const constants = constantsOf(readFileSync(join(MODEL, "CapLedgerGateway.cfg"), "utf8"));
 const wanted = (name) => names.length === 0 || names.includes(name);
 let held = true;
 let ran = 0;
@@ -206,7 +206,7 @@ if (kind === undefined || kind === "break") {
     ran += 1;
     const at = spec.indexOf(each.find);
     if (at < 0 || spec.indexOf(each.find, at + 1) >= 0) {
-      console.log(`control break ${each.property}: the text to change is not in formal/CapLedger.tla exactly once: ${each.find}`);
+      console.log(`control break ${each.property}: the text to change is not in formal/r7-ledger/CapLedger.tla exactly once: ${each.find}`);
       held = false;
       continue;
     }
