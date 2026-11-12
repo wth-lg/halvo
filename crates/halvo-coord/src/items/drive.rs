@@ -506,6 +506,48 @@ pub fn lapse_item<P: Owner + Runs + Clock>(
     Ok(())
 }
 
+/// Raises the item of a request of `run` that `raise_step` gave as `kind`, a kind other than
+/// `confirm`, whose item `issue` raises (I3.1): mints its id and stores `item_raised` with the
+/// run, which waits in the ledger when the owner does not acknowledge it; the caller moves the
+/// run to `waiting` with the item.
+pub fn raise_run_item<P: Owner + Clock + Rng>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    run: &RunId,
+    kind: RunItemKind,
+) -> Result<RunItem, Cause> {
+    let raised = match kind {
+        RunItemKind::SignIn => Raised::SignIn(run.clone()),
+        RunItemKind::LinkAccount => Raised::LinkAccount(run.clone()),
+        RunItemKind::Stuck => Raised::Stuck(run.clone()),
+        RunItemKind::Check => Raised::Check(Some(run.clone())),
+        RunItemKind::Show => Raised::Show(run.clone()),
+        RunItemKind::Confirm => return Err(Cause::Malformed),
+    };
+    let item = ItemId::parse(&hex(ports.bytes16().map_err(|e| cause_of(&e))?))?;
+    let row = What::ItemRaised {
+        item: item.clone(),
+        raised,
+    };
+    let _ = store(ports, ledger, limits, vec![row]);
+    Ok(RunItem { item, kind })
+}
+
+/// Answers a handback of `run` that `raise_step` answered from the record of an answered check
+/// (I5.4): sends the result and stores nothing; a run that ended (`ended`) takes nothing.
+pub fn answer_from_check<P: Runs>(
+    ports: &P,
+    run: &RunId,
+    result: crate::types::HandbackResult,
+) -> Result<(), Cause> {
+    match ports.answer_handback(run, result) {
+        Ok(()) => Ok(()),
+        Err(e) if refused_with(&e, "ended") => Ok(()),
+        Err(e) => Err(cause_of(&e)),
+    }
+}
+
 /// The person's choice on an item that a handback of `run` raised (I3.1): stores its
 /// `item_answered` row, and only once the owner acknowledged it hands the run its result. A
 /// choice that is not one of the kind's is `malformed`; with no acknowledgement the answer is

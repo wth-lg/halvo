@@ -103,7 +103,7 @@ fn the_lapse_of_an_item_of_another_kind_with_cancelled_stops_its_run_in_the_tabl
             by: StopBy::Person,
         });
         assert_eq!(stop.report.answer, Ok(Answer::Ok), "{kind:?}");
-        assert_eq!(stop.report.stopped, [run.clone()]);
+        assert_eq!(stop.report.stopped, std::slice::from_ref(&run));
         assert_eq!(w.facts(0).doing, Doing::Live(Live::Stopping));
         assert_eq!(cancels(&w.calls()), 1, "one cancel, the lapse's");
     }

@@ -3,6 +3,7 @@
 //! the limits, the ports and their memory implementations, the words table, the list of
 //! the page's commands and the writer of the page's fixtures.
 
+mod coordinator;
 pub mod guard;
 pub mod items;
 pub mod mem;
@@ -13,3 +14,5 @@ pub mod schedule;
 pub mod sync;
 pub mod types;
 pub mod words;
+
+pub use coordinator::{Coordinator, QuitWait};

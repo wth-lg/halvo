@@ -84,55 +84,43 @@ fn text(key: &str, pairs: &[(&str, &str)]) -> Result<String, Cause> {
 /// condition holds and whose words entry exists: `level`, `runs_on`, `asks`, `time` with the
 /// minutes of `wall_s` rounded up, `files` and `spend`.
 pub fn lines<C: ConfigView>(config: &C) -> Vec<CardLine> {
-    let mut keyed: Vec<(LineKey, String, Vec<(&str, String)>)> = vec![
-        (
-            LineKey::Level,
-            format!("line.level.{}", config.reasoning().name()),
-            vec![],
-        ),
-        (
-            LineKey::RunsOn,
-            format!("line.runs_on.{}", config.tier().name()),
-            vec![],
-        ),
-        (
-            LineKey::Asks,
-            format!("line.asks.{}", config.autonomy().name()),
-            vec![],
-        ),
-    ];
+    let mut out = Vec::new();
+    let mut add = |key: LineKey, words_key: &str, pairs: &[(&str, &str)]| {
+        if let Ok(text) = text(words_key, pairs) {
+            out.push(CardLine { key, text });
+        }
+    };
+    add(
+        LineKey::Level,
+        &format!("line.level.{}", config.reasoning().name()),
+        &[],
+    );
+    add(
+        LineKey::RunsOn,
+        &format!("line.runs_on.{}", config.tier().name()),
+        &[],
+    );
+    add(
+        LineKey::Asks,
+        &format!("line.asks.{}", config.autonomy().name()),
+        &[],
+    );
     if config.runtime() != Runtime::None {
         let minutes = config.wall_s().div_ceil(60).to_string();
-        keyed.push((
-            LineKey::Time,
-            "line.time".into(),
-            vec![("minutes", minutes)],
-        ));
+        add(LineKey::Time, "line.time", &[("minutes", &minutes)]);
     }
     if config.permissions().contains(&Permission::UserFiles) {
-        keyed.push((LineKey::Files, "line.files".into(), vec![]));
+        add(LineKey::Files, "line.files", &[]);
     }
-    if config.tier() != Tier::OnDevice {
-        if let Some(budget) = config.budget() {
-            keyed.push((
-                LineKey::Spend,
-                "line.spend".into(),
-                vec![
-                    ("amount", budget.amount.to_string()),
-                    ("period", budget.period.name().to_owned()),
-                ],
-            ));
-        }
+    if let Some(budget) = config.budget().filter(|_| config.tier() != Tier::OnDevice) {
+        let amount = budget.amount.to_string();
+        add(
+            LineKey::Spend,
+            "line.spend",
+            &[("amount", &amount), ("period", budget.period.name())],
+        );
     }
-    keyed
-        .into_iter()
-        .filter_map(|(key, words_key, pairs)| {
-            let pairs: Vec<(&str, &str)> = pairs.iter().map(|(k, v)| (*k, v.as_str())).collect();
-            text(&words_key, &pairs)
-                .ok()
-                .map(|text| CardLine { key, text })
-        })
-        .collect()
+    out
 }
 
 /// The label of a site value until the app hands its own (I2.3): the host without `www.` and
@@ -287,5 +275,15 @@ pub fn card<C: ConfigView>(
                 })
             })
             .collect::<Result<_, _>>()?,
+    })
+}
+
+/// When the agent's open item was raised, the instant of its `item_raised` event, which orders
+/// the group `needs_you` (I2.4); none with no open item or no such event.
+pub fn raised_at<C>(facts: &Facts<C>) -> Option<u64> {
+    let open = facts.doing.item()?;
+    facts.events.iter().find_map(|e| match &e.what {
+        What::ItemRaised { item, .. } if *item == open.item => u64::try_from(e.at).ok(),
+        _ => None,
     })
 }
