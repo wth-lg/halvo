@@ -1,6 +1,6 @@
 [package]
 name = "halvo"
-version = "0.0.0"
+version.workspace = true
 description = "Halvo desktop app"
 edition = "2021"
 publish = false
