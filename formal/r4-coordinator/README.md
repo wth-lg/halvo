@@ -110,7 +110,7 @@ What the check asks of the table and of the files, each with the cause that ends
 
 | Model | Configuration | File | CI | What it holds | Distinct states | States generated | Depth |
 |---|---|---|---|---|---|---|---|
-| `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store records a run at a move of its own, and a start may fail at step 6, 7 or 8. No request has left and `reap` answers `gone`: `store` holds those two | 1,373,922 | 49,270,661 | 16 |
+| `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store records a run at a move of its own, and a start may fail at step 6, 7 or 8. No request has left and `reap` answers `gone`: `store` holds those two | 1,373,922 | 49,269,649 | 16 |
 | `Schedule` | `days` | `Schedule-days.cfg` | yes | the full one without `a5` and with a queue of one; the store records a run in the move that ends its runner or fails its start, and a start fails at step 6 or 8 | 195,498 | 4,740,279 | 12 |
 | `Schedule` | `queue` | `Schedule-queue.cfg` | yes | five agents and a queue of two on one day: no restart, no deleted workflow, no switch-off, no stop, no failed frame | 817 | 18,247 | 8 |
 | `Schedule` | `store` | `Schedule-store.cfg` | yes | `a1` and `a2` on two days with one restart and both stops: the store records a run at a move of its own, a start may fail at step 6, 7 or 8, a request may have left, and `reap` may answer `alive` for one run | 10,092 | 192,595 | 12 |
@@ -131,9 +131,12 @@ What the check asks of the table and of the files, each with the cause that ends
 | `full` of `Confirm4` | 9 to 16, 22 to 27, 35 to 37 and 39 to 45 | all of `Confirm4` |
 | `apart` | 51 and 52: only here a second item follows a lapse of the first in a run that lives on | none of its own |
 
-The counts are TLC's own lines for `Schedule.tla` as it stands since commit
-3fadf1e and `Confirm4.tla` as it stands since commit 6295574, each
-from the run of the next table, with the workers that it names. The heap bound `-Xmx2g` keeps
+The counts are TLC's own lines, each from the run of the next table, with the workers that
+it names: for `Schedule.tla` as it stood at commit 3fadf1e, but the row `full`, which is
+from its run at commit 66d8c08, and for `Confirm4.tla` as it stands since commit 6295574.
+At 66d8c08 the check's runs of the six small configurations of `Schedule` found the
+distinct states of this table again: the change of that commit touches `ready` alone,
+which `VIEW` takes out of the fingerprint. The heap bound `-Xmx2g` keeps
 a run far below the machine's cap of 8,589,934,592 bytes of resident size. More workers
 find the same distinct states. The depth and, under the `VIEW` of `Schedule`, the number
 of generated states can then differ, so the check compares the distinct states of each
@@ -147,7 +150,7 @@ configuration, with three workers, in the hosted jobs of run 43185647436 on 2026
 
 | Model | Configuration | Time on the Mac | Largest resident size | 1-minute load before the run | `macos` job | `windows` job |
 |---|---|---|---|---|---|---|
-| `Schedule` | `full` | 1625.32 s, four workers | 1,521,221,632 bytes | 90.39 | not run | not run |
+| `Schedule` | `full` | 3354.29 s, four workers, on 2026-11-12 at commit 66d8c08, on the lane for timed runs | 1,617,788,928 bytes | 95.29 | not run | not run |
 | `Schedule` | `days` | 688.26 s, three workers | 1,250,279,424 bytes | 341.34 | 114 s | 151 s |
 | `Schedule` | `queue` | 9.52 s, one worker | 457,375,744 bytes | 307.30 | 4 s | 3 s |
 | `Schedule` | `store` | 57.91 s, one worker | 479,674,368 bytes | 301.30 | 7 s | 7 s |
