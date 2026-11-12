@@ -1038,6 +1038,25 @@ fn the_test_of_the_core_files_refuses_a_path_attribute_and_the_include_macros() 
 }
 
 #[test]
+fn the_path_rule_reads_a_raw_identifier_and_exempts_a_fragment_only_inside_a_matcher() {
+    for text in [
+        "macro_rules! own_mod {\n    ($a:ident $b:literal) => {\n        #[$a = $b]\n        mod sneak;\n    };\n}\nown_mod!(r#path \"learning.rs\");\n",
+        "macro_rules! own_mod {\n    ($d:tt $a:ident : $($m:tt)*) => {\n        #[$($m)*]\n        mod sneak;\n    };\n}\nown_mod! {$ a: path = \"learning.rs\"}\n",
+    ] {
+        assert_eq!(
+            later_faults("learning.rs", text),
+            ["learning.rs holds path in an attribute or a macro"],
+            "{text}"
+        );
+        assert_eq!(
+            later_faults("kinds.rs", &format!("{}{text}", source("kinds.rs"))),
+            ["kinds.rs holds path in an attribute or a macro"],
+            "{text}"
+        );
+    }
+}
+
+#[test]
 fn the_walk_reads_every_rust_file_of_src_outside_the_lock_at_any_depth() {
     let src = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("walk-outside-lib")
