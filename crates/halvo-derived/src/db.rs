@@ -4,7 +4,7 @@ use std::fs::{File, TryLockError};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 use std::time::Duration;
 
 use halvo_schema_core::ids::Position;
@@ -303,6 +303,7 @@ impl Db {
         ids: &mut dyn IdSource,
     ) -> Result<Db, OpenError> {
         check_entries(entries)?;
+        initialize_once();
         let dir = data_dir.join("derived");
         std::fs::create_dir_all(&dir).map_err(|e| OpenError::Fault(io_fault(e)))?;
         let lock = WriterLock::take(&dir)?;
@@ -461,6 +462,16 @@ impl Db {
         }
         Ok(())
     }
+}
+
+/// Runs SQLite's start-up, SQLCipher's included, to its end on one thread before any store of the process opens its
+/// database. SQLite marks itself started and lets other threads in before it runs SQLCipher's start-up hook, and a
+/// thread that sets a key in that gap is refused (crates/halvo-sqlcipher builds the hook).
+fn initialize_once() {
+    static START: Once = Once::new();
+    START.call_once(|| {
+        let _ = Connection::open_in_memory();
+    });
 }
 
 pub(crate) fn file_len(path: &Path) -> Result<u64, Fault> {
