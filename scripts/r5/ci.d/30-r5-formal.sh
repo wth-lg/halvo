@@ -365,6 +365,10 @@ stamp_miss() {
   [ "$stamped" != same ] || stamped=$1
 }
 
+lines_miss() {
+  [ "$lines" != ok ] || lines=$1
+}
+
 runs_read() {
   runs_state=ok
   : >"$tmp/runs.txt"
@@ -424,7 +428,10 @@ record() {
   reported=$(grep -c '' "$tmp/both-designs.txt")
   reached=$(grep -c '' "$tmp/both-reach.txt")
   total=$(grep -c '' "$r")
-  check record-lines [ "$total" -eq $((3 + nd + nr)) ] || lines=differ
+  od -An -tx1 "$r" | tr -s ' ' '\n' >"$tmp/record-bytes.txt" || fail record
+  crs=$(grep -c '^0d$' "$tmp/record-bytes.txt")
+  check record-cr [ "$crs" -eq 0 ] || lines_miss cr
+  check record-lines [ "$total" -eq $((3 + nd + nr)) ] || lines_miss differ
   printf 'formal record stamp=%s full=%s small=%s runs=%s designs=%s reported=%s reach=%s reached=%s lines=%s\n' \
     "$stamped" "$full" "$small_state" "$runs_state" "$nd" "$reported" "$nr" "$reached" "$lines"
   check record-ok record_ok || fail record
@@ -588,6 +595,7 @@ base() {
   stamp_of "$b" "$work/base-stamp" || fail selftest
   base_stamp=$stamp
   write_record "$base_stamp" "$b/formal/r5-admit/record.txt" "$b/formal/r5-admit/runs.txt"
+  copy_export base 0
   nd=$(grep -c '^design ' "$b/formal/r5-admit/runs.txt")
   nr=$(grep -c '^reach ' "$b/formal/r5-admit/runs.txt")
 }
@@ -607,6 +615,10 @@ edit() {
 
 away() {
   mv "$work/$1/$2" "$work/$1-away" || fail selftest
+}
+
+real_export() {
+  cp "$dir/export.sh" "$work/$1/formal/r5-admit/export.sh" || fail selftest
 }
 
 copy_export() {
@@ -709,6 +721,7 @@ fixtures() {
   ru=formal/r5-admit/runs.txt
 
   fixture good
+  real_export good
   expect good "$passed" good '^formal pin=same' "formal record stamp=same full=ok small=same runs=ok $whole lines=ok"
   logged
   fixture on-the-path
@@ -838,9 +851,11 @@ CONSTRAINT Bound/'
   edit table-56-rows formal/r5-admit/edit-table.tsv 9d
   expect table-56-rows "1:FAIL $name (table)" good '^formal table rows=56 same=no'
   fixture table-token
+  real_export table-token
   edit table-token formal/r5-admit/edit-table.tsv '1s/edit/refused/'
   expect table-token "1:FAIL $name (table)" good '^formal table rows=57 same=no'
   fixture trace-move
+  real_export trace-move
   edit trace-move formal/r5-admit/traces.jsonl '9s/"move":"recompile"/"move":"use_ok"/'
   expect trace-move "1:FAIL $name (traces)" good '^formal table rows=57 same=yes' '^formal traces count=200 same=no'
 
@@ -912,7 +927,7 @@ CONSTRAINT Bound/'
   expect record-reach-not-reached "$rec" good "designs=$nd reported=$nd reach=$nr reached=$((nr - 1))"
   fixture record-cr
   edit record-cr "$rt" "s/\$/${cr}/"
-  expect record-cr "$rec" good 'formal record stamp=none full=miss small=differ runs=ok'
+  expect record-cr "$rec" good 'lines=cr'
   fixture record-empty-line
   printf '\n' >>"$work/record-empty-line/$rt" || fail selftest
   expect record-empty-line "$rec" good "stamp=same full=ok small=same runs=ok $whole lines=differ"
