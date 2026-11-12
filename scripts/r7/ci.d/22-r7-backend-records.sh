@@ -99,7 +99,7 @@ measure() {
   printf '%s problems=%s\n' "${counts:-unmeasured}" "$found"
   case $code in
     0) printf 'PASS %s\n' "$name" ;;
-    1) printf 'FAIL %s (%s problems; the list is problems.txt among the artifacts)\n' "$name" "$found"; exit 1 ;;
+    1) printf 'FAIL %s (%s problems; the list is problems.txt among the artifacts; stamp the records again with sh scripts/r7/stamp-gate-records.sh)\n' "$name" "$found"; exit 1 ;;
     *) printf 'FAIL %s (setup)\n' "$name"; exit 1 ;;
   esac
 }
