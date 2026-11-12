@@ -155,6 +155,11 @@ fn the_tool_refuses_a_freeze_file_that_does_not_fit() {
             "REFUSED file: --freeze line 2 is not of the freeze form",
         ),
         (
+            "synthetic.txt",
+            Some(good.replace("driver=m_small", "driver=synthetic").into_bytes()),
+            "REFUSED file: --freeze line 2 is not of the freeze form",
+        ),
+        (
             "rows.txt",
             Some(good.replace("rows=132", "rows=131").into_bytes()),
             "REFUSED file: --freeze counts 131 rows and --table holds 132",

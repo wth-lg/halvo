@@ -101,6 +101,13 @@ fn recorded_setup_takes_the_freeze_lines_and_the_ruling() {
             writer: Some("a_1".to_owned()),
         })
     );
+    assert_eq!(
+        Freeze::parse(
+            "freeze rows=0 models=0 sources=2 date=2024-02-29\non_device driver=synthetic_2 writer=none\n"
+        )
+        .map(|freeze| freeze.driver),
+        Ok(Some("synthetic_2".to_owned()))
+    );
 }
 
 #[test]
@@ -141,6 +148,8 @@ fn recorded_setup_refuses_a_text_that_is_not_the_freeze_form() {
         good.replace("driver=m_small", "driver="),
         good.replace("driver=m_small", &format!("driver={long}")),
         good.replace("writer=m_small", "writer=m-small"),
+        good.replace("driver=m_small", "driver=synthetic"),
+        good.replace("writer=m_small", "writer=synthetic"),
         good.replace(
             "driver=m_small writer=m_small",
             "writer=m_small driver=m_small",
