@@ -8,7 +8,7 @@
 
 #[cfg(halvo_proof = "clearance_made_outside_secure_input")]
 fn clearance_made_outside_secure_input() -> crate::secure_input::KeystrokeClearance {
-    crate::secure_input::KeystrokeClearance::issue()
+    crate::secure_input::KeystrokeClearance::issue(None)
 }
 
 #[cfg(halvo_proof = "clearance_made_outside_secure_input_twin")]
@@ -149,7 +149,7 @@ fn key_event_with_a_character(
     clearance: crate::secure_input::KeystrokeClearance,
 ) -> crate::event::FloorEvent {
     let clock = crate::event::EventClock::system();
-    crate::event::FloorEvent::keystroke(keep, clearance, 'a', None, clock)
+    crate::event::FloorEvent::keystroke(keep, clearance, 'a', clock)
 }
 
 #[cfg(halvo_proof = "key_event_with_a_character_twin")]
@@ -159,7 +159,7 @@ fn key_event_with_a_character_twin(
 ) -> crate::event::FloorEvent {
     let clock = crate::event::EventClock::system();
     let class = super::payload::KeyClass::Printable;
-    crate::event::FloorEvent::keystroke(keep, clearance, class, None, clock)
+    crate::event::FloorEvent::keystroke(keep, clearance, class, clock)
 }
 
 #[cfg(halvo_proof = "pointer_event_with_a_coordinate")]
@@ -284,12 +284,12 @@ fn event_id_made_outside_its_maker_twin(event: &crate::event::FloorEvent) -> cra
 
 #[cfg(halvo_proof = "synthetic_clearance_in_a_release_build")]
 fn synthetic_clearance_in_a_release_build() -> crate::secure_input::KeystrokeClearance {
-    crate::secure_input::synthetic_clearance()
+    crate::secure_input::synthetic_clearance(None)
 }
 
 #[cfg(halvo_proof = "synthetic_clearance_in_a_release_build_twin")]
 fn synthetic_clearance_in_a_release_build_twin() -> crate::secure_input::KeystrokeClearance {
-    crate::secure_input::synthetic_clearance()
+    crate::secure_input::synthetic_clearance(None)
 }
 
 #[cfg(halvo_proof = "synthetic_keep_in_a_release_build")]

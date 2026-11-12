@@ -81,15 +81,22 @@ pub trait SecureInputProbe: seal::Sealed {
 pub const LATE_KEY_MAX: Duration = Duration::from_millis(250);
 
 /// The witness that a keystroke may be recorded: the probe read inactive for
-/// it and it was not late. It is not `Clone`, and only this module makes one.
+/// it and it was not late. It holds the age that [`check`] judged, which the
+/// keystroke constructor stamps with, so a key is built with no other age. It
+/// is not `Clone`, and only this module makes one.
 #[derive(Debug)]
 pub struct KeystrokeClearance {
-    _sealed: (),
+    age: Option<Duration>,
 }
 
 impl KeystrokeClearance {
-    fn issue() -> Self {
-        KeystrokeClearance { _sealed: () }
+    fn issue(age: Option<Duration>) -> Self {
+        KeystrokeClearance { age }
+    }
+
+    /// The age of the key event that the clearance was given for.
+    pub fn key_age(&self) -> Option<Duration> {
+        self.age
     }
 }
 
@@ -116,18 +123,19 @@ pub fn check(
         return Err(Withheld::Late);
     }
     match probe.read() {
-        SecureInputReading::Inactive => Ok(KeystrokeClearance::issue()),
+        SecureInputReading::Inactive => Ok(KeystrokeClearance::issue(key_age)),
         SecureInputReading::Active => Err(Withheld::Active),
         SecureInputReading::Unknown => Err(Withheld::Unknown),
     }
 }
 
-/// A clearance with no reading, for the prefill helper alone
+/// A clearance with no reading for a key of `age`, for the prefill helper alone
 /// (crates/halvo-capture/src/daemon/prefill.rs), which feeds synthetic values
-/// into the sink. A build without debug assertions has no such function.
+/// into the sink and places them in the past by their age. A build without
+/// debug assertions has no such function.
 #[cfg(debug_assertions)]
-pub fn synthetic_clearance() -> KeystrokeClearance {
-    KeystrokeClearance::issue()
+pub fn synthetic_clearance(age: Option<Duration>) -> KeystrokeClearance {
+    KeystrokeClearance::issue(age)
 }
 
 /// A probe that answers one fixed reading, for tests of the crate.
@@ -166,6 +174,10 @@ mod tests {
                 Withheld::Unknown,
                 "{age:?}"
             );
+        }
+        for age in on_time {
+            let cleared = check(&FixedProbe(SecureInputReading::Inactive), age).unwrap();
+            assert_eq!(cleared.key_age(), age);
         }
         let late = Some(LATE_KEY_MAX + Duration::from_nanos(1));
         for reading in [

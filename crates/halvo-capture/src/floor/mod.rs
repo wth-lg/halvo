@@ -221,7 +221,7 @@ mod tests {
         let clock = EventClock::new(fixed);
         let app = || AppIdentity::bundle_id("com.apple.Terminal".to_string());
         let cleared = check(&FixedProbe(SecureInputReading::Inactive), None).unwrap();
-        let key = FloorEvent::keystroke(keep(app(), 7), cleared, KeyClass::Enter, None, &clock);
+        let key = FloorEvent::keystroke(keep(app(), 7), cleared, KeyClass::Enter, &clock);
         let click = FloorEvent::click(keep(app(), 7), Button::Secondary, None, &clock);
         let fold = PointerFold::new(FoldClass::Move, FoldCount::one());
         let moved = FoldEvent::new(keep(app(), 7), fold, None, &clock).into_event();
@@ -412,16 +412,14 @@ mod tests {
     fn golden_record_window_title() {
         let clock = EventClock::new(fixed);
         let site = Site::cut("https://mail.example.com/inbox?id=7".to_string());
-        let text = CapturedText::enter(TextField::Title, "Inbox \"7\"\n".to_string());
-        let title = Title::new(text, TitleWhy::TitleChange, site);
+        let title = Title::new("Inbox \"7\"\n".to_string(), TitleWhy::TitleChange, site);
         let path = AppIdentity::executable_path("C:\\Apps\\mail.exe".to_string());
         let event = FloorEvent::window_title(keep(path, 7), title, None, &clock);
         assert_eq!(
             golden(event),
             r#"{"v":1,"id":"ID","at":1800000000123000000,"seq":41,"kind":"window_title","app":"C:\\Apps\\mail.exe","p":{"text":"Inbox \"7\"\n","cut":false,"why":"title_change","site":{"domain":"example.com","source":"address_field"}}}"#
         );
-        let long = CapturedText::enter(TextField::Title, "x".repeat(2_000));
-        let title = Title::new(long, TitleWhy::AppChange, None);
+        let title = Title::new("x".repeat(2_000), TitleWhy::AppChange, None);
         let event = FloorEvent::window_title(keep(app(), 7), title, None, &clock);
         assert_eq!(
             golden(event),
@@ -436,8 +434,7 @@ mod tests {
     fn golden_record_keystroke() {
         let clock = EventClock::new(fixed);
         let cleared = check(&FixedProbe(SecureInputReading::Inactive), None).unwrap();
-        let event =
-            FloorEvent::keystroke(keep(app(), 7), cleared, KeyClass::Shortcut, None, &clock);
+        let event = FloorEvent::keystroke(keep(app(), 7), cleared, KeyClass::Shortcut, &clock);
         assert_eq!(
             golden(event),
             r#"{"v":1,"id":"ID","at":1800000000000000000,"seq":41,"kind":"keystroke","app":"com.apple.Safari","p":{"class":"shortcut"}}"#
@@ -487,8 +484,7 @@ mod tests {
                 panic!("the title was dropped");
             };
             let site = Site::cut("https://news.example.org/today".to_string());
-            let text = CapturedText::enter(TextField::Title, "Today".to_string());
-            let title = Title::new(text, TitleWhy::TitleChange, site);
+            let title = Title::new("Today".to_string(), TitleWhy::TitleChange, site);
             let event = FloorEvent::window_title(keep, title, None, EventClock::system());
             let received = FloorReceived::for_test(event, ArrivalNumber::for_test(0));
             let line = encode(&received, &IdentityPoint).unwrap();
@@ -507,8 +503,7 @@ mod tests {
     #[test]
     fn the_text_filter_point_sees_every_string_once() {
         let site = Site::cut("https://www.planted-site.com/path".to_string());
-        let text = CapturedText::enter(TextField::Title, "Planted title".to_string());
-        let title = Title::new(text, TitleWhy::AppChange, site);
+        let title = Title::new("Planted title".to_string(), TitleWhy::AppChange, site);
         let planted = AppIdentity::bundle_id("com.example.PlantedApp".to_string());
         let event = FloorEvent::window_title(keep(planted, 7), title, None, EventClock::system());
         let received = FloorReceived::for_test(event, ArrivalNumber::for_test(0));
@@ -541,5 +536,29 @@ mod tests {
         let point = RecordingPoint::new();
         encode(&received, &point).unwrap();
         assert!(point.calls().is_empty());
+        let path = AppIdentity::executable_path("C:\\Apps\\tool.exe".to_string());
+        let front = FloorEvent::foreground_app(keep(path, 7), None, EventClock::system());
+        let received = FloorReceived::for_test(front, ArrivalNumber::for_test(2));
+        let point = RecordingPoint::new();
+        encode(&received, &point).unwrap();
+        assert_eq!(
+            point.calls(),
+            [(TextField::ExecutablePath, "C:\\Apps\\tool.exe".to_string())]
+        );
+    }
+
+    #[test]
+    fn a_title_is_entered_as_a_title_and_keeps_its_head() {
+        let words = format!("{}{}", "h".repeat(TEXT_MAX_BYTES), "t".repeat(976));
+        let title = Title::new(words, TitleWhy::TitleChange, None);
+        let event = FloorEvent::window_title(keep(app(), 7), title, None, EventClock::system());
+        let received = FloorReceived::for_test(event, ArrivalNumber::for_test(0));
+        let line = encode(&received, &IdentityPoint).unwrap();
+        let DecodedPayload::WindowTitle { text, cut, .. } = decode(line.as_str()).unwrap().payload
+        else {
+            panic!("not a title");
+        };
+        assert_eq!(text, "h".repeat(TEXT_MAX_BYTES));
+        assert!(cut);
     }
 }

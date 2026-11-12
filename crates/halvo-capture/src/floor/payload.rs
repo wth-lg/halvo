@@ -6,7 +6,7 @@
 use std::fmt;
 
 use super::site::Site;
-use super::text::CapturedText;
+use super::text::{CapturedText, TextField};
 use crate::event::Modality;
 
 /// The class of one keystroke event. One event is one key-down transition, the
@@ -177,8 +177,14 @@ pub struct Title {
 }
 
 impl Title {
-    pub fn new(text: CapturedText, why: TitleWhy, site: Option<Site>) -> Title {
-        Title { text, why, site }
+    /// The title text passes the floor's text entry as a title: at most 1,024
+    /// bytes, the head kept.
+    pub fn new(text: String, why: TitleWhy, site: Option<Site>) -> Title {
+        Title {
+            text: CapturedText::enter(TextField::Title, text),
+            why,
+            site,
+        }
     }
 }
 

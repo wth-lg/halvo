@@ -237,15 +237,14 @@ impl FloorEvent {
     }
 
     /// A keystroke needs the clearance of [`crate::secure_input::check`] for the
-    /// key, given by value.
+    /// key, given by value; its age is the age that the check judged.
     pub fn keystroke(
         keep: Keep<kind::Keystroke>,
         clearance: KeystrokeClearance,
         class: KeyClass,
-        age: Option<Duration>,
         clock: &EventClock,
     ) -> FloorEvent {
-        let _clearance = clearance;
+        let age = clearance.key_age();
         FloorEvent::made(
             keep.into_parts().0,
             Observation::Keystroke(class),
@@ -563,10 +562,6 @@ mod tests {
         AppIdentity::bundle_id("com.apple.Terminal".to_string())
     }
 
-    fn clearance() -> KeystrokeClearance {
-        check(&FixedProbe(SecureInputReading::Inactive), None).unwrap()
-    }
-
     fn id_millis(id: EventId) -> i64 {
         let (seconds, nanos) = id.uuid().get_timestamp().unwrap().to_unix();
         i64::try_from(seconds * 1000 + u64::from(nanos) / 1_000_000).unwrap()
@@ -578,7 +573,8 @@ mod tests {
 
     fn key_event(age: Option<Duration>, clock: &EventClock) -> FloorEvent {
         let keep = keep(terminal(), 7);
-        FloorEvent::keystroke(keep, clearance(), KeyClass::Printable, age, clock)
+        let cleared = check(&FixedProbe(SecureInputReading::Inactive), age).unwrap();
+        FloorEvent::keystroke(keep, cleared, KeyClass::Printable, clock)
     }
 
     #[test]
@@ -669,7 +665,10 @@ mod tests {
         assert_eq!(older.at(), now - 300 * MILLI);
         assert_eq!(id_millis(older.id()), id_millis(newer.id()));
         assert!(older.id().uuid() > newer.id().uuid());
-        let key = key_event(Some(Duration::from_millis(800)), &clock);
+        fn early() -> SystemTime {
+            UNIX_EPOCH + Duration::from_secs(1_800_000_000) + Duration::from_millis(100)
+        }
+        let key = key_event(Some(Duration::from_millis(200)), &EventClock::new(early));
         assert_eq!(key.at(), 1_799_999_999 * SECOND);
         let oldest = app_event(Some(Duration::MAX), &EventClock::new(fixed));
         assert!(oldest.at() < 0);
@@ -677,14 +676,36 @@ mod tests {
     }
 
     #[test]
+    fn a_keystroke_takes_its_age_from_the_clearance() {
+        fn early() -> SystemTime {
+            UNIX_EPOCH + Duration::from_secs(1_800_000_000) + Duration::from_millis(100)
+        }
+        let probe = FixedProbe(SecureInputReading::Inactive);
+        let aged = check(&probe, Some(Duration::from_millis(200))).unwrap();
+        assert_eq!(aged.key_age(), Some(Duration::from_millis(200)));
+        let key = FloorEvent::keystroke(
+            keep(terminal(), 7),
+            aged,
+            KeyClass::Tab,
+            &EventClock::new(early),
+        );
+        assert_eq!(key.at(), 1_799_999_999 * SECOND);
+        let on_time = check(&probe, None).unwrap();
+        assert_eq!(on_time.key_age(), None);
+        let key = FloorEvent::keystroke(
+            keep(terminal(), 7),
+            on_time,
+            KeyClass::Tab,
+            &EventClock::new(early),
+        );
+        assert_eq!(key.at(), 1_800_000_000 * SECOND);
+    }
+
+    #[test]
     fn every_id_is_version_7() {
         let clock = EventClock::system();
         let site = Site::cut("https://www.example.com/".to_string());
-        let title = Title::new(
-            CapturedText::enter(TextField::Title, "Inbox".to_string()),
-            TitleWhy::AppChange,
-            site,
-        );
+        let title = Title::new("Inbox".to_string(), TitleWhy::AppChange, site);
         let fold = PointerFold::new(FoldClass::Scroll, FoldCount::one());
         let ids = [
             app_event(None, clock).id(),
@@ -709,7 +730,7 @@ mod tests {
         let words = "Quarterly salaries of the board";
         let address = "https://payroll.example.org/run";
         let site = || Site::cut(address.to_string()).unwrap();
-        let entered = || CapturedText::enter(TextField::Title, words.to_string());
+        let entered = || words.to_string();
         let app = || AppIdentity::bundle_id(name.to_string());
         let title = Title::new(entered(), TitleWhy::TitleChange, Some(site()));
         let clock = EventClock::system();
@@ -721,7 +742,7 @@ mod tests {
                 "{:?}",
                 AppIdentity::executable_path(format!("C:\\{name}.exe"))
             ),
-            format!("{:?}", entered()),
+            format!("{:?}", CapturedText::enter(TextField::Title, entered())),
             format!("{:?}", site()),
             format!(
                 "{:?}",

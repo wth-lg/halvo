@@ -1122,7 +1122,7 @@ mod tests {
     use crate::floor::cases::keep;
     use crate::floor::payload::{FoldClass, FoldCount, Observation, PointerFold, Title, TitleWhy};
     use crate::floor::site::Site;
-    use crate::floor::text::{CapturedText, TextField, TEXT_MAX_BYTES};
+    use crate::floor::text::TEXT_MAX_BYTES;
 
     fn terminal() -> AppIdentity {
         AppIdentity::bundle_id("com.apple.Terminal".to_string())
@@ -1134,11 +1134,7 @@ mod tests {
     }
 
     fn title_event(text: &str) -> FloorEvent {
-        let title = Title::new(
-            CapturedText::enter(TextField::Title, text.to_string()),
-            TitleWhy::TitleChange,
-            None,
-        );
+        let title = Title::new(text.to_string(), TitleWhy::TitleChange, None);
         FloorEvent::window_title(keep(terminal(), 7), title, None, EventClock::system())
     }
 
@@ -1399,8 +1395,7 @@ mod tests {
             let app = AppIdentity::executable_path(path);
             let site = Site::cut(address.clone()).expect("a site");
             let words = "t".repeat(2 * TEXT_MAX_BYTES);
-            let text = CapturedText::enter(TextField::Title, words);
-            let title = Title::new(text, TitleWhy::AppChange, Some(site));
+            let title = Title::new(words, TitleWhy::AppChange, Some(site));
             FloorEvent::window_title(keep(app, 7), title, None, EventClock::system())
         };
         let (handle, writer) = bounded(NonZeroUsize::new(QUEUED).unwrap());

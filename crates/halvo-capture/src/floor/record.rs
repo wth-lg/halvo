@@ -7,6 +7,7 @@
 use std::fmt::{self, Write as _};
 use std::str::FromStr;
 
+use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde_json::{Map, Value};
 use uuid::Uuid;
 use zeroize::Zeroizing;
@@ -225,6 +226,8 @@ impl fmt::Debug for DecodedRecord {
 pub enum DecodeError {
     #[error("the line is not one JSON object")]
     NotAnObject,
+    #[error("a key stands twice in one object of the record")]
+    DuplicateField,
     #[error("the record holds a field that is not in its shape: {0}")]
     UnknownField(String),
     #[error("the record lacks the field {0}")]
@@ -246,8 +249,13 @@ const RECORD_FIELDS: [&str; 7] = ["v", "id", "at", "seq", "kind", "app", "p"];
 /// The strict decoder: one record of the shape above, with no field more and
 /// none less, in `p` as in the record.
 pub fn decode(line: &str) -> Result<DecodedRecord, DecodeError> {
-    let Ok(Value::Object(mut record)) = serde_json::from_str::<Value>(line) else {
-        return Err(DecodeError::NotAnObject);
+    let mut record = match serde_json::from_str::<Unique>(line) {
+        Ok(Unique(Value::Object(record))) => record,
+        Ok(_) => return Err(DecodeError::NotAnObject),
+        Err(error) if error.to_string().starts_with(DUPLICATE) => {
+            return Err(DecodeError::DuplicateField)
+        }
+        Err(_) => return Err(DecodeError::NotAnObject),
     };
     exact_fields(&record, &RECORD_FIELDS, &[])?;
     let version = take_u64(&mut record, "v")?;
@@ -281,6 +289,75 @@ pub fn decode(line: &str) -> Result<DecodedRecord, DecodeError> {
         app,
         payload,
     })
+}
+
+const DUPLICATE: &str = "a key stands twice";
+
+/// A JSON value read with every key of each object at most once.
+struct Unique(Value);
+
+impl<'de> Deserialize<'de> for Unique {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Unique, D::Error> {
+        deserializer.deserialize_any(UniqueVisitor).map(Unique)
+    }
+}
+
+struct UniqueVisitor;
+
+impl<'de> Visitor<'de> for UniqueVisitor {
+    type Value = Value;
+
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("a JSON value with no key twice in one object")
+    }
+
+    fn visit_bool<E: de::Error>(self, value: bool) -> Result<Value, E> {
+        Ok(Value::Bool(value))
+    }
+
+    fn visit_i64<E: de::Error>(self, value: i64) -> Result<Value, E> {
+        Ok(Value::from(value))
+    }
+
+    fn visit_u64<E: de::Error>(self, value: u64) -> Result<Value, E> {
+        Ok(Value::from(value))
+    }
+
+    fn visit_f64<E: de::Error>(self, value: f64) -> Result<Value, E> {
+        Ok(Value::from(value))
+    }
+
+    fn visit_str<E: de::Error>(self, value: &str) -> Result<Value, E> {
+        Ok(Value::String(value.to_owned()))
+    }
+
+    fn visit_string<E: de::Error>(self, value: String) -> Result<Value, E> {
+        Ok(Value::String(value))
+    }
+
+    fn visit_unit<E: de::Error>(self) -> Result<Value, E> {
+        Ok(Value::Null)
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Value, A::Error> {
+        let mut items = Vec::new();
+        while let Some(Unique(item)) = seq.next_element()? {
+            items.push(item);
+        }
+        Ok(Value::Array(items))
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Value, A::Error> {
+        let mut object = Map::new();
+        while let Some(key) = map.next_key::<String>()? {
+            if object.contains_key(&key) {
+                return Err(de::Error::custom(DUPLICATE));
+            }
+            let Unique(value) = map.next_value()?;
+            object.insert(key, value);
+        }
+        Ok(Value::Object(object))
+    }
 }
 
 fn decoded_payload(
@@ -478,7 +555,6 @@ mod tests {
     use crate::event::{AppIdentity, EventClock, FloorEvent};
     use crate::floor::cases::{keep, LongestPoint, RecordingPoint};
     use crate::floor::payload::Title;
-    use crate::floor::text::CapturedText;
     use crate::sink::{ArrivalNumber, FloorReceived};
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -548,6 +624,21 @@ mod tests {
         let float = good.replacen(r#""at":-5"#, r#""at":-5.5"#, 1);
         assert_eq!(decode(&float), Err(DecodeError::BadValue("at")));
         assert_eq!(decode("[1]"), Err(DecodeError::NotAnObject));
+        let twice_v = good.replacen(r#""v":1,"#, r#""v":1,"v":1,"#, 1);
+        assert_eq!(decode(&twice_v), Err(DecodeError::DuplicateField));
+        let twice_app = good.replacen(r#""app":null"#, r#""app":"a","app":null"#, 1);
+        assert_eq!(decode(&twice_app), Err(DecodeError::DuplicateField));
+        let title = r#"{"text":"raw","text":"t","cut":false,"why":"app_change"}"#;
+        assert_eq!(
+            decode(&line("window_title", "null", title)),
+            Err(DecodeError::DuplicateField)
+        );
+        let site = r#"{"text":"t","cut":false,"why":"app_change","site":{"domain":"a.com","domain":"example.com","source":"address_field"}}"#;
+        assert_eq!(
+            decode(&line("window_title", "null", site)),
+            Err(DecodeError::DuplicateField)
+        );
+        assert_eq!(decode("{\"v\":"), Err(DecodeError::NotAnObject));
         assert_eq!(format!("{decoded:?}"), "DecodedRecord(keystroke)");
     }
 
@@ -560,8 +651,11 @@ mod tests {
         let control = "\u{1}".repeat(2 * TEXT_MAX_BYTES);
         let app = AppIdentity::executable_path(control.clone());
         let site = crate::floor::site::Site::cut("https://example.com/".to_string());
-        let text = CapturedText::enter(TextField::Title, control[..TEXT_MAX_BYTES].to_string());
-        let title = Title::new(text, TitleWhy::TitleChange, site);
+        let title = Title::new(
+            control[..TEXT_MAX_BYTES].to_string(),
+            TitleWhy::TitleChange,
+            site,
+        );
         let event = FloorEvent::window_title(keep(app, 7), title, None, &clock);
         let at = event.at();
         let received = FloorReceived::for_test(event, ArrivalNumber::for_test(u64::MAX));

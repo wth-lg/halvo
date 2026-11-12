@@ -168,6 +168,14 @@ mod tests {
         for address in dropped {
             assert_eq!(cut(address), None, "{address}");
         }
+        let labels = format!("{}.{}.{}", "a".repeat(63), "b".repeat(63), "c".repeat(63));
+        let longest = format!("{labels}.{}.com", "d".repeat(57));
+        assert_eq!(longest.len(), SITE_MAX_BYTES);
+        let domain = format!("{}.com", "d".repeat(57));
+        assert_eq!(cut(&format!("https://{longest}/")), Some(domain));
+        let too_long = format!("{labels}.{}.com", "d".repeat(58));
+        assert_eq!(too_long.len(), SITE_MAX_BYTES + 1);
+        assert_eq!(cut(&format!("https://{too_long}/")), None);
         let over = format!("https://example.com/{}", "a".repeat(ADDRESS_MAX_BYTES));
         assert_eq!(cut(&over), None);
         let at_limit = format!("https://example.com/{}", "a".repeat(ADDRESS_MAX_BYTES - 20));
