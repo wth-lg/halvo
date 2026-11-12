@@ -37,13 +37,17 @@ fn yes_no(value: bool) -> &'static str {
     }
 }
 
-struct StoreDir {
+pub(crate) struct StoreDir {
     path: PathBuf,
     owned: bool,
 }
 
 impl StoreDir {
-    fn from_env() -> Self {
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub(crate) fn from_env() -> Self {
         match std::env::var("HALVO_STORE_DIR") {
             Ok(d) => Self {
                 path: PathBuf::from(d),
@@ -118,12 +122,14 @@ impl fmt::Display for StoreCheck {
     }
 }
 
+pub(crate) fn marker_from_env() -> String {
+    std::env::var("HALVO_GATE_MARKER").unwrap_or_else(|_| "HALVO_DEFAULT_MARKER".to_string())
+}
+
 /// Implements `--verify-store`.
 pub fn run_store_check() -> StoreResult<StoreCheck> {
     let dir = StoreDir::from_env();
-    let marker =
-        std::env::var("HALVO_GATE_MARKER").unwrap_or_else(|_| "HALVO_DEFAULT_MARKER".to_string());
-    run_store_check_in(&dir.path, &marker)
+    run_store_check_in(&dir.path, &marker_from_env())
 }
 
 pub(crate) fn run_store_check_in(dir: &Path, marker: &str) -> StoreResult<StoreCheck> {
@@ -1047,6 +1053,62 @@ mod tests {
         let line = check.to_string();
         assert!(line.contains(" segment_roundtrip=ok "), "{line}");
         assert!(line.contains(" prompt=none"), "{line}");
+    }
+
+    #[test]
+    fn measure_for_parent() {
+        let Ok(dir) = std::env::var("HALVO_TEST_MEASURE_DIR") else {
+            println!("measure_for_parent: HALVO_TEST_MEASURE_DIR is not set, so no parent asked for a measure");
+            return;
+        };
+        let dir = PathBuf::from(dir);
+        let store = crate::store::measure_store(&dir.join("store"), "MARKER-OF-THE-MEASURE-ENTRY");
+        let deletion = crate::store::measure_deletion(&dir.join("deletion"));
+        println!();
+        println!("MEASURED {}", store.unwrap().trim_end());
+        println!("MEASURED {}", deletion.unwrap().trim_end());
+    }
+
+    #[test]
+    fn the_measure_entries_take_their_directory_and_read_no_environment() {
+        let dir = tempfile::tempdir().unwrap();
+        let elsewhere = tempfile::tempdir().unwrap();
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "store::verify::tests::measure_for_parent",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env("HALVO_TEST_MEASURE_DIR", dir.path())
+            .env("HALVO_STORE_DIR", elsewhere.path())
+            .env("HALVO_GATE_MARKER", "MARKER-FROM-THE-ENVIRONMENT")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(output.status.success(), "the child failed: {text}");
+        let measured: Vec<&str> = text
+            .lines()
+            .filter_map(|line| line.strip_prefix("MEASURED "))
+            .collect();
+        assert_eq!(measured.len(), 2, "{text}");
+        assert!(
+            measured[0].starts_with("store rows=2000 ") && measured[0].contains(" unwrap=ok "),
+            "{}",
+            measured[0]
+        );
+        assert!(
+            measured[1].starts_with("segment=") && measured[1].ends_with(" store_sealed=yes"),
+            "{}",
+            measured[1]
+        );
+        assert!(KeyFile::path(&dir.path().join("store")).exists());
+        assert!(dir.path().join("deletion").is_dir());
+        assert_eq!(
+            std::fs::read_dir(elsewhere.path()).unwrap().count(),
+            0,
+            "a measure entry wrote into the directory that HALVO_STORE_DIR names"
+        );
     }
 
     #[test]

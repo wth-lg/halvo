@@ -26,7 +26,7 @@ pub(crate) mod pages;
 pub(crate) mod roots;
 
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use uuid::Uuid;
@@ -141,15 +141,33 @@ pub enum StoreError {
 
 pub type StoreResult<T> = Result<T, StoreError>;
 
-/// Run the `--verify-store` measurements on a fresh store and return the line
-/// that the gate judges. Fails when a file of the store holds the raw store key.
+/// Run the `--verify-store` measurements on a fresh store in the directory
+/// that HALVO_STORE_DIR names, or in a temporary one, with the marker of
+/// HALVO_GATE_MARKER, and return the line that the gate judges.
 pub fn verify_store() -> StoreResult<String> {
-    verify::run_store_check().map(|check| check.to_string())
+    let dir = verify::StoreDir::from_env();
+    measure_store(dir.path(), &verify::marker_from_env())
 }
 
-/// Run the `--verify-deletion` measurements, one expired segment shredded beside
-/// a live one and then delete-all, and return the line that the gate judges.
-/// Fails when the state of the root after delete-all is unknown.
+/// Run the `--verify-deletion` measurements in the directory that
+/// HALVO_STORE_DIR names, or in a temporary one, and return the line that the
+/// gate judges.
 pub fn verify_deletion() -> StoreResult<String> {
-    verify::run_deletion_check().map(|check| check.to_string())
+    let dir = verify::StoreDir::from_env();
+    measure_deletion(dir.path())
+}
+
+/// Run the `--verify-store` measurements on a fresh store made in `dir` that
+/// holds `marker`, and return the line that the gate judges. Reads no
+/// environment. Fails when a file of the store holds the raw store key.
+pub fn measure_store(dir: &Path, marker: &str) -> StoreResult<String> {
+    verify::run_store_check_in(dir, marker).map(|check| check.to_string())
+}
+
+/// Run the `--verify-deletion` measurements on a fresh store made in `dir`:
+/// one expired segment shredded beside a live one, then delete-all. Returns
+/// the line that the gate judges. Reads no environment. Fails when the state
+/// of the root after delete-all is unknown.
+pub fn measure_deletion(dir: &Path) -> StoreResult<String> {
+    verify::run_deletion_check_in(dir).map(|check| check.to_string())
 }
