@@ -146,7 +146,7 @@ pub const KINDS: &[KindEntry] = &[
             ("tokens_in", FieldType::Count),
             ("tokens_out", FieldType::Count),
         ],
-        example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","seq":1,"day":20768,"at":1794339000000000001,"event":"model_call","step":3,"cause":null,"model":"qwen3_1_7b","ms":812,"tokens_in":900,"tokens_out":40}"#,
+        example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","seq":1,"day":20768,"at":1794339000000000001,"event":"model_call","step":3,"cause":null,"model":"minicpm5_2b","ms":812,"tokens_in":900,"tokens_out":40}"#,
     },
     KindEntry {
         name: "agent_session",

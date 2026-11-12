@@ -145,7 +145,7 @@ fn a_row_that_names_a_key_outside_its_shape_or_holds_a_value_of_another_type_is_
         ),
         (
             "agent_log",
-            r#""model":"qwen3_1_7b""#,
+            r#""model":"minicpm5_2b""#,
             r#""model":"Qwen3 1.7B""#,
             "model: string_form",
         ),
@@ -414,4 +414,30 @@ fn the_rows_of_each_effect_start_as_a5_1_decides_for_the_class_and_move_as_a5_2_
             before = Some(row);
         }
     }
+}
+
+const MODEL_TOKENS: [&str; 5] = [
+    "qwen3_5_2b",
+    "minicpm5_2b",
+    "granite_4_2_3b",
+    "ministral_3_3b",
+    "qwen3_5_4b",
+];
+
+#[test]
+fn the_model_of_each_log_row_is_null_or_a_token_of_the_table_of_a13_5() {
+    let lines = own_lines("agent_log");
+    assert_eq!(lines[0], entry("agent_log").example);
+    let mut named = 0;
+    for line in &lines {
+        let row: serde_json::Value = serde_json::from_str(line).unwrap();
+        match row["model"].as_str() {
+            Some(model) => {
+                assert!(MODEL_TOKENS.contains(&model), "{model}");
+                named += 1;
+            }
+            None => assert!(row["model"].is_null(), "{line}"),
+        }
+    }
+    assert!(named > 0);
 }
