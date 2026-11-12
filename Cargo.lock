@@ -1419,6 +1419,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-learn"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "halvo-redact"
 version = "0.0.0"
 
