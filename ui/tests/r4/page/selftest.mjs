@@ -1,8 +1,9 @@
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { ACTS_FILE, FIXTURES_DIR, SNAPSHOTS_DIR, VIEWS_DIR, denyLines, fileRules, spreadCount, statesOf, viewRules } from './files.mjs';
+import { ACTS_FILE, FIXTURES_DIR, RUN_VIEWS, SNAPSHOTS_DIR, VIEWS_DIR, denyLines, fileRules, spreadCount, statesOf, viewRules } from './files.mjs';
+import { RECORD_FILE, STAMPED, pushLine, readRecord, recordText, rotation, stampOf } from './record.mjs';
 import { loadHarness, pageConfirmFirst, plan, runStates, verdict } from './run.mjs';
 
 const COPIED = [
@@ -123,6 +124,62 @@ function append(dir, rel, text) {
   writeFileSync(join(dir, rel), readFileSync(join(dir, rel), 'utf8') + text);
 }
 
+function listOf(dir) {
+  const out = [];
+  const visit = (rel) => {
+    const full = join(dir, rel);
+    if (!existsSync(full)) return;
+    if (statSync(full).isDirectory()) for (const f of readdirSync(full)) visit(rel + '/' + f);
+    else out.push(rel);
+  };
+  for (const s of STAMPED) visit(s);
+  return out;
+}
+
+const OK_LINE = ' violations=0 review=0 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok';
+
+function writeRecord(dir, change = (l) => l, cause = null) {
+  const states = statesOf(join(dir, FIXTURES_DIR));
+  const lines = [
+    ...states.map((s) => 'page state=' + s + ' views=agents' + OK_LINE + ' region=ok'),
+    ...states.map((s) => 'needs page state=' + s + OK_LINE),
+    'page states=' + states.length + OK_LINE,
+  ];
+  writeFileSync(join(dir, RECORD_FILE), recordText({ ...stampOf(dir, listOf(dir)), browser: 'browser name=webkit version=27.2', lines: change(lines), cause }));
+}
+
+function recordFault(dir) {
+  return readRecord(dir, statesOf(join(dir, FIXTURES_DIR)), stampOf(dir, listOf(dir)).stamp).fault || 'pass';
+}
+
+const RECORD_CASES = [
+  ['record-as-written', 'pass', (d) => writeRecord(d)],
+  ['record-missing', 'missing', () => {}],
+  ['record-then-a-view-changed', 'stamp', (d) => {
+    writeRecord(d);
+    append(d, join(VIEWS_DIR, 'agents.js'), '\n');
+  }],
+  ['record-then-a-state-added', 'stamp', (d) => {
+    writeRecord(d);
+    cpSync(join(d, FIXTURES_DIR, 'state-ten.json'), join(d, FIXTURES_DIR, 'state-ten_again.json'));
+  }],
+  ['record-then-a-structure-file-changed', 'stamp', (d) => {
+    writeRecord(d);
+    append(d, join(SNAPSHOTS_DIR, 'ten.txt'), '- {"role":"note"}\n');
+  }],
+  ['record-then-the-views-checked-out-with-crlf', 'pass', (d) => {
+    writeRecord(d);
+    for (const f of ['agents.js', 'needs.js']) writeFileSync(join(d, VIEWS_DIR, f), readFileSync(join(d, VIEWS_DIR, f), 'utf8').replace(/\n/g, '\r\n'));
+  }],
+  ['record-of-a-run-that-failed', 'result', (d) => writeRecord(d, (l) => l, 'page')],
+  ['record-without-a-run-of-a-state', 'states', (d) => writeRecord(d, (l) => l.slice(1))],
+  ['record-without-a-needs-run-of-a-state', 'states', (d) => writeRecord(d, (l) => l.filter((x) => !x.startsWith('needs page state=ten ')))],
+  ['record-with-a-run-that-missed', 'result', (d) => writeRecord(d, (l) => l.map((x) => (x.startsWith('page state=ten ') ? x + ' misses=2:focus_unseen' : x)))],
+  ['record-with-a-region-that-missed', 'result', (d) => writeRecord(d, (l) => l.map((x) => (x.startsWith('page state=ten ') ? x.replace('region=ok', 'region=miss') : x)))],
+  ['record-with-a-second-stamp', 'no_stamp', (d) => writeRecord(d, (l) => [...l, 'stamp=' + '0'.repeat(64)])],
+  ['record-whose-line-counts-fewer-states', 'states', (d) => writeRecord(d, (l) => l.map((x) => (x.startsWith('page states=') ? x.replace(/states=\d+/, 'states=1') : x)))],
+];
+
 function copyRepo(repo, dir) {
   for (const rel of COPIED) {
     mkdirSync(dirname(join(dir, rel)), { recursive: true });
@@ -183,6 +240,20 @@ export function fileCases({ repo, acorn: acornDir, work, report }) {
   report('verdict-a-test-item-failed', 'page', verdict(states, results, { ...needs, itemsFailed: 1 }, say) || 'pass');
   report('verdict-no-states', 'states', verdict([], [], needs, say) || 'pass');
   report('verdict-a-say-missed', 'status', verdict(states, results, needs, { misses: ['agents:say'] }) || 'pass');
+  for (const [name, fault, plant] of RECORD_CASES) {
+    const dir = copyRepo(repo, join(work, name));
+    plant(dir);
+    report(name, fault, recordFault(dir));
+  }
+  const a = rotation('0'.repeat(40), states);
+  const b = rotation('1'.repeat(40), states);
+  report('rotation-reads-every-state-once', 'pass', a.slice().sort().join() === states.join() ? 'pass' : 'fail');
+  report('rotation-of-one-commit-is-the-same', 'pass', rotation('0'.repeat(40), states).join() === a.join() ? 'pass' : 'fail');
+  report('rotation-of-another-commit-reads-others-first', 'pass', a.slice(0, 3).join() !== b.slice(0, 3).join() ? 'pass' : 'fail');
+  const okLine = 'page states=' + states.length + OK_LINE;
+  const missed = [{ line: { ...one.line, violations: 0, review: 0, keyboard: 'miss', structure: 'same', size: 'ok', modes: 'ok', modes_off: '-', markup: 'ok' } }];
+  report('push-line-shows-a-miss-of-the-push', 'pass', / keyboard=miss /.test(pushLine(states.length, okLine, missed, null)) ? 'pass' : 'fail');
+  report('push-line-of-a-clean-push', 'pass', pushLine(states.length, okLine, [], null) === okLine ? 'pass' : 'fail');
 }
 
 /** The cases that run the views in the browser of the machine: an unchanged control and one planted fault per check and per region rule. */
@@ -199,6 +270,17 @@ export async function pageCases({ repo, work, report, log }) {
   const controlOrigin = await harness.serve({ ui: control, fixtures: fx });
   const [clean] = await runStates(harness, { origin: controlOrigin, runs: plan(fx, [state]), snapshots, acts, write: false, log });
   report('page-control-' + state + '-all-six-and-the-region', 'pass', clean.ok ? 'pass' : 'fail');
+  const setup = statesOf(fx).find((s) => s.startsWith('setup'));
+  const written = join(work, 'structure-' + setup + '.txt');
+  const page = await harness.open({ origin: controlOrigin, state: setup, views: [RUN_VIEWS['needs.js']] });
+  try {
+    await harness.check(page, 3, { snapshot: written, write: true });
+  } finally {
+    await page.close();
+  }
+  const text = readFileSync(written, 'utf8');
+  const whole = text.split('\n').filter((l) => /^ *- "/.test(l)).length;
+  report('structure-writer-keeps-a-text-node-whole', 'pass', whole > 0 && spreadCount(text) === 0 ? 'pass' : 'fail');
   for (const c of PAGE_CASES) {
     const ui = join(work, 'ui-' + c.name);
     let got;

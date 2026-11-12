@@ -78,7 +78,7 @@ function flip(snapshot) {
 }
 
 /** A reply that changes the first row's status adds that row's say to the agents view's one region (contracts.md I9.2). */
-export async function sayRule(harness, origin, fixtures, states, ui) {
+export async function sayRule(harness, origin, fixtures, states) {
   const state = states.find((s) => (json(join(fixtures, 'state-' + s + '.json')).snapshot.rows || []).length > 0);
   if (!state || !REGIONS.includes('agents')) return { read: 0, misses: [] };
   const first = json(join(fixtures, 'state-' + state + '.json')).snapshot;
@@ -135,9 +135,10 @@ export async function runStates(harness, { origin, runs, snapshots, acts, write,
 }
 
 /** Runs ui/tests/r4/needs/page.mjs, the needs view alone on every state and on its test items (ruling RD-25 (e)), and reads its last two lines. */
-export function needsPage(repo, log) {
+export function needsPage(repo, log, only) {
   return new Promise((done) => {
-    const child = spawn(process.execPath, [join(repo, 'ui', 'tests', 'r4', 'needs', 'page.mjs')], { cwd: repo, stdio: ['ignore', 'pipe', 'pipe'] });
+    const args = [join(repo, 'ui', 'tests', 'r4', 'needs', 'page.mjs'), ...(only ? ['--states', only.join(',')] : [])];
+    const child = spawn(process.execPath, args, { cwd: repo, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
     child.stdout.on('data', (d) => {
       out += d;
@@ -190,27 +191,29 @@ export async function loadHarness(repo) {
 }
 
 /** The whole page check on a repository: returns the first cause that holds, or null. */
-export async function pageCheck({ repo, ui, fixtures, snapshots, write, needs: runNeeds, log }) {
+export async function pageCheck({ repo, write, needs: runNeeds, only, needsOnly, log }) {
   const harness = await loadHarness(repo);
-  const fx = fixtures || join(repo, FIXTURES_DIR);
-  const states = statesOf(fx);
+  const fx = join(repo, FIXTURES_DIR);
+  const all = statesOf(fx);
+  const states = only || all;
   const acts = json(join(repo, ACTS_FILE));
-  const origin = await harness.serve({ ui: ui || join(repo, 'ui'), fixtures: fx });
-  const results = await runStates(harness, { origin, runs: plan(fx, states), snapshots: snapshots || join(repo, SNAPSHOTS_DIR), acts, write, log });
-  const say = await sayRule(harness, origin, fx, states, ui);
+  const origin = await harness.serve({ ui: join(repo, 'ui'), fixtures: fx });
+  const results = await runStates(harness, { origin, runs: plan(fx, states), snapshots: join(repo, SNAPSHOTS_DIR), acts, write, log });
+  const say = await sayRule(harness, origin, fx, all);
   log('page regions read=' + results.reduce((a, r) => a + r.region.read, 0) + ' rebuilt=' + results.filter((r) => r.region.misses.length).length + ' say=' + (say.read === 0 ? '-' : say.misses.length ? 'miss' : 'ok'));
-  const needs = runNeeds ? await needsPage(repo, log) : null;
+  const needs = runNeeds && (!needsOnly || needsOnly.length) ? await needsPage(repo, log, needsOnly) : null;
   if (needs) log('page needs_alone states=' + (needs.parsed ? needs.states : '-') + ' test_items=' + (needs.parsed ? needs.items : '-') + ' failed=' + (needs.parsed ? needs.itemsFailed : '-') + ' exit=' + needs.code);
-  log(joined(states.length, results, needs));
-  return verdict(states, results, needs, say);
+  const needsStates = needsOnly ? needsOnly.filter((s) => all.includes(s)).length : all.length;
+  return { all, states, results, needs, say, cause: verdict(states, results, runNeeds && (!needsOnly || needsOnly.length) ? needs || { parsed: false } : null, say, needsStates) };
 }
 
 /** The first cause that holds for a whole run: a state that no run or page.mjs did not read, a check that missed, then a region that missed. */
-export function verdict(states, results, needs, say) {
+export function verdict(states, results, needs, say, needsStates = states.length) {
   if (states.length === 0 || results.length !== states.length) return 'states';
   const ran = results.map((r) => r.state).sort();
-  if (ran.some((s, i) => s !== states[i])) return 'states';
-  if (needs && (!needs.parsed || needs.states !== states.length)) return 'states';
+  const want = states.slice().sort();
+  if (ran.some((s, i) => s !== want[i])) return 'states';
+  if (needs && (!needs.parsed || needs.states !== needsStates)) return 'states';
   if (results.some((r) => r.names.length) || (needs && (needs.code !== 0 || needs.itemsFailed !== 0))) return 'page';
   if (results.some((r) => r.region.misses.length) || say.misses.length) return 'status';
   return null;

@@ -1,9 +1,11 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every view file keeps to the rules of a view file, and on every state of ui/tests/fixtures/coord/ the views pass the six checks of the page harness with their committed structure files, and the status region is never rebuilt.
+# rule: Every view file keeps to the rules of a view file, and the committed record of --record, whose stamp is that of the files it read, shows every state of ui/tests/fixtures/coord/ passing the six checks of the page harness and the status-region rule, which each push runs again on states that its commit picks.
 set -u
 name=40-r4-page
 nested=self-test-of-$name
+own_per_push=4
+needs_per_push=4
 
 usage() {
   printf 'FAIL %s (usage)\n' "$name"
@@ -16,6 +18,7 @@ case $# in
   1)
     case $1 in
       --self-test) mode=self_test ;;
+      --record) mode=record ;;
       *) usage ;;
     esac
     ;;
@@ -107,7 +110,9 @@ measure() {
     *) fail files ;;
   esac
   browsers
-  node "$page/check.mjs" page --repo "$repo" >"$artifacts/page.txt" 2>"$artifacts/page-stderr.txt"
+  [ "$guarded" = yes ] || fail setup
+  commit=$(git -C "$repo" rev-parse HEAD 2>/dev/null) || fail setup
+  node "$page/check.mjs" push --repo "$repo" --commit "$commit" --own "$own_per_push" --needs "$needs_per_push" >"$artifacts/page.txt" 2>"$artifacts/page-stderr.txt"
   code=$?
   cat "$artifacts/page.txt"
   last=$(last_of "$artifacts/page.txt")
@@ -115,6 +120,23 @@ measure() {
     tracked_same || fail dirty
     inputs after || fail dirty
   fi
+  case $code:$last in
+    "0:check result=ok") ;;
+    "1:check result="*) fail "${last#check result=}" ;;
+    *) fail page ;;
+  esac
+  printf 'PASS %s\n' "$name"
+}
+
+record() {
+  node_ok || fail node
+  git -C "$repo" rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail setup
+  inputs before || fail dirty
+  browsers
+  node "$page/check.mjs" record --repo "$repo" >"$artifacts/record.txt" 2>"$artifacts/record-stderr.txt"
+  code=$?
+  cat "$artifacts/record.txt"
+  last=$(last_of "$artifacts/record.txt")
   case $code:$last in
     "0:check result=ok") ;;
     "1:check result="*) fail "${last#check result=}" ;;
