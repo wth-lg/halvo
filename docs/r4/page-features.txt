@@ -44,12 +44,6 @@ allow	window_focus_event	5.1	'onfocus' in window
 allow	node_is_connected	10	'isConnected' in Node.prototype
 # https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String/codePointAt, Safari 9 of 2015-09-30
 allow	string_code_point_at	9	'codePointAt' in String.prototype
-# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Statements/for...of, Safari 7 of 2013-10-22
-allow	for_of	7	(function () { try { return Function('for (const c of [1]) { return c === 1; }')(); } catch (e) { return false; } })()
-# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Statements/let, Safari 10 of 2016-09-20
-allow	let_declaration	10	(function () { try { return Function('let a = 1; return a === 1;')(); } catch (e) { return false; } })()
-# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Functions/Arrow_functions, Safari 10 of 2016-09-20
-allow	arrow_functions	10	(function () { try { return Function('return (() => 1)() === 1;')(); } catch (e) { return false; } })()
 # https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Map, Safari 8 of 2014-10-16
 allow	map_and_set	8	typeof Map === 'function' && typeof Set === 'function'
 # https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise, Safari 8 of 2014-10-16

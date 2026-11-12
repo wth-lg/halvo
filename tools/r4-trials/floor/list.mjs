@@ -17,6 +17,7 @@ export const FLOOR = '17.0';
 
 const NAME = /^[a-z0-9_]{1,32}$/;
 const VERSION = /^[0-9]+(?:\.[0-9]+){0,2}$/;
+const EVAL = /\b(?:eval|Function)\s*\(/;
 const SOURCE = /^# https:\/\/\S+.*, Safari ([0-9]+(?:\.[0-9]+){0,2}) of ([0-9]{4}-[0-9]{2}-[0-9]{2})$/;
 
 /** Compares two versions field by field as numbers, a missing field being 0. */
@@ -34,7 +35,8 @@ export function compareVersions(a, b) {
  * line that breaks the form of I11.4: four cells separated by tabs, a name of I0.6's form used
  * once, a version, an allow line at or under the floor and a deny line above it, the comment
  * directly above naming a page and the date of the version that the line gives, an allow
- * expression that parses and a deny pattern that compiles with the flags g and u. */
+ * expression that parses and calls neither eval nor Function, which the policy of the trial
+ * app's pages refuses, and a deny pattern that compiles with the flags g and u. */
 export function parseList(text) {
   const features = [];
   const problems = [];
@@ -76,6 +78,7 @@ export function parseList(text) {
       } catch {
         problems.push(`${at}: ${name}: the expression does not parse`);
       }
+      if (EVAL.test(cell)) problems.push(`${at}: ${name}: the expression calls eval or Function, which the policy of the app's pages refuses`);
     } else if (kind === 'deny') {
       try {
         new RegExp(cell, 'gu');
