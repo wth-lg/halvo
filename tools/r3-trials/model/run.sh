@@ -33,11 +33,15 @@ directory under TMPDIR or /tmp, with the request, the child's replies and the
 raw output, and run.sh removes nothing: the request holds the invented values
 of the prompt file, and the replies the model's text.
 
-It needs, at the root of the repository: target/r3-weights/<file> of the model
-(sh tools/r3-trials/model/fetch.sh TOKEN), target/release/measure-peak (cargo
-build --release --locked -p halvo-cap --bin measure-peak) and
-tools/r3-trials/model/target/release/r3-model (cargo build --release --locked
-in tools/r3-trials/model).
+It needs target/r3-weights/<file> of the model at the root of the repository
+(sh tools/r3-trials/model/fetch.sh TOKEN), cargo on PATH, and cmake on PATH or
+under target/r3-tools/ (sh tools/r3-trials/model/fetch.sh --cmake). Before the
+first cell it builds target/release/measure-peak (cargo build --release --locked
+-p halvo-cap --bin measure-peak) and tools/r3-trials/model/target/release/r3-model
+(cargo build --release --locked in tools/r3-trials/model), each with
+GGML_METAL=OFF in its environment, so that llama.cpp is built for the CPU with
+no Metal backend; cargo's output goes to standard error. A build that fails
+gives each prompt a notrun line with cause=build.
 
 Exit 0: every cell ran. 1: a cell or a run could not run, and a line
 "notrun model=<token> machine=<m> prompt=<p> [run=<i> ]cause=<token>" says
@@ -144,8 +148,23 @@ fi
 
 measure=target/release/measure-peak$exe
 child=tools/r3-trials/model/target/release/r3-model$exe
-[ -x "$measure" ] || refuse usage "$measure is missing: build it first"
-[ -x "$child" ] || refuse usage "$child is missing: build it first"
+
+build() {
+  if ! command -v cmake >/dev/null 2>&1; then
+    cmake_dir=$(sh tools/r3-trials/model/fetch.sh --cmake-dir) || return 1
+    PATH="$cmake_dir:$PATH"
+    export PATH
+  fi
+  GGML_METAL=OFF cargo build --release --locked -p halvo-cap --bin measure-peak || return 1
+  (cd tools/r3-trials/model && GGML_METAL=OFF cargo build --release --locked) || return 1
+  [ -x "$measure" ] && [ -x "$child" ]
+}
+if ! build >&2; then
+  for left in $remaining; do
+    echo "notrun model=$model machine=$machine prompt=$left cause=build"
+  done
+  exit 1
+fi
 
 crate=$(sed -n '/^name = "llama-cpp-2"$/{n;s/^version = "\(.*\)"$/\1/p;}' tools/r3-trials/model/Cargo.lock)
 

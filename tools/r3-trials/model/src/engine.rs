@@ -89,7 +89,7 @@ pub fn tensor_fault(sizes: &[(String, u64)]) -> Option<String> {
 pub fn backend() -> Result<LlamaBackend, String> {
     let backend = LlamaBackend::init().map_err(|e| format!("start llama.cpp: {e}"))?;
     if backend.supports_gpu_offload() {
-        return Err("this build of llama.cpp can offload to a GPU: build in the directory of the crate, where .cargo/config.toml turns Metal off".to_string());
+        return Err("this build of llama.cpp can offload to a GPU: build r3-model through run.sh, which sets GGML_METAL=OFF".to_string());
     }
     Ok(backend)
 }

@@ -22,7 +22,6 @@ root workspace does not list it.
 | `prompts/action.txt`, `prompts/reply.txt` | The two prompts of the cells |
 | `run.sh` | Runs the cells of one model on the machine it is on |
 | `fits.py` | The budget arithmetic: prints the bound lines and the verdict line from the cell lines |
-| `.cargo/config.toml` | Turns llama.cpp's Metal backend off for the build |
 | `.gitattributes` | Checks out every file of the trial with LF line ends, also where `core.autocrlf` is true |
 
 ## The models
@@ -82,16 +81,21 @@ release that was at least seven days old on 2026-11-11, published 2026-10-27; it
 the one of Kitware's `cmake-4.4.5-SHA-256.txt`) and unpacks it under `target/r3-tools/` of the
 repository. Nothing is installed outside `target/`.
 
+The loader is built through `run.sh` alone. Before its first cell, `run.sh` runs
+
 ```sh
-cargo build --release --locked -p halvo-cap --bin measure-peak
-cd tools/r3-trials/model
-PATH="$(sh fetch.sh --cmake-dir):$PATH" cargo build --release --locked
+GGML_METAL=OFF cargo build --release --locked -p halvo-cap --bin measure-peak
+(cd tools/r3-trials/model && GGML_METAL=OFF cargo build --release --locked)
 ```
 
-Run cargo in `tools/r3-trials/model`: cargo reads `.cargo/config.toml`, which sets
-`GGML_METAL=OFF` for the build script of llama-cpp-sys-2, only from the directory it runs in or
-one above it. On Apple silicon llama-cpp-2 turns on the `metal` feature of llama-cpp-sys-2
-whatever its own features say, and only that variable keeps the Metal backend out of the build.
+with the cmake of `fetch.sh --cmake-dir` first on `PATH` when none is on it, and a build that
+fails is a `notrun` line with `cause=build`. A second call finds both binaries up to date. On
+Apple silicon llama-cpp-2 turns on the `metal` feature of llama-cpp-sys-2 whatever its own
+features say, and only the variable `GGML_METAL=OFF` keeps the Metal backend out of the build;
+the repository tracks no cargo configuration file that could set it (the check 40-r6-policy
+refuses one). A build of `r3-model` made another way, with no such variable, has the Metal
+backend, and the child refuses to run on it: it stops when llama.cpp says that the build can
+offload to a GPU.
 The release binary still names `Metal.framework` and `MetalKit.framework` among its libraries,
 because the build script links them for that feature, and imports no symbol of either.
 
