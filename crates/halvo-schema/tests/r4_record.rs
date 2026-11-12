@@ -324,6 +324,9 @@ fn every_shape() -> Vec<(What, String)> {
     }
     for kind in OtherKind::ALL {
         for cause in OtherLapse::ALL {
+            if *cause == OtherLapse::Check && *kind != OtherKind::Ready {
+                continue;
+            }
             shapes.push((
                 What::ItemLapsed {
                     item: item(),
@@ -688,6 +691,24 @@ fn r4_record_refuses_a_key_that_its_event_does_not_set_and_a_key_that_it_lacks()
         Some("trigger"),
         "not_null",
     );
+}
+
+#[test]
+fn r4_record_hold_cleared_sets_run_and_answer_for_check_alone() {
+    let r = q(RUN);
+    let a = q("try_again");
+    for cause in ["person", "failures"] {
+        let c = q(cause);
+        for (key, value) in [("run", r.as_str()), ("answer", a.as_str())] {
+            let text = with(&[("cause", &c), (key, value)], "hold_cleared");
+            let refusal = CoordEvent::parse(text.as_bytes()).unwrap_err();
+            assert_eq!(
+                (refusal.key(), refusal.rule()),
+                (Some(key), "not_null"),
+                "I7.1: hold_cleared sets run and answer for check alone; {text}"
+            );
+        }
+    }
 }
 
 #[test]

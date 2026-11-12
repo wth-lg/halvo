@@ -423,6 +423,68 @@ fn r4_bodies_history_holds_at_most_64_records_in_ascending_seq_up_to_last() {
     }
 }
 
+#[test]
+fn r4_bodies_a_record_of_another_workflow_or_agent_is_refused_at_any_place() {
+    let others = [
+        CoordEvent {
+            workflow: WorkflowId::parse("1f1e2d3c4b5a69788796a5b4c3d2e1f0").unwrap(),
+            ..skipped(1)
+        },
+        CoordEvent {
+            agent: AgentId::parse("2a2b3c4d5e6f708192a3b4c5d6e7f809").unwrap(),
+            ..skipped(1)
+        },
+    ];
+    for other in others {
+        let one = log(vec![other.clone()]);
+        let refusal = one.to_json().unwrap_err();
+        assert_eq!(
+            (refusal.key(), refusal.rule()),
+            (Some("records"), "other_agent"),
+            "I7.2: a coord_log record names the body's workflow and agent"
+        );
+        let text = format!(
+            r#"{{"op":"coord_log","workflow":"{WORKFLOW}","agent":"{AGENT}","records":[{}]}}"#,
+            other.to_json().unwrap()
+        );
+        assert_eq!(
+            CoordLog::parse(text.as_bytes()).unwrap_err().rule(),
+            "other_agent"
+        );
+
+        for records in [
+            vec![
+                skipped(1),
+                CoordEvent {
+                    seq: NonZeroU32::new(2).unwrap(),
+                    ..other.clone()
+                },
+            ],
+            vec![
+                other.clone(),
+                CoordEvent {
+                    seq: NonZeroU32::new(2).unwrap(),
+                    ..skipped(1)
+                },
+            ],
+        ] {
+            let page = History { records, last: 2 };
+            let refusal = page.to_json().unwrap_err();
+            assert_eq!(
+                (refusal.key(), refusal.rule()),
+                (Some("records"), "other_agent"),
+                "I7.2: a coord_history reply holds the records of one workflow and agent"
+            );
+            let lines: Vec<String> = page.records.iter().map(|e| e.to_json().unwrap()).collect();
+            let text = format!(r#"{{"records":[{}],"last":2}}"#, lines.join(","));
+            assert_eq!(
+                History::parse(text.as_bytes()).unwrap_err().rule(),
+                "other_agent"
+            );
+        }
+    }
+}
+
 fn product_value(limits: &str, field: &str) -> u64 {
     let start = limits.find("pub const PRODUCT").expect("Limits::PRODUCT");
     let line = limits[start..]

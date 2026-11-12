@@ -177,6 +177,22 @@ pub enum Lapsed {
     Other { kind: OtherKind, cause: OtherLapse },
 }
 
+impl Lapsed {
+    /// Refuses the cause `check` for a kind other than `ready`, with the rule `check_not_ready`: `check` is the
+    /// lapse of an open `ready` item that the item `check` replaces (contracts.md I7.1, ruling RD-5).
+    pub fn rules(&self) -> Result<(), Refusal> {
+        match self {
+            Lapsed::Other {
+                kind,
+                cause: OtherLapse::Check,
+            } if *kind != OtherKind::Ready => {
+                Err(Refusal::new("CoordEvent", "check_not_ready").at("cause"))
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
 /// The `cause` of `hold_cleared`: the hold that ended, with the `run` and the `answer` of the check.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Cleared {
@@ -379,10 +395,12 @@ fn lapsed(obj: &Obj<'_>, kind: ItemKind) -> Result<Lapsed, Refusal> {
     Ok(if kind == ItemKind::Confirm {
         Lapsed::Confirm(obj.read("cause", ConfirmLapse::from_raw)?)
     } else {
-        Lapsed::Other {
+        let lapsed = Lapsed::Other {
             kind: obj.read("kind", OtherKind::from_raw)?,
             cause: obj.read("cause", OtherLapse::from_raw)?,
-        }
+        };
+        lapsed.rules()?;
+        lapsed
     })
 }
 
@@ -501,7 +519,16 @@ impl CoordEvent {
 
     /// The compact JSON of the record, its keys in the order of the kind entry.
     pub fn to_json(&self) -> Result<String, Refusal> {
+        self.rules()?;
         json::write("CoordEvent", self)
+    }
+
+    /// Checks the one rule that the types leave to a value: the cause `check` lapses a `ready` item alone.
+    pub fn rules(&self) -> Result<(), Refusal> {
+        match &self.what {
+            What::ItemLapsed { lapsed, .. } => lapsed.rules(),
+            _ => Ok(()),
+        }
     }
 
     fn cells(&self) -> Vec<(&'static str, Cell<'_>)> {
@@ -611,6 +638,8 @@ impl Serialize for Cell<'_> {
 
 impl Serialize for CoordEvent {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.rules()
+            .map_err(<S::Error as serde::ser::Error>::custom)?;
         let mut map = serializer.serialize_map(Some(KEYS.len()))?;
         map.serialize_entry("v", &1u32)?;
         map.serialize_entry("workflow", &self.workflow)?;

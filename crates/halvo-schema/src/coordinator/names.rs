@@ -155,8 +155,8 @@ names! {
 
 names! {
     /// The causes of the lapse of an item of a kind other than `confirm` (contracts.md I7.1): `check`, an open
-    /// `ready` item that the item `check` replaces in the same body (ruling RD-5), and `cancelled`, the person's
-    /// stop of the run whose item it is (ruling RD-6).
+    /// `ready` item that the item `check` replaces in the same body (ruling RD-5), for a `ready` item alone, and
+    /// `cancelled`, the person's stop of the run whose item it is (ruling RD-6).
     pub enum OtherLapse {
         RunEnded = "run_ended",
         AppEnded = "app_ended",
