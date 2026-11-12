@@ -360,6 +360,16 @@ function readSentences(repo) {
     if (typeof text !== 'string') throw new Stop('input', WORDS);
     sentences.push({ file: WORDS, line: 1, key, wordsKey: key, text });
   }
+  let names;
+  try {
+    names = fs.readdirSync(path.join(repo, FIXTURES));
+  } catch {
+    throw new Stop('input', FIXTURES);
+  }
+  const filed = names.map((n) => /^state-(.+)\.json$/u.exec(n)).filter(Boolean).map((m) => m[1]);
+  for (const state of [...STATES.filter((s) => !filed.includes(s)), ...filed.filter((s) => !STATES.includes(s))]) {
+    throw new Stop('input', `${FIXTURES}/state-${state}.json`);
+  }
   for (const state of STATES) {
     const file = `${FIXTURES}/state-${state}.json`;
     for (const s of fixtureSentences(parseJson(repo, file), file)) sentences.push({ file, line: 1, ...s });
@@ -658,7 +668,6 @@ function selfTest(dir, repo) {
         doc.extra = NEVER;
       },
       files: (f) => {
-        f[`${FIXTURES}/state-extra.json`] = `${JSON.stringify({ snapshot: { note: NEVER } })}\n`;
         f[`${FIXTURES}/reply-ok.json`] = `${JSON.stringify({ note: NEVER })}\n`;
       },
     }),
@@ -1166,6 +1175,12 @@ function selfTest(dir, repo) {
   );
 
   expect(fixture('state-file-missing', { files: (f) => (f[`${FIXTURES}/state-queue.json`] = null) }), 'FAIL:input');
+  expect(
+    fixture('a-state-file-that-the-list-does-not-name', {
+      files: (f) => (f[`${FIXTURES}/state-extra.json`] = `${JSON.stringify(baseState())}\n`),
+    }),
+    'FAIL:input',
+  );
   expect(fixture('words-file-missing', { files: (f) => (f[WORDS] = null) }), 'FAIL:input');
   expect(fixture('state-file-not-json', { files: (f) => (f[`${FIXTURES}/state-ten.json`] = '{"snapshot":\n') }), 'FAIL:input');
   expect(
