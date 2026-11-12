@@ -145,9 +145,10 @@ link; and the name of a file that a commit adds, as line 0. A renamed file
 counts as added in full. A line that a later commit removes again still
 counts, because the commit that holds it is pushed. A carriage return at the
 end of a line changes no answer. A line is read in pieces of 1,000
-characters, each with the next 1,000 in view, so the time grows with the
-length of a line and with the count of its matches, and a path that goes on
-for more than 1,000 characters past the start of its piece is cut there.
+characters, each with the 320 before it and the 1,000 after it in view, so
+the time grows with the length of a line and with the count of its matches,
+and a path that goes on for more than 1,000 characters past the start of its
+piece is cut there.
 The settings of a clone that change what git
 log prints (colour, prefixes, a relative diff, renames, submodule logs,
 ignored submodules, blank context lines, quoted names) are set for the call.
@@ -277,6 +278,7 @@ function init(   S) {
   NAME_CHARACTER = "([^[:space:][:cntrl:][:punct:]]|[._-])"
   CHUNK = 1000
   OVERLAP = 1000
+  LOOKBACK = 320
   ESCAPE = "(\033|\\\\u001[bB]|\\\\x1[bB]|\\\\033|\\\\[eE])"
   CSI_END = ESCAPE "\\[[0-9;:?<=>]*[@-~]$"
   OSC_END = ESCAPE "\\][^\007\033]*(\007|" ESCAPE "\\\\|\\\\u000[7]|\\\\x07|\\\\007|\\\\a)$"
@@ -357,7 +359,7 @@ function name_after_a_blank(text, at, end_is_a_separator,   s, n) {
   if (end_is_a_separator && n == length(s)) return s
   return ""
 }
-function scan_text(text, file, use_list,   lowered, size, first, own_end, i, t, off, rest, p, n, m, nm, k, adv, out, j) {
+function scan_text(text, file, use_list,   lowered, size, first, own_end, base, seg, segl, i, t, off, rest, lp, p, n, m, nm, k, adv, out, j) {
   lowered = tolower(text)
   nmatch = 0
   if (!index(lowered, "users") && !index(lowered, "home") && !index(lowered, "documents and settings")) return ""
@@ -366,24 +368,29 @@ function scan_text(text, file, use_list,   lowered, size, first, own_end, i, t, 
   size = length(text)
   for (first = 1; first <= size; first += CHUNK) {
     own_end = first + CHUNK - 1
+    base = first - LOOKBACK
+    if (base < 1) base = 1
+    seg = substr(text, base, first - base + CHUNK + OVERLAP)
+    segl = tolower(seg)
     for (i = 1; i <= nforms; i++) {
-      t = substr(low[i] ? lowered : text, first, CHUNK + OVERLAP)
-      off = first - 1
+      t = low[i] ? segl : seg
+      off = 0
       rest = t
       while (match(rest, re[i])) {
-        p = off + RSTART
+        lp = off + RSTART
         n = RLENGTH
         adv = RSTART + n - 1
+        p = base + lp - 1
         if (p > own_end) break
-        if (!(p in covered) && starts_here(text, p, kind_of[i])) {
-          m = substr(text, p, n)
+        if (p >= first && !(p in covered) && starts_here(seg, lp, kind_of[i])) {
+          m = substr(seg, lp, n)
           nm = name_in(m, i)
           k = name_length(nm)
           m = substr(m, 1, length(m) - length(nm) + k)
           n = length(m)
-          if (k == 1 && substr(text, p + n - 2, 1) == "\\" && substr(text, p + n, 1) != "" && index("+*?{", substr(text, p + n, 1)) > 0) k = 0
-          if (k > 0 && !own_directory(substr(nm, 1, k), substr(text, p + n, 8), i)) {
-            m = m name_after_a_blank(text, p + n, !use_list && file == "")
+          if (k == 1 && substr(seg, lp + n - 2, 1) == "\\" && substr(seg, lp + n, 1) != "" && index("+*?{", substr(seg, lp + n, 1)) > 0) k = 0
+          if (k > 0 && !own_directory(substr(nm, 1, k), substr(seg, lp + n, 8), i)) {
+            m = m name_after_a_blank(seg, lp + n, !use_list && file == "")
             n = length(m)
             for (j = p; j < p + n; j++) covered[j] = 1
             nmatch++
