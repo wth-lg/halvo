@@ -66,6 +66,34 @@ pub fn tree_of(table: &[Proc], root: &Proc) -> Vec<Proc> {
     tree
 }
 
+/// Whether `text` names `profile` as a whole path: an occurrence that the end of the text, a path
+/// separator, a quote or a space follows, so a profile whose name begins another's names only its
+/// own processes.
+pub fn names_profile(text: &str, profile: &str) -> bool {
+    !profile.is_empty()
+        && text.match_indices(profile).any(|(i, _)| {
+            matches!(
+                text[i + profile.len()..].chars().next(),
+                None | Some('/' | '\\' | '"' | ' ')
+            )
+        })
+}
+
+/// The processes of `table` other than this one that started at or after `since_us` and whose
+/// arguments name `profile` (`names_profile`): a browser's processes, which can outlive its first
+/// process with no parent in the browser's tree.
+pub fn naming_profile(table: &[Proc], profile: &Path, since_us: u64) -> Vec<Proc> {
+    let profile = profile.to_string_lossy();
+    table
+        .iter()
+        .filter(|p| p.started_us >= since_us && p.pid != std::process::id())
+        .filter(|p| {
+            command_args(p.pid).is_some_and(|a| a.iter().any(|x| names_profile(x, &profile)))
+        })
+        .cloned()
+        .collect()
+}
+
 /// Whether a command line names a debugging port.
 pub fn names_a_port(command_line: &str) -> bool {
     command_line.contains("--remote-debugging-port")
@@ -307,6 +335,27 @@ mod tests {
         assert!(names_a_port("chrome --remote-debugging-port=0 about:blank"));
         assert!(!names_a_port("chrome --remote-debugging-pipe about:blank"));
         assert_eq!(RULES.len(), 6);
+    }
+
+    #[test]
+    fn a_profile_is_named_as_a_whole_path() {
+        assert!(names_profile("--user-data-dir=/t/p-1", "/t/p-1"));
+        assert!(names_profile("--database=/t/p-1/Crashpad", "/t/p-1"));
+        assert!(names_profile(
+            r#"chrome.exe "--user-data-dir=C:\t\p-1" --type=gpu"#,
+            r"C:\t\p-1"
+        ));
+        assert!(names_profile(
+            r"chrome.exe --user-data-dir=C:\t\p-1 x",
+            r"C:\t\p-1"
+        ));
+        assert!(names_profile(
+            "--user-data-dir=/t/p-10 --x=/t/p-1",
+            "/t/p-1"
+        ));
+        assert!(!names_profile("--user-data-dir=/t/p-10", "/t/p-1"));
+        assert!(!names_profile("--user-data-dir=/t/p-1x", "/t/p-1"));
+        assert!(!names_profile("--user-data-dir=/t/p-1", ""));
     }
 
     #[cfg(target_os = "macos")]

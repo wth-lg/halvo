@@ -383,7 +383,12 @@ elsewhere in the crate, so a start that skips the lock does not pass clippy.
   carry one network id, but not on a new window: Chrome 153 detaches a window that waits for the
   debugger in its first navigation when that domain is enabled on it.
 - The browser's first reply on the pipe has a deadline, `FIRST_REPLY_WAIT` (30 s). When it passes,
-  the executor ends the browser and the start fails with `NO_CHANNEL_MESSAGE`.
+  the executor ends the browser and the start fails with `NO_CHANNEL_MESSAGE`, or with
+  `browser_start` when the first process has already ended. A failed start ends the first process,
+  then each process that began after the start and names the profile (`checks::naming_profile`;
+  its detail says how many as `leftovers_ended_<n>`). On `mac`, before that second end, one failed
+  run of `start_probe` left a browser process with the profile, the pipe flag and no parent for
+  four hours: the end of the first process did not reach it.
 - The start names the browser's first process to the relay, starts the guard of the relay's port
   and asks for `http://halvo-start-probe.invalid/`, an origin that no run binds; it goes on only
   when the relay recorded that refusal within `PROBE_WAIT` (10 s), else it ends the browser with

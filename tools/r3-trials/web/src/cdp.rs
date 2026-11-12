@@ -272,6 +272,24 @@ pub struct Executor {
 
 /// Keeps the browser's standard error, which its start wrote into the temporary directory, in a
 /// file beside the profile whose name ends in `.stderr`, and names its size.
+/// How long before the start a process that names the start's profile may have begun and still be
+/// counted as the start's own: the margin of the clock's reading against a process's creation time.
+const LEFTOVER_SLACK_US: u64 = 1_000_000;
+
+/// Ends, by number and creation time, each process that names `profile` and began after `since_us`
+/// (`checks::naming_profile`), and returns how many it ended. A failed start calls it after the end
+/// of its child: a browser's first process that ends can leave a process of its own, with the pipe,
+/// that the end of the child does not reach.
+fn end_leftovers(profile: &Path, since_us: u64) -> usize {
+    let Ok(table) = crate::procs::table() else {
+        return 0;
+    };
+    crate::checks::naming_profile(&table, profile, since_us)
+        .iter()
+        .filter(|p| crate::procs::kill(p))
+        .count()
+}
+
 fn keep_stderr(profile: &Path, temp: &Path) -> usize {
     let stderr = std::fs::read(temp.join("stderr")).unwrap_or_default();
     let mut kept = profile.as_os_str().to_owned();
@@ -385,6 +403,10 @@ impl Executor {
             env,
             stderr: Some(&stderr),
         };
+        let since_us = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_micros() as u64)
+            .saturating_sub(LEFTOVER_SLACK_US);
         let kept;
         let (mut child, link, pipe_ids) = match opts.channel {
             Channel::Pipe => {
@@ -427,9 +449,13 @@ impl Executor {
                 g.kill();
             }
             child.kill();
+            let ended = end_leftovers(&opts.profile, since_us);
             task.abort();
             let kept = keep_stderr(&opts.profile, temp);
-            Fault::new(f.0, format!("{} stderr_kept_bytes_{kept}", f.1))
+            Fault::new(
+                f.0,
+                format!("{} stderr_kept_bytes_{kept} leftovers_ended_{ended}", f.1),
+            )
         };
         if wire
             .call_within(None, GetVersionParams::default(), FIRST_REPLY_WAIT)
@@ -1757,6 +1783,59 @@ mod tests {
             refused.map(|f| f.1),
             Some("profile path exists".to_string())
         );
+    }
+
+    /// The processes that name `profile` in their arguments and started at or after `since_us`.
+    #[cfg(target_os = "macos")]
+    fn naming(profile: &Path, since_us: u64) -> Vec<crate::procs::Proc> {
+        let flag = format!("--user-data-dir={}", profile.display());
+        crate::procs::table()
+            .unwrap()
+            .into_iter()
+            .filter(|p| p.started_us >= since_us && p.pid != std::process::id())
+            .filter(|p| crate::checks::command_args(p.pid).is_some_and(|a| a.contains(&flag)))
+            .collect()
+    }
+
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn a_failed_start_ends_a_process_that_the_browser_left_with_its_profile() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("r3-web-leftover-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let browser = dir.join("browser.sh");
+        std::fs::write(
+            &browser,
+            "#!/bin/sh\nexec 3<&- 4>&-\n/usr/bin/perl -e 'sleep 30' -- \"$@\" </dev/null >/dev/null 2>&1 &\nexit 0\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&browser, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let profile = dir.join("p");
+        let opts = StartOptions {
+            browser,
+            profile: profile.clone(),
+            headless: true,
+            flags: Vec::new(),
+            channel: Channel::Pipe,
+            relay: None,
+            local_state: None,
+        };
+        let since_us = crate::procs::table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == std::process::id())
+            .map(|p| p.started_us)
+            .unwrap();
+        let fault = Executor::start(&opts).await.err().map(|f| f.0);
+        let left = naming(&profile, since_us);
+        for p in &left {
+            crate::procs::kill(p);
+        }
+        assert!(
+            matches!(fault, Some("browser_start" | "no_channel")),
+            "{fault:?}"
+        );
+        assert_eq!(left.len(), 0, "processes left that name the profile");
     }
 
     #[test]
