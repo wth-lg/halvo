@@ -125,16 +125,56 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
     }
 
     pub(crate) fn delete(&self) -> Delete {
-        match self.read() {
+        let own = match self.read() {
             Read::Found(_) => match self.keeps {
                 Keeps::File => self.file.delete(),
                 Keeps::Keychain => self.keychain.delete(),
             },
             Read::NotStored => Delete::NotStored,
-            Read::Locked(locked) => Delete::Locked(locked),
-            Read::Fault(fault) => Delete::Fault(fault),
+            Read::Locked(locked) => return Delete::Locked(locked),
+            Read::Fault(fault) => return Delete::Fault(fault),
+        };
+        match own {
+            Delete::Deleted => match self.other_place() {
+                Other::Empty => Delete::Deleted,
+                Other::Holds => Delete::Fault(Fault { code: -1 }),
+                Other::Locked(Locked::Refused { code }) => Delete::Fault(Fault { code }),
+                Other::Locked(_) => Delete::Fault(Fault { code: -1 }),
+                Other::Fault(fault) => Delete::Fault(fault),
+            },
+            Delete::NotStored => match self.other_place() {
+                Other::Empty => Delete::NotStored,
+                Other::Holds => Delete::Locked(Locked::OtherStore),
+                Other::Locked(locked) => Delete::Locked(locked),
+                Other::Fault(fault) => Delete::Fault(fault),
+            },
+            answer => answer,
         }
     }
+
+    fn other_place(&self) -> Other {
+        match self.keeps {
+            Keeps::File => match self.keychain.count() {
+                Ok(0) => Other::Empty,
+                Ok(_) => Other::Holds,
+                Err(Ok(locked)) => Other::Locked(locked),
+                Err(Err(fault)) => Other::Fault(fault),
+            },
+            Keeps::Keychain => match self.file.read() {
+                Read::NotStored => Other::Empty,
+                Read::Found(_) => Other::Holds,
+                Read::Locked(locked) => Other::Locked(locked),
+                Read::Fault(fault) => Other::Fault(fault),
+            },
+        }
+    }
+}
+
+enum Other {
+    Empty,
+    Holds,
+    Locked(Locked),
+    Fault(Fault),
 }
 
 fn not_moved(failed: Option<Result<Fault, Locked>>) -> Read {

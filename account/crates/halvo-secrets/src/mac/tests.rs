@@ -206,7 +206,7 @@ impl FileSide for File {
 
 struct Keys {
     items: RefCell<Vec<Vec<u8>>>,
-    fail: Vec<(&'static str, i32)>,
+    fail: Vec<(&'static str, usize, i32)>,
     gives_back_other_bytes: bool,
     drops_adds: bool,
     racing: Option<Vec<u8>>,
@@ -244,15 +244,24 @@ impl Keys {
         Keys::holding(&[])
     }
 
-    fn failing(mut self, op: &'static str, code: i32) -> Keys {
-        self.fail.push((op, code));
+    fn failing(self, op: &'static str, code: i32) -> Keys {
+        self.failing_from(op, 1, code)
+    }
+
+    fn failing_from(mut self, op: &'static str, call: usize, code: i32) -> Keys {
+        self.fail.push((op, call, code));
         self
     }
 
     fn check(&self, op: &'static str) -> Result<(), i32> {
         self.log.borrow_mut().push(op);
-        match self.fail.iter().find(|(name, _)| *name == op) {
-            Some((_, code)) => Err(*code),
+        let calls = self.log.borrow().iter().filter(|done| **done == op).count();
+        match self
+            .fail
+            .iter()
+            .find(|(name, from, _)| *name == op && calls >= *from)
+        {
+            Some((_, _, code)) => Err(*code),
             None => Ok(()),
         }
     }
@@ -849,6 +858,148 @@ fn a_read_never_answers_not_stored_when_another_store_moves_the_file_between_its
     let read = store.read();
     assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
     assert_eq!(*items.borrow(), [FILE.to_vec()]);
+}
+
+struct MovedUnderTheDelete {
+    bytes: RefCell<Option<Vec<u8>>>,
+    keys: Items,
+    removes: bool,
+}
+
+impl FileSide for MovedUnderTheDelete {
+    fn read(&self) -> Read {
+        match self.bytes.borrow().clone() {
+            Some(bytes) => Read::Found(Secret::new(bytes).expect("a secret")),
+            None => Read::NotStored,
+        }
+    }
+
+    fn write(&self, _secret: &Secret) -> Write {
+        Write::Occupied
+    }
+
+    fn delete(&self) -> Delete {
+        let held = self.bytes.borrow_mut().take();
+        if let Some(bytes) = held {
+            self.keys.borrow_mut().push(bytes);
+        }
+        if self.removes {
+            Delete::Deleted
+        } else {
+            Delete::NotStored
+        }
+    }
+
+    fn remove_if_holds(&self, _bytes: &[u8]) -> Claim {
+        Claim::Absent
+    }
+}
+
+fn moved_under_the_delete(removes: bool) -> (Mac<MovedUnderTheDelete, SharedKeys>, Items) {
+    let items: Items = Rc::new(RefCell::new(Vec::new()));
+    let store = Mac {
+        keeps: Keeps::File,
+        file: MovedUnderTheDelete {
+            bytes: RefCell::new(Some(FILE.to_vec())),
+            keys: Rc::clone(&items),
+            removes,
+        },
+        keychain: KeychainItem {
+            keychain: SharedKeys {
+                items: Rc::clone(&items),
+            },
+            service: Name::new("dev.halvo.test").expect("a service"),
+            account: Name::new("account").expect("an account"),
+        },
+    };
+    (store, items)
+}
+
+#[test]
+fn a_delete_that_a_move_overtakes_answers_locked_while_the_keychain_holds_the_credential() {
+    let (store, items) = moved_under_the_delete(false);
+    assert_eq!(store.delete(), Delete::Locked(Locked::OtherStore));
+    assert_eq!(*items.borrow(), [FILE.to_vec()]);
+}
+
+#[test]
+fn a_delete_whose_removal_took_effect_while_the_keychain_gained_the_credential_answers_a_fault() {
+    let (store, items) = moved_under_the_delete(true);
+    assert_eq!(store.delete(), Delete::Fault(Fault { code: -1 }));
+    assert_eq!(*items.borrow(), [FILE.to_vec()]);
+}
+
+#[test]
+fn a_delete_of_a_build_with_the_feature_beside_a_file_it_cannot_read_answers_a_fault() {
+    for (fails, code) in [
+        (Fails::Locked(refused(13)), 13),
+        (Fails::Locked(Locked::Ancestor), -1),
+        (Fails::Fault(Fault { code: 5 }), 5),
+    ] {
+        let store = mac(
+            Keeps::Keychain,
+            File::holding(FILE).failing_read(fails),
+            Keys::holding(&[FILE]),
+        );
+        assert_eq!(store.delete(), Delete::Fault(Fault { code }));
+        assert!(store.keychain.keychain.items().is_empty());
+        assert_eq!(store.file.bytes(), Some(FILE.to_vec()));
+    }
+}
+
+#[test]
+fn a_delete_answers_from_both_places() {
+    let store = mac(Keeps::File, File::holding(FILE), Keys::empty());
+    assert_eq!(store.delete(), Delete::Deleted);
+    let store = mac(Keeps::Keychain, File::empty(), Keys::holding(&[FILE]));
+    assert_eq!(store.delete(), Delete::Deleted);
+
+    for code in [AUTH_FAILED, NOT_AVAILABLE] {
+        let store = mac(
+            Keeps::File,
+            File::holding(FILE),
+            Keys::empty().failing_from("count", 2, code),
+        );
+        assert_eq!(
+            store.delete(),
+            Delete::Fault(Fault {
+                code: i64::from(code)
+            })
+        );
+        assert_eq!(store.file.bytes(), None);
+    }
+
+    for keeps in [Keeps::File, Keeps::Keychain] {
+        let store = mac(keeps, File::empty(), Keys::empty());
+        assert_eq!(store.delete(), Delete::NotStored, "{keeps:?}");
+    }
+
+    let store = mac(
+        Keeps::File,
+        File::holding(FILE).failing_delete(Fails::Absent),
+        Keys::empty().failing_from("count", 2, AUTH_FAILED),
+    );
+    assert_eq!(store.delete(), Delete::Locked(refused(AUTH_FAILED)));
+    let store = mac(
+        Keeps::File,
+        File::holding(FILE).failing_delete(Fails::Absent),
+        Keys::empty().failing_from("count", 2, NOT_AVAILABLE),
+    );
+    assert_eq!(store.delete(), Delete::Fault(fault(NOT_AVAILABLE)));
+
+    let store = mac(
+        Keeps::Keychain,
+        File::empty(),
+        Keys::holding(&[FILE]).failing("delete", ITEM_NOT_FOUND),
+    );
+    assert_eq!(store.delete(), Delete::NotStored);
+
+    let store = mac(
+        Keeps::File,
+        File::holding(FILE).failing_delete(Fails::Locked(Locked::Mode)),
+        Keys::empty(),
+    );
+    assert_eq!(store.delete(), Delete::Locked(Locked::Mode));
 }
 
 #[test]
