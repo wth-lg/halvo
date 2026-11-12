@@ -31,6 +31,7 @@ runs the jar. Nothing of the product links it and no bundle ships it (L0.8).
 |---|---|
 | `Admit.tla` | the model: the step relation of one edit, the system, the properties Q1 to Q14 |
 | `Admit.cfg` | the configuration that TLC checks |
+| `Small.cfg` | the small bound that `scripts/r5/ci.d/30-r5-formal.sh` checks in every push: `Admit.cfg` with `RunsMax` 3 and `RunsOnBothSteps` 2 |
 | `Reach.tla` | states and steps that the system must be able to reach, each with its negation for TLC to violate |
 | `Export.tla`, `Export.cfg` | the module and the configuration under which TLC prints the table and the traces |
 | `export.sh` | the only writer of the two files below |
