@@ -205,12 +205,6 @@ fn strings(value: Option<&Value>) -> Result<Vec<String>, SeedRefused> {
 }
 
 fn with_port(origin: &str, port: u16) -> Option<WebOrigin> {
-    let host = origin
-        .strip_prefix("http://")
-        .or_else(|| origin.strip_prefix("https://"))?;
-    if host.contains(':') {
-        return None;
-    }
     WebOrigin::parse(&format!("{origin}:{port}")).ok()
 }
 

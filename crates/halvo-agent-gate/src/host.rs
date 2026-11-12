@@ -16,6 +16,7 @@ const NANOS_PER_DAY: i128 = 86_400 * 1_000_000_000;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Sent {
     pub op: &'static str,
+    pub body: CoordinatorCall,
     pub answer: Result<CoordinatorReply, ErrorName>,
 }
 
@@ -63,6 +64,7 @@ impl GateHost {
         };
         self.sent.push(Sent {
             op: body.op(),
+            body: body.clone(),
             answer: answer.clone(),
         });
         answer

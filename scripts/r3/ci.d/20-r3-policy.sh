@@ -189,8 +189,10 @@ measure() {
 stub_presets() {
   for category in $categories; do
     result=valid
+    autonomy=draft_and_confirm
     [ "$category" = email ] && result=$fx_preset_email
-    printf 'preset category=%s runtime=web autonomy=draft_and_confirm result=%s%s\n' "$category" "$result" "$eol"
+    [ "$category" = email ] && autonomy=$fx_preset_email_autonomy
+    printf 'preset category=%s runtime=web autonomy=%s result=%s%s\n' "$category" "$autonomy" "$result" "$eol"
   done
   printf '%s%s\n' "$fx_presets_last" "$eol"
   return "$fx_presets_code"
@@ -295,6 +297,7 @@ fixture() {
   dirty_now=no
   fx_dirty_after=
   fx_preset_email=valid
+  fx_preset_email_autonomy=draft_and_confirm
   fx_presets_last=$want_presets
   fx_presets_code=0
   fx_configs_drop=0
@@ -372,6 +375,10 @@ self_test() {
 
   fixture presets-unattended
   fx_presets_last='presets seeds=10 valid=10 unattended=1'
+  check FAIL-presets 'policy presets=miss configs=ok'
+
+  fixture preset-unattended-line
+  fx_preset_email_autonomy=unattended
   check FAIL-presets 'policy presets=miss configs=ok'
 
   fixture presets-exit-1

@@ -6,8 +6,9 @@ use halvo_agent_gate::seed::{
 };
 use halvo_agent_gate::GateHost;
 use halvo_schema::executable::body::LoadReply;
+use halvo_schema::executable::names::Way;
 use halvo_schema::executable::{
-    AgentBindings, CoordinatorCall, RunId, RunnerCall, RunnerReply, WebOrigin,
+    AgentBindings, AgentRun, CoordinatorCall, RunId, RunnerCall, RunnerReply, WebOrigin,
 };
 use halvo_schema::{AgentId, ErrorName, SeedCategory};
 use serde_json::{json, Value};
@@ -448,5 +449,57 @@ fn a_stopped_run_names_the_body_and_the_refusal() {
     assert_eq!(
         stopped.to_string(),
         "the seed's body set_bindings was refused with binding"
+    );
+}
+
+#[test]
+fn every_add_origin_names_the_way_sign_in_and_the_run_given() {
+    let binding = seed_binding(&seed_file(3), SeedTask::Bill, PORT).expect("a binding");
+    let mut host = GateHost::new();
+    let run = run_id(9);
+    let p = prepare(&mut host, SeedTask::Bill, &binding, &run).expect("binds");
+    let mut origins = Vec::new();
+    for sent in host.sent() {
+        match &sent.body {
+            CoordinatorCall::AddOrigin(b) => {
+                assert_eq!(b.way, Way::SignIn);
+                assert_eq!(b.run, run);
+                assert_eq!(b.workflow, p.workflow);
+                assert_eq!(b.agent, p.agent);
+                origins.push(b.origin.clone());
+            }
+            CoordinatorCall::SetBindings(b) => assert_eq!(b.slots, binding.slots),
+            CoordinatorCall::CreateAgent(b) => assert_eq!(b.agent, p.agent),
+            other => panic!("a body that the gate run does not send: {}", other.op()),
+        }
+    }
+    assert_eq!(origins, binding.origins);
+}
+
+#[test]
+fn the_record_of_end_run_holds_the_day_of_the_request() {
+    let binding = seed_binding(&seed_file(1), SeedTask::Cleanup, PORT).expect("a binding");
+    let mut host = GateHost::new();
+    let run = run_id(10);
+    let p = prepare(&mut host, SeedTask::Cleanup, &binding, &run).expect("binds");
+    let day = |d: std::time::Duration| (d.as_secs() / 86_400) as u32;
+    let epoch = std::time::UNIX_EPOCH;
+    let before = day(std::time::SystemTime::now()
+        .duration_since(epoch)
+        .expect("after 1970"));
+    let end = json!({"op": "end_run", "workflow": p.workflow.as_str(), "agent": p.agent.as_str(), "run": run.as_str()});
+    let end = CoordinatorCall::parse(end.to_string().as_bytes()).expect("an end_run body");
+    assert!(host.send(&end).is_ok());
+    let after = day(std::time::SystemTime::now()
+        .duration_since(epoch)
+        .expect("after 1970"));
+    let mut days = Vec::new();
+    host.rows().for_each("agent_run", &mut |row| {
+        days.push(AgentRun::parse(row.as_bytes()).expect("a run record").day);
+    });
+    assert_eq!(days.len(), 1);
+    assert!(
+        (before..=after).contains(&days[0]),
+        "{days:?} {before} {after}"
     );
 }

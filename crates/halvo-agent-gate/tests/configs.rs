@@ -1,7 +1,9 @@
 mod common;
 
 use common::Guarded;
-use halvo_agent_gate::configs::{config_line, configs, ConfigResult, Configs, StateRead};
+use halvo_agent_gate::configs::{
+    config_line, configs, ConfigLine, ConfigResult, Configs, StateRead,
+};
 use halvo_agent_gate::GateHost;
 use halvo_schema::{AgentId, ErrorName, SeedCategory, Workflow, WorkflowId};
 use serde_json::json;
@@ -185,4 +187,43 @@ fn the_binary_refuses_other_arguments_with_usage() {
 
 fn declared(name: &str) -> ErrorName {
     ErrorName::read(name).expect("a declared error name")
+}
+
+fn good_line(category: SeedCategory) -> ConfigLine {
+    ConfigLine {
+        category,
+        stored: true,
+        state: StateRead::Approved,
+        agent_set: true,
+        result: ConfigResult::Valid,
+    }
+}
+
+#[test]
+fn a_line_passes_only_when_every_field_holds() {
+    assert!(good_line(SeedCategory::Email).pass());
+    let mut not_stored = good_line(SeedCategory::Email);
+    not_stored.stored = false;
+    let mut active = good_line(SeedCategory::Email);
+    active.state = StateRead::Active;
+    let mut no_agent = good_line(SeedCategory::Email);
+    no_agent.agent_set = false;
+    let mut invalid = good_line(SeedCategory::Email);
+    invalid.result = ConfigResult::Missing;
+    for line in [not_stored, active, no_agent, invalid] {
+        assert!(!line.pass(), "{}", line.render());
+    }
+}
+
+#[test]
+fn a_report_passes_only_with_one_line_per_category_in_order() {
+    let all: Vec<ConfigLine> = SeedCategory::ALL.iter().map(|&c| good_line(c)).collect();
+    assert!(Configs::from_lines(all.clone()).pass());
+    assert!(!Configs::from_lines(all[..9].to_vec()).pass());
+    let mut longer = all.clone();
+    longer.push(good_line(SeedCategory::Email));
+    assert!(!Configs::from_lines(longer).pass());
+    let mut swapped = all;
+    swapped.swap(0, 1);
+    assert!(!Configs::from_lines(swapped).pass());
 }
