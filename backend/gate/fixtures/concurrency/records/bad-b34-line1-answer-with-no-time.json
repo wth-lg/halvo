@@ -1,0 +1,18 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 1",
+  "about": "the driver recorded no time for the answer",
+  "source": "by hand",
+  "request": {
+    "headersAt": null
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}
