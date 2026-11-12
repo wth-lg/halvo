@@ -169,11 +169,11 @@ ensure_pnpm() {
   prefix=$1
   field=$(sed -n 's/.*"packageManager": "pnpm@\([^"]*\)".*/\1/p' backend/package.json)
   pinned=$(printf '%s\n' "$field" | sed -n 's/^\([0-9][0-9.]*\)+sha512\.[0-9a-f]\{128\}$/\1/p')
-  pinned_sum=$(printf '%s\n' "$field" | sed -n 's/^[0-9][0-9.]*+sha512\.\([0-9a-f]\{128\}\)$/\1/p')
-  if [ -z "$pinned" ] || [ -z "$pinned_sum" ]; then
+  if [ -z "$pinned" ]; then
     echo "prerequisites: error: backend/package.json pins no pnpm version with its sha512 under packageManager, as pnpm@<version>+sha512.<128 hex digits>" >&2
     return 1
   fi
+  pinned_sum=${field#"$pinned"+sha512.}
   user_path=$PATH
   PATH="$prefix/bin:$prefix:$PATH"
   export PATH
@@ -604,6 +604,14 @@ EOF
   name='a backend/package.json that pins no pnpm stops the step before anything is installed'
   new_backend_case backend-no-pin
   printf '{\n  "name": "halvo-backend"\n}\n' >"$case_dir/repo/backend/package.json"
+  run_ensure_backend fails
+  [ ! -s "$case_dir/calls" ] || problems="$problems; a command ran: $(tr '\n' ';' <"$case_dir/calls")"
+  [ "$(count 'backend/package.json pins no pnpm version with its sha512' "$case_dir/output")" = 1 ] || problems="$problems; no line names the missing pin"
+  verdict "$name"
+
+  name='a backend/package.json that pins a pnpm version without its sha512 stops the step before anything is installed'
+  new_backend_case backend-pin-without-hash
+  printf '{\n  "packageManager": "pnpm@12.14.0"\n}\n' >"$case_dir/repo/backend/package.json"
   run_ensure_backend fails
   [ ! -s "$case_dir/calls" ] || problems="$problems; a command ran: $(tr '\n' ';' <"$case_dir/calls")"
   [ "$(count 'backend/package.json pins no pnpm version with its sha512' "$case_dir/output")" = 1 ] || problems="$problems; no line names the missing pin"
