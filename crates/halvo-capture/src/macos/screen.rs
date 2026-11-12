@@ -57,6 +57,9 @@ define_class!(
 impl ScreenOutput {
     fn new(sink: SinkHandle, foreground: ForegroundReader) -> Retained<Self> {
         let this = Self::alloc().set_ivars(ScreenIvars { sink, foreground });
+        // SAFETY: `this` is a fresh allocation of this class with its ivars set,
+        // and `init` is NSObject's initializer: it takes no argument and returns
+        // the object it was sent to.
         unsafe { msg_send![super(this), init] }
     }
 }
@@ -74,14 +77,24 @@ fn filter_excluding_self(
     display: &SCDisplay,
 ) -> Retained<SCContentFilter> {
     let my_pid = std::process::id() as i32;
+    // SAFETY: `content` is a live SCShareableContent that the caller holds, and
+    // `applications` is a property getter that takes no argument.
     let apps = unsafe { content.applications() };
     let excluded: Vec<Retained<SCRunningApplication>> = apps
         .iter()
-        .filter(|a| unsafe { a.processID() } == my_pid)
+        .filter(|a| {
+            // SAFETY: `a` is a retained element of `apps`, and `processID` is a
+            // property getter that takes no argument.
+            let pid = unsafe { a.processID() };
+            pid == my_pid
+        })
         .collect();
     let excluded_refs: Vec<&SCRunningApplication> = excluded.iter().map(|r| &**r).collect();
     let excluded_apps = NSArray::from_slice(&excluded_refs);
     let no_windows: Retained<NSArray<SCWindow>> = NSArray::new();
+    // SAFETY: the receiver is a fresh allocation of SCContentFilter; `display`
+    // and the two arrays live past the call, and the arrays hold the element
+    // types that the initializer declares.
     unsafe {
         SCContentFilter::initWithDisplay_excludingApplications_exceptingWindows(
             SCContentFilter::alloc(),
@@ -121,10 +134,12 @@ fn fetch_shareable_content() -> Option<Retained<SCShareableContent>> {
     let (tx, rx): (Sender<Option<Retained<SCShareableContent>>>, _) = channel();
     let handler = RcBlock::new(
         move |content: *mut SCShareableContent, _err: *mut NSError| {
-            // SAFETY: ScreenCaptureKit hands us a +0 reference; retain it to own it.
             let retained = if content.is_null() {
                 None
             } else {
+                // SAFETY: `content` is not null, and ScreenCaptureKit hands the
+                // handler a +0 reference to a live SCShareableContent; retaining
+                // it takes ownership.
                 unsafe { Retained::retain(content) }
             };
             let _ = tx.send(retained);
@@ -144,6 +159,8 @@ impl CaptureSource for ScreenSource {
         let content = fetch_shareable_content()
             .ok_or(CaptureError::PermissionDenied(Modality::ScreenFrame))?;
 
+        // SAFETY: `content` is a live, retained SCShareableContent, and
+        // `displays` is a property getter that takes no argument.
         let displays = unsafe { content.displays() };
         let display = displays
             .iter()
@@ -152,7 +169,12 @@ impl CaptureSource for ScreenSource {
 
         let filter = filter_excluding_self(&content, &display);
 
+        // SAFETY: `new` allocates and initializes a default configuration and
+        // takes no argument.
         let config = unsafe { SCStreamConfiguration::new() };
+        // SAFETY: the setters run on a configuration that only this function
+        // holds, before a stream reads it; `display` is live, and the interval
+        // is a CMTime with a positive timescale.
         unsafe {
             config.setWidth(display.width() as usize);
             config.setHeight(display.height() as usize);
@@ -160,6 +182,8 @@ impl CaptureSource for ScreenSource {
         }
 
         let output = ScreenOutput::new(sink, self.foreground.clone());
+        // SAFETY: the receiver is a fresh allocation of SCStream; `filter` and
+        // `config` live past the call, and the delegate may be nil.
         let stream = unsafe {
             SCStream::initWithFilter_configuration_delegate(
                 SCStream::alloc(),
@@ -170,6 +194,9 @@ impl CaptureSource for ScreenSource {
         };
         let queue = DispatchQueue::new("com.halvo.capture.screen", None);
         let proto: &ProtocolObject<dyn SCStreamOutput> = ProtocolObject::from_ref(&*output);
+        // SAFETY: `stream` is live; `proto` is `output`, which this source keeps
+        // until `stop` has stopped the stream, and `queue` is a serial dispatch
+        // queue that the source keeps as long.
         unsafe {
             stream
                 .addStreamOutput_type_sampleHandlerQueue_error(
@@ -189,6 +216,8 @@ impl CaptureSource for ScreenSource {
                 let _ = stx.send(());
             })
         };
+        // SAFETY: `stream` is live, and the handler has the completion signature
+        // `void (^)(NSError *)`; it only stores a flag and sends on a channel.
         unsafe { stream.startCaptureWithCompletionHandler(Some(&handler)) };
         let _ = srx.recv_timeout(Duration::from_secs(5));
         if !started.load(Ordering::Relaxed) {
@@ -207,6 +236,8 @@ impl CaptureSource for ScreenSource {
             let handler = RcBlock::new(move |_err: *mut NSError| {
                 let _ = tx.send(());
             });
+            // SAFETY: `stream` is live, and the handler has the completion
+            // signature `void (^)(NSError *)`; it only sends on a channel.
             unsafe { stream.stopCaptureWithCompletionHandler(Some(&handler)) };
             let _ = rx.recv_timeout(Duration::from_secs(5));
         }

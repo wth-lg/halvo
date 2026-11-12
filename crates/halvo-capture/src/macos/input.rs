@@ -269,6 +269,8 @@ impl CaptureSource for InputSource {
                     }
                 };
                 let run_loop = CFRunLoop::get_current();
+                // SAFETY: `kCFRunLoopCommonModes` is a constant CFString that
+                // CoreFoundation exports and never writes; reading it has no effect.
                 run_loop.add_source(&source, unsafe { kCFRunLoopCommonModes });
                 tap.enable();
                 let _ = loop_tx.send(Ok(run_loop));

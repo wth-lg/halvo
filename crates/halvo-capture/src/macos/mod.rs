@@ -1,4 +1,5 @@
 //! macOS capture backend.
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 pub mod apps;
 pub mod audio;

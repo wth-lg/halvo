@@ -1,4 +1,5 @@
 //! macOS secure-input guard.
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 use crate::macos::screen::self_exclusion_enforced_in_filter;
 use crate::secure_input::{SecureInputError, SecureInputGuard, SecureInputState};
