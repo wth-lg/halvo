@@ -380,7 +380,9 @@ fn is_windows_absolute(path: &str) -> bool {
 #[cfg(windows)]
 mod registry {
     use windows::core::PCWSTR;
-    use windows::Win32::Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, WIN32_ERROR};
+    use windows::Win32::Foundation::{
+        ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, ERROR_UNSUPPORTED_TYPE, WIN32_ERROR,
+    };
     use windows::Win32::System::Registry::{
         RegCloseKey, RegCreateKeyExW, RegDeleteKeyValueW, RegGetValueW, RegSetValueExW, HKEY,
         HKEY_CURRENT_USER, KEY_SET_VALUE, REG_OPTION_NON_VOLATILE, REG_SZ, RRF_RT_REG_SZ,
@@ -451,7 +453,11 @@ mod registry {
 
     pub fn write(spec: &StartValueSpec) -> std::io::Result<InstallOutcome> {
         let data = spec.data();
-        if read(spec)?.as_deref() == Some(data.as_str()) {
+        let stored = match read(spec) {
+            Err(e) if e.raw_os_error() == Some(ERROR_UNSUPPORTED_TYPE.0 as i32) => None,
+            stored => stored?,
+        };
+        if stored.as_deref() == Some(data.as_str()) {
             return Ok(InstallOutcome::Unchanged);
         }
         let (key, name) = (wide(spec.key()), wide(spec.value_name()));
@@ -1050,5 +1056,33 @@ mod start_value_registry_tests {
         assert_eq!(remove_start_value(&spec).unwrap(), RemoveOutcome::Removed);
         assert_eq!(read_start_value(&spec).unwrap(), None);
         assert_eq!(remove_start_value(&spec).unwrap(), RemoveOutcome::Absent);
+    }
+
+    #[test]
+    fn a_start_value_of_another_type_is_replaced_by_the_string() {
+        let scratch = ScratchKey(format!(r"Software\Halvo-Test-Type-{}", std::process::id()));
+        let spec =
+            StartValueSpec::with_key(&scratch.0, RUN_VALUE_NAME, Path::new(r"C:\Halvo\halvo.exe"))
+                .unwrap();
+        for (kind, data) in [
+            ("REG_DWORD", "1"),
+            ("REG_BINARY", "00"),
+            ("REG_MULTI_SZ", "x"),
+        ] {
+            let status = std::process::Command::new("reg")
+                .args(["add", &format!(r"HKCU\{}", scratch.0), "/v", RUN_VALUE_NAME])
+                .args(["/t", kind, "/d", data, "/f"])
+                .status()
+                .unwrap();
+            assert!(status.success(), "reg add {kind}");
+            let written = write_start_value(&spec);
+            println!("a stored {kind}: write={written:?}");
+            assert_eq!(written.unwrap(), InstallOutcome::Written, "{kind}");
+            assert_eq!(
+                read_start_value(&spec).unwrap(),
+                Some(spec.data()),
+                "{kind}"
+            );
+        }
     }
 }
