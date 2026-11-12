@@ -153,63 +153,61 @@ the newest.
 ## The wrong designs
 
 `Fault` is `"none"` in `Admit.cfg`. Each other value puts one wrong design in place of
-the rule. The table gives what TLC reports when it checks such a copy with every
-property of `Admit.cfg` and one worker: the first property that the search meets. A
-design may break others too. In the column of the bound, `3 runs` is `RunsMax` 3 with
-`RunsOnBothSteps` 2, `4 runs` is `RunsMax` 4 with `RunsOnBothSteps` 2, and `one step` is
-`RunsOnBothSteps` 0; each is a part of the bound of `Admit.cfg`. The outputs of the
-column `output` are those of an earlier form of the model, kept in the learning run's
-ledger under `evidence/formal-verification-3/`. `runs.txt` holds each row of this table
-as one line `design <Fault> <RunsMax> <RunsOnBothSteps> <EditMax> <property>`, with the
-bound of the row and the property of its column `TLC reports`, and the check reads that
-file and not this table.
+the rule. The table gives each design, where it comes from and what it changes.
+`runs.txt` gives each design as one line `design <Fault> <RunsMax> <RunsOnBothSteps>
+<EditMax> <property>`: its bound, a part of the bound of `Admit.cfg`, and the property
+that TLC reports when it checks such a copy with every property of `Admit.cfg` and one
+worker, the first that the search meets. A design may break others too. `record.txt`
+gives the distinct states of each run, and the check reads those two files and not this
+table. The outputs of an earlier form of the model are kept in the learning run's ledger
+under `evidence/formal-verification-3/`.
 
-| `Fault` | from | what it changes | TLC reports | distinct states | bound | output |
-|---|---|---|---|---|---|---|
-| `serve_reverted` | L12, the first control copy; review `load_serves_reverted` | `load_steps` may serve a `reverted` edit | Q1 | 1,980 | 3 runs | `runs/w-serve_reverted.txt` |
-| `serve_lower` | review `load_serves_lower` | `load_steps` also reads edits of a lower compile number | Q1 | 603 | 3 runs | `runs/w-serve_lower.txt` |
-| `stale_top` | verifier b1 | `load_steps` chooses the edit under compile number 1, whatever the newest is | Q1 | 603 | 3 runs | `runs/w-stale_top.txt` |
-| `revert_compiled` | review revert-2 | after a revert `load_steps` serves the compiled step, not the `active` edit that the reverted one was built on | Q1 | 88,829 | 5 runs, one step | `runs/w-revert_compiled.txt` |
-| `keep_unverified` | first round | a candidate of a run that is not verified is kept | Q2 | 32 | 3 runs | `runs/w-keep_unverified.txt` |
-| `keep_unrecovered` | first round | a candidate is kept without a `recovered` line | Q2 | 32 | 3 runs | `runs/w-keep_unrecovered.txt` |
-| `no_scope` | first round | `admit` does not answer `scope` | Q3 | 362 | 3 runs | `runs/w-no_scope.txt` |
-| `base_any_state` | first round | the base of a new edit is the newest edit of the step in any state | Q4 | 1,964 | 3 runs | `runs/w-base_any_state.txt` |
-| `no_bar_at_finish` | first round | `admit` bars a locator, the check at `finish` does not | Q5 | 6,889 | 5 runs, one step | `runs/w-no_bar_at_finish.txt` |
-| `revert_active` | first round | `active` with `use_fail_counted` answers `reverted` | Q6 | 13,327 | 5 runs, one step | `runs/w-revert_active.txt` |
-| `double_use` | review uses-1 | one run makes two `use_ok` moves on the edit that it was served | Q6 | 599 | 3 runs | `runs/w-double_use.txt` |
-| `no_pending` | first round | a candidate is kept while the step has a `provisional` edit | Q7 | 821 | 3 runs | `runs/w-no_pending.txt` |
-| `repeat_kept` | first round | a locator that a proposal names twice is new twice | Q7 | 45 | 3 runs | `runs/w-repeat_kept.txt` |
-| `no_cut` | first round | a list is not cut to `ListMax` | Q7 | 9,907 | 3 runs | `runs/w-no_cut.txt` |
-| `stale_base` | first round | a candidate is kept after the compile number changed | Q7Step | 155 | 3 runs | `runs/w-stale_base.txt` |
-| `counted_ignored` | first round, gap 1 | a counted failure makes no move | Q8 | 597 | 3 runs | `runs/w-counted_ignored.txt` |
-| `counted_verified` | review revert-3 | a counted failure reverts only in a verified run | Q8 | 597 | 3 runs | `runs/w-counted_verified.txt` |
-| `ok_first` | review uses-4 | `step_ok` in a verified run wins over a counted line of the same log | Q8 | 600 | 3 runs | `runs/w-ok_first.txt` |
-| `revert_gone` | review revert-1 | a revert writes a row that is not a `reverted` row, so nothing is barred | Q8 | 597 | 3 runs | `runs/w-revert_gone.txt` |
-| `withdraw_last` | first round, gap 2 | `finish` withdraws the edits of a lower number after its use moves | Q9 | 1,993 | 3 runs | `runs/w-withdraw_last.txt` |
-| `no_finish_withdraw` | review restart-2 | `finish` withdraws nothing | Q9 | 1,070 | 3 runs | `runs/w-no_finish_withdraw.txt` |
-| `withdraw_below_loaded` | review restart-2, verifier b9 | `finish` withdraws only below the number that its run loaded | Q9 | 1,070 | 3 runs | `runs/w-withdraw_below_loaded.txt` |
-| `withdraw_newest_too` | review restart-1 | `finish` also withdraws the edits of the newest number | Q9 | 281 | 3 runs | `runs/w-withdraw_newest_too.txt` |
-| `second_commit_provisional_only` | review restart-4 | the compile's second commit withdraws only `provisional` edits | Q9 | 1,981 | 3 runs | `runs/w-second_commit_provisional_only.txt` |
-| `reverted_returns` | second round | a `reverted` edit with `use_ok` answers `provisional` | Q10 | 5,124 | 3 runs | `runs/w-reverted_returns.txt` |
-| `base_first` | review admit-2 | `build_list` puts the base edit's list first | Q11 | 9,858 | 3 runs | `runs/w-base_first.txt` |
-| `cut_front` | review admit-3 | `build_list` cuts from the front | Q11 | 10,850 | 3 runs | `runs/w-cut_front.txt` |
-| `left_ignores_base` | review B4 | `finish` does not take away the locators that the base edit lists | Q11 | 17,280 | 5 runs, one step | `runs/w-left_ignores_base.txt` |
-| `no_full` | review B4, the edit limit | neither `admit` nor the check at `finish` reads the edit limit | Q11 | 13,784 | 3 runs, `EditMax` 2 | `runs/w-no_full.txt` |
-| `compiled_new` | first round | a compiled locator counts as new | Q11Step | 7 | 3 runs | `runs/w-compiled_new.txt` |
-| `no_bar_admit` | review admit-1 | `admit` never answers `rejected`; the check at `finish` stays | Q11Step | 3,193 | 3 runs | `runs/w-no_bar_admit.txt` |
-| `held_compiled_only` | review admit-4 | `new_locators` is taken against the compiled locators alone | Q11Step | 593 | 3 runs | `runs/w-held_compiled_only.txt` |
-| `admit_stale` | LM-9, the model as it stood | `admit` takes a candidate of a run whose compile number is no longer the newest | Q11Step | 52 | 3 runs | `runs/w-admit_stale.txt` |
-| `no_bar` | L12, the second control copy | neither `admit` nor the check at `finish` bars a locator that a `reverted` edit brought | Q11Step | 3,193 | 3 runs | `runs/w-no_bar.txt` |
-| `bar_newest_revert` | verifier b5b | the rule's barred set holds what the newest `reverted` edit brought and no more | Q11Step | 26,343 | 4 runs | `runs/w-bar_newest_revert.txt` |
-| `ok_unverified` | review uses-3, verifier b6 | `use_ok` for a run that is not verified | Q12Step | 598 | 3 runs | `runs/w-ok_unverified.txt` |
-| `other_as_ok` | verifier b6b | `use_ok` for a verified run whose log holds a failure that does not count and no `step_ok` | Q12Step | 598 | 3 runs | `runs/w-other_as_ok.txt` |
-| `never_active` | reader `d12b_never_active` | the clean use that reaches K writes no row, so no edit becomes `active` | Q12Move | 5,143 | 3 runs | `runs/w-never_active.txt` |
-| `use_in_force` | review uses-2, verifier b10 | the use move goes to the edit in force at `finish`, not to the edit that was served | Q13 | 739 | 3 runs | `runs/w-use_in_force.txt` |
-| `lost_finish_moves` | review restart-3 | the `finish` of a lost run makes the use moves | Q13 | 1,099 | 3 runs | `runs/w-lost_finish_moves.txt` |
-| `lost_finish_withdraws` | review restart-3 | the `finish` of a lost run withdraws the edits of a lower number | Q13 | 1,073 | 3 runs | `runs/w-lost_finish_withdraws.txt` |
-| `keep_across_restart` | review restart-3 | a run keeps its facts and its candidates across a restart | Q13 | 11 | 3 runs | `runs/w-keep_across_restart.txt` |
-| `counted_of_either_step` | reader `d13b` | a counted line of one step also counts against the edit that was served on the other step | Q14 | 1,892 | 3 runs | `runs/w-counted_of_either_step.txt` |
-| `never_keep` | reader `dk_never_keep` | `finish` never keeps a candidate, so nothing is learned | nothing | 2,395 | 3 runs | `runs/w-never_keep.txt` |
+| `Fault` | from | what it changes |
+|---|---|---|
+| `serve_reverted` | L12, the first control copy; review `load_serves_reverted` | `load_steps` may serve a `reverted` edit |
+| `serve_lower` | review `load_serves_lower` | `load_steps` also reads edits of a lower compile number |
+| `stale_top` | verifier b1 | `load_steps` chooses the edit under compile number 1, whatever the newest is |
+| `revert_compiled` | review revert-2 | after a revert `load_steps` serves the compiled step, not the `active` edit that the reverted one was built on |
+| `keep_unverified` | first round | a candidate of a run that is not verified is kept |
+| `keep_unrecovered` | first round | a candidate is kept without a `recovered` line |
+| `no_scope` | first round | `admit` does not answer `scope` |
+| `base_any_state` | first round | the base of a new edit is the newest edit of the step in any state |
+| `no_bar_at_finish` | first round | `admit` bars a locator, the check at `finish` does not |
+| `revert_active` | first round | `active` with `use_fail_counted` answers `reverted` |
+| `double_use` | review uses-1 | one run makes two `use_ok` moves on the edit that it was served |
+| `no_pending` | first round | a candidate is kept while the step has a `provisional` edit |
+| `repeat_kept` | first round | a locator that a proposal names twice is new twice |
+| `no_cut` | first round | a list is not cut to `ListMax` |
+| `stale_base` | first round | a candidate is kept after the compile number changed |
+| `counted_ignored` | first round, gap 1 | a counted failure makes no move |
+| `counted_verified` | review revert-3 | a counted failure reverts only in a verified run |
+| `ok_first` | review uses-4 | `step_ok` in a verified run wins over a counted line of the same log |
+| `revert_gone` | review revert-1 | a revert writes a row that is not a `reverted` row, so nothing is barred |
+| `withdraw_last` | first round, gap 2 | `finish` withdraws the edits of a lower number after its use moves |
+| `no_finish_withdraw` | review restart-2 | `finish` withdraws nothing |
+| `withdraw_below_loaded` | review restart-2, verifier b9 | `finish` withdraws only below the number that its run loaded |
+| `withdraw_newest_too` | review restart-1 | `finish` also withdraws the edits of the newest number |
+| `second_commit_provisional_only` | review restart-4 | the compile's second commit withdraws only `provisional` edits |
+| `reverted_returns` | second round | a `reverted` edit with `use_ok` answers `provisional` |
+| `base_first` | review admit-2 | `build_list` puts the base edit's list first |
+| `cut_front` | review admit-3 | `build_list` cuts from the front |
+| `left_ignores_base` | review B4 | `finish` does not take away the locators that the base edit lists |
+| `no_full` | review B4, the edit limit | neither `admit` nor the check at `finish` reads the edit limit |
+| `compiled_new` | first round | a compiled locator counts as new |
+| `no_bar_admit` | review admit-1 | `admit` never answers `rejected`; the check at `finish` stays |
+| `held_compiled_only` | review admit-4 | `new_locators` is taken against the compiled locators alone |
+| `admit_stale` | LM-9, the model as it stood | `admit` takes a candidate of a run whose compile number is no longer the newest |
+| `no_bar` | L12, the second control copy | neither `admit` nor the check at `finish` bars a locator that a `reverted` edit brought |
+| `bar_newest_revert` | verifier b5b | the rule's barred set holds what the newest `reverted` edit brought and no more |
+| `ok_unverified` | review uses-3, verifier b6 | `use_ok` for a run that is not verified |
+| `other_as_ok` | verifier b6b | `use_ok` for a verified run whose log holds a failure that does not count and no `step_ok` |
+| `never_active` | reader `d12b_never_active` | the clean use that reaches K writes no row, so no edit becomes `active` |
+| `use_in_force` | review uses-2, verifier b10 | the use move goes to the edit in force at `finish`, not to the edit that was served |
+| `lost_finish_moves` | review restart-3 | the `finish` of a lost run makes the use moves |
+| `lost_finish_withdraws` | review restart-3 | the `finish` of a lost run withdraws the edits of a lower number |
+| `keep_across_restart` | review restart-3 | a run keeps its facts and its candidates across a restart |
+| `counted_of_either_step` | reader `d13b` | a counted line of one step also counts against the edit that was served on the other step |
+| `never_keep` | reader `dk_never_keep` | `finish` never keeps a candidate, so nothing is learned |
 
 | run | TLC reports | distinct states | bound | output |
 |---|---|---|---|---|

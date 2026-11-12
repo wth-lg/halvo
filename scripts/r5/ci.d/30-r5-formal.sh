@@ -228,7 +228,7 @@ tlc() {
 
 formulas() {
   : >"$tmp/q-lines.txt"
-  [ ! -f "$dir/Admit.tla" ] || grep '^Q[0-9]' "$dir/Admit.tla" >"$tmp/q-lines.txt"
+  [ ! -f "$dir/Admit.tla" ] || grep -E '^[[:blank:]]*(LOCAL[[:blank:]]+)?Q[0-9]' "$dir/Admit.tla" >"$tmp/q-lines.txt"
   odd_q=$(grep -c -v -E '^Q([1-9]|1[0-4])(Step|Move)? ==( |$)' "$tmp/q-lines.txt")
   sed -n -E 's/^(Q([1-9]|1[0-4])(Step|Move)?) ==( .*)?$/\1/p' "$tmp/q-lines.txt" >"$tmp/names.txt" || fail invariant
   sed -E 's/^Q([0-9]+).*$/\1/' "$tmp/names.txt" | sort -u >"$tmp/numbers.txt" || fail invariant
@@ -714,6 +714,7 @@ fixtures() {
   rec="1:FAIL $name (record)"
   whole="designs=$nd reported=$nd reach=$nr reached=$nr"
   cr=$(printf '\r')
+  tab=$(printf '\t')
   a=formal/r5-admit/Admit.cfg
   s=formal/r5-admit/Small.cfg
   t=formal/r5-admit/Admit.tla
@@ -741,6 +742,12 @@ fixtures() {
   fixture scratch-missing
   tmp_as=$work/scratch-missing/no-such-directory
   expect scratch-missing "1:FAIL $name (scratch)" good
+  fixture attributes-text-auto
+  edit attributes-text-auto formal/r5-admit/.gitattributes 's/^\* text eol=lf$/* text=auto eol=lf/'
+  expect attributes-text-auto "1:FAIL $name (attributes)" good '^formal attributes files=12 lf=1'
+  fixture attributes-readme-not-text
+  printf 'README.md -text\n' >>"$work/attributes-readme-not-text/formal/r5-admit/.gitattributes" || fail selftest
+  expect attributes-readme-not-text "1:FAIL $name (attributes)" good '^formal attributes files=12 lf=11'
   fixture attributes-no-eol
   edit attributes-no-eol formal/r5-admit/.gitattributes 's/ eol=lf$//'
   expect attributes-no-eol "1:FAIL $name (attributes)" good 'formal attributes files='
@@ -783,6 +790,21 @@ fixtures() {
   edit formula-two-spaces "$a" '/^    Q7Step$/d'
   edit formula-two-spaces "$s" '/^    Q7Step$/d'
   expect formula-two-spaces "$invariant" good '^formal small result=formulas-form'
+  for c in formula-indented formula-tab formula-local formula-other-suffix; do
+    fixture "$c"
+    case $c in
+      formula-indented) edit "$c" "$t" 's/^Q7Step == /  Q7Step == /' ;;
+      formula-tab) edit "$c" "$t" "s/^Q7Step == /${tab}Q7Step == /" ;;
+      formula-local) edit "$c" "$t" 's/^Q7Step == /LOCAL Q7Step == /' ;;
+      formula-other-suffix) edit "$c" "$t" 's/^Q7Step == /Q7Foo == /' ;;
+    esac
+    edit "$c" "$a" '/^    Q7Step$/d'
+    edit "$c" "$s" '/^    Q7Step$/d'
+    expect "$c" "$invariant" good '^formal small result=formulas-form'
+  done
+  fixture formula-number-15
+  printf 'Q15 == TRUE\n' >>"$work/formula-number-15/$t" || fail selftest
+  expect formula-number-15 "$invariant" good '^formal small result=formulas-form'
   fixture property-out-of-both
   edit property-out-of-both "$t" 's/^Q5 ==/Kept5 ==/'
   edit property-out-of-both "$a" '/^    Q5$/d'
@@ -879,6 +901,13 @@ CONSTRAINT Bound/'
   fixture runs-twice
   edit runs-twice "$ru" '1p'
   expect runs-twice "$rec" good 'runs=twice'
+  fixture runs-design-twice
+  printf 'design no_scope 5 0 3 Q3\n' >>"$work/runs-design-twice/$ru" || fail selftest
+  expect runs-design-twice "$rec" good 'runs=twice'
+  fixture runs-bound-zero
+  edit runs-bound-zero "$ru" 's/^design no_scope 3 2 3 Q3$/design no_scope 0 2 3 Q3/'
+  edit runs-bound-zero "$rt" 's/^design fault=no_scope bound=3-2-3 /design fault=no_scope bound=0-2-3 /'
+  expect runs-bound-zero "$rec" good 'runs=unreadable'
   fixture runs-no-designs
   edit runs-no-designs "$ru" '/^design /d'
   edit runs-no-designs "$rt" '/^design /d'
@@ -913,6 +942,9 @@ CONSTRAINT Bound/'
   fixture record-small-states
   edit record-small-states "$rt" 's/^small config=Small.cfg states=15690$/small config=Small.cfg states=15689/'
   expect record-small-states "$rec" good 'formal record stamp=same full=ok small=differ runs=ok'
+  fixture record-small-longer
+  edit record-small-longer "$rt" 's/^small config=Small.cfg states=15690$/small config=Small.cfg states=156901/'
+  expect record-small-longer "$rec" good 'formal record stamp=same full=ok small=differ runs=ok'
   fixture record-design-missing
   edit record-design-missing "$rt" '/^design fault=no_scope /d'
   expect record-design-missing "$rec" good "designs=$nd reported=$((nd - 1)) reach=$nr reached=$nr"
@@ -928,6 +960,9 @@ CONSTRAINT Bound/'
   fixture record-cr
   edit record-cr "$rt" "s/\$/${cr}/"
   expect record-cr "$rec" good 'lines=cr'
+  fixture record-one-cr
+  edit record-one-cr "$rt" "\$s/\$/${cr}/"
+  expect record-one-cr "$rec" good 'lines=cr'
   fixture record-empty-line
   printf '\n' >>"$work/record-empty-line/$rt" || fail selftest
   expect record-empty-line "$rec" good "stamp=same full=ok small=same runs=ok $whole lines=differ"
