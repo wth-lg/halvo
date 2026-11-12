@@ -16,7 +16,7 @@ const WANTED = [
   'reading trial=window machine=mac arm=a2 system=windows call=set_memory_usage_target_level value=low',
   'reading trial=window machine=mac arm=a2 system=macos expect=same_as_a source=wry-0.57.1 policy_set=only_when_named',
   'reading trial=window machine=mac figure=key_bytes system=macos command=ps',
-  'reading trial=window machine=mac figure=second_bytes system=macos command=footprint',
+  'reading trial=window machine=mac figure=second_bytes system=macos command=proc_pid_rusage',
   'reading trial=window machine=mac figure=cpu_ms system=macos command=ps',
   'reading trial=window machine=mac figure=key_bytes system=windows command=Get-Process',
   'reading trial=window machine=mac figure=second_bytes system=windows command=Get-Process',
@@ -45,8 +45,8 @@ test('a reading whose source no longer says it is not printed, and read.sh says 
   }
   const appRs = path.join(root, 'app', 'src', 'app.rs');
   fs.writeFileSync(appRs, fs.readFileSync(appRs, 'utf8').replace('COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW\n', 'COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL\n'));
-  const sample = path.join(root, 'window', 'sample.sh');
-  fs.writeFileSync(sample, fs.readFileSync(sample, 'utf8').replace('footprint --format bytes', 'vmmap --summary'));
+  const swift = path.join(root, 'window', 'footprint.swift');
+  fs.writeFileSync(swift, fs.readFileSync(swift, 'utf8').replace('info.ri_phys_footprint', 'info.ri_resident_size'));
   const r = read(['--root', root]);
   assert.equal(r.status, 1);
   assert.deepEqual(r.out.filter((l) => l.startsWith('reading ')), WANTED.filter((l) => !/set_memory_usage_target_level|second_bytes system=macos/.test(l)));

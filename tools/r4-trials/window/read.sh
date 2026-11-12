@@ -12,7 +12,8 @@ measure. It starts no app. Each line is printed only when its source says it;
 otherwise a line "read ... found=no" names it.
 
 The sources: the trial app (tools/r4-trials/app/src/app.rs and src/call.js),
-the samplers (tools/r4-trials/window/sample.sh and sample.ps1), and wry 0.57.1,
+the samplers (tools/r4-trials/window/sample.sh, footprint.swift and
+sample.ps1), and wry 0.57.1,
 found with cargo metadata --offline. --root takes another copy of
 tools/r4-trials. Exit: 0 when every line was printed, 1 when one was not,
 2 on a refusal.
@@ -63,6 +64,7 @@ reading() {
 app="$root/app/src/app.rs"
 call="$root/app/src/call.js"
 mac="$root/window/sample.sh"
+fp="$root/window/footprint.swift"
 win="$root/window/sample.ps1"
 
 wry=
@@ -92,8 +94,8 @@ reading "$w arm=a2 system=macos expect=same_as_a source=wry-0.57.1 policy_set=on
   'if let Some(policy) = attributes.background_throttling {'
 reading "$w figure=key_bytes system=macos command=ps" \
   'read trial=window figure=key_bytes system=macos found=no' "$mac" 'rows=$(ps -o pid=,rss=,time= -p "$pids")'
-reading "$w figure=second_bytes system=macos command=footprint" \
-  'read trial=window figure=second_bytes system=macos found=no' "$mac" 'marks=$(footprint --format bytes --noCategories "$@"'
+reading "$w figure=second_bytes system=macos command=proc_pid_rusage" \
+  'read trial=window figure=second_bytes system=macos found=no' "$fp" 'if rc == 0 { print("\(pid) \(info.ri_phys_footprint)") }'
 reading "$w figure=cpu_ms system=macos command=ps" \
   'read trial=window figure=cpu_ms system=macos found=no' "$mac" 'rows=$(ps -o pid=,rss=,time= -p "$pids")'
 reading "$w figure=key_bytes system=windows command=Get-Process" \

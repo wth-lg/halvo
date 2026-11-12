@@ -17,7 +17,8 @@ and one line per process of the tree
   proc pid=<n> start=<n> cpu_ms=<n>
 
 key_bytes: the summed resident size (ps rss). second_bytes: the summed
-physical footprint (footprint). helpers: the processes of the tree other than
+physical footprint (proc_pid_rusage, through footprint.swift, which the
+script builds once with swiftc into a directory under TMPDIR). helpers: the processes of the tree other than
 <pid>. cpu_ms: the processor time of the process so far (ps time).
 load_x100: the 1-minute load average times 100 (sysctl vm.loadavg); ncpu:
 the processor count (sysctl hw.ncpu).
@@ -49,6 +50,22 @@ pid=$1
 here=$(cd "$(dirname "$0")" && pwd) || exit 1
 reader="$here/../app/system/system.mjs"
 
+footprint_bin() {
+  digest=$(shasum -a 256 "$here/footprint.swift" | cut -c1-16) || return 1
+  dir="${TMPDIR:-/tmp}/r4-trial-footprint-$digest"
+  if [ ! -x "$dir/footprint" ]; then
+    mkdir -p "$dir" || return 1
+    swiftc -O -o "$dir/footprint-$$" "$here/footprint.swift" >&2 || return 1
+    mv "$dir/footprint-$$" "$dir/footprint" || return 1
+  fi
+  printf '%s\n' "$dir/footprint"
+}
+
+fp=$(footprint_bin) || {
+  printf 'sample pid=%s found=partial\n' "$pid"
+  exit 1
+}
+
 read_once() {
   tree=$(node "$reader" tree "$pid") || return 2
   count=$(printf '%s\n' "$tree" | sed -n 's/^tree count=\([0-9]*\) webview=[0-9]*$/\1/p')
@@ -59,9 +76,9 @@ read_once() {
   rows=$(ps -o pid=,rss=,time= -p "$pids") || rows=
   set --
   for p in $(printf '%s\n' "$starts" | awk '{ print $1 }'); do
-    set -- "$@" -p "$p"
+    set -- "$@" "$p"
   done
-  marks=$(footprint --format bytes --noCategories "$@" 2>/dev/null | sed -n 's/^ *phys_footprint: \([0-9]*\) B$/\1/p')
+  marks=$("$fp" "$@" | awk 'NF == 2 { print $2 }')
   got=$(printf '%s\n' "$rows" | awk '/[0-9]/ { n += 1 } END { print n + 0 }')
   [ "$got" -eq "$count" ] || return 4
   got=$(printf '%s\n' "$marks" | awk '/[0-9]/ { n += 1 } END { print n + 0 }')
