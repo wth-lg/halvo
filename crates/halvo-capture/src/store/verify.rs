@@ -126,11 +126,6 @@ pub(crate) fn marker_from_env() -> String {
     std::env::var("HALVO_GATE_MARKER").unwrap_or_else(|_| "HALVO_DEFAULT_MARKER".to_string())
 }
 
-pub fn run_store_check() -> StoreResult<StoreCheck> {
-    let dir = StoreDir::from_env();
-    run_store_check_in(&dir.path, &marker_from_env())
-}
-
 pub(crate) fn run_store_check_in(dir: &Path, marker: &str) -> StoreResult<StoreCheck> {
     let root_id = RootId::fresh();
     let _root = DestroyRootOnDrop(root_id);
@@ -365,11 +360,6 @@ impl fmt::Display for DeletionCheck {
             yes_no(self.store_sealed),
         )
     }
-}
-
-pub fn run_deletion_check() -> StoreResult<DeletionCheck> {
-    let dir = StoreDir::from_env();
-    run_deletion_check_in(&dir.path)
 }
 
 pub(crate) fn run_deletion_check_in(dir: &Path) -> StoreResult<DeletionCheck> {
