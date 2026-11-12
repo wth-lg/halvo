@@ -333,13 +333,15 @@ impl Db {
             "PRAGMA secure_delete = ON;\n\
              PRAGMA temp_store = MEMORY;\n\
              PRAGMA foreign_keys = ON;\n\
-             PRAGMA checkpoint_fullfsync = ON;",
+             PRAGMA checkpoint_fullfsync = ON;\n\
+             PRAGMA cipher_log_level = NONE;",
         )
         .map_err(db_error)?;
         require_write_ahead_log(&conn)?;
         require_secure_delete(&conn)?;
         require_exclusive_locking(&conn)?;
         require_checkpoint_fullfsync(&conn)?;
+        require_cipher_log_level_none(&conn)?;
         require_pinned_cipher(&conn)?;
         let db = Self {
             conn,
@@ -633,6 +635,17 @@ fn require_exclusive_locking(conn: &Connection) -> StoreResult<()> {
         Ok(())
     } else {
         Err(StoreError::SettingNotInEffect("locking_mode"))
+    }
+}
+
+fn require_cipher_log_level_none(conn: &Connection) -> StoreResult<()> {
+    let level: String = conn
+        .query_row("PRAGMA cipher_log_level", [], |r| r.get(0))
+        .map_err(db_error)?;
+    if level == "NONE" {
+        Ok(())
+    } else {
+        Err(StoreError::SettingNotInEffect("cipher_log_level"))
     }
 }
 
@@ -1165,6 +1178,7 @@ mod tests {
         };
         assert_eq!(text("PRAGMA journal_mode"), "wal");
         assert_eq!(text("PRAGMA main.locking_mode"), "exclusive");
+        assert_eq!(text("PRAGMA cipher_log_level"), "NONE");
         assert_eq!(db.cipher_provider().unwrap(), "libtomcrypt");
         assert!(
             text("PRAGMA cipher_version").starts_with("4.19.0"),
