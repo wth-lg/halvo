@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,21 +78,39 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 30-app-page-test 31-app-page-layout 32-app-check-page
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 30-app-page-test 31-app-page-layout 32-app-check-page
+      - name: Mutants of the check flag (scratch only)
+        shell: bash
+        run: |
+          set -u
+          kill_check() {
+            what=$1
+            git diff --stat
+            out=$(sh scripts/ci/run-ci-d.sh macos 32-app-check-page 2>&1) && code=0 || code=$?
+            printf '%s\n' "$out" | grep -E '^(check-page|seconds 32|PASS|FAIL)' || true
+            git checkout -- src-tauri/src/app.rs src-tauri/capabilities/capture.json
+            case $out in
+              *'FAIL 32-app-check-page (halvo --check-page exited'*) killed=true ;;
+              *) killed=false ;;
+            esac
+            echo "mutant $what: driver exit $code, killed by the check line: $killed"
+            [ "$code" -ne 0 ] && [ "$killed" = true ] || return 1
+          }
+          perl -0pi -e 's/        \.setup\(move \|app\| \{\n/        .setup(move |app| {\n            return Err("mutant: the set-up fails".into());\n/' src-tauri/src/app.rs
+          kill_check setup-returns-err
+          perl -ni -e 'print unless /"allow-inventory",/' src-tauri/capabilities/capture.json
+          kill_check capability-without-inventory
+          git status --porcelain
+          test -z "$(git status --porcelain)"
       - name: Build
         shell: bash
         run: npm run tauri build
       - name: Version
         shell: bash
         run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -140,21 +147,39 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 30-app-page-test 32-app-check-page
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 30-app-page-test 32-app-check-page
+      - name: Mutants of the check flag (scratch only)
+        shell: bash
+        run: |
+          set -u
+          kill_check() {
+            what=$1
+            git diff --stat
+            out=$(sh scripts/ci/run-ci-d.sh windows 32-app-check-page 2>&1) && code=0 || code=$?
+            printf '%s\n' "$out" | grep -E '^(check-page|seconds 32|PASS|FAIL)' || true
+            git checkout -- src-tauri/src/app.rs src-tauri/capabilities/capture.json
+            case $out in
+              *'FAIL 32-app-check-page (halvo --check-page exited'*) killed=true ;;
+              *) killed=false ;;
+            esac
+            echo "mutant $what: driver exit $code, killed by the check line: $killed"
+            [ "$code" -ne 0 ] && [ "$killed" = true ] || return 1
+          }
+          perl -0pi -e 's/        \.setup\(move \|app\| \{\n/        .setup(move |app| {\n            return Err("mutant: the set-up fails".into());\n/' src-tauri/src/app.rs
+          kill_check setup-returns-err
+          perl -ni -e 'print unless /"allow-inventory",/' src-tauri/capabilities/capture.json
+          kill_check capability-without-inventory
+          git status --porcelain
+          test -z "$(git status --porcelain)"
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
       - name: Version
         shell: bash
         run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
