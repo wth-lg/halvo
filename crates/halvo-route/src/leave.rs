@@ -90,9 +90,9 @@ impl LeaveCause {
 /// The leave for one model request to leave the machine. It has a private field, no public maker
 /// but `grant`, and neither `Clone` nor `Copy`, so one grant serves one request. Its field is of a
 /// private type of no size that is neither `Clone` nor `Copy` either, so no code can copy a grant
-/// from a borrowed one by a struct update. `grant` makes one
-/// only in a build that sets `cfg(test)`, as the crate's own unit tests do, and never under the
-/// release ruling.
+/// from a borrowed one by a struct update. `grant` makes one only under the test value of the
+/// ruling, which the crate's own code alone can make, in a build that sets `cfg(test)` as its unit
+/// tests do; it never makes one under the release ruling.
 ///
 /// A caller outside this module cannot write one:
 ///
@@ -535,6 +535,14 @@ mod tests {
 
     #[test]
     fn grant_is_the_only_maker() {
+        fn sha256_hex(bytes: &[u8]) -> String {
+            use sha2::{Digest, Sha256};
+            Sha256::digest(bytes)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect()
+        }
+
         let field = ["_", "sealed"].concat();
         let include_word = ["incl", "ude"].concat();
         let files = crate_sources();
@@ -575,19 +583,11 @@ mod tests {
     }
 
     const LEAVE_ABOVE_TESTS_SHA256: &str =
-        "8ad7694237c1fbe9fdfa816e1049db0ff657fd647b9038a30e4a4292b676eea3";
+        "e43f30a04f65b90d700bb8e007b1e0c92538fef76a03f8b78aa470b3d4e18a78";
 
     fn text_of<'a>(files: &'a [(String, String)], wanted: &str) -> &'a str {
         let at = files.iter().position(|(name, _)| name == wanted);
         files[at.expect("a source file")].1.as_str()
-    }
-
-    fn sha256_hex(bytes: &[u8]) -> String {
-        use sha2::{Digest, Sha256};
-        Sha256::digest(bytes)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect()
     }
 
     #[test]

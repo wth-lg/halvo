@@ -12,13 +12,24 @@ impl RulingError {
     }
 }
 
-/// What the owner has ruled. Every build that is not a test build of this crate has the one
-/// value `None`: no tier but `on_device` may be picked and no origin may be reached.
+/// What the owner has ruled. Every build that does not set `cfg(test)` has the one value `None`:
+/// no tier but `on_device` may be picked and no origin may be reached. A build that sets
+/// `cfg(test)` also has the test value `TestHosted`, which the crate's own code alone can make,
+/// whatever flags the build sets: its payload has a private field and no public maker, and its
+/// maker is private to the crate.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum Ruling {
     None,
     #[cfg(test)]
-    TestHosted(Vec<String>),
+    TestHosted(TestOrigins),
+}
+
+/// The payload of the test value: the origins that it allows. Its one field is private and it has
+/// no public maker, so no code outside this crate can make one.
+#[cfg(test)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct TestOrigins {
+    origins: Vec<String>,
 }
 
 impl Ruling {
@@ -45,13 +56,15 @@ impl Ruling {
         match self {
             Ruling::None => &[],
             #[cfg(test)]
-            Ruling::TestHosted(origins) => origins,
+            Ruling::TestHosted(test) => &test.origins,
         }
     }
 
     #[cfg(test)]
-    pub fn test_hosted(origins: &[&str]) -> Ruling {
-        Ruling::TestHosted(origins.iter().map(|origin| (*origin).to_owned()).collect())
+    pub(crate) fn test_hosted(origins: &[&str]) -> Ruling {
+        Ruling::TestHosted(TestOrigins {
+            origins: origins.iter().map(|origin| (*origin).to_owned()).collect(),
+        })
     }
 }
 
