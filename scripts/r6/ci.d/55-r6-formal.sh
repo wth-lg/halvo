@@ -1,6 +1,6 @@
 #!/bin/sh
-# jobs: macos windows
-# rule: TLC finds none of the eleven invariants of the spend model's Spend.cfg violated, the machine of one hold gives every committed trace with all 30 pairs and 8 causes, and each of the two controls breaks its one invariant.
+# jobs: macos
+# rule: TLC finds none of the eleven invariants of the spend model's Spend.cfg violated, the machine of one hold gives every committed trace with all 30 pairs and 8 causes, and each of the two controls breaks its one invariant; the macos job alone runs it, because the model and the checker, one pinned jar, are the same on both systems and the windows job printed the same lines in run 43294110696.
 set -u
 name=55-r6-formal
 model=formal/r6-spend
