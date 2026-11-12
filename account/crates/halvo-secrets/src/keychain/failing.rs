@@ -2,8 +2,9 @@ use super::Keychain;
 
 pub(crate) const WRITE_PERMISSION: i32 = -61;
 
-/// Test builds with the features `hosted-store-tests` and `keychain` on macOS only: the step
-/// of the move into the Keychain that `Store::with_move_fault` makes fail.
+/// Builds with debug assertions and the features `hosted-store-tests` and `keychain`, on
+/// macOS only: the step of the move into the Keychain that `Store::with_move_fault` makes
+/// fail.
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MoveFault {

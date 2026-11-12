@@ -110,8 +110,9 @@ impl Store {
         Store { place }
     }
 
-    /// Test builds with the features `hosted-store-tests` and `keychain` on macOS only: the
-    /// store of `Store::new`, whose Keychain fails the step `fault` of the move.
+    /// Builds with debug assertions and the features `hosted-store-tests` and `keychain`, on
+    /// macOS only: the store of `Store::new`, whose Keychain fails the step `fault` of the
+    /// move. A build without debug assertions refuses the feature `hosted-store-tests`.
     #[cfg(all(
         target_os = "macos",
         feature = "hosted-store-tests",

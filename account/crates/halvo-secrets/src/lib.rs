@@ -6,6 +6,11 @@
 #[cfg(not(any(target_os = "macos", windows)))]
 compile_error!("halvo-secrets keeps its secret on macOS and on Windows only");
 
+#[cfg(all(feature = "hosted-store-tests", not(debug_assertions)))]
+compile_error!(
+    "the feature hosted-store-tests holds test hooks (Store::with_move_fault, MoveFault, access_list_lines) that make the store fail or read other bytes; it builds only with debug assertions, so that no release build carries them"
+);
+
 mod answer;
 mod directory;
 #[cfg(windows)]
@@ -39,7 +44,8 @@ pub use name::Name;
 pub use secret::{Secret, MAX_SECRET_LEN};
 pub use store::Store;
 
-/// Test builds on Windows only: the owner and each access entry of the directory at `path`,
+/// Builds with debug assertions and the feature `hosted-store-tests`, on Windows only: the
+/// owner and each access entry of the directory at `path`,
 /// one line each, for the hosted test that records what the runner's directories carry.
 #[cfg(all(windows, feature = "hosted-store-tests"))]
 #[doc(hidden)]
