@@ -1297,9 +1297,33 @@ mod driver {
                     .output()
             };
         }
-        if !pids.is_empty() {
-            eprintln!("egress ended_left_browser_processes={}", pids.len());
+        eprintln!("egress ended_left_browser_processes={}", pids.len());
+    }
+
+    /// The processes of the egress check that are still alive, by name: its shell, its runner,
+    /// its log stream and what they started.
+    fn check_processes() -> String {
+        let names: Vec<String> = processes()
+            .into_iter()
+            .filter(|p| is_check_command(&p.3))
+            .map(|p| {
+                p.2.rsplit(['/', '\\'])
+                    .next()
+                    .unwrap_or("-")
+                    .replace(' ', "_")
+            })
+            .collect();
+        if names.is_empty() {
+            "-".into()
+        } else {
+            names.join(",")
         }
+    }
+
+    fn is_check_command(command: &str) -> bool {
+        command.contains("scripts/egress/check.sh")
+            || command.contains("egress-spawn")
+            || command.contains("log stream --style ndjson")
     }
 
     fn port_of(text: &str) -> &str {
@@ -1386,7 +1410,8 @@ mod driver {
     /// `target/egress` that is newer than the start and done, and its `denied.log`.
     async fn egress_read(ctx: &Ctx, e: &Egress, name: &str, i: u32) -> EgressSeen {
         let mut found = None;
-        for _ in 0..120 {
+        let t0 = Instant::now();
+        for _ in 0..360 {
             let last = egress_runs(&ctx.repo);
             for n in e.before + 1..=last {
                 let d = ctx.repo.join(format!("target/egress/{n}"));
@@ -1406,10 +1431,30 @@ mod driver {
             .lines()
             .find(|l| l.starts_with("egress mode="))
             .map(|l| l.to_string());
+        let waited = t0.elapsed().as_secs();
         let Some((n, d)) = found else {
+            let err = std::fs::read_to_string(e.dir.join("check.err")).unwrap_or_default();
+            let own: Vec<&str> = err
+                .lines()
+                .filter(|l| l.starts_with("REFUSED") || l.starts_with("egress "))
+                .collect();
+            let last = egress_runs(&ctx.repo);
+            let state = if last > e.before {
+                std::fs::read_to_string(ctx.repo.join(format!("target/egress/{last}/state")))
+                    .unwrap_or_default()
+                    .lines()
+                    .filter_map(|l| l.split('=').next())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            } else {
+                "-".into()
+            };
             eprintln!(
-                "egress step={name} i={i} run=- line={}",
-                line.as_deref().unwrap_or("-")
+                "egress step={name} i={i} run=- waited_s={waited} newest_dir={} state_keys={} check_lines={} check_alive={}",
+                if last > e.before { last.to_string() } else { "-".into() },
+                if state.is_empty() { "-" } else { &state },
+                if own.is_empty() { "-".to_string() } else { own.join(" | ").replace(' ', "_") },
+                check_processes()
             );
             return EgressSeen::Unread("no_done_run".into());
         };
@@ -1438,7 +1483,7 @@ mod driver {
         seen.sort();
         seen.dedup();
         eprintln!(
-            "egress step={name} i={i} run={n} denied={} connect_only={} packets={packets} net_log={} refused_connects={} line={}",
+            "egress step={name} i={i} run={n} waited_s={waited} denied={} connect_only={} packets={packets} net_log={} refused_connects={} line={}",
             lines.len(),
             lines.len() - packets,
             if refused.is_some() { "read" } else { "unread" },
@@ -1587,7 +1632,8 @@ mod driver {
     }
 
     /// The processes of the machine: number, parent and name.
-    fn processes() -> Vec<(u32, u32, String)> {
+    /// The processes of the machine: number, parent, program name and command line.
+    fn processes() -> Vec<(u32, u32, String, String)> {
         let text = if cfg!(windows) {
             std::process::Command::new("powershell.exe")
                 .args([
@@ -1595,22 +1641,39 @@ mod driver {
                     "-NoProfile",
                     "-NonInteractive",
                     "-Command",
-                    "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId) $($_.ParentProcessId) $($_.Name)\" }",
+                    "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId)`t$($_.ParentProcessId)`t$($_.Name)`t$($_.CommandLine)\" }",
                 ])
                 .output()
         } else {
             std::process::Command::new("ps")
-                .args(["-axo", "pid=,ppid=,comm="])
+                .args(["-axww", "-o", "pid=,ppid=,comm=,command="])
                 .output()
         };
         let Ok(o) = text else { return Vec::new() };
         String::from_utf8_lossy(&o.stdout)
             .lines()
             .filter_map(|l| {
-                let mut w = l.split_whitespace();
-                let pid = w.next()?.parse().ok()?;
-                let ppid = w.next()?.parse().ok()?;
-                Some((pid, ppid, w.collect::<Vec<_>>().join(" ")))
+                if cfg!(windows) {
+                    let mut w = l.splitn(4, '\t');
+                    let pid = w.next()?.trim().parse().ok()?;
+                    let ppid = w.next()?.trim().parse().ok()?;
+                    let name = w.next()?.trim().to_string();
+                    Some((pid, ppid, name, w.next().unwrap_or("").to_string()))
+                } else {
+                    // comm= may hold spaces; command= starts with the program's path, so the
+                    // command line is cut at the first word that starts with a slash.
+                    let mut w = l.split_whitespace();
+                    let pid = w.next()?.parse().ok()?;
+                    let ppid = w.next()?.parse().ok()?;
+                    let rest: Vec<&str> = w.collect();
+                    let cut = rest
+                        .iter()
+                        .skip(1)
+                        .position(|x| x.starts_with('/'))
+                        .map(|k| k + 1)
+                        .unwrap_or(rest.len());
+                    Some((pid, ppid, rest[..cut].join(" "), rest[cut..].join(" ")))
+                }
             })
             .collect()
     }
@@ -1624,10 +1687,17 @@ mod driver {
         let after = processes();
         let parent: std::collections::BTreeMap<u32, u32> =
             after.iter().map(|p| (p.0, p.1)).collect();
+        let checks: std::collections::BTreeSet<u32> = after
+            .iter()
+            .filter(|p| is_check_command(&p.3))
+            .map(|p| p.0)
+            .collect();
         let own = std::process::id();
+        // A process below this program, or below an egress check of this or an earlier run (its
+        // `ps`, `log` and runner), is not one that a handler started.
         let below_own = |mut p: u32| {
             for _ in 0..64 {
-                if p == own {
+                if p == own || checks.contains(&p) {
                     return true;
                 }
                 match parent.get(&p) {

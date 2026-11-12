@@ -300,6 +300,7 @@ ends no run (CP-65).
 
 | start flag or setting | what it closes |
 |---|---|
+| `--disable-updater-scheduler` | the browser's waking of its updater, which looks names up itself, outside the relay: on hosted-mac at 9d89486 GoogleUpdater and EdgeUpdater did so in the rows that ran past about 30 s (`--disable-background-networking` of the first flags does not stop it) |
 | `--dns-prefetch-disable`, `net.network_prediction_options=2`, `dns_prefetching.enabled=false` | lookups and preconnects for links |
 | `--no-pings`, `--disable-features=FetchLaterAPI` | a ping and a request sent when the page is gone |
 | `--disable-features=SignedHTTPExchange,SignedExchangeSubresourcePrefetch` and `web_package.signed_exchange.enabled=false` | signed exchanges; Chrome 153 still offers them in its Accept header without the setting |
@@ -341,5 +342,8 @@ Rows and their listeners:
   Its network service makes the same connections either way. The browser also writes its network
   log. A UDP denial that matches a UDP connect that the check refused (net error -10) is read as no
   packet: the connect of a UDP socket sends none. Chrome makes such a connect to
-  `[2001:4860:4860::8888]:443` to learn whether IPv6 reaches the internet. `handler_launch` does
-  not run on this Mac, because a handler could open a window here.
+  `[2001:4860:4860::8888]:443`, and Edge to `[2603:1020:201:10::10f]:443`, to learn whether IPv6
+  reaches the internet. `handler_launch` does not run on this Mac, because a handler could open a
+  window here. Its page adds its frame and its two navigations after the load; a frame of another
+  program's scheme in the page itself keeps the load from ending. `updater_wake` leaves an idle
+  page open for 75 s, past the moment when the browser would wake its updater.
