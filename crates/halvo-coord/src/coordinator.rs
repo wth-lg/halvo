@@ -1022,6 +1022,18 @@ where
         st.forgotten.contains(&facts.agent) || board.gone.contains(&facts.workflow.id)
     }
 
+    /// The facts of the agents whose rows the page shows, in ascending agent id: every agent but
+    /// one that `gone` names.
+    fn shown<'a>(st: &State<Cfg<P>>, board: &'a Board<Cfg<P>>) -> Vec<&'a Facts<Cfg<P>>> {
+        board
+            .members
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !Self::gone(st, board, *i))
+            .map(|(_, m)| &m.facts)
+            .collect()
+    }
+
     /// A control of a row (I8.1 `agents_control`). Every control of an agent whose workflow a
     /// tick saw gone, or whose setup body the owner ended, is answered `unknown_agent` at once
     /// with nothing stored (I5.7, rulings IG-33, IG-36); after the first
@@ -1173,17 +1185,20 @@ where
         st.table = st.table.stored(record);
     }
 
-    /// The card of an agent (I8.1 `agents_card`, I2.6), read through `Owner::agent_history`.
+    /// The card of an agent (I8.1 `agents_card`, I2.6), read through `Owner::agent_history`,
+    /// with the name of its row: two agents of one name get their ordinal among the agents whose
+    /// rows the page shows (I2.3). An agent that has no row, whose workflow a tick saw gone or
+    /// whose setup body the owner ended, is `unknown_agent`, as for every control.
     pub fn card(&self, agent: &AgentId) -> Result<Card, Cause> {
         let st = self.lock();
         let board = st.board.as_ref().ok_or(Cause::NoService)?;
-        let i = index(board, agent).ok_or(Cause::UnknownAgent)?;
-        if Self::gone(&st, board, i) {
-            return Err(Cause::UnknownAgent);
-        }
-        let facts = &board.members[i].facts;
-        let all: Vec<&Facts<Cfg<P>>> = board.members.iter().map(|m| &m.facts).collect();
-        let name = roster::names(&all, self.label)?.swap_remove(i);
+        let shown = Self::shown(&st, board);
+        let k = shown
+            .iter()
+            .position(|f| &f.agent == agent)
+            .ok_or(Cause::UnknownAgent)?;
+        let facts = shown[k];
+        let name = roster::names(&shown, self.label)?.swap_remove(k);
         let history = self
             .ports
             .agent_history(&facts.workflow.id, agent, self.limits.history_runs)
@@ -1225,13 +1240,7 @@ where
                 words::text("note.no_service", &[]).ok(),
             );
         };
-        let shown: Vec<&Facts<Cfg<P>>> = board
-            .members
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| !Self::gone(st, board, *i))
-            .map(|(_, m)| &m.facts)
-            .collect();
+        let shown = Self::shown(st, board);
         let Ok(names) = roster::names(&shown, self.label) else {
             return (Vec::new(), Vec::new(), None);
         };

@@ -1259,3 +1259,38 @@ fn the_second_step_of_the_quit_comes_at_the_latest_grace_after_the_first_whateve
     c.ports().ports.set_clock(T0 + 3_000, DAY);
     assert_eq!(c.quit_stop().until, T0 + 3_000, "no live run");
 }
+
+#[test]
+fn two_agents_of_one_name_get_their_ordinal_among_the_shown_agents_in_the_row_and_in_the_card() {
+    let c = coordinator(&[MANUAL, MANUAL, MANUAL], Limits::PRODUCT);
+    let named = |c: &Coordinator<Both>, n: usize| {
+        c.snapshot()
+            .rows
+            .iter()
+            .find(|r| r.agent == agent(n))
+            .map(|r| r.name.clone())
+            .unwrap()
+    };
+    let first = named(&c, 0);
+    let third = named(&c, 2);
+    assert!(third.ends_with(" (3)"), "{third}");
+    assert_eq!(c.card(&agent(2)).unwrap().name, third);
+    c.ports()
+        .ports
+        .workflows
+        .borrow_mut()
+        .retain(|w| w.id() != &support::flow(1));
+    c.tick();
+    assert_eq!(c.snapshot().rows.len(), 2);
+    assert_eq!(named(&c, 0), first, "the first of the name has no ordinal");
+    let second = format!("{first} (2)");
+    assert_eq!(
+        named(&c, 2),
+        second,
+        "the third agent is the second shown of its name"
+    );
+    for n in [0, 2] {
+        assert_eq!(c.card(&agent(n)).unwrap().name, named(&c, n), "{n}");
+    }
+    assert_eq!(c.card(&agent(1)), Err(Cause::UnknownAgent));
+}
