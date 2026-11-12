@@ -218,9 +218,10 @@ impl Held {
         self.on_screen_at
     }
 
-    /// The item as the page gets it (I3.4).
-    pub fn page_item(&self) -> Result<Item, Cause> {
-        compose_confirm(&self.item, &self.ask, &self.confirmation)
+    /// The item as the page gets it (I3.4), with its lines `confirm.changed` from `table`, the
+    /// guard's table of this life (I4.3).
+    pub fn page_item(&self, table: &Table) -> Result<Item, Cause> {
+        compose_confirm(&self.item, &self.ask, &self.confirmation, table)
     }
 }
 
@@ -260,7 +261,7 @@ pub fn issue<P: Owner + Runs + Clock + Rng>(
         let _ = store(ports, ledger, limits, vec![lapsed]);
         return Ok(held);
     }
-    held.page_item()?;
+    held.page_item(table)?;
     let raised = What::ItemRaised {
         item,
         raised: Raised::Confirm(ask.run().clone()),

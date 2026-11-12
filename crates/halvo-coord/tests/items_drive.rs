@@ -844,7 +844,7 @@ fn the_item_raised_names_its_run_and_its_page_item_composes() {
     ));
     assert_eq!(stored[0].at, (NOW * 1_000_000) as i64);
     assert_eq!(stored[0].day, TODAY);
-    let page = held.page_item().unwrap();
+    let page = held.page_item(&Table::new()).unwrap();
     assert_eq!(page.item(), held.item());
     assert_eq!(page.armed().name(), "no");
 }
@@ -954,5 +954,82 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
             Choice::Allow
         ),
         Err(Cause::Malformed)
+    );
+}
+
+/// The page item of a held confirmation, with the guard's table of this life.
+fn page(held: &Held, table: &Table) -> halvo_coord::types::Item {
+    held.page_item(table).expect("the item composes")
+}
+
+/// The fields of an item whose label is the sentence of `confirm.changed`, each with its index.
+fn changed_lines(item: &halvo_coord::types::Item) -> Vec<usize> {
+    let line = halvo_coord::words::text("confirm.changed", &[]).unwrap();
+    item.fields()
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| f.label == line)
+        .map(|(i, f)| {
+            assert!(f.value.is_empty() && f.from.name() == "halvo");
+            i
+        })
+        .collect()
+}
+
+/// Issues the request of `a`, arms it and answers it from its presenter.
+fn answered<P: Owner + Runs + Clock + Rng>(
+    p: &P,
+    set_clock: &dyn Fn(u64),
+    l: &mut Ledger,
+    t: &mut Table,
+    a: &ConfirmAsk,
+    choice: ConfirmAnswer,
+) -> Result<(), Cause> {
+    let mut held = armed(p, set_clock, l, t, a);
+    answer(p, l, t, &mut held, choice, Presenter::Page, &LIMITS)
+}
+
+#[test]
+fn refusal_changed_line() {
+    let p = ports();
+    let (mut l, mut t) = (ledger(), Table::new());
+    let set = |n| p.set_clock(n, TODAY);
+    let earlier = |n: u32| ask_of(1, 1, vec![asked(n, Class::Send, n, true)]);
+    answered(&p, &set, &mut l, &mut t, &earlier(1), ConfirmAnswer::Allow).unwrap();
+    answered(&p, &set, &mut l, &mut t, &earlier(2), ConfirmAnswer::Allow).unwrap();
+    let used = released(&p)
+        .into_iter()
+        .find(|e| e.effect == support::effect_id(2))
+        .unwrap();
+    t = guard_step(
+        &t,
+        &record_of(&used, EffectState::Approved, Class::Send),
+        Gives::Confirm,
+    )
+    .expect("a record uses the row of effect 2");
+    answered(&p, &set, &mut l, &mut t, &earlier(3), ConfirmAnswer::Reject).unwrap();
+    p.refuse(Method::Log, PortError::NoService);
+    assert_eq!(
+        answered(&p, &set, &mut l, &mut t, &earlier(4), ConfirmAnswer::Allow),
+        Err(Cause::NoService),
+        "the rows of effect 4 get no acknowledgement and its item lapses"
+    );
+    p.clear_refusals();
+    let later = |run: u32, n: u32| ask_of(run, 1, vec![asked(n, Class::Send, n + 100, true)]);
+    for (n, line) in [(1, true), (2, false), (3, false), (4, false)] {
+        let held = issue(&p, &mut l, &t, &LIMITS, &later(1, n)).unwrap();
+        let item = page(&held, &t);
+        let want = if line { vec![0] } else { vec![] };
+        assert_eq!(changed_lines(&item), want, "effect {n}");
+        assert_eq!(
+            item.fields().len(),
+            3 + usize::from(line),
+            "the line stands above the values of effect {n}"
+        );
+    }
+    let other_run = issue(&p, &mut l, &t, &LIMITS, &later(2, 1)).unwrap();
+    assert!(
+        changed_lines(&page(&other_run, &t)).is_empty(),
+        "another run"
     );
 }

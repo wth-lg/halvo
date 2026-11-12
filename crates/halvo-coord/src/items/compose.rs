@@ -1,6 +1,7 @@
 use super::key::{say, Key};
 use super::raise::choices;
 use super::{ConfirmState, Confirmation};
+use crate::guard::Table;
 use crate::types::{
     AgentId, BoundFrom, Candidate, CandidateFrom, Cause, Choice, ChoiceText, Class, ConfirmAsk,
     Field, FieldFrom, Item, ItemId, ItemKind, Limits, Param, ParamEntry, Presenter, Unknown, YesNo,
@@ -180,7 +181,10 @@ fn halvo_line(key: &str) -> Result<Field, Cause> {
 /// `confirm.mixed.title`, `confirm.mixed.reject` and `confirm.mixed.allow` with `{count}`,
 /// which name no class, and before the fields of each effect a line `confirm.<class>.action`
 /// of that effect's class, with no value and `from` `halvo` (ruling IG-4). For the presenter
-/// `native` the one choice is `present`. For each effect every bound field follows in the
+/// `native` the one choice is `present`. Above the values of an effect for which `table`, the
+/// guard's table of this life, holds a released `allow_once` of an earlier item of the run that
+/// no record has used, stands the line `confirm.changed`, with no value and `from` `halvo`
+/// (`Table::allowed_unused`, ruling IG-6d). For each effect every bound field follows in the
 /// request's order, labelled `field.<class>.<name>` with `from` by its source, and after them a
 /// line `confirm.new_site` for a `new_origin`; `armed` `yes` only while the item is `armed`.
 /// `malformed` for a field that the words table has no label for, or a piece of a value of
@@ -189,6 +193,7 @@ pub fn compose_confirm(
     item: &ItemId,
     ask: &ConfirmAsk,
     confirmation: &Confirmation,
+    table: &Table,
 ) -> Result<Item, Cause> {
     let same = ask.effects().len() == confirmation.asked().len()
         && ask
@@ -209,6 +214,9 @@ pub fn compose_confirm(
                 "confirm.{}.action",
                 effect.class.name()
             ))?);
+        }
+        if table.allowed_unused(ask.run(), &effect.effect) {
+            fields.push(halvo_line("confirm.changed")?);
         }
         for f in &effect.fields {
             fields.push(field(

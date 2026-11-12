@@ -204,6 +204,21 @@ impl Table {
         self.stopped.contains(run)
     }
 
+    /// Whether an item of `run` released `allow_once` for `effect` and no record has used that
+    /// row: the fact on which a later item of the run that names the effect shows the line
+    /// `confirm.changed` (I4.3, ruling IG-6d). A row of `reject_once`, a row whose decision was
+    /// not released and the rows of an item that lapsed, which the table no longer holds, give
+    /// no line. The table is this life's, so a new life gives none.
+    pub fn allowed_unused(&self, run: &RunId, effect: &EffectId) -> bool {
+        self.rows.iter().any(|r| {
+            r.released
+                && !r.used
+                && r.run == *run
+                && r.entry.effect == *effect
+                && r.entry.answer == EffectAnswer::AllowOnce
+        })
+    }
+
     /// The approval ids of the rows that the table holds, with whether each counts and whether
     /// a record used it, in the order of their record.
     pub fn approvals(&self) -> Vec<(ApprovalId, bool, bool)> {
