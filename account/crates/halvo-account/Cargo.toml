@@ -5,7 +5,11 @@ description = "The account helper: the app's one path to the backend and the one
 edition = "2021"
 publish = false
 
+[features]
+keychain = ["halvo-secrets/keychain"]
+
 [dependencies]
+halvo-secrets = { path = "../halvo-secrets" }
 halvo-wire = { path = "../halvo-wire" }
 serde = "1"
 serde_json = "1"

@@ -30,6 +30,7 @@ const _: () = assert!(
 
 /// A URL of a page whose origin is on the list: every byte is printable ASCII other than
 /// the space, and the origin is followed by the end, `/`, `?` or `#`.
+#[derive(Debug, PartialEq, Eq)]
 pub struct PageUrl(String);
 
 impl PageUrl {
