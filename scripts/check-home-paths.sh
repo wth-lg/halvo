@@ -457,11 +457,11 @@ function added_entry(n, text,   rec, k, rest, path, name) {
   scan_text(path, "", 0)
   if (nmatch != 1 || last_match != path) return
   if (own_unknown) {
-    print "OWN-UNKNOWN " commit " " n
+    print "OWN-UNKNOWN " substr(commit, 1, 12) " " n
     return
   }
   name = tolower(last_name)
-  if (name == own_full || name == own_cut) print "OWN " commit " " n
+  if (name == own_full || name == own_cut) print "OWN " substr(commit, 1, 12) " " n
 }
 function without_the_path_of_an_entry(text,   k, rest, j, path) {
   k = index(text, "\t")
