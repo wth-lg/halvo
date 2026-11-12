@@ -190,7 +190,7 @@ export async function pageCases({ repo, work, report, log }) {
   const fx = join(repo, FIXTURES_DIR);
   const views = join(repo, VIEWS_DIR);
   const harness = await loadHarness(repo);
-  const agents = readFileSync(join(views, 'agents.js'), 'utf8');
+  const agents = readFileSync(join(views, 'agents.js'), 'utf8').replace(/\r\n/g, '\n');
   const acts = JSON.parse(readFileSync(join(repo, ACTS_FILE), 'utf8'));
   const snapshots = join(repo, SNAPSHOTS_DIR);
   const state = 'ten';
@@ -201,11 +201,17 @@ export async function pageCases({ repo, work, report, log }) {
   report('page-control-' + state + '-all-six-and-the-region', 'pass', clean.ok ? 'pass' : 'fail');
   for (const c of PAGE_CASES) {
     const ui = join(work, 'ui-' + c.name);
-    cpSync(join(repo, 'ui', 'app'), join(ui, 'app'), { recursive: true });
-    writeFileSync(join(ui, 'app', 'views', 'agents.js'), c.plant(agents));
-    const origin = await harness.serve({ ui, fixtures: fx });
-    const [r] = await runStates(harness, { origin, runs: plan(fx, [state]), snapshots, acts, write: false, log, checks: c.checks, region: Boolean(c.region) });
-    report(c.name, 'caught', !r.ok && c.want(r) ? 'caught' : 'missed');
+    let got;
+    try {
+      cpSync(join(repo, 'ui', 'app'), join(ui, 'app'), { recursive: true });
+      writeFileSync(join(ui, 'app', 'views', 'agents.js'), c.plant(agents));
+      const origin = await harness.serve({ ui, fixtures: fx });
+      const [r] = await runStates(harness, { origin, runs: plan(fx, [state]), snapshots, acts, write: false, log, checks: c.checks, region: Boolean(c.region) });
+      got = !r.ok && c.want(r) ? 'caught' : 'missed';
+    } catch (err) {
+      got = 'error_' + String((err && (err.code || err.name)) || 'unknown').replace(/[^A-Za-z0-9_]/g, '_');
+    }
+    report(c.name, 'caught', got);
   }
 }
 
