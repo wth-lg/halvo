@@ -87,7 +87,7 @@ impl Store {
 }
 
 #[cfg(feature = "test-host")]
-pub mod test_host {}
+pub mod test_host;
 
 #[cfg(test)]
 mod tests;
