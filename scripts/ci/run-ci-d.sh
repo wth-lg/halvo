@@ -289,10 +289,12 @@ own_case() {
   shift 3
   got_out=$(
     cd "$fixture/$case_cd" || exit 99
-    unset CI CI_D_SCRIPTS
+    unset CI CI_D_SCRIPTS CI_D_SELF_TEST_JOBS CI_D_SCRIPT_LIMIT_S
     [ -z "$case_ci" ] || { CI=$case_ci; export CI; }
     [ -z "$case_scripts" ] || { CI_D_SCRIPTS=$case_scripts; export CI_D_SCRIPTS; }
     [ -z "$case_locale" ] || { LC_ALL=$case_locale; export LC_ALL; }
+    [ -z "$case_jobs" ] || { CI_D_SELF_TEST_JOBS=$case_jobs; export CI_D_SELF_TEST_JOBS; }
+    [ -z "$case_limit" ] || { CI_D_SCRIPT_LIMIT_S=$case_limit; export CI_D_SCRIPT_LIMIT_S; }
     CARGO_HOME=$tmp/cargo-home
     TMPDIR=${case_tmpdir:-$tmp}
     export CARGO_HOME TMPDIR
@@ -302,10 +304,16 @@ own_case() {
   if [ "$want_exit" -eq 0 ]; then want=PASS; else want=FAIL; fi
   if [ "$got_exit" -ne "$want_exit" ]; then
     got=exit-$got_exit
-  elif printf '%s\n' "$got_out" | grep -qxF -e "$want_line"; then
-    got=$want
-  else
+  elif ! printf '%s\n' "$got_out" | grep -qxF -e "$want_line"; then
     got=line-missing
+  else
+    got=$want
+    if [ -n "$case_first" ]; then
+      case $nl$got_out in
+        *"$nl$case_first"*"$nl$case_then"*) ;;
+        *) got=misordered ;;
+      esac
+    fi
   fi
   printf 'case run-ci-d/%s want=%s got=%s\n' "$case_name" "$want" "$got"
   if [ "$got" != "$want" ]; then
@@ -318,6 +326,10 @@ own_case() {
   case_cd=
   case_locale=
   case_tmpdir=
+  case_jobs=
+  case_limit=
+  case_first=
+  case_then=
 }
 
 # shellcheck disable=SC2016
@@ -335,6 +347,10 @@ own_self_test() {
   case_cd=
   case_locale=
   case_tmpdir=
+  case_jobs=
+  case_limit=
+  case_first=
+  case_then=
   tab=$(printf '\t')
   usage_line='usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]'
   name_refusal='the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -'
@@ -477,6 +493,76 @@ own_self_test() {
   own_case self-test-without-scripts 1 'FAIL run-ci-d (no scripts for macos)' macos --self-test
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
   own_case self-test-of-the-driver-alone 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test run-ci-d
+
+  prelude='[ "${1:-}" = --self-test ] || exit 3; me=${0##*/}; me=${me%.sh}; w() { n=0; while [ ! -e "$CI_D_REPO/$1" ]; do [ "$n" -lt 100 ] || return 1; sleep 0.1; n=$((n + 1)); done; }; meet() { : >"$CI_D_REPO/start.$me"; n=0; while [ "$n" -lt 100 ]; do for f in "$CI_D_REPO"/start.*; do [ "$f" = "$CI_D_REPO/start.$me" ] || [ ! -e "$f" ] || return 0; done; sleep 0.1; n=$((n + 1)); done; return 1; }'
+  passes='printf "PASS self-test:%s (1 failing fixtures rejected)\n" "$me"'
+  ran_alone='{ printf "FAIL self-test:%s (it ran alone)\n" "$me"; exit 1; }'
+  starts=': >"$CI_D_REPO/start.$me"'
+  ends=': >"$CI_D_REPO/end.$me"'
+  running='others=0; for f in "$CI_D_REPO"/start.*; do o=${f##*/start.}; [ "$o" = "$me" ] || [ ! -e "$f" ] || [ -e "$CI_D_REPO/end.$o" ] || others=$((others + 1)); done'
+  alone='before=0; for f in "$CI_D_REPO"/start.*; do [ -e "$f" ] || continue; o=${f##*/start.}; [ -e "$CI_D_REPO/end.$o" ] || { printf "FAIL self-test:%s (it started beside %s)\n" "$me" "$o"; exit 1; }; before=$((before + 1)); done; : >"$CI_D_REPO/start.$me"; sleep 2; after=0; for f in "$CI_D_REPO"/start.*; do after=$((after + 1)); done; [ "$after" -eq "$((before + 1))" ] || { printf "FAIL self-test:%s (another self-test started beside it)\n" "$me"; exit 1; }'
+  meets="$prelude; meet || $ran_alone; $passes"
+  alone_list=scripts/ci/self-test-alone.txt
+
+  new_repo && add_script r1 10-a.sh "$good" "$meets" && add_script r1 20-b.sh "$good" "$meets"
+  case_jobs=2
+  own_case self-tests-run-at-the-same-time 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  new_repo &&
+    add_script r1 10-a.sh "$good" "$prelude; printf \"line 1 of %s\\n\" \"\$me\"; printf \"note of %s\\n\" \"\$me\" >&2; : >\"\$CI_D_REPO/a1\"; w b1 || exit 1; printf \"line 2 of %s\\n\" \"\$me\"; : >\"\$CI_D_REPO/a2\"; $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; w a1 || exit 1; printf \"line 1 of %s\\n\" \"\$me\"; printf \"note of %s\\n\" \"\$me\" >&2; : >\"\$CI_D_REPO/b1\"; w a2 || exit 1; printf \"line 2 of %s\\n\" \"\$me\"; $passes"
+  case_jobs=2
+  case_first="line 1 of 10-a${nl}line 2 of 10-a${nl}PASS self-test:10-a (1 failing fixtures rejected)${nl}note of 10-a${nl}seconds 10-a "
+  case_then="line 1 of 20-b${nl}line 2 of 20-b${nl}PASS self-test:20-b (1 failing fixtures rejected)${nl}note of 20-b${nl}seconds 20-b "
+  own_case outputs-kept-apart-in-name-order 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; meet || $ran_alone; sleep 1; $ends; $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; meet || $ran_alone; sleep 1; $ends; $passes" &&
+    add_script r1 30-c.sh "$good$nl# self-test: alone" "$prelude; $alone; $ends; $passes" &&
+    add_script r1 40-d.sh "$good" "$prelude; $alone; $ends; $passes" &&
+    add_script r1 50-e.sh "$good" "$prelude; $starts; sleep 1; $ends; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '40-d its self-test fails beside another one\n' >"$fixture/$alone_list"
+  case_jobs=4
+  own_case alone-by-header-and-by-list 0 'ci.d macos self-test: 5 passed, 0 failed' macos --self-test 10-a 20-b 30-c 40-d 50-e
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $alone; $ends; $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; $starts; sleep 1; $ends; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '10-a\r\n' >"$fixture/$alone_list"
+  case_jobs=2
+  own_case alone-list-line-with-a-carriage-return 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $starts; sleep 1; $running; [ \"\$others\" -le 1 ] || { printf \"FAIL self-test:%s (two others ran beside it)\\n\" \"\$me\"; exit 1; }; $ends; $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; $starts; sleep 1; $running; [ \"\$others\" -le 1 ] || { printf \"FAIL self-test:%s (two others ran beside it)\\n\" \"\$me\"; exit 1; }; $ends; $passes" &&
+    add_script r1 30-c.sh "$good" "$prelude; $starts; sleep 1; $running; [ \"\$others\" -le 1 ] || { printf \"FAIL self-test:%s (two others ran beside it)\\n\" \"\$me\"; exit 1; }; $ends; $passes"
+  case_jobs=2
+  own_case two-at-a-time 0 'ci.d macos self-test: 3 passed, 0 failed' macos --self-test 10-a 20-b 30-c
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; meet || $ran_alone; printf \"FAIL self-test:%s (planned)\\n\" \"\$me\"; exit 1" &&
+    add_script r1 20-b.sh "$good" "$meets"
+  case_jobs=2
+  own_case failing-self-test-beside-another 1 'FAIL self-test:10-a (planned)' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; printf \"%s\\n\" \"\$me\" >\"\$TMPDIR/shared\"; meet || $ran_alone; read -r got <\"\$TMPDIR/shared\"; [ \"\$got\" = \"\$me\" ] || { printf \"FAIL self-test:%s (another self-test wrote its file)\\n\" \"\$me\"; exit 1; }; $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; printf \"%s\\n\" \"\$me\" >\"\$TMPDIR/shared\"; meet || $ran_alone; read -r got <\"\$TMPDIR/shared\"; [ \"\$got\" = \"\$me\" ] || { printf \"FAIL self-test:%s (another self-test wrote its file)\\n\" \"\$me\"; exit 1; }; $passes"
+  case_jobs=2
+  own_case two-self-tests-write-one-path 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; meet || exit 1; exit 0" && add_script r1 20-b.sh "$good" "$meets"
+  case_jobs=2
+  own_case self-test-prints-nothing 1 'FAIL self-test:10-a (exit 0)' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; meet || $ran_alone; kill -s TERM \"\$\$\"; $passes" && add_script r1 20-b.sh "$good" "$meets"
+  case_jobs=2
+  own_case self-test-ended-by-a-signal 1 'FAIL self-test:10-a (exit 143)' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; meet || $ran_alone; kill -s KILL \"\$PPID\"; sleep 1; $passes" && add_script r1 20-b.sh "$good" "$meets"
+  case_jobs=2
+  own_case driver-job-of-a-self-test-killed 1 'FAIL self-test:10-a (it ended without an exit status)' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; sleep 30; $passes" && add_script r1 20-b.sh "$good" "$prelude; $passes"
+  case_jobs=2
+  case_limit=2
+  own_case self-test-past-its-limit 1 'FAIL self-test:10-a (time limit 2 s)' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '99-gone it was renamed\n' >"$fixture/$alone_list"
+  own_case alone-list-names-no-script 1 "FAIL run-ci-d ($alone_list names 99-gone, which is no script)" macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes"
+  case_jobs=x
+  own_case jobs-not-a-number 1 'FAIL run-ci-d (CI_D_SELF_TEST_JOBS=x is not a whole number from 1)' macos --self-test 10-a
+  case_jobs=0
+  own_case jobs-zero 1 'FAIL run-ci-d (CI_D_SELF_TEST_JOBS=0 is not a whole number from 1)' macos --self-test 10-a
+  case_limit=2s
+  own_case limit-not-a-number 1 'FAIL run-ci-d (CI_D_SCRIPT_LIMIT_S=2s is not a whole number from 1)' macos --self-test 10-a
 
   if [ -n "$wrong" ]; then
     record FAIL "FAIL self-test:run-ci-d (wrong verdict in:$wrong)"
