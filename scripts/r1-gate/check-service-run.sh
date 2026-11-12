@@ -214,13 +214,6 @@ says() {
   return 1
 }
 
-privacy_line_first() {
-  service_standin "$1" "$2"
-  first_out=$(measure 2>/dev/null)
-  first_line=$(printf '%s\n' "$first_out" | sed -n 1p)
-  [ "$first_line" = "note privacy rows: a run of this check starts scripts/r1-gate/helper/service-standin.sh, the one gate-built path, which macOS lists in Privacy & Security under Screen & System Audio Recording, Accessibility and Input Monitoring; the helper window reads nothing and adds no row" ]
-}
-
 cases() {
   scratch_root
   running=$(status_with running 's/^switch name=screen_activity value=off/switch name=screen_activity value=on/; s/^source name=screen state=off/source name=screen state=running/')

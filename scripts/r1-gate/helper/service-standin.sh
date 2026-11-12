@@ -131,6 +131,8 @@ daemon() {
   peak=0
   while kill -0 "$life" 2>/dev/null && [ ! -f "$state/stop" ]; do
     capture=$(capture_state)
+    late_now=$(date +%s)
+    if [ "$scenario" = expiry-late ] && [ "$((late_now - started_now))" -ge "$((${GATE_OVERRIDE_expiry_bound_s:-6} + 3))" ]; then expire; fi
     if [ "$capture" = running ]; then
       t=$(date +%s); day=$(date -u +%F)
       day_file=$(seg_of "$day")
@@ -146,8 +148,6 @@ daemon() {
         name-leak) : > "$data/store/$leak_text.note" ;;
         camera-row) printf '%s %s camera 0\n' "$t" "$day" >> "$state/events" ;;
       esac
-      late_now=$(date +%s)
-      if [ "$scenario" = expiry-late ] && [ "$((late_now - started_now))" -ge "$((${GATE_OVERRIDE_expiry_bound_s:-6} + 3))" ]; then expire; fi
       if [ "$screen" = on ] && { [ "$scenario" = no-exclusion ] || helper_outside "$root"; }; then printf '%s %s screen_frame 0\n' "$t" "$day" >> "$state/events"; fi
       if [ "$scenario" = typed ]; then printf '%s %s keystroke 0\n%s %s pointer 0\n%s %s foreground_app 0\n' "$t" "$day" "$t" "$day" "$t" "$day" >> "$state/events"; fi
     fi
