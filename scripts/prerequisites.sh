@@ -164,15 +164,30 @@ ensure_pnpm() {
     echo "prerequisites: error: backend/package.json pins no pnpm version under packageManager" >&2
     return 1
   fi
+  user_path=$PATH
   PATH="$prefix/bin:$prefix:$PATH"
   export PATH
-  if command -v pnpm >/dev/null 2>&1; then
-    echo "prerequisites: pnpm $(pnpm --version) present; backend/package.json pins $pinned"
-    return
+  found=$(pnpm --version 2>/dev/null) || found=
+  if [ "$found" = "$pinned" ]; then
+    echo "prerequisites: pnpm $pinned present"
+  else
+    if [ -n "$found" ]; then
+      echo "prerequisites: the pnpm on the path is $found, not the $pinned that backend/package.json pins"
+    fi
+    echo "prerequisites: installing pnpm $pinned for the user into $prefix"
+    npm install --global --prefix "$prefix" "pnpm@$pinned" || return
+    found=$(pnpm --version 2>/dev/null) || found=
+    if [ "$found" != "$pinned" ]; then
+      echo "prerequisites: error: after npm installed pnpm $pinned into $prefix, the pnpm on the path is ${found:-missing}" >&2
+      return 1
+    fi
+    echo "prerequisites: pnpm $found"
   fi
-  echo "prerequisites: installing pnpm $pinned for the user into $prefix"
-  npm install --global --prefix "$prefix" "pnpm@$pinned" || return
-  echo "prerequisites: pnpm $(pnpm --version)"
+  directory=$(dirname "$(command -v pnpm)")
+  case ":$user_path:" in
+    *":$directory:"*) ;;
+    *) echo "prerequisites: pnpm is in $directory, which is not on your PATH; add it, for example with export PATH=\"$directory:\$PATH\" in your shell's profile" ;;
+  esac
 }
 
 ensure_backend() {
@@ -465,13 +480,59 @@ EOF
   [ "$(count "pnpm install --frozen-lockfile --ignore-scripts in $backend_dir" "$case_dir/calls")" = 2 ] || problems="$problems; pnpm install did not run in backend/ with the frozen lockfile and no install scripts on each run"
   [ "$(count "fetch-tools $repo_dir" "$case_dir/calls")" = 2 ] || problems="$problems; backend/scripts/fetch-tools.sh did not run on each run"
   [ "$(count 'prerequisites: pnpm 12.14.0 present' "$case_dir/output")" = 1 ] || problems="$problems; the second run did not report pnpm present"
+
+  [ "$(count "prerequisites: pnpm is in $case_dir/home/.local/bin, which is not on your PATH" "$case_dir/output")" = 2 ] || problems="$problems; no line told the person on each run to put the user's pnpm directory on the PATH"
   verdict "$name"
 
-  name='a pnpm on the path is used, and npm installs nothing'
+  name='a pnpm on the path of another version is not used: npm installs the pinned one for the user, and that one runs the install'
+  new_backend_case backend-other-pnpm
+  cat >"$case_dir/stubs/pnpm" <<EOF
+#!/bin/sh
+case "\$1" in
+  --version) echo 11.0.0 ;;
+  *) echo "other-pnpm \$*" >>'$case_dir/calls' ;;
+esac
+EOF
+  chmod +x "$case_dir/stubs/pnpm"
+  run_ensure_backend ok
+  [ "$(count "npm install --global --prefix $case_dir/home/.local pnpm@12.14.0" "$case_dir/calls")" = 1 ] || problems="$problems; npm did not install pnpm@12.14.0 once"
+  [ "$(count 'other-pnpm ' "$case_dir/calls")" = 0 ] || problems="$problems; the pnpm of another version ran"
+  [ "$(count "pnpm install --frozen-lockfile --ignore-scripts in $backend_dir" "$case_dir/calls")" = 1 ] || problems="$problems; the pinned pnpm did not run the install once"
+  verdict "$name"
+
+  name='where npm puts pnpm in the prefix itself, as on Windows, that entry of the path finds it'
+  new_backend_case backend-pnpm-in-the-prefix
+  cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+mkdir -p '$case_dir/home/.local' && cp '$case_dir/pnpm' '$case_dir/home/.local/pnpm'
+EOF
+  chmod +x "$case_dir/stubs/npm"
+  run_ensure_backend ok
+  [ "$(count "pnpm install --frozen-lockfile --ignore-scripts in $backend_dir" "$case_dir/calls")" = 1 ] || problems="$problems; the pnpm in the prefix did not run the install"
+  [ "$(count "prerequisites: pnpm is in $case_dir/home/.local, which is not on your PATH" "$case_dir/output")" = 1 ] || problems="$problems; no line named the prefix for the PATH"
+  verdict "$name"
+
+  name='a failed npm install of pnpm fails the step, and no install or fetch runs'
+  new_backend_case backend-npm-fails
+  cat >"$case_dir/stubs/npm" <<EOF
+#!/bin/sh
+echo "npm \$*" >>'$case_dir/calls'
+exit 1
+EOF
+  chmod +x "$case_dir/stubs/npm"
+  run_ensure_backend fails
+  [ "$(count 'pnpm install' "$case_dir/calls")" = 0 ] || problems="$problems; pnpm install ran after the failed npm"
+  [ "$(count 'fetch-tools ' "$case_dir/calls")" = 0 ] || problems="$problems; the tools were fetched after the failed npm"
+  [ "$(count 'after npm installed pnpm' "$case_dir/output")" = 0 ] || problems="$problems; the step went on after npm failed"
+  verdict "$name"
+
+  name='a pnpm of the pinned version on the path is used, npm installs nothing, and no line asks for the PATH'
   new_backend_case backend-pnpm-present
   cp "$case_dir/pnpm" "$case_dir/stubs/pnpm"
   run_ensure_backend ok
   [ "$(count 'npm install --global' "$case_dir/calls")" = 0 ] || problems="$problems; npm installed pnpm"
+  [ "$(count 'which is not on your PATH' "$case_dir/output")" = 0 ] || problems="$problems; a line asked for the PATH although pnpm is on it"
   [ "$(count "pnpm install --frozen-lockfile --ignore-scripts in $backend_dir" "$case_dir/calls")" = 1 ] || problems="$problems; pnpm install did not run once in backend/"
   [ "$(count "fetch-tools $repo_dir" "$case_dir/calls")" = 1 ] || problems="$problems; backend/scripts/fetch-tools.sh did not run once"
   verdict "$name"
