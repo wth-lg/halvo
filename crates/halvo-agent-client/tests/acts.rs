@@ -380,3 +380,34 @@ fn a_request_frame_while_the_runner_waits_for_a_handback_ends_the_run() {
     assert!(rig.rec.wait_end(&run, Duration::from_secs(30)).is_some());
     assert_eq!(rig.people.handbacks.lock().unwrap().len(), 1);
 }
+
+#[test]
+fn an_add_origin_reply_for_another_id_or_of_another_call_form_is_no_acknowledgement() {
+    let rig = Rig::new("bind-wrong-reply");
+    rig.store.wrong_id_coord.store(1, Ordering::SeqCst);
+    rig.store.wrong_form_coord.store(1, Ordering::SeqCst);
+    let script = rig.script(&["hello", &bind("http://pay.test:18090"), "log bound", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(script.wait_log("bound", SHORT), "{}", script.log());
+    assert_eq!(adds(&rig).len(), 3);
+    assert_eq!(
+        script.replies(),
+        vec![r#"{"t":"bind_reply","bound":"yes"}"#]
+    );
+    rig.sup.kill(&run).unwrap();
+}
+
+#[test]
+fn a_confirm_request_of_another_run_ends_the_run_unasked() {
+    let rig = Rig::new("confirm-other-run");
+    let other = confirm(None).replace("{run}", &"f".repeat(32));
+    let script = rig.script(&["hello", "on-eof hang", &other, "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(rig.rec.wait_end(&run, Duration::from_secs(30)).is_some());
+    assert!(rig.people.issued.lock().unwrap().is_empty());
+    assert!(script.replies().is_empty(), "{}", script.log());
+}

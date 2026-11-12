@@ -281,3 +281,60 @@ fn a_second_browser_frame_ends_the_run() {
     assert_eq!(logged.len(), 2);
     assert!(wait_until(SHORT, || gone(logged[0].0, logged[0].1)));
 }
+
+#[test]
+fn a_browser_frame_that_names_a_process_outside_the_run_is_refused_and_the_process_is_left_alone() {
+    let rig = Rig::new("browser-outside");
+    let (p, created) = sleeper("browser", true);
+    let pid = p.0.id();
+    let script = rig.script(&[
+        "hello",
+        "on-eof hang",
+        &format!("browser-foreign {pid}"),
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    let end = rig.rec.wait_end(&run, Duration::from_secs(30));
+    assert!(end.is_some());
+    assert!(!script.log().contains("browser_reply"), "{}", script.log());
+    std::thread::sleep(Duration::from_millis(300));
+    assert!(process::is_running(pid, created));
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn a_browser_frame_that_claims_the_runner_group_for_a_browser_that_leads_its_own_is_refused() {
+    let rig = Rig::new("browser-claim");
+    let script = rig.script(&["hello", "on-eof hang", "browser group=runner-claim", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    let end = rig.rec.wait_end(&run, Duration::from_secs(30));
+    assert!(end.is_some());
+    assert!(!script.log().contains("browser_reply"), "{}", script.log());
+    for (pid, created) in script.logged("browser") {
+        if process::is_running(pid, created) {
+            common::kill_pid(pid);
+        }
+    }
+}
+
+#[test]
+fn reap_answers_gone_for_an_ended_run_of_this_life_whose_end_run_was_not_acknowledged() {
+    let rig = Rig::new("reap-own-ended");
+    rig.store
+        .fail_all
+        .store(1, std::sync::atomic::Ordering::SeqCst);
+    let script = rig.script(&["hello", "exit 1"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(rig.rec.wait_end(&run, Duration::from_secs(30)).is_some());
+    assert!(rig.mark(&run).is_some());
+    let answers = rig.sup.reap().unwrap();
+    assert_eq!(answers.len(), 1);
+    assert_eq!(answers[0].answer, Reaped::Gone);
+    assert!(rig.mark(&run).is_none());
+}

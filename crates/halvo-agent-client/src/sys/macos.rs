@@ -136,3 +136,18 @@ pub(crate) fn random16() -> io::Result<[u8; 16]> {
     }
     Ok(buf)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_pid_guard_takes_neither_0_nor_1_nor_a_number_beyond_the_largest_pid() {
+        assert_eq!(as_pid(0), None);
+        assert_eq!(as_pid(1), None);
+        assert_eq!(as_pid(2), Some(2));
+        assert_eq!(as_pid(2_147_483_647), Some(i32::MAX));
+        assert_eq!(as_pid(2_147_483_648), None);
+        assert_eq!(as_pid(u32::MAX), None);
+    }
+}

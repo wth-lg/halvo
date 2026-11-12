@@ -159,6 +159,21 @@ impl Peer {
                 Err(_) => self.log.line("child-failed"),
             },
             "breakaway" => self.breakaway(),
+            "browser-foreign" => {
+                let pid: u32 = rest.parse().unwrap_or(0);
+                let created = process::creation_time(pid)
+                    .map(|c| c.to_string())
+                    .unwrap_or_default();
+                let group = process::process_group(pid)
+                    .map_or_else(|| "null".to_owned(), |g| g.to_string());
+                let json = format!(
+                    r#"{{"t":"browser","pid":{pid},"created":"{created}","group":{group}}}"#
+                );
+                self.send(&json);
+                if self.reply().is_none() {
+                    self.log.line("no-reply");
+                }
+            }
             "on-eof" => {
                 let v = match rest.split_once(' ') {
                     Some(("send", port)) => OnEof::Send(port.parse().unwrap_or(0)),
@@ -217,6 +232,8 @@ impl Peer {
             "null".to_owned()
         } else if has("group=other") {
             "2147483647".to_owned()
+        } else if has("group=runner-claim") {
+            std::process::id().to_string()
         } else {
             process::process_group(pid).map_or_else(|| "null".to_owned(), |g| g.to_string())
         };

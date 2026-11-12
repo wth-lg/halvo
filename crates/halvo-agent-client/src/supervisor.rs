@@ -148,6 +148,7 @@ impl Supervisor {
                 return Err(CallError::NotStarted);
             }
         };
+        let mut held = lock(&slot.proc);
         self.inner.parts.marks.start(&run);
         let spawned = {
             let _one = lock(&self.inner.spawn_lock);
@@ -156,7 +157,9 @@ impl Supervisor {
         let mut runner = match spawned {
             Ok(p) => p,
             Err(SpawnFailed::NotMade) => {
+                drop(held);
                 let _ = marks::remove(data_dir, &run);
+                slot.ended.store(true, Ordering::SeqCst);
                 self.inner.parts.marks.end(
                     &run,
                     &RunEnd {
@@ -165,19 +168,19 @@ impl Supervisor {
                         end_run: EndRun::NoRunner,
                     },
                 );
-                slot.ended.store(true, Ordering::SeqCst);
                 return Err(CallError::NotStarted);
             }
-            Err(SpawnFailed::Made(p)) => return self.fail_made(&slot, p),
+            Err(SpawnFailed::Made(p)) => return self.fail_made(&slot, held, p),
         };
         let written = runner.line().map(|l| mark.append(&proc_line("runner", &l)));
         if !matches!(written, Some(Ok(()))) {
-            return self.fail_made(&slot, runner);
+            return self.fail_made(&slot, held, runner);
         }
         let Some((stdin, stdout)) = runner.take_link() else {
-            return self.fail_made(&slot, runner);
+            return self.fail_made(&slot, held, runner);
         };
-        *lock(&slot.proc) = Some(runner);
+        *held = Some(runner);
+        drop(held);
         *lock(&slot.writer) = Some(stdin);
         let (tx, rx) = mpsc::channel();
         *lock(&slot.events) = Some(tx.clone());
@@ -205,10 +208,16 @@ impl Supervisor {
         started_rx.recv().unwrap_or(Err(CallError::NotStarted))
     }
 
-    fn fail_made(&self, slot: &Arc<Slot>, mut runner: RunProc) -> Result<(), CallError> {
+    fn fail_made(
+        &self,
+        slot: &Arc<Slot>,
+        mut held: MutexGuard<'_, Option<RunProc>>,
+        mut runner: RunProc,
+    ) -> Result<(), CallError> {
         runner.end_all();
         let gone = runner.all_gone();
-        *lock(&slot.proc) = Some(runner);
+        *held = Some(runner);
+        drop(held);
         let inner = Arc::clone(&self.inner);
         let s = Arc::clone(slot);
         thread::spawn(move || finish_run(&inner, &s, Ending::default()));
@@ -260,15 +269,18 @@ impl Supervisor {
         Ok(())
     }
 
-    /// Answers for every mark under the data directory, one answer per run: a run that this life started is
-    /// `alive` and is left alone; for any other the library ends the processes of its mark that it may end, answers
+    /// Answers for every mark under the data directory, one answer per run: a run of this life whose runner has
+    /// not ended is `alive` and is left alone; for any other the library ends the processes of its mark that it may end, answers
     /// `gone` when its runner is gone, or its mark not complete, and then removes the mark, and `alive` when its
     /// runner lives and could not be ended.
     pub fn reap(&self) -> io::Result<Vec<ReapAnswer>> {
         let data_dir = &self.inner.config.data_dir;
         let mut answers = Vec::new();
         for mark in marks::read_all(data_dir)? {
-            if lock(&self.inner.runs).contains_key(&mark.run) {
+            let live = lock(&self.inner.runs)
+                .get(&mark.run)
+                .is_some_and(|slot| !slot.ended());
+            if live {
                 answers.push(ReapAnswer {
                     run: mark.run,
                     answer: Reaped::Alive,
@@ -536,8 +548,8 @@ fn finish_run(inner: &Inner, slot: &Slot, ending: Ending) {
         finish: ending.finish,
         end_run,
     };
-    inner.parts.marks.end(&slot.spec.run, &end);
     slot.ended.store(true, Ordering::SeqCst);
+    inner.parts.marks.end(&slot.spec.run, &end);
 }
 
 fn binding() -> ReplyError {

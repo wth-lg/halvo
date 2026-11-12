@@ -239,3 +239,35 @@ fn a_killed_runner_leaves_a_run_whose_effects_the_store_holds_as_unknown_or_reje
         assert!(wait_until(SHORT, || common::line_gone(&runner)));
     }
 }
+
+#[test]
+fn an_owner_reply_for_another_request_id_or_of_another_call_form_is_answered_internal() {
+    let rig = Rig::new("relay-wrong-reply");
+    rig.store.wrong_id_runner.store(1, Ordering::SeqCst);
+    rig.store.wrong_form_runner.store(1, Ordering::SeqCst);
+    let script = rig.script(&[
+        "hello",
+        &ask_store(&id(0x30), &effect(&id(0x68), 1, "held")),
+        &ask_store(&id(0x31), &load()),
+        &ask_store(&id(0x32), &load()),
+        "log asked",
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(script.wait_log("asked", SHORT), "{}", script.log());
+    let replies = script.replies();
+    assert_eq!(replies.len(), 3, "{}", script.log());
+    for (n, reply) in [0x30u8, 0x31].iter().zip(&replies) {
+        assert_eq!(
+            reply,
+            &format!(
+                r#"{{"t":"store_reply","reply":{{"v":1,"id":"{}","error":"internal"}}}}"#,
+                id(*n)
+            )
+        );
+    }
+    assert!(replies[2].contains(r#""ok":{"config":"#), "{}", replies[2]);
+    rig.sup.kill(&run).unwrap();
+}

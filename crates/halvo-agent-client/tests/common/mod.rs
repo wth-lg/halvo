@@ -163,6 +163,10 @@ pub struct Store {
     pub load_origins: Mutex<Vec<String>>,
     pub check: Mutex<Option<Check>>,
     pub hold_end_run: Mutex<bool>,
+    pub wrong_id_runner: AtomicUsize,
+    pub wrong_form_runner: AtomicUsize,
+    pub wrong_id_coord: AtomicUsize,
+    pub wrong_form_coord: AtomicUsize,
 }
 
 impl Store {
@@ -192,8 +196,46 @@ impl Store {
     }
 }
 
+fn take_one(n: &AtomicUsize) -> bool {
+    n.try_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
+        .is_ok()
+}
+
 impl OwnerLink for Store {
     fn request(&self, request: &[u8]) -> Result<Vec<u8>, LinkError> {
+        let reply = self.answer(request)?;
+        let Ok(Decoded::Raw(raw)) = decode(request) else {
+            return Ok(reply);
+        };
+        let id = raw.id().as_str();
+        let (wrong_id, wrong_form, form) = if raw.name() == "runner" {
+            (
+                &self.wrong_id_runner,
+                &self.wrong_form_runner,
+                r#"{"stored":1}"#,
+            )
+        } else {
+            (
+                &self.wrong_id_coord,
+                &self.wrong_form_coord,
+                r#"{"ok":"yes"}"#,
+            )
+        };
+        if take_one(wrong_id) {
+            let other = "ab".repeat(16);
+            return Ok(String::from_utf8_lossy(&reply)
+                .replace(id, &other)
+                .into_bytes());
+        }
+        if take_one(wrong_form) {
+            return Ok(Store::reply(id, form));
+        }
+        Ok(reply)
+    }
+}
+
+impl Store {
+    fn answer(&self, request: &[u8]) -> Result<Vec<u8>, LinkError> {
         let text = String::from_utf8_lossy(request).into_owned();
         self.requests.lock().unwrap().push(text);
         if self

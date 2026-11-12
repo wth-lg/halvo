@@ -295,6 +295,8 @@ mod tests {
             "runner pid=812 created=1 group=jobs\n",
             "runner pid=812 created=1 group=812 \n",
             "runner pid=+812 created=1 group=812\n",
+            "runner pid=0812 created=1 group=812\n",
+            "runner pid=812 created=1 group=0812\n",
             "runner  pid=812 created=1 group=812\n",
             "runner pid=812 group=812 created=1\n",
             "browser pid=812 created=1 group=812\n",
