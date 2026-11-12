@@ -750,6 +750,10 @@ EOF
   fixture line-cut-short
   edit line-cut-short README.md 's/\(| .Schedule-store\.cfg. | yes | [^|]* |\).*$/\1/'
   expect line-cut-short "1:FAIL $name (invariant)" good
+  fixture line-beside-its-copy
+  edit line-beside-its-copy README.md 's/^\(| .Schedule. | .queue. | .Schedule-queue\.cfg. |\)\(.*\)$/\1\2\
+\1/'
+  expect line-beside-its-copy "1:FAIL $name (invariant)" good
   fixture unnamed-configuration
   cp "$fdir/Schedule-queue.cfg" "$fdir/Schedule-more.cfg" || fail selftest
   expect unnamed-configuration "1:FAIL $name (invariant)" good
