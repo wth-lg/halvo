@@ -148,7 +148,6 @@ require_tests() {
     }
     FILENAME == ARGV[1] || FILENAME == ARGV[2] || FILENAME == ARGV[3] || FILENAME == ARGV[4] {
       sub(/\r$/, "")
-      if (FNR == 1) target = ""
       if ($0 ~ /^ *Doc-tests /) {
         target = ""
       } else if ($0 ~ /^ *Running /) {
@@ -344,7 +343,7 @@ check() {
     CI_D_ARTIFACTS=$work/artifacts/$1
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TEST_EXIT STUB_SELFTEST STUB_SELFTEST_EXIT STUB_FRESH
     export STUB_DIR STUB_NO_TARGETS STUB_NO_IGNORED STUB_NOT_RUN STUB_NO_SUMMARY STUB_RUN_EXIT
-    export STUB_TREE STUB_CHANGE_AT STUB_CHANGE_FILE STUB_CHANGE_LINE STUB_COMMITTED STUB_DROP
+    export STUB_TREE STUB_CHANGE_AT STUB_CHANGE_FILE STUB_CHANGE_LINE STUB_COMMITTED STUB_DROP STUB_NO_COMMIT
     sh "$self" 2>&1
   )
   code=$?
@@ -385,6 +384,7 @@ check() {
   STUB_CHANGE_LINE=
   STUB_COMMITTED=
   STUB_DROP=
+  STUB_NO_COMMIT=
   : >"$STUB_TREE/status" || exit 2
   : >"$STUB_TREE/flags" || exit 2
 }
@@ -463,6 +463,7 @@ make_stub() {
   STUB_CHANGE_LINE=
   STUB_COMMITTED=
   STUB_DROP=
+  STUB_NO_COMMIT=
 }
 
 tree_cases() {
@@ -485,6 +486,27 @@ tree_cases() {
   printf '\n' >>"$work/committed-e1/crates/halvo-route/src/ruling.rs"
   STUB_COMMITTED=$work/committed-e1
   check pinned-file-restored-in-the-work-tree FAIL 'pins differs=crates/halvo-route/src/ruling.rs'
+
+  mkdir "$work/committed-pins" || exit 2
+  cp -R "$work/pristine/." "$work/committed-pins/" || exit 2
+  awk '/^const PINNED/ { sub(/; 5\]/, "; 4]") } $0 == "    (" { held = $0 "\n"; inside = 1; next } inside { held = held $0 "\n"; if ($0 == "    ),") { inside = 0; if (index(held, "\"src/tier.rs\"") == 0) printf "%s", held }; next } { print }' "$work/pristine/$pin_file" >"$work/committed-pins/$pin_file" || exit 2
+  STUB_COMMITTED=$work/committed-pins
+  check pinned-row-taken-out-in-the-commit-only FAIL 'pins missing=crates/halvo-route/src/tier.rs'
+
+  mkdir "$work/committed-specimen" || exit 2
+  cp -R "$work/pristine/." "$work/committed-specimen/" || exit 2
+  cp "$work/short.tsv" "$work/committed-specimen/$specimen" || exit 2
+  STUB_COMMITTED=$work/committed-specimen
+  check specimen-changed-in-the-commit-only FAIL "specimen rows=540 same=no
+FAIL $name (specimen)"
+
+  STUB_NO_COMMIT=1
+  check no-commit FAIL 'tree commit=unreadable'
+
+  printf '? notes.txt\n' >"$STUB_TREE/status"
+  STUB_CHANGE_AT=tests
+  STUB_CHANGE_FILE=clear
+  check untracked-file-removed-by-a-test FAIL 'tree changed=after-tests ? notes.txt'
 
   stub_case un-ignored-at-run-time-with-a-written-line
   printf '     Running unittests src/lib.rs (target/debug/deps/halvo_route-0123456789abcdef)\ntest admit::tests::refusal_admit_sum ... ok\n' >>"$STUB_DIR/test.out"
@@ -746,27 +768,19 @@ self_test() {
   cmp -s "$work/flipped.tsv" "$work/fresh.tsv" && exit 2
   cat >"$work/bin/git" <<'EOF'
 #!/bin/sh
-while [ "$1" = -c ]; do
-  shift 2
-done
-case $1 in
-  rev-parse) printf '%s\n' 1111111111111111111111111111111111111111 ;;
-  archive)
-    while [ "$1" != -o ]; do
-      shift
-    done
-    out=$2
-    while [ "$1" != -- ]; do
-      shift
-    done
-    shift
-    tar -cf "$out" -C "${STUB_COMMITTED:-.}" "$@"
+case $* in
+  'rev-parse --verify --quiet HEAD^{commit}')
+    [ -z "$STUB_NO_COMMIT" ] || exit 1
+    printf '%s\n' 1111111111111111111111111111111111111111
     ;;
-  status)
+  '-c core.autocrlf=false archive --format=tar -o '*' 1111111111111111111111111111111111111111 -- crates/halvo-route scripts/r6 crates/halvo-route-gate/tests/data')
+    tar -cf "$6" -C "${STUB_COMMITTED:-.}" crates/halvo-route scripts/r6 crates/halvo-route-gate/tests/data
+    ;;
+  '-c core.fsmonitor=false -c core.untrackedCache=false status --porcelain=v2 --branch --untracked-files=all --ignored=matching')
     printf '# branch.oid %s\n' 1111111111111111111111111111111111111111
     cat "$STUB_TREE/status"
     ;;
-  ls-files)
+  'ls-files -v')
     printf 'H scripts/r6/required-tests.txt\n'
     cat "$STUB_TREE/flags"
     ;;
@@ -789,7 +803,11 @@ case $* in
   'run -q --locked -p halvo-route-gate --bin route-gate -- generate --seed 1 --out '*) kind=generate ;;
 esac
 if [ "$kind" = "${STUB_CHANGE_AT:-none}" ]; then
-  printf '%s\n' "$STUB_CHANGE_LINE" >>"$STUB_TREE/${STUB_CHANGE_FILE:-status}"
+  if [ "${STUB_CHANGE_FILE:-status}" = clear ]; then
+    : >"$STUB_TREE/status"
+  else
+    printf '%s\n' "$STUB_CHANGE_LINE" >>"$STUB_TREE/${STUB_CHANGE_FILE:-status}"
+  fi
 fi
 case $kind in
   tests)
