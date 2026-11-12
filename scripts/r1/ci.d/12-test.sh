@@ -58,12 +58,14 @@ measure() {
 
 check() {
   STUB_CALLS=$work/calls.$1
+  mkdir -p "$work/artifacts/$1"
   out=$(
     PATH=$work/bin:$PATH
     CI_D_REPO=$repo
     CI_D_JOB=macos
+    CI_D_ARTIFACTS=$work/artifacts/$1
     RUNNER_TEMP=$work/runner-temp
-    export PATH CI_D_REPO CI_D_JOB RUNNER_TEMP STUB_CALLS STUB_BUILD_EXIT STUB_TEST_EXIT STUB_LEAVES STUB_MOVES
+    export PATH CI_D_REPO CI_D_JOB CI_D_ARTIFACTS RUNNER_TEMP STUB_CALLS STUB_BUILD_EXIT STUB_TEST_EXIT STUB_LEAVES STUB_MOVES
     sh "$0" 2>&1
   )
   code=$?
@@ -77,6 +79,11 @@ check() {
     *"${3:-}"*) ;;
     *) got=$got-without-the-text ;;
   esac
+  if [ -n "${4:-}" ]; then
+    tests=
+    [ ! -f "$work/artifacts/$1/tests.txt" ] || tests=$(cat "$work/artifacts/$1/tests.txt")
+    [ "$tests" = "$4" ] || got=$got-without-the-tests-file
+  fi
   printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$2" "$got"
   if [ "$got" != "$2" ]; then
     wrong="$wrong $1"
@@ -117,7 +124,15 @@ for entry in $STUB_LEAVES; do
   mkdir "$TMPDIR/$entry"
 done
 [ "$STUB_MOVES" = no ] || mv "$TMPDIR" "$TMPDIR.moved"
-exit "$STUB_TEST_EXIT"
+printf '     Running unittests src/lib.rs (target/debug/deps/stub-0123456789abcdef)\n' >&2
+printf '\nrunning 3 tests\ntest a::one ... ok\ntest a::two ... ignored, needs a window\n'
+if [ "$STUB_TEST_EXIT" -ne 0 ]; then
+  printf 'test a::three ... FAILED\n\ntest result: FAILED. 1 passed; 1 failed; 1 ignored; 0 measured; 0 filtered out\n\n'
+  exit "$STUB_TEST_EXIT"
+fi
+printf 'test a::three ... ok\n\ntest result: ok. 2 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out\n\n'
+printf '   Doc-tests stub\n' >&2
+printf '\nrunning 1 test\ntest src/lib.rs - one (line 3) ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n\n'
 EOF
   cat >"$work/bin/security" <<'EOF'
 #!/bin/sh
@@ -143,14 +158,20 @@ EOF
   STUB_LEAVES=
   STUB_MOVES=no
 
+  nl='
+'
+  ran='     Running unittests src/lib.rs (target/debug/deps/stub-0123456789abcdef)'"${nl}test a::one ... ok${nl}test a::two ... ignored, needs a window"
+  passed="$ran${nl}test a::three ... ok${nl}   Doc-tests stub${nl}test src/lib.rs - one (line 3) ... ok"
+  failed="$ran${nl}test a::three ... FAILED"
+
   repo=$work/literal-tracked
-  check tests-pass PASS 'login-keychain items of com.halvo.capture.dev-fallback before the tests: 2'
+  check tests-pass PASS 'login-keychain items of com.halvo.capture.dev-fallback before the tests: 2' "$passed"
   STUB_BUILD_EXIT=101
   check build-fails FAIL 'the test build failed: cargo test --no-run exited 101'
   STUB_TEST_EXIT=101
-  check test-fails FAIL 'cargo test exited 101)'
+  check test-fails FAIL 'cargo test exited 101)' "$failed"
   STUB_TEST_EXIT=137
-  check test-killed FAIL 'cargo test exited 137)'
+  check test-killed FAIL 'cargo test exited 137)' "$failed"
   STUB_LEAVES=stray
   check stray-entry FAIL 'the tests left 1 entries in their temp directory: stray)'
   STUB_LEAVES=.tmpAbC
