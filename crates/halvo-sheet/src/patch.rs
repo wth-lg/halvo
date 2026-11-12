@@ -1,16 +1,17 @@
-use std::collections::BTreeMap;
 use std::io::{Cursor, Write};
+use std::ops::RangeInclusive;
 
-use quick_xml::events::{BytesStart, Event};
-use quick_xml::Reader;
+use quick_xml::events::Event;
+use quick_xml::name::{Namespace, ResolveResult};
+use quick_xml::reader::NsReader;
+use quick_xml::XmlVersion;
 
 use crate::book::unreadable;
 use crate::error::{Error, Refusal};
 use crate::parts::{self, Entries};
 use crate::range::Range;
 use crate::source::Value;
-
-type Pos = (u32, u32);
+use crate::xml::{self, form, Item, Pos, MAIN};
 
 struct Edit {
     at: usize,
@@ -22,38 +23,11 @@ fn refused(why: Refusal) -> Error {
     Error::Workbook(why)
 }
 
-fn form() -> Error {
-    refused(Refusal::Part)
-}
-
 pub(crate) fn text(bytes: &[u8]) -> Result<&str, Error> {
     if bytes.starts_with(&[0xef, 0xbb, 0xbf]) {
         return Err(form());
     }
     std::str::from_utf8(bytes).map_err(|_| form())
-}
-
-fn local(name: &str) -> &str {
-    name.rsplit_once(':').map_or(name, |(_, local)| local)
-}
-
-fn prefix(name: &str) -> &str {
-    name.rsplit_once(':').map_or("", |(prefix, _)| prefix)
-}
-
-fn attr(e: &BytesStart<'_>, key: &str) -> Option<String> {
-    e.attributes()
-        .flatten()
-        .find(|a| a.key.as_ref() == key)
-        .map(|a| a.value.to_string())
-}
-
-fn cell_pos(text: &str) -> Result<Pos, Error> {
-    let range = Range::parse(text).map_err(|_| form())?;
-    if range.first != range.last {
-        return Err(form());
-    }
-    Ok(range.first)
 }
 
 fn column_name(mut col: u32) -> String {
@@ -69,6 +43,14 @@ fn column_name(mut col: u32) -> String {
 
 fn reference((row, col): Pos) -> String {
     format!("{}{}", column_name(col), row + 1)
+}
+
+fn range_text(range: Range) -> String {
+    if range.first == range.last {
+        reference(range.first)
+    } else {
+        format!("{}:{}", reference(range.first), reference(range.last))
+    }
 }
 
 fn escaped(text: &str) -> String {
@@ -104,7 +86,12 @@ fn qualified(prefix: &str, name: &str) -> String {
 
 fn cell_element(prefix: &str, pos: Pos, style: Option<&str>, value: &Value) -> String {
     let c = qualified(prefix, "c");
-    let style = style.map_or(String::new(), |s| format!(" s=\"{s}\""));
+    let quoted = |s: &str| {
+        s.replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('"', "&quot;")
+    };
+    let style = style.map_or(String::new(), |s| format!(" s=\"{}\"", quoted(s)));
     let r = reference(pos);
     match value {
         Value::Number(x) => {
@@ -120,353 +107,248 @@ fn cell_element(prefix: &str, pos: Pos, style: Option<&str>, value: &Value) -> S
     }
 }
 
-fn with_attribute(tag: &str, key: &str, old: Option<&str>, new: &str) -> String {
-    match old {
-        Some(old) => {
-            for quote in ['"', '\''] {
-                let from = format!(" {key}={quote}{old}{quote}");
-                if let Some(at) = tag.find(&from) {
-                    let mut out = tag.to_string();
-                    out.replace_range(at..at + from.len(), &format!(" {key}=\"{new}\""));
-                    return out;
-                }
-            }
-            tag.to_string()
-        }
-        None => {
-            let name_end = tag[1..]
-                .find(|c: char| c.is_whitespace() || c == '/' || c == '>')
-                .map_or(tag.len(), |at| at + 1);
-            let mut out = tag.to_string();
-            out.insert_str(name_end, &format!(" {key}=\"{new}\""));
-            out
-        }
-    }
-}
-
-fn spans_with(spans: &str, cols: &[u32]) -> Option<String> {
+/// The pairs of a `spans` value, `a:b` separated by white space; refused when it has another
+/// form.
+pub(crate) fn span_pairs(spans: &str) -> Result<Vec<(u32, u32)>, Error> {
     let mut pairs = Vec::new();
     for pair in spans.split_whitespace() {
-        let (a, b) = pair.split_once(':')?;
-        pairs.push((a.parse::<u32>().ok()?, b.parse::<u32>().ok()?));
+        let (a, b) = pair.split_once(':').ok_or_else(form)?;
+        let number = |text: &str| -> Result<u32, Error> {
+            if text.is_empty() || !text.bytes().all(|b| b.is_ascii_digit()) {
+                return Err(form());
+            }
+            text.parse().map_err(|_| form())
+        };
+        pairs.push((number(a)?, number(b)?));
     }
-    let outside = cols
-        .iter()
-        .any(|col| !pairs.iter().any(|(a, b)| (*a..=*b).contains(&(col + 1))));
-    if !outside {
-        return None;
+    Ok(pairs)
+}
+
+/// Whether the union of `pairs` holds every column from `low` to `high` (counted from 1).
+pub(crate) fn covered(pairs: &[(u32, u32)], low: u32, high: u32) -> bool {
+    let mut sorted = pairs.to_vec();
+    sorted.sort_unstable();
+    let mut reach = low;
+    for (a, b) in sorted {
+        if a > reach {
+            break;
+        }
+        if b >= reach {
+            if b >= high {
+                return true;
+            }
+            reach = b + 1;
+        }
     }
-    let low = pairs
-        .iter()
-        .map(|p| p.0)
-        .chain(cols.iter().map(|c| c + 1))
-        .min()?;
-    let high = pairs
-        .iter()
-        .map(|p| p.1)
-        .chain(cols.iter().map(|c| c + 1))
-        .max()?;
-    Some(format!("{low}:{high}"))
+    false
 }
 
-fn dimension_with(dimension: &str, named: &BTreeMap<Pos, &Value>) -> Option<String> {
-    let range = Range::parse(dimension).ok()?;
-    let (first, last) = (range.first, range.last);
-    let low = named
-        .keys()
-        .fold(first, |(r, c), (nr, nc)| (r.min(*nr), c.min(*nc)));
-    let high = named
-        .keys()
-        .fold(last, |(r, c), (nr, nc)| (r.max(*nr), c.max(*nc)));
-    if (low, high) == (first, last) {
-        return None;
+/// The `spans` of a row that holds the columns `cols` (counted from 0): `None` when it holds
+/// them already, else one pair over the old pairs and the columns.
+fn spans_with(spans: &str, cols: &RangeInclusive<u32>) -> Result<Option<String>, Error> {
+    let pairs = span_pairs(spans)?;
+    let (low, high) = (cols.start() + 1, cols.end() + 1);
+    if covered(&pairs, low, high) {
+        return Ok(None);
     }
-    Some(format!("{}:{}", reference(low), reference(high)))
+    let first = pairs.iter().map(|p| p.0).fold(low, u32::min);
+    let last = pairs.iter().map(|p| p.1).fold(high, u32::max);
+    Ok(Some(format!("{first}:{last}")))
 }
 
-struct Row {
-    number: u32,
-    tag: (usize, usize),
-    raw: String,
-    spans: Option<String>,
-    last_col: Option<u32>,
+struct Fill<'v> {
+    range: Range,
+    values: &'v [Vec<Value>],
 }
 
-struct Walk<'a> {
-    named: &'a BTreeMap<Pos, &'a Value>,
-    prefix: String,
-    edits: Vec<Edit>,
-    pending_rows: Vec<u32>,
-    last_row: Option<u32>,
-    arrays: Vec<Range>,
-    shared: Vec<Pos>,
-}
+impl Fill<'_> {
+    fn value(&self, (row, col): Pos) -> &Value {
+        &self.values[(row - self.range.first.0) as usize][(col - self.range.first.1) as usize]
+    }
 
-impl Walk<'_> {
-    fn cells_of(&self, row: u32) -> Vec<(Pos, &Value)> {
-        self.named
-            .range((row, 0)..=(row, u32::MAX))
-            .map(|(pos, value)| (*pos, *value))
+    fn cols(&self) -> RangeInclusive<u32> {
+        self.range.first.1..=self.range.last.1
+    }
+
+    fn holds_row(&self, row: u32) -> bool {
+        (self.range.first.0..=self.range.last.0).contains(&row)
+    }
+
+    fn cells(&self, prefix: &str, row: u32, cols: RangeInclusive<u32>) -> String {
+        cols.map(|col| cell_element(prefix, (row, col), None, self.value((row, col))))
             .collect()
     }
 
-    fn new_row(&self, row: u32) -> String {
-        let name = qualified(&self.prefix, "row");
-        let cells: String = self
-            .cells_of(row)
-            .into_iter()
-            .map(|(pos, value)| cell_element(&self.prefix, pos, None, value))
-            .collect();
-        format!("<{name} r=\"{}\">{cells}</{name}>", row + 1)
-    }
-
-    fn rows_before(&mut self, at: usize, row: Option<u32>) {
-        let mut text = String::new();
-        while let Some(&next) = self.pending_rows.first() {
-            if row.is_some_and(|row| next >= row) {
-                break;
-            }
-            text.push_str(&self.new_row(next));
-            self.pending_rows.remove(0);
-        }
-        if !text.is_empty() {
-            self.edits.push(Edit { at, end: at, text });
-        }
+    fn rows(&self, prefix: &str, rows: std::ops::Range<u32>) -> String {
+        let name = qualified(prefix, "row");
+        rows.map(|row| {
+            let cells = self.cells(prefix, row, self.cols());
+            format!("<{name} r=\"{}\">{cells}</{name}>", row + 1)
+        })
+        .collect()
     }
 }
 
-pub(crate) fn sheet_part(xml: &str, named: &BTreeMap<Pos, &Value>) -> Result<String, Error> {
-    let mut reader = Reader::from_reader(xml.as_bytes());
-    reader.config_mut().trim_text(false);
-    let mut walk = Walk {
-        named,
-        prefix: String::new(),
-        edits: Vec::new(),
-        pending_rows: named.keys().map(|(row, _)| *row).collect(),
-        last_row: None,
-        arrays: Vec::new(),
-        shared: Vec::new(),
+struct Open {
+    prefix: String,
+    number: u32,
+    next_col: u32,
+}
+
+fn overlaps(a: &Range, b: &Range) -> bool {
+    a.first.0 <= b.last.0 && b.first.0 <= a.last.0 && a.first.1 <= b.last.1 && b.first.1 <= a.last.1
+}
+
+/// The worksheet part with the cells of `range` written: each cell's element replaced, or
+/// inserted in column order, a row that does not exist inserted in row order, and the `spans`
+/// of a row and the `ref` of `dimension` grown where a cell lies outside them.
+pub(crate) fn sheet_part(xml: &str, range: Range, values: &[Vec<Value>]) -> Result<String, Error> {
+    let fill = Fill { range, values };
+    let (last_row, last_col) = range.last;
+    let mut edits = Vec::new();
+    let mut data_prefix = "";
+    let mut next_row = range.first.0;
+    let mut row: Option<Open> = None;
+    let mut shared = false;
+    let mut arrays = Vec::new();
+    let insert = |edits: &mut Vec<Edit>, at: usize, text: String| {
+        edits.push(Edit { at, end: at, text });
     };
-    walk.pending_rows.dedup();
-    let mut buf = Vec::new();
-    let mut in_data = false;
-    let mut row: Option<Row> = None;
-    let mut cell: Option<(Pos, usize, Option<String>)> = None;
-    let mut seen_data = false;
-    loop {
-        let at = reader.buffer_position() as usize;
-        let event = reader.read_event_into(&mut buf).map_err(|_| form())?;
-        let end = reader.buffer_position() as usize;
-        match event {
-            Event::Eof => break,
-            Event::Start(ref e) | Event::Empty(ref e) => {
-                let empty = matches!(event, Event::Empty(_));
-                let name = e.name().as_ref().to_string();
-                match local(&name) {
-                    "dimension" if !in_data => {
-                        if let Some(old) = attr(e, "ref") {
-                            if let Some(new) = dimension_with(&old, named) {
-                                let tag = &xml[at..end];
-                                let text = with_attribute(tag, "ref", Some(&old), &new);
-                                walk.edits.push(Edit { at, end, text });
-                            }
+    xml::walk(xml, |item| {
+        match item {
+            Item::Dimension(tag) => {
+                let place = tag.get("ref").ok_or_else(form)?;
+                let old = Range::parse(&place.value).map_err(|_| form())?;
+                let grown = Range {
+                    first: (
+                        old.first.0.min(range.first.0),
+                        old.first.1.min(range.first.1),
+                    ),
+                    last: (old.last.0.max(last_row), old.last.1.max(last_col)),
+                };
+                if grown != old {
+                    edits.push(Edit {
+                        at: place.place.at,
+                        end: place.place.end,
+                        text: range_text(grown),
+                    });
+                }
+            }
+            Item::Data(tag) => {
+                data_prefix = tag.prefix;
+                if tag.empty {
+                    let rows = fill.rows(tag.prefix, next_row..last_row + 1);
+                    next_row = last_row + 1;
+                    edits.push(Edit {
+                        at: tag.span.end - 2,
+                        end: tag.span.end,
+                        text: format!(">{rows}</{}>", tag.named("sheetData")),
+                    });
+                }
+            }
+            Item::Row(tag, number) => {
+                if next_row < number && next_row <= last_row {
+                    let upto = number.min(last_row + 1);
+                    insert(
+                        &mut edits,
+                        tag.span.at,
+                        fill.rows(data_prefix, next_row..upto),
+                    );
+                    next_row = upto;
+                }
+                if fill.holds_row(number) {
+                    next_row = number + 1;
+                    if let Some(spans) = tag.get("spans") {
+                        if let Some(text) = spans_with(&spans.value, &fill.cols())? {
+                            edits.push(Edit {
+                                at: spans.place.at,
+                                end: spans.place.end,
+                                text,
+                            });
                         }
                     }
-                    "sheetData" if !seen_data => {
-                        seen_data = true;
-                        walk.prefix = prefix(&name).to_string();
-                        if empty {
-                            let rows: String =
-                                walk.pending_rows.iter().map(|r| walk.new_row(*r)).collect();
-                            if !rows.is_empty() {
-                                let inner = &xml[at + 1..end - 2];
-                                let text = format!("<{inner}>{rows}</{name}>");
-                                walk.edits.push(Edit { at, end, text });
-                            }
-                            walk.pending_rows.clear();
-                        } else {
-                            in_data = true;
-                        }
-                    }
-                    "row" if in_data && cell.is_none() => {
-                        let number = attr(e, "r")
-                            .and_then(|r| r.parse::<u32>().ok())
-                            .filter(|r| *r >= 1)
-                            .ok_or_else(form)?
-                            - 1;
-                        if walk.last_row.is_some_and(|last| number <= last) {
-                            return Err(form());
-                        }
-                        walk.last_row = Some(number);
-                        walk.rows_before(at, Some(number));
-                        let named_here = walk.pending_rows.first() == Some(&number);
-                        if named_here {
-                            walk.pending_rows.remove(0);
-                        }
-                        let current = Row {
+                    if tag.empty {
+                        let cells = fill.cells(tag.prefix, number, fill.cols());
+                        edits.push(Edit {
+                            at: tag.span.end - 2,
+                            end: tag.span.end,
+                            text: format!(">{cells}</{}>", tag.named("row")),
+                        });
+                    } else {
+                        row = Some(Open {
+                            prefix: tag.prefix.to_string(),
                             number,
-                            tag: (at, end),
-                            raw: xml[at..end].to_string(),
-                            spans: attr(e, "spans"),
-                            last_col: None,
-                        };
-                        if empty {
-                            if named_here {
-                                let cells: String = walk
-                                    .cells_of(number)
-                                    .into_iter()
-                                    .map(|(pos, value)| {
-                                        cell_element(&walk.prefix, pos, None, value)
-                                    })
-                                    .collect();
-                                let open = grown_row_tag(
-                                    &current,
-                                    &walk,
-                                    &current.raw[..current.raw.len() - 2],
-                                );
-                                let text = format!("{open}>{cells}</{name}>");
-                                walk.edits.push(Edit { at, end, text });
-                            }
-                        } else {
-                            row = Some(current);
-                        }
+                            next_col: range.first.1,
+                        });
                     }
-                    "c" if row.is_some() && cell.is_none() => {
-                        let current = row.as_mut().ok_or_else(form)?;
-                        let pos = cell_pos(&attr(e, "r").ok_or_else(form)?)?;
-                        if pos.0 != current.number || current.last_col.is_some_and(|c| pos.1 <= c) {
-                            return Err(form());
-                        }
-                        let missing: Vec<(Pos, &Value)> = walk
-                            .cells_of(current.number)
-                            .into_iter()
-                            .filter(|(p, _)| {
-                                p.1 < pos.1 && current.last_col.is_none_or(|c| p.1 > c)
-                            })
-                            .collect();
-                        let text: String = missing
-                            .iter()
-                            .map(|(p, v)| cell_element(&walk.prefix, *p, None, v))
-                            .collect();
-                        if !text.is_empty() {
-                            walk.edits.push(Edit { at, end: at, text });
-                        }
-                        current.last_col = Some(pos.1);
-                        let style = attr(e, "s");
-                        if empty {
-                            if let Some(value) = named.get(&pos) {
-                                let text = cell_element(&walk.prefix, pos, style.as_deref(), value);
-                                walk.edits.push(Edit { at, end, text });
-                            }
-                        } else {
-                            cell = Some((pos, at, style));
-                        }
-                    }
-                    "f" if cell.is_some() => {
-                        let (pos, _, _) = cell.as_ref().ok_or_else(form)?;
-                        match attr(e, "t").as_deref() {
-                            Some("array") | Some("dataTable") => {
-                                let range = match attr(e, "ref") {
-                                    Some(r) => Range::parse(&r).map_err(|_| form())?,
-                                    None => Range {
-                                        first: *pos,
-                                        last: *pos,
-                                    },
-                                };
-                                walk.arrays.push(range);
-                            }
-                            Some("shared") => walk.shared.push(*pos),
-                            _ => {}
-                        }
-                    }
-                    _ => {}
                 }
             }
-            Event::End(ref e) => {
-                let name = e.name().as_ref().to_string();
-                match local(&name) {
-                    "c" if cell.is_some() => {
-                        if let Some((pos, start, style)) = cell.take() {
-                            if let Some(value) = named.get(&pos) {
-                                let text = cell_element(&walk.prefix, pos, style.as_deref(), value);
-                                walk.edits.push(Edit {
-                                    at: start,
-                                    end,
-                                    text,
-                                });
-                            }
-                        }
+            Item::Cell(cell) => {
+                arrays.extend(cell.array);
+                if let Some(open) = row.as_mut() {
+                    let col = cell.pos.1;
+                    if open.next_col < col && open.next_col <= last_col {
+                        let upto = col.min(last_col + 1);
+                        let cells = fill.cells(&open.prefix, open.number, open.next_col..=upto - 1);
+                        insert(&mut edits, cell.span.at, cells);
+                        open.next_col = upto;
                     }
-                    "row" if row.is_some() && cell.is_none() => {
-                        if let Some(current) = row.take() {
-                            let missing: Vec<(Pos, &Value)> = walk
-                                .cells_of(current.number)
-                                .into_iter()
-                                .filter(|(p, _)| current.last_col.is_none_or(|c| p.1 > c))
-                                .collect();
-                            let text: String = missing
-                                .iter()
-                                .map(|(p, v)| cell_element(&walk.prefix, *p, None, v))
-                                .collect();
-                            if !text.is_empty() {
-                                walk.edits.push(Edit { at, end: at, text });
-                            }
-                            let (tag_at, tag_end) = current.tag;
-                            let open = grown_row_tag(
-                                &current,
-                                &walk,
-                                &current.raw[..current.raw.len() - 1],
-                            );
-                            let open = format!("{open}>");
-                            if open != current.raw {
-                                walk.edits.push(Edit {
-                                    at: tag_at,
-                                    end: tag_end,
-                                    text: open,
-                                });
-                            }
-                        }
+                    if range.holds(cell.pos) {
+                        shared |= cell.shared;
+                        let style = cell.tag.get("s").map(|s| s.value.to_string());
+                        let value = fill.value(cell.pos);
+                        edits.push(Edit {
+                            at: cell.span.at,
+                            end: cell.span.end,
+                            text: cell_element(&open.prefix, cell.pos, style.as_deref(), value),
+                        });
+                        open.next_col = col + 1;
                     }
-                    "sheetData" if in_data => {
-                        in_data = false;
-                        walk.rows_before(at, None);
-                    }
-                    _ => {}
                 }
             }
-            _ => {}
+            Item::RowRest(at) => {
+                if let Some(open) = row.as_mut() {
+                    if open.next_col <= last_col {
+                        let cells = fill.cells(&open.prefix, open.number, open.next_col..=last_col);
+                        insert(&mut edits, at, cells);
+                        open.next_col = last_col + 1;
+                    }
+                }
+            }
+            Item::RowEnd(span) => {
+                if let Some(open) = row.take() {
+                    if open.next_col <= last_col {
+                        let cells = fill.cells(&open.prefix, open.number, open.next_col..=last_col);
+                        insert(&mut edits, span.at, cells);
+                    }
+                }
+            }
+            Item::DataEnd(span) => {
+                if next_row <= last_row {
+                    insert(
+                        &mut edits,
+                        span.at,
+                        fill.rows(data_prefix, next_row..last_row + 1),
+                    );
+                    next_row = last_row + 1;
+                }
+            }
         }
-        buf.clear();
+        Ok(())
+    })?;
+    if shared {
+        return Err(refused(Refusal::SharedFormula));
     }
-    if !seen_data {
-        return Err(form());
+    if arrays.iter().any(|array| overlaps(array, &range)) {
+        return Err(refused(Refusal::ArrayFormula));
     }
-    for pos in named.keys() {
-        if walk.shared.contains(pos) {
-            return Err(refused(Refusal::SharedFormula));
-        }
-        if walk.arrays.iter().any(|range| range.holds(*pos)) {
-            return Err(refused(Refusal::ArrayFormula));
-        }
-    }
-    Ok(applied(xml, walk.edits))
-}
-
-fn grown_row_tag(row: &Row, walk: &Walk<'_>, open: &str) -> String {
-    let cols: Vec<u32> = walk.cells_of(row.number).iter().map(|(p, _)| p.1).collect();
-    match row
-        .spans
-        .as_deref()
-        .and_then(|spans| spans_with(spans, &cols).map(|new| (spans, new)))
-    {
-        Some((old, new)) => with_attribute(open, "spans", Some(old), &new),
-        None => open.to_string(),
-    }
+    Ok(applied(xml, edits))
 }
 
 fn applied(xml: &str, mut edits: Vec<Edit>) -> String {
     edits.sort_by_key(|edit| (edit.at, edit.end));
-    let mut out = String::with_capacity(xml.len() + 256);
+    let extra: usize = edits.iter().map(|edit| edit.text.len()).sum();
+    let mut out = String::with_capacity(xml.len() + extra);
     let mut done = 0;
     for edit in edits {
         out.push_str(&xml[done..edit.at]);
@@ -477,95 +359,81 @@ fn applied(xml: &str, mut edits: Vec<Edit>) -> String {
     out
 }
 
-const AFTER_CALC: [&str; 9] = [
-    "oleSize",
-    "customWorkbookViews",
-    "pivotCaches",
-    "smartTagPr",
-    "smartTagTypes",
-    "webPublishing",
-    "fileRecoveryPr",
-    "webPublishObjects",
-    "extLst",
-];
-
+/// The workbook part with the calculation flag set: `None` where `calcPr` has it at `1` or
+/// `true` already, else the part with the flag's value made `1`, the attribute added after the
+/// element's name, or the element added before the first child that the schema puts after it.
 pub(crate) fn workbook_part(xml: &str) -> Result<Option<String>, Error> {
-    let mut reader = Reader::from_reader(xml.as_bytes());
-    reader.config_mut().trim_text(false);
-    let mut buf = Vec::new();
-    let mut depth = 0usize;
-    let mut root = String::new();
-    loop {
-        let at = reader.buffer_position() as usize;
-        let event = reader.read_event_into(&mut buf).map_err(|_| form())?;
-        let end = reader.buffer_position() as usize;
-        match event {
-            Event::Eof => return Err(form()),
-            Event::Start(ref e) | Event::Empty(ref e) => {
-                let name = e.name().as_ref().to_string();
-                if depth == 1 && local(&name) == "calcPr" {
-                    let tag = &xml[at..end];
-                    let text = match attr(e, "fullCalcOnLoad").as_deref() {
-                        Some("1") | Some("true") => return Ok(None),
-                        Some(old) => with_attribute(tag, "fullCalcOnLoad", Some(old), "1"),
-                        None => with_attribute(tag, "fullCalcOnLoad", None, "1"),
-                    };
-                    return Ok(Some(applied(xml, vec![Edit { at, end, text }])));
-                }
-                if depth == 1 && AFTER_CALC.contains(&local(&name)) {
-                    return Ok(Some(with_calc(xml, at, &root)));
-                }
-                if depth == 0 {
-                    root = name;
-                }
-                if matches!(event, Event::Start(_)) {
-                    depth += 1;
+    let book = xml::book(xml)?;
+    let edit = match &book.calc {
+        Some((calc, _)) if xml::flag_set(calc) => return Ok(None),
+        Some((calc, _)) => match calc.get("fullCalcOnLoad") {
+            Some(flag) => Edit {
+                at: flag.place.at,
+                end: flag.place.end,
+                text: "1".to_string(),
+            },
+            None => {
+                let at = calc.name_end("calcPr");
+                Edit {
+                    at,
+                    end: at,
+                    text: " fullCalcOnLoad=\"1\"".to_string(),
                 }
             }
-            Event::End(_) => {
-                depth -= 1;
-                if depth == 0 {
-                    return Ok(Some(with_calc(xml, at, &root)));
-                }
+        },
+        None => {
+            let at = book.later.unwrap_or(book.end);
+            Edit {
+                at,
+                end: at,
+                text: format!("<{} fullCalcOnLoad=\"1\"/>", book.root.named("calcPr")),
             }
-            _ => {}
         }
-        buf.clear();
-    }
+    };
+    Ok(Some(applied(xml, vec![edit])))
 }
 
-fn with_calc(xml: &str, at: usize, root: &str) -> String {
-    let name = qualified(prefix(root), "calcPr");
-    let text = format!("<{name} fullCalcOnLoad=\"1\"/>");
-    applied(xml, vec![Edit { at, end: at, text }])
-}
-
+/// The header rows of the tables that the sheet's relationships link: the first row of each
+/// table's `ref` unless its `headerRowCount` is `0`.
 pub(crate) fn table_headers(entries: &Entries, part: &str) -> Result<Vec<Range>, Error> {
     let mut headers = Vec::new();
     for target in parts::linked(entries, part, "table")? {
         let xml = text(entries.get(&target).ok_or_else(unreadable)?)?;
-        let mut reader = Reader::from_reader(xml.as_bytes());
-        let mut buf = Vec::new();
+        let mut reader = NsReader::from_str(xml);
         loop {
-            match reader.read_event_into(&mut buf).map_err(|_| form())? {
-                Event::Start(ref e) | Event::Empty(ref e) => {
-                    if local(e.name().as_ref()) == "table" {
-                        let range =
-                            Range::parse(&attr(e, "ref").ok_or_else(form)?).map_err(|_| form())?;
-                        if attr(e, "headerRowCount").as_deref() != Some("0") {
-                            let first = range.first;
-                            headers.push(Range {
-                                first,
-                                last: (first.0, range.last.1),
-                            });
+            let (ns, event) = reader.read_resolved_event().map_err(|_| form())?;
+            let main = matches!(ns, ResolveResult::Bound(Namespace(n)) if n == MAIN);
+            match event {
+                Event::Start(e) | Event::Empty(e) => {
+                    if !(main && xml::local(e.name().as_ref()) == "table") {
+                        return Err(form());
+                    }
+                    let mut reference = None;
+                    let mut header_rows = None;
+                    for attribute in e.attributes() {
+                        let attribute = attribute.map_err(|_| form())?;
+                        let value = attribute
+                            .normalized_value(XmlVersion::Implicit1_0)
+                            .map_err(|_| form())?
+                            .into_owned();
+                        match attribute.key.as_ref() {
+                            "ref" => reference = Some(value),
+                            "headerRowCount" => header_rows = Some(value),
+                            _ => {}
                         }
+                    }
+                    let range = Range::parse(&reference.ok_or_else(form)?).map_err(|_| form())?;
+                    if header_rows.as_deref() != Some("0") {
+                        headers.push(Range {
+                            first: range.first,
+                            last: (range.first.0, range.last.1),
+                        });
                     }
                     break;
                 }
-                Event::Eof => break,
+                Event::Eof => return Err(form()),
                 _ => {}
             }
-            buf.clear();
         }
     }
     Ok(headers)
@@ -612,14 +480,13 @@ pub(crate) fn write(
     range: Range,
     values: &[Vec<Value>],
 ) -> Result<Vec<u8>, Error> {
-    let named: BTreeMap<Pos, &Value> = range.cells().zip(values.iter().flatten()).collect();
     for header in table_headers(entries, part)? {
-        if named.keys().any(|pos| header.holds(*pos)) {
+        if overlaps(&header, &range) {
             return Err(refused(Refusal::TableHeader));
         }
     }
     let source = text(entries.get(part).ok_or_else(unreadable)?)?;
-    let patched = sheet_part(source, &named)?;
+    let patched = sheet_part(source, range, values)?;
     let workbook = parts::workbook_name(entries)?;
     let book = workbook_part(text(entries.get(&workbook).ok_or_else(unreadable)?)?)?;
     package(original, (part, &patched), (&workbook, book.as_deref()))
@@ -641,30 +508,33 @@ mod tests {
         "rows-5000.xlsx",
     ];
 
+    const NS: &str = r#"xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main""#;
+
     fn sheet1(file: &str) -> String {
         let all = corpus(file);
         String::from_utf8(all["xl/worksheets/sheet1.xml"].clone()).expect("utf-8")
     }
 
-    fn patched(file: &str, cells: &[(&str, Value)]) -> String {
-        let named: BTreeMap<Pos, &Value> = cells
-            .iter()
-            .map(|(r, v)| (cell_pos(r).expect("a cell"), v))
-            .collect();
-        sheet_part(&sheet1(file), &named).expect("patched")
+    fn one(cell: &str, value: Value) -> (Range, Vec<Vec<Value>>) {
+        (Range::parse(cell).expect("a cell"), vec![vec![value]])
+    }
+
+    fn patched(file: &str, cell: &str, value: Value) -> String {
+        let (range, values) = one(cell, value);
+        sheet_part(&sheet1(file), range, &values).expect("patched")
+    }
+
+    fn sheet(data: &str) -> String {
+        format!(r#"<worksheet {NS}>{data}</worksheet>"#)
     }
 
     #[test]
-    fn every_sheet_part_and_workbook_part_of_the_corpus_with_no_cell_written_is_its_source() {
+    fn every_sheet_part_of_the_corpus_is_in_the_writers_form_and_every_flag_is_set() {
         for file in FILES {
             let all = corpus(file);
             for part in parts::sheet_parts(&all) {
                 let source = String::from_utf8(all[&part].clone()).expect("utf-8");
-                assert_eq!(
-                    sheet_part(&source, &BTreeMap::new()).expect("patched"),
-                    source,
-                    "{file} {part}"
-                );
+                assert_eq!(xml::walk(&source, |_| Ok(())), Ok(()), "{file} {part}");
             }
             let book = String::from_utf8(all[parts::WORKBOOK].clone()).expect("utf-8");
             assert_eq!(workbook_part(&book).expect("read"), None, "{file}");
@@ -715,13 +585,13 @@ mod tests {
             let source = sheet1(file);
             assert_eq!(source.matches(from).count(), 1, "{file} holds {from} once");
             let want = source.replacen(from, to, 1);
-            assert_eq!(patched(file, &[(cell, value)]), want, "{file} {cell}");
+            assert_eq!(patched(file, cell, value), want, "{file} {cell}");
         }
     }
 
     #[test]
     fn a_cell_outside_the_spans_and_the_dimension_grows_them_and_a_text_is_inline() {
-        let got = patched("values.xlsx", &[("F2", Value::Text("a & b".to_string()))]);
+        let got = patched("values.xlsx", "F2", Value::Text("a & b".to_string()));
         let source = sheet1("values.xlsx");
         let want = source
             .replacen(r#"<dimension ref="A1:D21"/>"#, r#"<dimension ref="A1:F21"/>"#, 1)
@@ -736,7 +606,7 @@ mod tests {
 
     #[test]
     fn a_row_below_the_dimension_grows_it_and_goes_after_the_last_row() {
-        let got = patched("values.xlsx", &[("A30", Value::Number(1.0))]);
+        let got = patched("values.xlsx", "A30", Value::Number(1.0));
         let want = sheet1("values.xlsx")
             .replacen(
                 r#"<dimension ref="A1:D21"/>"#,
@@ -757,7 +627,11 @@ mod tests {
             ("a<b>&c", "a&lt;b&gt;&amp;c"),
             ("line\rbreak", "line_x000D_break"),
             ("_x0041_", "_x005F_x0041_"),
-            ("_x41_ and _xZZZZ_", "_x41_ and _xZZZZ_"),
+            ("_x00E9_ and _x00e9_", "_x005F_x00E9_ and _x005F_x00e9_"),
+            (
+                "_x41_ and _xZZZZ_ and _X0041_",
+                "_x41_ and _xZZZZ_ and _X0041_",
+            ),
             ("", ""),
         ];
         for (text, want) in cases {
@@ -766,21 +640,188 @@ mod tests {
     }
 
     #[test]
+    fn a_written_cell_keeps_its_style_and_an_inserted_cell_takes_none() {
+        let xml = sheet(
+            r#"<sheetData><row r="1"><c r="A1" s="3"><v>1</v></c><c r="B1" s="4" t="s"><v>0</v></c><c r="D1" s="5"/></row></sheetData>"#,
+        );
+        let range = Range::parse("A1:D1").expect("a range");
+        let values = vec![vec![
+            Value::Text("t".to_string()),
+            Value::Number(2.0),
+            Value::Number(3.0),
+            Value::Text("u".to_string()),
+        ]];
+        let want = sheet(concat!(
+            r#"<sheetData><row r="1">"#,
+            r#"<c r="A1" s="3" t="inlineStr"><is><t xml:space="preserve">t</t></is></c>"#,
+            r#"<c r="B1" s="4"><v>2</v></c>"#,
+            r#"<c r="C1"><v>3</v></c>"#,
+            r#"<c r="D1" s="5" t="inlineStr"><is><t xml:space="preserve">u</t></is></c>"#,
+            r#"</row></sheetData>"#
+        ));
+        assert_eq!(sheet_part(&xml, range, &values).expect("patched"), want);
+    }
+
+    #[test]
+    fn spans_grow_for_a_cell_one_column_past_them_and_stay_where_they_hold_it() {
+        let row = |spans: &str| {
+            sheet(&format!(
+                r#"<sheetData><row r="1" spans="{spans}"><c r="A1"/></row></sheetData>"#
+            ))
+        };
+        let cases = [
+            ("1:4", "E1", Some("1:5")),
+            ("1:4", "D1", None),
+            ("1:2 4:6", "E1", None),
+            ("1:2 4:6", "C1", Some("1:6")),
+            ("2:3", "A1", Some("1:3")),
+        ];
+        for (spans, cell, grown) in cases {
+            let (range, values) = one(cell, Value::Number(1.0));
+            let got = sheet_part(&row(spans), range, &values).expect("patched");
+            let want = format!(r#"spans="{}""#, grown.unwrap_or(spans));
+            assert!(got.contains(&want), "{spans} {cell}: {got}");
+        }
+    }
+
+    #[test]
+    fn the_dimension_grows_to_hold_the_range_on_every_side() {
+        let data = r#"<sheetData><row r="3"><c r="C3"/></row></sheetData>"#;
+        let cases = [
+            ("B2:D4", "A3", "A2:D4"),
+            ("B2:D4", "C1", "B1:D4"),
+            ("B2:D4", "E3", "B2:E4"),
+            ("B2:D4", "C5", "B2:D5"),
+            ("C3", "C3", "C3"),
+            ("C3", "A1", "A1:C3"),
+        ];
+        for (old, cell, new) in cases {
+            let xml = sheet(&format!(r#"<dimension ref="{old}"/>{data}"#));
+            let (range, values) = one(cell, Value::Number(1.0));
+            let got = sheet_part(&xml, range, &values).expect("patched");
+            assert!(
+                got.contains(&format!(r#"<dimension ref="{new}"/>"#)),
+                "{old} {cell}: {got}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_row_element_with_no_cells_and_an_empty_sheet_data_get_their_named_cells() {
+        let xml = sheet(r#"<sheetData><row r="2" spans="1:1"/></sheetData>"#);
+        let range = Range::parse("B2:B3").expect("a range");
+        let values = vec![vec![Value::Number(1.0)], vec![Value::Number(2.0)]];
+        let want = sheet(
+            r#"<sheetData><row r="2" spans="1:2"><c r="B2"><v>1</v></c></row><row r="3"><c r="B3"><v>2</v></c></row></sheetData>"#,
+        );
+        assert_eq!(sheet_part(&xml, range, &values).expect("patched"), want);
+        let empty = sheet(r#"<sheetData />"#);
+        let want = sheet(
+            r#"<sheetData ><row r="2"><c r="B2"><v>1</v></c></row><row r="3"><c r="B3"><v>2</v></c></row></sheetData>"#,
+        );
+        assert_eq!(sheet_part(&empty, range, &values).expect("patched"), want);
+    }
+
+    #[test]
+    fn new_cells_go_before_the_extension_list_of_a_row() {
+        let xml =
+            sheet(r#"<sheetData><row r="1"><c r="A1"/><extLst><ext/></extLst></row></sheetData>"#);
+        let (range, values) = one("C1", Value::Number(1.0));
+        let want = sheet(
+            r#"<sheetData><row r="1"><c r="A1"/><c r="C1"><v>1</v></c><extLst><ext/></extLst></row></sheetData>"#,
+        );
+        assert_eq!(sheet_part(&xml, range, &values).expect("patched"), want);
+    }
+
+    #[test]
+    fn each_spelling_of_an_attribute_is_written_as_the_plain_spelling_is() {
+        let spell = |sep: &str, eq: &str, q: char, spans: &str| {
+            sheet(&format!(
+                r#"<dimension{sep}ref{eq}{q}A1:B2{q}/><sheetData><row{sep}r{eq}{q}1{q}{sep}spans{eq}{q}{spans}{q}><c{sep}r{eq}{q}A1{q}/></row></sheetData>"#
+            ))
+        };
+        let cases = [
+            (" ", "=", '"', "1:2"),
+            ("\t", "=", '"', "1:2"),
+            ("\n", "=", '"', "1:2"),
+            (" ", " = ", '"', "1:2"),
+            (" ", "=", '\'', "1:2"),
+            (" ", "=", '"', "1:&#50;"),
+        ];
+        for (sep, eq, q, spans) in cases {
+            let (range, values) = one("D1", Value::Number(1.0));
+            let got = sheet_part(&spell(sep, eq, q, spans), range, &values).expect("patched");
+            let want = spell(sep, eq, q, "1:4")
+                .replacen("A1:B2", "A1:D2", 1)
+                .replacen("</row>", r#"<c r="D1"><v>1</v></c></row>"#, 1);
+            assert_eq!(got, want, "{sep:?} {eq:?} {q:?} {spans}");
+        }
+        let prefixed = r#"<x:worksheet xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><x:sheetData><x:row r="1"><x:c r="A1"/></x:row></x:sheetData></x:worksheet>"#;
+        let range = Range::parse("A1:B2").expect("a range");
+        let values = vec![vec![Value::Number(1.0); 2]; 2];
+        let want = r#"<x:worksheet xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><x:sheetData><x:row r="1"><x:c r="A1"><x:v>1</x:v></x:c><x:c r="B1"><x:v>1</x:v></x:c></x:row><x:row r="2"><x:c r="A2"><x:v>1</x:v></x:c><x:c r="B2"><x:v>1</x:v></x:c></x:row></x:sheetData></x:worksheet>"#;
+        assert_eq!(sheet_part(prefixed, range, &values).expect("patched"), want);
+    }
+
+    #[test]
+    fn a_dimension_or_spans_in_a_form_that_the_writer_does_not_take_is_refused() {
+        for dimension in [
+            r#"<dimension ref="$A$1:$D$7"/>"#,
+            r#"<dimension/>"#,
+            r#"<dimension ref="A1:"/>"#,
+        ] {
+            let xml = sheet(&format!(r#"{dimension}<sheetData/>"#));
+            let (range, values) = one("B2", Value::Number(1.0));
+            assert_eq!(sheet_part(&xml, range, &values), Err(form()), "{dimension}");
+        }
+        let xml = sheet(r#"<sheetData><row r="2" spans="a:b"/></sheetData>"#);
+        let (range, values) = one("B2", Value::Number(1.0));
+        assert_eq!(sheet_part(&xml, range, &values), Err(form()));
+    }
+
+    #[test]
+    fn an_array_range_that_touches_the_range_or_a_shared_member_in_it_is_refused() {
+        let xml = sheet(
+            r#"<sheetData><row r="1"><c r="A1"><f t="array" ref="A1:B3">1</f></c><c r="D1"><f t="shared" si="0" ref="D1:D2">1</f></c></row><row r="2"><c r="D2"><f t="shared" si="0"/></c></row></sheetData>"#,
+        );
+        let cases = [
+            ("B3", Some(Refusal::ArrayFormula)),
+            ("A1:C1", Some(Refusal::ArrayFormula)),
+            ("C1:C3", None),
+            ("D2", Some(Refusal::SharedFormula)),
+            ("E1:E2", None),
+        ];
+        for (cells, want) in cases {
+            let range = Range::parse(cells).expect("a range");
+            let values =
+                vec![vec![Value::Number(1.0); range.cols() as usize]; range.rows() as usize];
+            let got = sheet_part(&xml, range, &values);
+            assert_eq!(got.err(), want.map(refused), "{cells}");
+        }
+    }
+
+    #[test]
     fn the_calculation_flag_is_set_where_it_was_absent_or_zero_and_added_in_its_place() {
-        let head = r#"<workbook xmlns="m"><sheets><sheet name="A" sheetId="1"/></sheets>"#;
+        let head = format!(r#"<workbook {NS}><sheets><sheet name="A" sheetId="1"/></sheets>"#);
         let cases = [
             (format!(r#"{head}<calcPr calcId="1"/></workbook>"#), Some(format!(r#"{head}<calcPr fullCalcOnLoad="1" calcId="1"/></workbook>"#))),
             (format!(r#"{head}<calcPr calcId="1" fullCalcOnLoad="0"/></workbook>"#), Some(format!(r#"{head}<calcPr calcId="1" fullCalcOnLoad="1"/></workbook>"#))),
-            (format!(r#"{head}<calcPr fullCalcOnLoad='false'></calcPr></workbook>"#), Some(format!(r#"{head}<calcPr fullCalcOnLoad="1"></calcPr></workbook>"#))),
+            (format!(r#"{head}<calcPr fullCalcOnLoad='false'></calcPr></workbook>"#), Some(format!(r#"{head}<calcPr fullCalcOnLoad='1'></calcPr></workbook>"#))),
             (format!(r#"{head}<calcPr fullCalcOnLoad="1"/></workbook>"#), None),
+            (format!(r#"{head}<calcPr fullCalcOnLoad="true"/></workbook>"#), None),
+            (format!(r#"{head}<calcPr fullCalcOnLoad = 'true' /></workbook>"#), None),
             (format!(r#"{head}</workbook>"#), Some(format!(r#"{head}<calcPr fullCalcOnLoad="1"/></workbook>"#))),
             (
                 format!(r#"{head}<definedNames><definedName name="R">A!$B$6</definedName></definedNames><extLst/></workbook>"#),
                 Some(format!(r#"{head}<definedNames><definedName name="R">A!$B$6</definedName></definedNames><calcPr fullCalcOnLoad="1"/><extLst/></workbook>"#)),
             ),
             (
-                r#"<x:workbook xmlns:x="m"><x:sheets/><x:oleSize ref="A1"/></x:workbook>"#.to_string(),
-                Some(r#"<x:workbook xmlns:x="m"><x:sheets/><x:calcPr fullCalcOnLoad="1"/><x:oleSize ref="A1"/></x:workbook>"#.to_string()),
+                format!(r#"{head}<customWorkbookViews/><extLst/></workbook>"#),
+                Some(format!(r#"{head}<calcPr fullCalcOnLoad="1"/><customWorkbookViews/><extLst/></workbook>"#)),
+            ),
+            (
+                r#"<x:workbook xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><x:sheets/><x:oleSize ref="A1"/></x:workbook>"#.to_string(),
+                Some(r#"<x:workbook xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><x:sheets/><x:calcPr fullCalcOnLoad="1"/><x:oleSize ref="A1"/></x:workbook>"#.to_string()),
             ),
         ];
         for (source, want) in cases {

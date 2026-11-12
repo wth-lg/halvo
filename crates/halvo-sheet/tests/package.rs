@@ -327,3 +327,74 @@ fn the_calculation_flag_is_set_when_it_was_absent_or_zero_or_its_element_was_mis
         assert_eq!(differ, Vec::<String>::new(), "{label}");
     }
 }
+
+#[test]
+fn a_changed_part_keeps_the_method_and_the_time_of_its_entry_and_the_rest_keep_their_data() {
+    use std::io::Write;
+    let book = "xl/workbook.xml";
+    let when = zip::DateTime::from_date_and_time(2020, 2, 29, 13, 37, 58).expect("a time");
+    let scratch = Scratch::new("package-method");
+    let mut archive =
+        zip::ZipArchive::new(fs::File::open(corpus("values.xlsx")).expect("open")).expect("a zip");
+    let mut out =
+        zip::ZipWriter::new(fs::File::create(scratch.path("source.xlsx")).expect("create"));
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).expect("entry");
+        let name = entry.name().expect("name").to_string();
+        let mut bytes = Vec::new();
+        entry.read_to_end(&mut bytes).expect("read");
+        if name == book {
+            let text = String::from_utf8(bytes).expect("utf-8");
+            bytes = text.replacen(r#" fullCalcOnLoad="1""#, "", 1).into_bytes();
+        }
+        let method = if name == SHEET {
+            zip::CompressionMethod::Stored
+        } else {
+            zip::CompressionMethod::Deflated
+        };
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(method)
+            .last_modified_time(when);
+        out.start_file(name.as_str(), options).expect("start");
+        out.write_all(&bytes).expect("write");
+    }
+    out.finish().expect("finish");
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let run = RunId::parse(RUN).expect("a run id");
+    let b5 = Range::parse("B5").expect("a range");
+    let prepared = folder
+        .prepare(
+            Path::new("source.xlsx"),
+            &run,
+            "Values",
+            b5,
+            &[vec![Value::Number(77.0)]],
+        )
+        .expect("prepared");
+    let open =
+        |path: &Path| zip::ZipArchive::new(fs::File::open(path).expect("open")).expect("a zip");
+    let (mut source, mut copy) = (open(&scratch.path("source.xlsx")), open(prepared.copy()));
+    for (name, method) in [
+        (SHEET, zip::CompressionMethod::Stored),
+        (book, zip::CompressionMethod::Deflated),
+    ] {
+        let entry = copy.by_name(name).expect("the part");
+        assert_eq!(entry.compression(), method, "{name} keeps its method");
+        assert_eq!(entry.last_modified(), Some(when), "{name} keeps its time");
+    }
+    for i in 0..source.len() {
+        let raw = |archive: &mut zip::ZipArchive<fs::File>| {
+            let mut entry = archive.by_index_raw(i).expect("entry");
+            let name = entry.name().expect("name").to_string();
+            let mut bytes = Vec::new();
+            entry.read_to_end(&mut bytes).expect("read");
+            (name, bytes)
+        };
+        let (name, old) = raw(&mut source);
+        let (other, new) = raw(&mut copy);
+        assert_eq!(name, other);
+        if name != SHEET && name != book {
+            assert!(old == new, "{name} keeps its compressed data");
+        }
+    }
+}

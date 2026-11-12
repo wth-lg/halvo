@@ -2,14 +2,16 @@ use std::fmt;
 use std::io;
 
 /// A cause of the closed list of contracts.md A7.4 that an error of this crate gives the runner.
+/// Two errors have a cause of their own; every other error gives `step_failed`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Cause {
-    /// `workbook`: the workbook holds a part kind that the sheet trial's verdict refuses, or it
-    /// is not a workbook that the crate can read (A11.3).
+    /// `workbook`: the cause of [`Error::Workbook`] alone. The crate refused the workbook before
+    /// it wrote anything (A11.3).
     Workbook,
-    /// `sheet`: the changed copy did not read back the same (A11.3).
+    /// `sheet`: the cause of [`Error::Sheet`] alone. The prepared copy differed from what the
+    /// write allows, or did not read back with the new values (A11.3).
     Sheet,
-    /// `step_failed`: any other failure of the call.
+    /// `step_failed`: the cause of every other error.
     StepFailed,
 }
 
@@ -56,8 +58,6 @@ pub enum SourceRefusal {
     CarriageReturn,
     /// The row on this line (counted from 1) has another number of cells than the first row.
     Ragged { line: usize },
-    /// A cell on this line has the form of a number that no finite `f64` holds.
-    Number { line: usize },
 }
 
 /// Why the crate refuses a workbook, with the cause `workbook`.
@@ -68,10 +68,15 @@ pub enum Refusal {
     Unreadable,
     /// The workbook holds these kinds of the executor's refused list ([`crate::Kind::REFUSED`]).
     Kinds(Vec<crate::Kind>),
-    /// A part that the crate parses (a worksheet part, `xl/workbook.xml`, `xl/styles.xml`) is not
-    /// UTF-8 or does not parse, the worksheet part or `xl/workbook.xml` starts with a byte-order
-    /// mark, or the worksheet part is not in the form that the writer takes: a row or a cell
-    /// with no reference, rows or cells out of order, a cell outside its row.
+    /// A part that the crate parses (a worksheet part, `xl/workbook.xml`, `xl/styles.xml`, a
+    /// relationship part) is not UTF-8 or does not parse, the worksheet part or
+    /// `xl/workbook.xml` starts with a byte-order mark, or the worksheet part is not in the form
+    /// that the writer takes. That form: a `worksheet` of the spreadsheet namespace with one
+    /// `sheetData`; a `dimension` before it, if any, whose `ref` is a range of the A1 form;
+    /// rows numbered from 1, each number once and in order; cells with a reference of their
+    /// own row, each column once and in order; and inside `sheetData` no element named `row`
+    /// or `c` other than those rows and cells, nor a second element named `sheetData`, since
+    /// the reader would take it as one.
     Part,
     /// A relationship does not name a part the way the package format names parts. Its target
     /// does not decode: a percent sign is not followed by two hex digits, a `/` or a `\` is
@@ -80,6 +85,10 @@ pub enum Refusal {
     /// is ignored. Or the package's office document is not `xl/workbook.xml`, or the crate and
     /// the reader would find the named sheet in two different parts.
     Relationship,
+    /// Over a bound: the file holds more than 64 MiB; an entry declares or holds more than
+    /// 32 MiB uncompressed, or the entries more than 128 MiB in all; or the rectangle of the
+    /// sheet's used cells (in `prepare` with the range added) holds more than 1,000,000 cells.
+    Size,
     /// A cell to write lies in the header row of a table that the sheet's relationships link.
     TableHeader,
     /// A cell to write holds an array formula or a data-table formula, or lies inside the
@@ -126,12 +135,18 @@ pub enum Error {
     /// workbook (a control character other than tab, line feed and carriage return, U+FFFE or
     /// U+FFFF), or more than the 32,767 UTF-16 code units that a cell of Excel holds.
     Value,
+    /// The range holds more than 100,000 cells. `prepare` and `read` refuse it before they do
+    /// anything else with it.
+    RangeSize,
+    /// The person cannot write the workbook: it is read-only, or on Unix its owner has no
+    /// write permission.
+    ReadOnly,
     /// The text is not a run id of the form of contracts.md A0.6.
     RunId,
     /// A checkpoint of this run stands beside the workbook and is not a copy of it as it is.
     Checkpoint,
-    /// The prepared copy did not read back with the sameness of A13.4, or it lost a part kind
-    /// of the workbook, with the cause `sheet`.
+    /// The check of `prepare` found the prepared copy different from what the write allows, or
+    /// the named cells did not read back with their new values, with the cause `sheet`.
     Sheet,
     /// `replace` left the workbook as it was.
     NotReplaced(Kept),
@@ -154,6 +169,8 @@ impl Error {
             | Error::NoSheet
             | Error::Shape
             | Error::Value
+            | Error::RangeSize
+            | Error::ReadOnly
             | Error::RunId
             | Error::Checkpoint
             | Error::NotReplaced(_)
@@ -180,6 +197,8 @@ impl fmt::Display for Error {
             Error::Workbook(why) => write!(f, "the workbook is refused: {why:?}"),
             Error::Shape => f.write_str("the values do not have the shape of the range"),
             Error::Value => f.write_str("a text holds a character that a workbook cannot hold"),
+            Error::RangeSize => f.write_str("the range holds more than 100,000 cells"),
+            Error::ReadOnly => f.write_str("the workbook cannot be written"),
             Error::RunId => f.write_str("the text is not a run id"),
             Error::Checkpoint => f.write_str("a checkpoint of this run is not the workbook"),
             Error::Sheet => f.write_str("the prepared copy did not read back the same"),

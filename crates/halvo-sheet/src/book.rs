@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
@@ -67,70 +66,52 @@ fn cell(value: Option<&Data>) -> Cell {
     }
 }
 
-type Pos = (u32, u32);
-type Sheet = (String, BTreeMap<Pos, (Data, Option<String>)>);
+type Grids = (calamine::Range<Data>, calamine::Range<String>);
 
-fn is_empty(value: &Data) -> bool {
-    match value {
-        Data::Empty => true,
-        Data::String(text) => text.is_empty(),
-        _ => false,
-    }
-}
-
-fn sheets(bytes: &[u8]) -> Result<Vec<Sheet>, Error> {
+/// The values and the formulas of the sheet named `sheet`, and of no other sheet.
+fn named_sheet(bytes: &[u8], sheet: &str) -> Result<Grids, Error> {
     let mut xlsx = open(bytes)?;
-    let mut sheets = Vec::new();
-    for name in xlsx.sheet_names() {
-        let values = xlsx.worksheet_range(&name).map_err(|_| unreadable())?;
-        let formulas = xlsx.worksheet_formula(&name).map_err(|_| unreadable())?;
-        let mut cells = BTreeMap::new();
-        if let Some((row0, col0)) = values.start() {
-            for (row, col, value) in values.used_cells() {
-                if !is_empty(value) {
-                    let pos = (row0 + row as u32, col0 + col as u32);
-                    cells.insert(pos, (value.clone(), None));
-                }
-            }
-        }
-        if let Some((row0, col0)) = formulas.start() {
-            for (row, col, formula) in formulas.used_cells() {
-                if !formula.is_empty() {
-                    let pos = (row0 + row as u32, col0 + col as u32);
-                    cells.entry(pos).or_insert((Data::Empty, None)).1 = Some(formula.clone());
-                }
-            }
-        }
-        sheets.push((name, cells));
+    if !xlsx.sheet_names().iter().any(|name| name == sheet) {
+        return Err(Error::NoSheet);
     }
-    Ok(sheets)
+    let values = xlsx.worksheet_range(sheet).map_err(|_| unreadable())?;
+    let formulas = xlsx.worksheet_formula(sheet).map_err(|_| unreadable())?;
+    Ok((values, formulas))
 }
 
-fn holds_new(value: &Value, cell: Option<&(Data, Option<String>)>) -> bool {
+/// Whether the reader reads the sheet named `sheet` of the source as the read-back will read
+/// it of the copy; [`Refusal::Unreadable`] when it cannot.
+pub(crate) fn readable(bytes: &[u8], sheet: &str) -> Result<(), Error> {
+    guarded(|| named_sheet(bytes, sheet).map(|_| ())).map_err(|_| unreadable())
+}
+
+fn holds_new(value: &Value, cell: Option<&Data>) -> bool {
     match (value, cell) {
-        (Value::Number(x), Some((Data::Float(y), None))) => x == y,
-        (Value::Number(x), Some((Data::Int(y), None))) => *x == *y as f64,
-        (Value::Number(x), Some((Data::DateTime(date), None))) => *x == date.as_f64(),
-        (Value::Text(text), Some((Data::String(read), None))) => text == read,
-        (Value::Text(text), None) => text.is_empty(),
+        (Value::Number(x), Some(Data::Float(y))) => x == y,
+        (Value::Number(x), Some(Data::Int(y))) => *x == *y as f64,
+        (Value::Number(x), Some(Data::DateTime(date))) => *x == date.as_f64(),
+        (Value::Text(text), Some(Data::String(read))) => text == read,
+        (Value::Text(text), None | Some(Data::Empty)) => text.is_empty(),
         _ => false,
     }
 }
 
+/// Whether every cell of `range` on the sheet named `sheet` of the copy reads back with its
+/// value and holds no formula. The reader reads that sheet alone.
 pub(crate) fn holds(
     changed: &[u8],
     sheet: &str,
     range: Range,
     values: &[Vec<Value>],
 ) -> Result<bool, Error> {
-    let after = sheets(changed)?;
-    let Some((_, cells)) = after.iter().find(|(name, _)| name == sheet) else {
-        return Ok(false);
-    };
+    let (cells, formulas) = named_sheet(changed, sheet)?;
     Ok(range
         .cells()
         .zip(values.iter().flatten())
-        .all(|(pos, value)| holds_new(value, cells.get(&pos))))
+        .all(|(pos, value)| {
+            let formula = formulas.get_value(pos).is_some_and(|f| !f.is_empty());
+            !formula && holds_new(value, cells.get_value(pos))
+        }))
 }
 
 #[cfg(test)]
@@ -174,7 +155,29 @@ mod tests {
             Ok(false)
         );
         assert_eq!(read(&original, "Values", Value::Number(77.0)), Ok(false));
-        assert_eq!(read(&changed, "Missing", Value::Number(77.0)), Ok(false));
+        assert_eq!(
+            read(&changed, "Missing", Value::Number(77.0)),
+            Err(Error::NoSheet)
+        );
+    }
+
+    #[test]
+    fn a_named_cell_that_holds_a_formula_does_not_read_back_and_another_sheet_is_not_read() {
+        let formula = [(
+            SHEET,
+            r#"<c r="B5"><v>12</v></c>"#,
+            r#"<c r="B5"><f>70+7</f><v>77</v></c>"#,
+        )];
+        let changed = bytes("values.xlsx", &formula);
+        assert_eq!(
+            holds(&changed, "Values", at("B5"), &one(Value::Number(77.0))),
+            Ok(false)
+        );
+        let broken = [("xl/worksheets/sheet2.xml", r#"<c r="B2""#, r#"<c r="B""#)];
+        let two = bytes("two-sheets.xlsx", &broken);
+        assert_eq!(readable(&two, "Input"), Ok(()));
+        assert_eq!(readable(&two, "Summary"), Err(unreadable()));
+        assert_eq!(readable(&two, "Missing"), Err(unreadable()));
     }
 
     #[test]

@@ -25,10 +25,7 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Vec<Vec<Value>>, Error> {
     let mut rows: Vec<Vec<Value>> = Vec::new();
     for (at, line) in body.split('\n').enumerate() {
         let line_number = at + 1;
-        let row = line
-            .split(',')
-            .map(|cell| value(cell, line_number))
-            .collect::<Result<Vec<_>, _>>()?;
+        let row: Vec<Value> = line.split(',').map(value).collect();
         if rows.first().is_some_and(|first| first.len() != row.len()) {
             return Err(Error::Source(SourceRefusal::Ragged { line: line_number }));
         }
@@ -37,19 +34,31 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Vec<Vec<Value>>, Error> {
     Ok(rows)
 }
 
-fn value(cell: &str, line: usize) -> Result<Value, Error> {
-    if !is_number(cell) {
-        return Ok(Value::Text(cell.to_string()));
-    }
+fn value(cell: &str) -> Value {
     match cell.parse::<f64>() {
-        Ok(x) if x.is_finite() => Ok(Value::Number(x)),
-        _ => Err(Error::Source(SourceRefusal::Number { line })),
+        Ok(x) if is_number(cell) && x.is_finite() => Value::Number(x),
+        _ => Value::Text(cell.to_string()),
     }
 }
 
+/// A11.3's form of a number: digits with an optional leading `-` and at most one `.`; no zero
+/// before another digit of the whole part; at most 15 significant digits, which an `f64` holds
+/// as typed.
 fn is_number(cell: &str) -> bool {
     let body = cell.strip_prefix('-').unwrap_or(cell);
     let digits = body.bytes().filter(u8::is_ascii_digit).count();
     let dots = body.bytes().filter(|b| *b == b'.').count();
-    digits > 0 && dots <= 1 && digits + dots == body.len()
+    if digits == 0 || dots > 1 || digits + dots != body.len() {
+        return false;
+    }
+    let whole = body.split('.').next().unwrap_or_default();
+    if whole.len() > 1 && whole.starts_with('0') {
+        return false;
+    }
+    let significant = body
+        .bytes()
+        .filter(u8::is_ascii_digit)
+        .skip_while(|b| *b == b'0')
+        .count();
+    significant <= 15
 }

@@ -59,6 +59,28 @@ fn a_cell_in_the_header_row_of_a_table_is_refused_and_the_body_is_not() {
 }
 
 #[test]
+fn a_range_that_holds_a_header_cell_and_body_cells_is_refused() {
+    let scratch = Scratch::new("refuse-header-and-body");
+    fs::copy(corpus("chart.xlsx"), scratch.path("chart.xlsx")).expect("copy");
+    let before = fs::read(scratch.path("chart.xlsx")).expect("read");
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let run = RunId::parse(RUN).expect("a run id");
+    for cells in ["A1:A3", "B1:C2", "A1:B9"] {
+        let range = Range::parse(cells).expect("a range");
+        let row = vec![Value::Number(1.0); range.cols() as usize];
+        let values = vec![row; range.rows() as usize];
+        let got = folder.prepare(Path::new("chart.xlsx"), &run, "Sales", range, &values);
+        assert_eq!(
+            got.err(),
+            Some(Error::Workbook(Refusal::TableHeader)),
+            "{cells}"
+        );
+        assert_eq!(scratch.names(""), vec!["chart.xlsx".to_string()], "{cells}");
+    }
+    assert_eq!(fs::read(scratch.path("chart.xlsx")).expect("read"), before);
+}
+
+#[test]
 fn a_cell_of_an_array_or_data_table_formula_or_inside_its_range_is_refused() {
     for kind in ["array", "dataTable"] {
         let scratch = Scratch::new("refuse-array");

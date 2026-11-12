@@ -11,7 +11,9 @@ mod source;
 #[cfg(test)]
 mod testing;
 mod write;
+mod xml;
 
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 pub use book::Cell;
@@ -27,10 +29,15 @@ pub use write::{Prepared, RunId};
 /// also that form without its `\\?\` prefix); any other absolute path is refused as outside.
 /// A call follows no link, refuses a path that is a link, holds a link on its way, is a
 /// directory or is not a regular file, and reads or writes no file outside this directory.
-#[derive(Debug)]
 pub struct Folder {
     root: PathBuf,
     spellings: Vec<PathBuf>,
+}
+
+impl fmt::Debug for Folder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Folder").finish_non_exhaustive()
+    }
 }
 
 impl Folder {
@@ -48,26 +55,47 @@ impl Folder {
     /// Returns the values of `range` on the sheet named `sheet` (compared byte for byte) of
     /// the workbook at `workbook`, one row of the range after the other, with
     /// [`Cell::Empty`] for a cell that holds nothing and the cached result for a formula cell.
-    /// Writes nothing. [`Error::NoSheet`] when the workbook has no such sheet, and
-    /// [`Error::Workbook`] with [`Refusal::Unreadable`] when the file is no workbook that the
-    /// crate can read.
+    /// Writes nothing. It holds memory for every cell of the range, and for the rectangle of
+    /// the sheet's used cells, which the reader builds whatever range is asked for.
+    ///
+    /// Refused, in this order: a range of more than 100,000 cells ([`Error::RangeSize`]),
+    /// before anything else is done with it; a path that the folder refuses; a file of more
+    /// than 64 MiB, before it is read, and a package over the bounds of its entries
+    /// ([`Refusal::Size`]); a file that is no workbook that the crate can read
+    /// ([`Refusal::Unreadable`], [`Refusal::Relationship`]); a sheet that the workbook lacks
+    /// ([`Error::NoSheet`]); and a sheet whose used cells, found by a pass of the crate's own
+    /// before the reader sees the sheet, span a rectangle of more than 1,000,000 cells
+    /// ([`Refusal::Size`]).
     pub fn read(
         &self,
         workbook: &Path,
         sheet: &str,
         range: Range,
     ) -> Result<Vec<Vec<Cell>>, Error> {
+        if write::range_cells(range) > parts::RANGE_MAX {
+            return Err(Error::RangeSize);
+        }
         let full = self.file(workbook)?;
-        let bytes = std::fs::read(full)?;
+        let bytes = parts::package_file(&full)?;
+        let entries = parts::entries(&bytes)?;
+        let part = parts::part_of(&entries, sheet)?;
+        let source = entries.get(&part).ok_or_else(book::unreadable)?;
+        let text = std::str::from_utf8(source).map_err(|_| Error::Workbook(Refusal::Part))?;
+        let text = text.strip_prefix('\u{feff}').unwrap_or(text);
+        if !xml::fits(xml::extent(text)?, None, parts::CELLS_MAX) {
+            return Err(parts::size());
+        }
+        drop(entries);
         book::read(&bytes, sheet, range)
     }
 
     /// Returns the rows of the source file at `source` (contracts.md A1.2): one row per line,
     /// ended by LF, cells separated by commas, no header and no quoting; an empty file has no
     /// row. A cell is a number when its text is digits with an optional leading `-` and at most
-    /// one `.`, and text otherwise. Refused with [`Error::Source`] when the file is not UTF-8,
-    /// starts with a byte-order mark, holds a carriage return, has rows of different lengths,
-    /// or holds a number that no finite `f64` holds.
+    /// one `.`, with no zero before another digit of its whole part and at most 15 significant
+    /// digits; every other cell is a text, as typed (`007` and a number of 20 digits stay
+    /// texts). Refused with [`Error::Source`] when the file is not UTF-8, starts with a
+    /// byte-order mark, holds a carriage return or has rows of different lengths.
     pub fn read_source(&self, source: &Path) -> Result<Vec<Vec<Value>>, Error> {
         let full = self.file(source)?;
         source::parse(&std::fs::read(full)?)
@@ -76,39 +104,61 @@ impl Folder {
     /// The first half of a file edit (contracts.md A11.3, A5.2), which changes nothing of the
     /// workbook at `workbook`.
     ///
-    /// Before it writes any file it refuses: a workbook whose name is one that it gives a
-    /// checkpoint or a prepared copy ([`PathRefusal::OwnFile`]); `values` that do not have the
-    /// rows and columns of `range` ([`Error::Shape`]), or that hold a number that is not finite
-    /// or a text with a character that XML 1.0 does not allow or with more than the 32,767
-    /// UTF-16 code units of a cell ([`Error::Value`]); a sheet that the workbook lacks
-    /// ([`Error::NoSheet`]); and, with [`Error::Workbook`] and the cause `workbook`, a file that
-    /// is no zip package, is encrypted or holds an entry name twice ([`Refusal::Unreadable`]), a
-    /// workbook that holds a kind of the executor's refused list ([`Refusal::Kinds`]: `pivot`,
-    /// `macro`, `validation`), a part that it cannot take ([`Refusal::Part`]), a cell of the
-    /// range in the header row of a table ([`Refusal::TableHeader`]), in or inside the range of an
-    /// array or data-table formula ([`Refusal::ArrayFormula`]), or in a shared formula
-    /// ([`Refusal::SharedFormula`]).
+    /// Before it writes any file it refuses, in this order: a range of more than 100,000 cells
+    /// ([`Error::RangeSize`]), before anything else is done with it; a path that the folder
+    /// refuses, or a workbook whose name is one that it gives a checkpoint or a prepared copy
+    /// ([`PathRefusal::OwnFile`]); `values` that do not have the rows and columns of `range`
+    /// ([`Error::Shape`]), or that hold a number that is not finite or a text with a character
+    /// that XML 1.0 does not allow or with more than the 32,767 UTF-16 code units of a cell
+    /// ([`Error::Value`]); a workbook that the person cannot write ([`Error::ReadOnly`]). Then,
+    /// with [`Error::Workbook`] and the cause `workbook`: a file of more than 64 MiB, before it
+    /// is read, or a package whose entries declare or hold more than 32 MiB in one or 128 MiB
+    /// in all ([`Refusal::Size`]); a file that is no zip package, is encrypted or holds an entry
+    /// name twice, names compared as the package format compares them ([`Refusal::Unreadable`]);
+    /// a relationship that does not name a part as that format names it
+    /// ([`Refusal::Relationship`]); a workbook that holds a kind of the executor's refused list
+    /// ([`Refusal::Kinds`]: `pivot`, `macro`, `validation`); a sheet that the workbook lacks
+    /// ([`Error::NoSheet`], with the cause `step_failed`); a sheet whose used cells and the range
+    /// together span more than 1,000,000 cells ([`Refusal::Size`]); a cell of the range in the
+    /// header row of a table ([`Refusal::TableHeader`]); a worksheet part that the writer cannot
+    /// take ([`Refusal::Part`]); a cell of the range in a shared formula
+    /// ([`Refusal::SharedFormula`]) or in the range of an array or data-table formula
+    /// ([`Refusal::ArrayFormula`]); and a sheet that the reader of the read-back cannot read
+    /// ([`Refusal::Unreadable`]).
     ///
-    /// Then it copies the workbook to its checkpoint `<name>.halvo-checkpoint-<run id><ext>`
-    /// beside it, or keeps a checkpoint of the run that is already there and equal to the
-    /// workbook ([`Error::Checkpoint`] when it differs), and writes the prepared copy
-    /// `<name>.halvo-prepared-<run id><ext>` beside it: the entries of the workbook's package in
-    /// their order, each copied with its name and its data as they are, but two. The worksheet
-    /// part of `sheet` is the source's bytes with the element of each cell of the range replaced,
-    /// or inserted in column order, a row that does not exist inserted in row order, and the
-    /// `spans` of a row and the `ref` of `dimension` grown where a cell of the range lies
-    /// outside them. A number is written as a number and a text as an inline string, so the
-    /// shared strings part does not change; a cell keeps its style and loses its formula. In
-    /// `xl/workbook.xml` the attribute `fullCalcOnLoad` of `calcPr` is `1`: set where it was
-    /// absent or `0`, with the element added in its place where there was none; where it was
-    /// already `1` the part is copied as it is.
+    /// Then it copies the workbook to the run's checkpoint `<name>.halvo-checkpoint-<run
+    /// id><ext>` beside it, or takes a checkpoint of the run that is already there and equal to
+    /// the workbook without writing it again ([`Error::Checkpoint`] when it differs or is no
+    /// regular file). It writes a prepared copy under a name of this call's own,
+    /// `<name>.halvo-prepared-<run id>-<part of its own><ext>`, which no other call writes or
+    /// removes. Both get the workbook's permissions. The copy holds the entries of the
+    /// workbook's package in their order, each copied with its name, its method and its
+    /// compressed data, but two, which keep the method and the time of their entries. The
+    /// worksheet part of `sheet` is the source's bytes with the element of each cell of the
+    /// range replaced, or inserted in column order, a row that does not exist inserted in row
+    /// order, and the `spans` of a row and the `ref` of `dimension` grown where a cell of the
+    /// range lies outside them. A number is written as a number and a text as an inline string,
+    /// so the shared strings part does not change; an empty text makes a cell that holds an
+    /// empty inline string. A cell keeps its style and loses its formula; an inserted cell takes
+    /// no style. In the workbook part the attribute `fullCalcOnLoad` of `calcPr` is `1`: set
+    /// where it was absent or another value, with the element added in its place where there
+    /// was none; where it was `1` or `true` already the part is copied as it is.
     ///
     /// It reads the copy again and checks it with a routine of its own: the same entry names in
-    /// the same order, every other entry byte for byte, `xl/workbook.xml` byte for byte or with
-    /// that one change, and the worksheet part byte for byte once the places above are taken
-    /// out of both; then the cells of the range read back through calamine with their new
-    /// values. On a miss it removes the prepared copy and the checkpoint that it made and
-    /// returns [`Error::Sheet`], with the cause `sheet`; the workbook was not touched.
+    /// the same order, every other entry byte for byte, the workbook part with the flag set and
+    /// byte for byte or with that one change, and the worksheet part byte for byte once the
+    /// places above are taken out of both. Each of those places must hold what the write
+    /// allows: every cell of the range once, in its own row, in column order; an inserted row
+    /// with its number and cells of the range alone; `spans` and the `ref` of `dimension` that
+    /// hold the source's and every cell of the range. Then the cells of the range read back
+    /// through calamine, which reads that sheet alone, with their new values and no formula.
+    /// On a miss it removes its prepared copy and the checkpoint if it made it, and returns
+    /// [`Error::Sheet`], with the cause `sheet`; the workbook was not touched.
+    ///
+    /// One `replace` of a workbook per run: after it, the run's checkpoint is no longer the
+    /// workbook, so a later `prepare` of the run answers [`Error::Checkpoint`]. Two `replace`
+    /// calls of two runs on one workbook at the same instant can both answer `Ok` with one
+    /// edit lost; the workbook is a whole checked copy either way. Nothing locks the workbook.
     ///
     /// What goes stale: a cached copy of a changed cell's value elsewhere in the package is not
     /// updated: a formula's cached result, a chart's cached points, the counts of the shared
@@ -123,6 +173,9 @@ impl Folder {
         range: Range,
         values: &[Vec<Value>],
     ) -> Result<Prepared, Error> {
+        if write::range_cells(range) > parts::RANGE_MAX {
+            return Err(Error::RangeSize);
+        }
         let full = self.file(workbook)?;
         let name = full.file_name().unwrap_or_default().to_string_lossy();
         if name.contains(".halvo-checkpoint-") || name.contains(".halvo-prepared-") {

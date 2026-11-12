@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs::File;
 use std::io::{Cursor, Read};
+use std::path::Path;
 
 use quick_xml::escape::{resolve_predefined_entity, unescape};
 use quick_xml::events::attributes::Attribute;
@@ -126,21 +128,72 @@ fn part() -> Error {
     Error::Workbook(Refusal::Part)
 }
 
+/// The bound of a workbook file (CP-56).
+pub(crate) const FILE_MAX: u64 = 64 << 20;
+/// The bound of one entry, uncompressed.
+pub(crate) const ENTRY_MAX: u64 = 32 << 20;
+/// The bound of all entries together, uncompressed.
+pub(crate) const ENTRIES_MAX: u64 = 128 << 20;
+/// The bound of the rectangle of a sheet's used cells.
+pub(crate) const CELLS_MAX: u64 = 1_000_000;
+/// The bound of a range.
+pub(crate) const RANGE_MAX: u64 = 100_000;
+
+pub(crate) fn size() -> Error {
+    Error::Workbook(Refusal::Size)
+}
+
+/// The bytes of a workbook file, refused before it is read when it holds more than
+/// [`FILE_MAX`], and cut there when it grows while it is read.
+pub(crate) fn package_file(path: &Path) -> Result<Vec<u8>, Error> {
+    let file = File::open(path)?;
+    if file.metadata()?.len() > FILE_MAX {
+        return Err(size());
+    }
+    let mut bytes = Vec::new();
+    file.take(FILE_MAX + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > FILE_MAX {
+        return Err(size());
+    }
+    Ok(bytes)
+}
+
+/// The entries of a package. Refused: no zip archive, an encrypted entry, two entries whose
+/// names fold alike, an entry that declares more than [`ENTRY_MAX`] uncompressed or entries
+/// that declare more than [`ENTRIES_MAX`] in all (summed entry by entry before any is
+/// inflated), and an entry whose data holds more than it may, its read cut at the bound.
 pub(crate) fn entries(bytes: &[u8]) -> Result<Entries, Error> {
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|_| unreadable())?;
     if archive.has_duplicate_names() {
         return Err(unreadable());
     }
+    let mut declared = 0u64;
+    for index in 0..archive.len() {
+        let entry = archive.by_index_raw(index).map_err(|_| unreadable())?;
+        declared = declared.saturating_add(entry.size());
+        if entry.size() > ENTRY_MAX || declared > ENTRIES_MAX {
+            return Err(size());
+        }
+    }
     let mut all = BTreeMap::new();
     let mut folded = BTreeSet::new();
+    let mut held = 0u64;
     for index in 0..archive.len() {
-        let mut entry = archive.by_index(index).map_err(|_| unreadable())?;
+        let entry = archive.by_index(index).map_err(|_| unreadable())?;
         let name = entry.name().map_err(|_| unreadable())?.to_string();
         if !folded.insert(fold(&name)) {
             return Err(unreadable());
         }
+        let room = ENTRY_MAX.min(ENTRIES_MAX - held);
         let mut content = Vec::new();
-        entry.read_to_end(&mut content).map_err(|_| unreadable())?;
+        entry
+            .take(room + 1)
+            .read_to_end(&mut content)
+            .map_err(|_| unreadable())?;
+        if content.len() as u64 > room {
+            return Err(size());
+        }
+        held += content.len() as u64;
         all.insert(name, content);
     }
     Ok(all)
