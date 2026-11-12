@@ -346,3 +346,55 @@ fn a_sheet_name_is_compared_byte_for_byte() {
     }
     assert_eq!(scratch.names(""), vec!["formulas.xlsx".to_string()]);
 }
+
+#[test]
+fn an_address_outside_the_package_is_no_part_name_and_its_link_is_carried_as_it_was() {
+    let addresses = [
+        "https://example.com/login?next=%2Fhome",
+        "https://example.com/50%off",
+        "https://example.com/caf%E9",
+        r"file:///\\fileserver\finance\Budget%20Q1%2F2026.xlsx",
+    ];
+    for address in addresses {
+        let scratch = Scratch::new("names-external");
+        let link = format!(
+            r#"<Relationship Id="rId9" Type="{OD}/hyperlink" Target="{address}" TargetMode="External"/></Relationships>"#
+        );
+        let with_link = move |name: &str, bytes: Vec<u8>| {
+            let bytes = if name == SHEET_RELS {
+                replaced(bytes, "</Relationships>", &link)
+            } else {
+                bytes
+            };
+            Some((name.to_string(), bytes))
+        };
+        repack(
+            &corpus("chart.xlsx"),
+            &scratch.path("book.xlsx"),
+            &with_link,
+            &[],
+        );
+        let source_rels = common::entry(&scratch.path("book.xlsx"), SHEET_RELS);
+        let folder = Folder::new(&scratch.dir).expect("the folder opens");
+        let run = RunId::parse(RUN).expect("a run id");
+        let b3 = Range::parse("B3").expect("a range");
+        let values = [vec![Value::Number(640.0)]];
+        let prepared = folder
+            .prepare(Path::new("book.xlsx"), &run, "Sales", b3, &values)
+            .unwrap_or_else(|e| panic!("{address}: {e:?}"));
+        let copy_rels = common::entry(prepared.copy(), SHEET_RELS);
+        assert_eq!(copy_rels, source_rels, "{address}: the link's bytes");
+        let text = String::from_utf8(copy_rels).expect("utf-8");
+        assert!(
+            text.contains(&format!(r#"Target="{address}""#)),
+            "{address}"
+        );
+        folder.replace(&prepared).expect("replaced");
+        let read = folder.read(Path::new("book.xlsx"), "Sales", b3);
+        assert_eq!(
+            read,
+            Ok(vec![vec![halvo_sheet::Cell::Number(640.0)]]),
+            "{address}"
+        );
+    }
+}

@@ -83,12 +83,12 @@ fn kept(scratch: &Scratch, s: &Setup, why: Kept, file: &[u8]) {
 }
 
 #[test]
-fn a_prepared_copy_that_no_replace_put_in_place_goes_with_the_checkpoint_it_made_when_dropped() {
+fn a_prepared_copy_that_no_replace_put_in_place_goes_when_it_is_dropped_and_the_checkpoint_stays() {
     let scratch = Scratch::new("replace-dropped");
     let s = setup(&scratch);
     assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT, &s.copy]));
     drop(s.prepared);
-    assert_eq!(scratch.names(""), sorted(&[FILE]));
+    assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT]));
     assert_eq!(fs::read(scratch.path(FILE)).expect("read"), s.before);
     let scratch = Scratch::new("replace-dropped-after");
     let s = setup(&scratch);
@@ -263,7 +263,7 @@ fn a_copy_that_a_read_only_directory_keeps_is_named_in_the_answer_and_goes_at_th
     assert_eq!(fs::read(scratch.path(FILE)).expect("read"), s.before);
     assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT, &s.copy]));
     drop(s.prepared);
-    assert_eq!(scratch.names(""), sorted(&[FILE]));
+    assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT]));
 }
 
 #[cfg(target_os = "macos")]

@@ -248,6 +248,22 @@ fn a_named_sheet_that_the_reader_cannot_read_is_refused_before_any_write() {
 }
 
 #[test]
+fn an_entity_in_the_reference_of_the_dimension_refuses_the_workbook_as_unreadable() {
+    let scratch = Scratch::new("structure-dimension-entity");
+    let entity = in_sheet(
+        r#"<dimension ref="A1:D21"/>"#,
+        r#"<dimension ref="A1:D2&#49;"/>"#.to_string(),
+    );
+    made(&scratch, &entity);
+    refused(
+        &scratch,
+        "an entity in the dimension's ref",
+        "B5",
+        Refusal::Unreadable,
+    );
+}
+
+#[test]
 fn each_spelling_of_the_changed_places_is_written_and_checked_as_the_plain_one() {
     let plain_row = r#"<row r="2" spans="1:4">"#;
     let plain_dim = r#"<dimension ref="A1:D21"/>"#;

@@ -6,13 +6,10 @@
 use std::collections::BTreeMap;
 use std::io::{Cursor, Read};
 
+use crate::parts::ENTRY_MAX;
 use crate::patch::{covered, span_pairs};
 use crate::range::Range;
 use crate::xml::{self, form, Item, Span, Tag};
-
-/// The bound past which an entry of the copy is not read. The copy's entries are the source's,
-/// which `prepare` read within 32 MiB each, and a written sheet part that holds the range.
-const ENTRY_MAX: u64 = 64 << 20;
 
 type Archive<'a> = zip::ZipArchive<Cursor<&'a [u8]>>;
 

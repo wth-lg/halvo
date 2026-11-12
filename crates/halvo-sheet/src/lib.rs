@@ -105,7 +105,9 @@ impl Folder {
     /// workbook at `workbook`.
     ///
     /// Before it writes any file it refuses, in this order: a range of more than 100,000 cells
-    /// ([`Error::RangeSize`]), before anything else is done with it; a path that the folder
+    /// ([`Error::RangeSize`]), and values whose cell elements alone would hold more than
+    /// 32 MiB, the bound of an entry that the next read keeps ([`Error::FillSize`]), both before
+    /// anything else is done with them; a path that the folder
     /// refuses, or a workbook whose name is one that it gives a checkpoint or a prepared copy
     /// ([`PathRefusal::OwnFile`]); `values` that do not have the rows and columns of `range`
     /// ([`Error::Shape`]), or that hold a number that is not finite or a text with a character
@@ -115,23 +117,32 @@ impl Folder {
     /// is read, or a package whose entries declare or hold more than 32 MiB in one or 128 MiB
     /// in all ([`Refusal::Size`]); a file that is no zip package, is encrypted or holds an entry
     /// name twice, names compared as the package format compares them ([`Refusal::Unreadable`]);
-    /// a relationship that does not name a part as that format names it
-    /// ([`Refusal::Relationship`]); a workbook that holds a kind of the executor's refused list
+    /// a relationship inside the package that does not name a part as that format names it
+    /// ([`Refusal::Relationship`]; an external target such as a hyperlink's address is not read
+    /// as a part name and is never a reason to refuse); a workbook that holds a kind of the
+    /// executor's refused list
     /// ([`Refusal::Kinds`]: `pivot`, `macro`, `validation`); a sheet that the workbook lacks
     /// ([`Error::NoSheet`], with the cause `step_failed`); a sheet whose used cells and the range
     /// together span more than 1,000,000 cells ([`Refusal::Size`]); a cell of the range in the
     /// header row of a table ([`Refusal::TableHeader`]); a worksheet part that the writer cannot
     /// take ([`Refusal::Part`]); a cell of the range in a shared formula
     /// ([`Refusal::SharedFormula`]) or in the range of an array or data-table formula
-    /// ([`Refusal::ArrayFormula`]); and a sheet that the reader of the read-back cannot read
-    /// ([`Refusal::Unreadable`]).
+    /// ([`Refusal::ArrayFormula`]); a copy whose sheet part or another entry would hold more
+    /// than 32 MiB, whose entries would hold more than 128 MiB in all, or whose file would
+    /// hold more than 64 MiB, the bounds that the next read keeps ([`Error::FillSize`], with the
+    /// cause `step_failed`); and a sheet that the reader of the read-back cannot read
+    /// ([`Refusal::Unreadable`]): among them a sheet whose `dimension` holds an entity in its
+    /// `ref`, which the writer itself would take as the plain spelling.
     ///
     /// Then it copies the workbook to the run's checkpoint `<name>.halvo-checkpoint-<run
     /// id><ext>` beside it, or takes a checkpoint of the run that is already there and equal to
     /// the workbook without writing it again ([`Error::Checkpoint`] when it differs or is no
     /// regular file). It writes a prepared copy under a name of this call's own,
     /// `<name>.halvo-prepared-<run id>-<part of its own><ext>`, which no other call writes or
-    /// removes. Both get the workbook's permissions. The copy holds the entries of the
+    /// removes. Both get the workbook's permissions: its permission bits on Unix, its read-only
+    /// attribute on Windows. Once the run's checkpoint is made, no call of this crate removes
+    /// it, neither on a miss nor on a drop: it stays until the run's owner removes it at the
+    /// run's end. The copy holds the entries of the
     /// workbook's package in their order, each copied with its name, its method and its
     /// compressed data, but two, which keep the method and the time of their entries. The
     /// worksheet part of `sheet` is the source's bytes with the element of each cell of the
@@ -152,7 +163,7 @@ impl Folder {
     /// with its number and cells of the range alone; `spans` and the `ref` of `dimension` that
     /// hold the source's and every cell of the range. Then the cells of the range read back
     /// through calamine, which reads that sheet alone, with their new values and no formula.
-    /// On a miss it removes its prepared copy and the checkpoint if it made it, and returns
+    /// On a miss it removes its prepared copy, leaves the run's checkpoint, and returns
     /// [`Error::Sheet`], with the cause `sheet`; the workbook was not touched.
     ///
     /// One `replace` of a workbook per run: after it, the run's checkpoint is no longer the
@@ -175,6 +186,9 @@ impl Folder {
     ) -> Result<Prepared, Error> {
         if write::range_cells(range) > parts::RANGE_MAX {
             return Err(Error::RangeSize);
+        }
+        if patch::least_bytes(range, values) > parts::ENTRY_MAX {
+            return Err(Error::FillSize);
         }
         let full = self.file(workbook)?;
         let name = full.file_name().unwrap_or_default().to_string_lossy();

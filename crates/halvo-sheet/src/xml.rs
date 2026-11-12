@@ -5,7 +5,10 @@
 //! An element is matched by the spreadsheet namespace under whatever prefix; an element of
 //! another namespace is carried as bytes. An attribute is read as the XML reader gives it, and
 //! its place in the text comes from the reader's own slices of that text, so neither the writer
-//! nor the check searches the text for an attribute.
+//! nor the check searches the text for an attribute. One spelling is refused all the same: an
+//! entity in the `ref` of `dimension`, which these walks read as the plain spelling but which
+//! the reader of the read-back cannot read, so `prepare` refuses that workbook as unreadable
+//! before any write.
 
 use std::borrow::Cow;
 

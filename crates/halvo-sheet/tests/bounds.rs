@@ -102,23 +102,58 @@ fn a_file_of_more_than_64_mib_is_refused_before_it_is_read() {
     );
 }
 
-#[cfg(unix)]
+/// The file cannot be opened for reading while the call runs: on Unix its mode lets its owner
+/// write alone, on Windows another handle holds it with no sharing. Its size is still read.
 #[test]
 fn a_file_over_the_bound_is_refused_by_its_size_before_it_is_opened() {
-    use std::os::unix::fs::PermissionsExt;
     let scratch = Scratch::new("bounds-file-unopened");
     let path = scratch.path("big.xlsx");
     let file = fs::File::create(&path).expect("create");
     file.set_len(64 * MIB + 1).expect("set the length");
     drop(file);
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o200)).expect("chmod");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o200)).expect("chmod");
+    }
+    #[cfg(windows)]
+    let held = {
+        use std::os::windows::fs::OpenOptionsExt;
+        fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(&path)
+            .expect("open with no sharing")
+    };
+    let opened = fs::File::open(&path);
+    assert!(opened.is_err(), "the file cannot be opened for reading");
     refused_by_both(
         &scratch,
         "big.xlsx",
         "a file that cannot be opened for reading",
         Error::Workbook(Refusal::Size),
     );
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).expect("chmod");
+    #[cfg(windows)]
+    drop(held);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).expect("chmod");
+    }
+}
+
+#[test]
+fn a_file_of_exactly_64_mib_is_read() {
+    let scratch = Scratch::new("bounds-file-exact");
+    let file = fs::File::create(scratch.path("exact.xlsx")).expect("create");
+    file.set_len(64 * MIB).expect("set the length");
+    drop(file);
+    refused_by_both(
+        &scratch,
+        "exact.xlsx",
+        "a file at the bound, read and found no zip",
+        Error::Workbook(Refusal::Unreadable),
+    );
 }
 
 #[test]
@@ -245,4 +280,175 @@ fn a_fill_of_100000_cells_is_written_checked_and_read_back() {
         Range::parse("E1:F1").expect("a range"),
     );
     assert_eq!(first.map(|rows| rows[0][1].clone()), Ok(Cell::Number(0.0)));
+}
+
+/// The tests that hold hundreds of megabytes take this lock, so that they run one at a time.
+static HEAVY: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn heavy() -> std::sync::MutexGuard<'static, ()> {
+    HEAVY
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+const FILL: &str = "F1:O10000";
+
+/// 100,000 cells (F1:O10000), each the text of `bytes` letters x.
+fn texts(bytes: usize) -> Vec<Vec<Value>> {
+    let text = "x".repeat(bytes);
+    (0..10_000)
+        .map(|_| (0..10).map(|_| Value::Text(text.clone())).collect())
+        .collect()
+}
+
+fn refused_before_any_write(scratch: &Scratch, file: &str, label: &str, values: &[Vec<Value>]) {
+    let before = fs::read(scratch.path(file)).expect("read");
+    let listing = scratch.names("");
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let range = Range::parse(FILL).expect("a range");
+    let start = Instant::now();
+    let got = folder.prepare(Path::new(file), &run(), "Values", range, values);
+    eprintln!("{label}: refused in {:.2} s", start.elapsed().as_secs_f64());
+    let got = got.err();
+    assert_eq!(got, Some(Error::FillSize), "{label}");
+    assert_eq!(got.map(|e| e.cause()), Some(Cause::StepFailed), "{label}");
+    assert_eq!(
+        scratch.names(""),
+        listing,
+        "{label}: nothing beside the workbook"
+    );
+    assert_eq!(
+        fs::read(scratch.path(file)).expect("read"),
+        before,
+        "{label}"
+    );
+}
+
+#[test]
+fn a_fill_whose_cells_cannot_fit_a_sheet_part_is_refused_at_once() {
+    let _one_at_a_time = heavy();
+    for bytes in [300, 900, 2000] {
+        let values = texts(bytes);
+        let scratch = Scratch::new("bounds-fill-over");
+        let folder = Folder::new(&scratch.dir).expect("the folder opens");
+        let range = Range::parse(FILL).expect("a range");
+        let missing = folder.prepare(Path::new("missing.xlsx"), &run(), "Values", range, &values);
+        assert_eq!(
+            missing.err(),
+            Some(Error::FillSize),
+            "{bytes}: before the workbook is read"
+        );
+        fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
+        let label = format!("100,000 cells of {bytes} bytes");
+        refused_before_any_write(&scratch, "values.xlsx", &label, &values);
+    }
+}
+
+#[test]
+fn a_fill_just_under_the_bound_is_prepared_replaced_and_read_again() {
+    let _one_at_a_time = heavy();
+    let scratch = Scratch::new("bounds-fill-under");
+    fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let range = Range::parse(FILL).expect("a range");
+    let values = texts(250);
+    let start = Instant::now();
+    let prepared = folder
+        .prepare(Path::new("values.xlsx"), &run(), "Values", range, &values)
+        .expect("prepared");
+    eprintln!(
+        "100,000 cells of 250 bytes: prepared in {:.2} s",
+        start.elapsed().as_secs_f64()
+    );
+    let part = common::entry(prepared.copy(), "xl/worksheets/sheet1.xml").len() as u64;
+    assert!(
+        part > 30 * MIB && part <= 32 * MIB,
+        "the sheet part holds {part} bytes"
+    );
+    folder.replace(&prepared).expect("replaced");
+    let x = Cell::Text("x".repeat(250));
+    for cells in ["F1", "O10000"] {
+        let read = folder.read(
+            Path::new("values.xlsx"),
+            "Values",
+            Range::parse(cells).expect("a range"),
+        );
+        assert_eq!(
+            read,
+            Ok(vec![vec![x.clone()]]),
+            "{cells}: the next call reads the copy"
+        );
+    }
+}
+
+/// values.xlsx with its sheet part stored, `stored` entries of zeros stored after it.
+fn stored_book(path: &Path, stored: &[(&str, usize)]) {
+    use std::io::Read;
+    let mut archive =
+        zip::ZipArchive::new(fs::File::open(corpus("values.xlsx")).expect("open")).expect("a zip");
+    let mut out = zip::ZipWriter::new(fs::File::create(path).expect("create"));
+    let store =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).expect("entry");
+        let name = entry.name().expect("name").to_string();
+        let mut bytes = Vec::new();
+        entry.read_to_end(&mut bytes).expect("read");
+        let options = if name == "xl/worksheets/sheet1.xml" {
+            store
+        } else {
+            zip::write::SimpleFileOptions::default()
+        };
+        out.start_file(name.as_str(), options).expect("start");
+        out.write_all(&bytes).expect("write");
+    }
+    for (name, size) in stored {
+        out.start_file(*name, store).expect("start");
+        out.write_all(&vec![0u8; *size]).expect("write");
+    }
+    out.finish().expect("finish");
+}
+
+#[test]
+fn a_copy_over_a_bound_of_the_next_read_is_refused_before_any_write() {
+    let _one_at_a_time = heavy();
+    let scratch = Scratch::new("bounds-copy-entry");
+    let comment = format!("<!--{}--><sheetData>", "c".repeat(10_000_000));
+    let long = move |name: &str, bytes: Vec<u8>| {
+        let bytes = if name == "xl/worksheets/sheet1.xml" {
+            common::replaced(bytes, "<sheetData>", &comment)
+        } else {
+            bytes
+        };
+        Some((name.to_string(), bytes))
+    };
+    common::repack(
+        &corpus("values.xlsx"),
+        &scratch.path("values.xlsx"),
+        &long,
+        &[],
+    );
+    let label = "a sheet part of 10 MB and cells of 230 bytes: the part over 32 MiB";
+    refused_before_any_write(&scratch, "values.xlsx", label, &texts(230));
+    let scratch = Scratch::new("bounds-copy-total");
+    let deflated = zip::CompressionMethod::Deflated;
+    let zeros = |name| (name, vec![0u8; (31 * MIB) as usize], deflated, None);
+    let four = [
+        zeros("docProps/a.bin"),
+        zeros("docProps/b.bin"),
+        zeros("docProps/c.bin"),
+        zeros("docProps/d.bin"),
+    ];
+    with_entries(&scratch.path("values.xlsx"), &four);
+    drop(four);
+    let label = "entries of 124 MiB and cells of 60 bytes: the copy over 128 MiB in all";
+    refused_before_any_write(&scratch, "values.xlsx", label, &texts(60));
+    let scratch = Scratch::new("bounds-copy-file");
+    let each = (29 * MIB) as usize;
+    stored_book(
+        &scratch.path("values.xlsx"),
+        &[("docProps/a.bin", each), ("docProps/b.bin", each)],
+    );
+    let label = "a file of 58 MiB stored and cells of 50 bytes: the copy over 64 MiB as a file";
+    refused_before_any_write(&scratch, "values.xlsx", label, &texts(50));
 }

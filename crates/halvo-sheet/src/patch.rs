@@ -107,6 +107,43 @@ fn cell_element(prefix: &str, pos: Pos, style: Option<&str>, value: &Value) -> S
     }
 }
 
+/// The length of the reference of `pos` in the A1 form, counted without writing it.
+fn reference_len((row, col): Pos) -> usize {
+    let letters = match col {
+        0..=25 => 1,
+        26..=701 => 2,
+        _ => 3,
+    };
+    let mut digits = 1;
+    let mut rest = (row + 1) / 10;
+    while rest > 0 {
+        digits += 1;
+        rest /= 10;
+    }
+    letters + digits
+}
+
+/// The fewest bytes that the elements of the cells of `range` take in a written sheet part:
+/// each element as the writer writes it with no prefix, no style and no escape in a text (an
+/// escape only lengthens it). The same for every text whatever its length, so that a fill
+/// that cannot fit is refused at once.
+pub(crate) fn least_bytes(range: Range, values: &[Vec<Value>]) -> u64 {
+    let a1 = reference_len((0, 0));
+    let text = cell_element("", (0, 0), None, &Value::Text(String::new())).len() - a1;
+    let number = cell_element("", (0, 0), None, &Value::Number(0.0)).len() - a1 - 1;
+    range
+        .cells()
+        .zip(values.iter().flatten())
+        .map(|(pos, value)| {
+            let own = match value {
+                Value::Number(x) => number + format!("{x}").len(),
+                Value::Text(written) => text + written.len(),
+            };
+            (own + reference_len(pos)) as u64
+        })
+        .sum()
+}
+
 /// The pairs of a `spans` value, `a:b` separated by white space; refused when it has another
 /// form.
 pub(crate) fn span_pairs(spans: &str) -> Result<Vec<(u32, u32)>, Error> {
@@ -640,6 +677,33 @@ mod tests {
     }
 
     #[test]
+    fn the_least_bytes_of_a_range_are_its_elements_as_written_with_no_prefix_or_style() {
+        let elements = |range: Range, values: &[Vec<Value>]| -> u64 {
+            let all = range.cells().zip(values.iter().flatten());
+            all.map(|(pos, value)| cell_element("", pos, None, value).len() as u64)
+                .sum()
+        };
+        let t = |s: &str| Value::Text(s.to_string());
+        let plain = Range::parse("Z9:AA10").expect("a range");
+        let values = vec![
+            vec![Value::Number(1.5), t("plain")],
+            vec![t(""), Value::Number(-20.0)],
+        ];
+        assert_eq!(least_bytes(plain, &values), elements(plain, &values));
+        let corner = Range::parse("XFD1048576").expect("a range");
+        assert_eq!(
+            least_bytes(corner, &[vec![t("x")]]),
+            elements(corner, &[vec![t("x")]])
+        );
+        let escapes = Range::parse("A1:B1").expect("a range");
+        let values = vec![vec![t("a & b"), t("_x0041_\r<")]];
+        assert!(least_bytes(escapes, &values) < elements(escapes, &values));
+        let xml = sheet("<sheetData/>");
+        let written = sheet_part(&xml, escapes, &values).expect("patched");
+        assert!(written.len() as u64 >= least_bytes(escapes, &values));
+    }
+
+    #[test]
     fn a_written_cell_keeps_its_style_and_an_inserted_cell_takes_none() {
         let xml = sheet(
             r#"<sheetData><row r="1"><c r="A1" s="3"><v>1</v></c><c r="B1" s="4" t="s"><v>0</v></c><c r="D1" s="5"/></row></sheetData>"#,
@@ -777,6 +841,21 @@ mod tests {
         let xml = sheet(r#"<sheetData><row r="2" spans="a:b"/></sheetData>"#);
         let (range, values) = one("B2", Value::Number(1.0));
         assert_eq!(sheet_part(&xml, range, &values), Err(form()));
+    }
+
+    #[test]
+    fn a_dimension_after_the_sheet_data_is_carried_and_spans_with_a_sign_are_refused() {
+        let later =
+            sheet(r#"<sheetData><row r="1"><c r="A1"/></row></sheetData><dimension ref="A1"/>"#);
+        let (range, values) = one("C3", Value::Number(1.0));
+        let got = sheet_part(&later, range, &values).expect("patched");
+        assert!(
+            got.ends_with(r#"</sheetData><dimension ref="A1"/></worksheet>"#),
+            "{got}"
+        );
+        let signed = sheet(r#"<sheetData><row r="1" spans="+1:4"><c r="A1"/></row></sheetData>"#);
+        let (range, values) = one("B1", Value::Number(1.0));
+        assert_eq!(sheet_part(&signed, range, &values), Err(form()));
     }
 
     #[test]

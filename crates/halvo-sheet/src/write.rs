@@ -41,15 +41,14 @@ impl RunId {
 ///
 /// It holds the workbook as `prepare` read it and the prepared copy in memory until it is
 /// dropped. Dropping one that no `replace` put in place removes its prepared copy when no link
-/// stands on the way to it and it still holds the bytes that `prepare` checked; and when this
-/// call made the checkpoint, the checkpoint too, while the workbook and the checkpoint still
-/// hold the workbook as `prepare` read it.
+/// stands on the way to it and it still holds the bytes that `prepare` checked. It never
+/// removes the checkpoint: once a run's checkpoint is made, no call of this crate removes it,
+/// and it stays until the run's owner removes it at the run's end.
 pub struct Prepared {
     pub(crate) root: PathBuf,
     pub(crate) workbook: PathBuf,
     pub(crate) checkpoint: PathBuf,
     pub(crate) copy: PathBuf,
-    pub(crate) made: bool,
     pub(crate) original: Vec<u8>,
     pub(crate) changed: Vec<u8>,
     pub(crate) answer: OnceLock<Result<(), Error>>,
@@ -94,11 +93,6 @@ impl Drop for Prepared {
         };
         if let Some(copy) = holding(&self.copy, &self.changed) {
             let _ = fs::remove_file(copy);
-        }
-        if self.made && holding(&self.workbook, &self.original).is_some() {
-            if let Some(checkpoint) = holding(&self.checkpoint, &self.original) {
-                let _ = fs::remove_file(checkpoint);
-            }
         }
     }
 }
@@ -170,23 +164,17 @@ pub(crate) fn prepare(
     if !xml::fits(xml::extent(source)?, Some(range), parts::CELLS_MAX) {
         return Err(parts::size());
     }
-    let changed = spoiled(patch::write(&original, &entries, &part, range, values)?);
+    let changed = patch::write(&original, &entries, &part, range, values)?;
+    match parts::within_bounds(&changed) {
+        Err(error) if error == parts::size() => return Err(Error::FillSize),
+        other => other?,
+    }
+    let changed = spoiled(changed);
     drop(entries);
     book::readable(&original, sheet)?;
     let checkpoint = beside(&workbook, &format!("checkpoint-{}", run.0));
-    let made = keep_checkpoint(&checkpoint, &original, meta.permissions())?;
-    let unmake = || {
-        if made {
-            let _ = fs::remove_file(&checkpoint);
-        }
-    };
-    let copy = match write_copy(&workbook, run, &changed, meta.permissions()) {
-        Ok(copy) => copy,
-        Err(error) => {
-            unmake();
-            return Err(error);
-        }
-    };
+    keep_checkpoint(&checkpoint, &original, meta.permissions())?;
+    let copy = write_copy(&workbook, run, &changed, meta.permissions())?;
     drop(changed);
     let checked = fs::read(&copy).map_err(Error::from).and_then(|disk| {
         check(&original, &disk, (&part, &book_part), sheet, range, values)?;
@@ -198,14 +186,12 @@ pub(crate) fn prepare(
             workbook,
             checkpoint,
             copy,
-            made,
             original,
             changed: disk,
             answer: OnceLock::new(),
         }),
         Err(error) => {
             let _ = fs::remove_file(&copy);
-            unmake();
             Err(error)
         }
     }
@@ -252,18 +238,18 @@ fn fill(mut file: File, bytes: &[u8]) -> io::Result<()> {
 }
 
 /// Makes the run's checkpoint, or takes one of the run that is already there and equal to the
-/// workbook without writing it again. `true` when this call made it.
+/// workbook without writing it again.
 fn keep_checkpoint(
     checkpoint: &Path,
     original: &[u8],
     permissions: Permissions,
-) -> Result<bool, Error> {
+) -> Result<(), Error> {
     match create(checkpoint, original, permissions) {
-        Ok(()) => Ok(true),
+        Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
             path::regular(checkpoint).map_err(|_| Error::Checkpoint)?;
             if fs::read(checkpoint)? == original {
-                Ok(false)
+                Ok(())
             } else {
                 Err(Error::Checkpoint)
             }
@@ -398,8 +384,12 @@ mod tests {
         let got = got.err();
         assert_eq!(got, Some(Error::Sheet), "{label}");
         assert_eq!(got.map(|e| e.cause()), Some(Cause::Sheet), "{label}");
-        let alone = vec!["values.xlsx".to_string()];
-        assert_eq!(listing, alone, "{label}: nothing beside the workbook");
+        let checkpoint = format!("values.halvo-checkpoint-{RUN}.xlsx");
+        let left = vec![checkpoint, "values.xlsx".to_string()];
+        assert_eq!(
+            listing, left,
+            "{label}: the checkpoint alone beside the workbook"
+        );
         assert!(kept, "{label}: the workbook is as it was");
     }
 
@@ -497,6 +487,39 @@ mod tests {
         let second = edit_part(SHEET, r#"<c r="C5"><v>2</v></c>"#, c5);
         let two = vec![vec![Value::Number(1.0), Value::Number(2.0)]];
         missed("the second of two cells", second, "B5:C5", &two);
+        let empty = r#"<c r="C5" t="inlineStr"><is><t xml:space="preserve"></t></is></c>"#;
+        let gone = edit_part(SHEET, empty, String::new());
+        let with_empty = vec![vec![Value::Number(1.0), Value::Text(String::new())]];
+        missed(
+            "a named cell of the empty text missing",
+            gone,
+            "B5:C5",
+            &with_empty,
+        );
+    }
+
+    #[test]
+    fn a_copy_name_that_stands_there_makes_the_call_take_another() {
+        let dir = scratch("copy-name-taken");
+        let workbook = dir.join("values.xlsx");
+        fs::copy(corpus_file("values.xlsx"), &workbook).expect("copy");
+        let run = RunId::parse(RUN).expect("a run id");
+        let next = CALLS.load(Ordering::Relaxed);
+        let mut taken = Vec::new();
+        for call in next..next + 32 {
+            let own = format!("{:08x}{call:08x}", std::process::id());
+            let name = beside(&workbook, &format!("prepared-{}-{own}", run.0));
+            fs::write(&name, b"a file of another call").expect("write");
+            taken.push(name);
+        }
+        let permissions = fs::metadata(&workbook).expect("metadata").permissions();
+        let copy = write_copy(&workbook, &run, b"the copy", permissions).expect("another name");
+        assert!(!taken.contains(&copy), "{copy:?}");
+        assert_eq!(fs::read(&copy).expect("read"), b"the copy");
+        for name in &taken {
+            assert_eq!(fs::read(name).expect("read"), b"a file of another call");
+        }
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -530,24 +553,33 @@ mod tests {
             SPOIL.with(|s| *s.borrow_mut() = None);
             got
         };
+        let checkpoint = format!("values.halvo-checkpoint-{RUN}.xlsx");
+        let left = vec![checkpoint.clone(), "values.xlsx".to_string()];
         let got = spoiled_prepare();
         assert_eq!(got.as_ref().err(), Some(&Error::Sheet));
-        assert_eq!(names(&dir), vec!["values.xlsx".to_string()]);
+        assert_eq!(
+            names(&dir),
+            left,
+            "the miss removes its copy and leaves the checkpoint"
+        );
         assert_eq!(fs::read(dir.join("values.xlsx")).expect("read"), before);
+        assert_eq!(fs::read(dir.join(&checkpoint)).expect("read"), before);
         let held = folder
             .prepare(Path::new("values.xlsx"), &run, "Values", b5, &values)
             .expect("prepared");
-        let checkpoint = format!("values.halvo-checkpoint-{RUN}.xlsx");
         assert_eq!(spoiled_prepare().err(), Some(Error::Sheet));
         let listing = names(&dir);
         assert_eq!(listing.len(), 3, "{listing:?}");
         assert!(
             listing.contains(&checkpoint),
-            "the miss leaves the checkpoint it did not make"
+            "the miss leaves the checkpoint"
         );
         drop(held);
-        let alone = vec!["values.xlsx".to_string()];
-        assert_eq!(names(&dir), alone, "the drop removes what its call made");
+        assert_eq!(
+            names(&dir),
+            left,
+            "the drop removes its copy and leaves the checkpoint"
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 

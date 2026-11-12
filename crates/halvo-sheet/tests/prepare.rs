@@ -327,8 +327,8 @@ fn each_prepare_of_a_run_writes_a_copy_of_its_own_and_the_first_makes_the_one_ch
     drop(first);
     assert_eq!(
         scratch.names(""),
-        vec!["values.xlsx".to_string()],
-        "the maker's drop removes it"
+        sorted(vec![checkpoint, "values.xlsx".to_string()]),
+        "the maker's drop leaves it too: no prepare removes a checkpoint"
     );
 }
 
@@ -656,10 +656,16 @@ fn the_checkpoint_and_the_copy_get_the_workbooks_permission_bits() {
     fs::copy(corpus("values.xlsx"), &workbook).expect("copy");
     let folder = Folder::new(&scratch.dir).expect("the folder opens");
     let b5 = Range::parse("B5").expect("a range");
-    for bits in [0o640, 0o600, 0o664] {
+    let runs = [
+        "a0000000000000000000000000000640",
+        "a0000000000000000000000000000600",
+        "a0000000000000000000000000000664",
+    ];
+    for (bits, id) in [0o640, 0o600, 0o664].into_iter().zip(runs) {
         fs::set_permissions(&workbook, fs::Permissions::from_mode(bits)).expect("chmod");
+        let own = RunId::parse(id).expect("a run id");
         let prepared = folder
-            .prepare(Path::new("values.xlsx"), &run(), "Values", b5, &one(77.0))
+            .prepare(Path::new("values.xlsx"), &own, "Values", b5, &one(77.0))
             .expect("prepared");
         assert_eq!(mode(prepared.checkpoint()), bits, "{bits:o}");
         assert_eq!(mode(prepared.copy()), bits, "{bits:o}");
@@ -748,6 +754,44 @@ fn two_threads_of_one_run_or_of_two_leave_the_original_or_a_checked_copy() {
                 "round {round}: the workbook is neither the original nor a checked copy"
             );
         }
+    }
+}
+
+#[test]
+fn a_drop_of_the_call_that_made_the_checkpoint_beside_another_calls_replace_never_takes_it() {
+    let scratch = Scratch::new("prepare-drop-race");
+    let source = fs::read(corpus("values.xlsx")).expect("read");
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let b5 = Range::parse("B5").expect("a range");
+    for round in 0..50 {
+        let name = format!("round{round}.xlsx");
+        fs::write(scratch.path(&name), &source).expect("write");
+        let first = folder
+            .prepare(Path::new(&name), &run(), "Values", b5, &one(7.0))
+            .expect("the first prepare makes the checkpoint");
+        let second = folder
+            .prepare(Path::new(&name), &run(), "Values", b5, &one(8.0))
+            .expect("the second prepare takes it");
+        let checkpoint = second.checkpoint().to_path_buf();
+        let barrier = std::sync::Barrier::new(2);
+        let answer = std::thread::scope(|s| {
+            let dropper = s.spawn(|| {
+                barrier.wait();
+                drop(first);
+            });
+            let replacer = s.spawn(|| {
+                barrier.wait();
+                folder.replace(&second)
+            });
+            dropper.join().expect("joined");
+            replacer.join().expect("joined")
+        });
+        assert_eq!(answer, Ok(()), "round {round}");
+        assert_eq!(
+            fs::read(&checkpoint).expect("the checkpoint stays"),
+            source,
+            "round {round}"
+        );
     }
 }
 

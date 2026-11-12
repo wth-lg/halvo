@@ -158,6 +158,31 @@ pub(crate) fn package_file(path: &Path) -> Result<Vec<u8>, Error> {
     Ok(bytes)
 }
 
+/// Refuses with [`Refusal::Size`] an archive whose entries declare more than [`ENTRY_MAX`] in
+/// one or more than [`ENTRIES_MAX`] in all, summed entry by entry before any is inflated.
+fn declared_within(archive: &mut zip::ZipArchive<Cursor<&[u8]>>) -> Result<(), Error> {
+    let mut declared = 0u64;
+    for index in 0..archive.len() {
+        let entry = archive.by_index_raw(index).map_err(|_| unreadable())?;
+        declared = declared.saturating_add(entry.size());
+        if entry.size() > ENTRY_MAX || declared > ENTRIES_MAX {
+            return Err(size());
+        }
+    }
+    Ok(())
+}
+
+/// Whether the package `bytes` keeps the bounds that the next read of it keeps: the file and
+/// the declared sizes of its entries ([`Refusal::Size`] when not). `prepare` asks it of the copy
+/// that it would write, before it writes anything, so that the next call can read the copy.
+pub(crate) fn within_bounds(bytes: &[u8]) -> Result<(), Error> {
+    if bytes.len() as u64 > FILE_MAX {
+        return Err(size());
+    }
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|_| unreadable())?;
+    declared_within(&mut archive)
+}
+
 /// The entries of a package. Refused: no zip archive, an encrypted entry, two entries whose
 /// names fold alike, an entry that declares more than [`ENTRY_MAX`] uncompressed or entries
 /// that declare more than [`ENTRIES_MAX`] in all (summed entry by entry before any is
@@ -167,14 +192,7 @@ pub(crate) fn entries(bytes: &[u8]) -> Result<Entries, Error> {
     if archive.has_duplicate_names() {
         return Err(unreadable());
     }
-    let mut declared = 0u64;
-    for index in 0..archive.len() {
-        let entry = archive.by_index_raw(index).map_err(|_| unreadable())?;
-        declared = declared.saturating_add(entry.size());
-        if entry.size() > ENTRY_MAX || declared > ENTRIES_MAX {
-            return Err(size());
-        }
-    }
+    declared_within(&mut archive)?;
     let mut all = BTreeMap::new();
     let mut folded = BTreeSet::new();
     let mut held = 0u64;
@@ -513,6 +531,8 @@ struct Rel {
     tail: String,
     target: String,
     raw: String,
+    /// `TargetMode="External"`: the target is an address outside the package, no part name.
+    external: bool,
 }
 
 fn tail(kind_type: &str) -> &str {
@@ -533,6 +553,7 @@ fn relationships(rels: &[u8]) -> Result<Vec<Rel>, Error> {
                     tail: String::new(),
                     target: String::new(),
                     raw: String::new(),
+                    external: false,
                 };
                 for attribute in e.attributes() {
                     let attribute = attribute.map_err(|_| part())?;
@@ -546,6 +567,7 @@ fn relationships(rels: &[u8]) -> Result<Vec<Rel>, Error> {
                             rel.target = value.into_owned();
                             rel.raw = attribute.value.to_string();
                         }
+                        "TargetMode" => rel.external = value == "External",
                         _ => {}
                     }
                 }
@@ -609,7 +631,11 @@ fn sheets<'a>(names: &Names<'a>) -> Result<Vec<Sheet<'a>>, Error> {
     let by_id: BTreeMap<&str, &Rel> = rels.iter().map(|rel| (rel.id.as_str(), rel)).collect();
     let mut found = Vec::new();
     for (name, id) in sheet_elements(xml)? {
-        let Some(rel) = id.as_deref().and_then(|id| by_id.get(id)) else {
+        let internal = id
+            .as_deref()
+            .and_then(|id| by_id.get(id))
+            .filter(|rel| !rel.external);
+        let Some(rel) = internal else {
             found.push(Sheet {
                 name,
                 part: None,
@@ -677,6 +703,9 @@ fn by_relationship(entries: &Entries, names: &Names<'_>) -> Result<Linked, Error
         }
         let source = source_of(&folded).unwrap_or_default();
         for rel in relationships(xml)? {
+            if rel.external {
+                continue;
+            }
             let target = named(names, &source, &rel.target)?;
             let tail = rel.tail.as_str();
             if !READ.contains(&tail) {
@@ -759,7 +788,7 @@ pub(crate) fn linked(entries: &Entries, part: &str, kind: &str) -> Result<Vec<St
     };
     let mut found = Vec::new();
     for rel in relationships(rels)? {
-        if rel.tail == kind {
+        if rel.tail == kind && !rel.external {
             let target = named(&names, part, &rel.target)?.ok_or_else(relationship)?;
             found.push(target.to_string());
         }

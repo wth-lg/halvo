@@ -78,7 +78,8 @@ pub enum Refusal {
     /// or `c` other than those rows and cells, nor a second element named `sheetData`, since
     /// the reader would take it as one.
     Part,
-    /// A relationship does not name a part the way the package format names parts. Its target
+    /// A relationship inside the package does not name a part the way the package format names
+    /// parts; a relationship whose target mode is `External` (a hyperlink) is never one. Its target
     /// does not decode: a percent sign is not followed by two hex digits, a `/` or a `\` is
     /// percent-encoded, or the bytes are not UTF-8. Or a relationship of a type that the crate
     /// or its reader reads names no entry, or its type equals such a type only when ASCII case
@@ -141,6 +142,11 @@ pub enum Error {
     /// The person cannot write the workbook: it is read-only, or on Unix its owner has no
     /// write permission.
     ReadOnly,
+    /// The write would make a copy that the next `read` refuses: the elements of the cells of
+    /// the range alone hold more than 32 MiB (refused before the workbook is read), or the copy
+    /// would hold a sheet part or another entry of more than 32 MiB, entries of more than
+    /// 128 MiB in all, or more than 64 MiB as a file. Refused before any write.
+    FillSize,
     /// The text is not a run id of the form of contracts.md A0.6.
     RunId,
     /// A checkpoint of this run stands beside the workbook and is not a copy of it as it is.
@@ -171,6 +177,7 @@ impl Error {
             | Error::Value
             | Error::RangeSize
             | Error::ReadOnly
+            | Error::FillSize
             | Error::RunId
             | Error::Checkpoint
             | Error::NotReplaced(_)
@@ -199,6 +206,7 @@ impl fmt::Display for Error {
             Error::Value => f.write_str("a text holds a character that a workbook cannot hold"),
             Error::RangeSize => f.write_str("the range holds more than 100,000 cells"),
             Error::ReadOnly => f.write_str("the workbook cannot be written"),
+            Error::FillSize => f.write_str("the write would make a copy over the bounds of a read"),
             Error::RunId => f.write_str("the text is not a run id"),
             Error::Checkpoint => f.write_str("a checkpoint of this run is not the workbook"),
             Error::Sheet => f.write_str("the prepared copy did not read back the same"),
