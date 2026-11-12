@@ -1,11 +1,12 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: agent-config presets prints ten valid presets and none unattended, agent-gate configs prints one line stored=yes state=approved agent=set result=valid per seed category in order and configs seeds=10 valid=10, each test of this script's list (policy_table, own_kind_roles and the refusal tests of A5.4 in halvo-policy, halvo-agent-store and halvo-schema) prints ok in cargo test --locked, and no tracked file differs from HEAD before or after a cargo command.
+# rule: agent-config presets prints ten valid presets and none unattended, agent-gate configs prints one line stored=yes state=approved agent=set result=valid per seed category in order and configs seeds=10 valid=10, the test targets of halvo-policy, halvo-agent-store and halvo-agent-gate pass in cargo test --locked --tests, each test of this script's list (policy_table, own_kind_roles, the refusal tests of A5.4 in halvo-policy, halvo-agent-store and halvo-schema, and the gate's test of the refusal after a run's end) prints ok once, and no tracked file differs from HEAD before or after a cargo command.
 set -u
 LC_ALL=C
 export LC_ALL
 name=20-r3-policy
-crates='halvo-policy halvo-agent-store halvo-schema'
+crates='halvo-policy halvo-agent-store halvo-agent-gate halvo-schema'
+whole='halvo-policy halvo-agent-store halvo-agent-gate'
 categories='utility_bill_payment tenant_rent lease_renewal_or_change tenant_application_review email spreadsheet_fill shop_order calendar_cleanup ride_order daily_chart_check'
 want_presets='presets seeds=10 valid=10 unattended=0'
 
@@ -32,6 +33,7 @@ halvo-agent-store refusal refusal_propose_after_end
 halvo-agent-store refusal refusal_end_run_loses
 halvo-agent-store refusal refusal_repeat_begin
 halvo-agent-store memory own_kind_roles
+halvo-agent-gate bind every_runner_body_of_an_ended_run_is_refused
 halvo-schema r3_config refusal_allow_money
 EOF
 }
@@ -121,14 +123,20 @@ run_crate() {
     names="$names $test"
   done <"$art/list.txt"
   set --
-  for target in $targets; do
-    set -- "$@" --test "$target"
-  done
-  set -- "$@" --
-  for test in $names; do
-    set -- "$@" "$test"
-  done
-  cargo test --locked -p "$crate" "$@" --exact >"$art/test-$crate.txt" 2>&1 </dev/null
+  case " $whole " in
+    *" $crate "*) set -- --tests ;;
+    *)
+      for target in $targets; do
+        set -- "$@" --test "$target"
+      done
+      set -- "$@" --
+      for test in $names; do
+        set -- "$@" "$test"
+      done
+      set -- "$@" --exact
+      ;;
+  esac
+  cargo test --locked -p "$crate" "$@" >"$art/test-$crate.txt" 2>&1 </dev/null
   code=$?
   [ "$code" -eq 0 ] || cargo_failed=yes
   tree_check "after-test-$crate"
@@ -224,14 +232,21 @@ stub_test() {
   printf 'running 3 tests%s\n' "$eol"
   printf 'test %s_other ... ok%s\n' "$crate" "$eol"
   code=0
-  past=no
-  for arg in "$@"; do
-    if [ "$past" = no ]; then
-      [ "$arg" = -- ] && past=yes
-      continue
-    fi
-    [ "$arg" = --exact ] && continue
-    test=$arg
+  if [ "$1" = --tests ]; then
+    stub_names=$(awk -v crate="$crate" '$1 == crate { printf "%s ", $3 }' "$art/list.txt") || return 98
+  else
+    stub_names=
+    past=no
+    for arg in "$@"; do
+      if [ "$past" = no ]; then
+        [ "$arg" = -- ] && past=yes
+        continue
+      fi
+      [ "$arg" = --exact ] && continue
+      stub_names="$stub_names $arg"
+    done
+  fi
+  for test in $stub_names; do
     case " $fx_missing " in
       *" $test "*) continue ;;
     esac
@@ -355,11 +370,11 @@ self_test() {
   wrong=
 
   fixture all-ok
-  check PASS 'policy presets=ok configs=ok tests=17 ok=17 miss=0'
+  check PASS 'policy presets=ok configs=ok tests=18 ok=18 miss=0'
 
   fixture carriage-returns
   eol=$cr
-  check PASS 'policy presets=ok configs=ok tests=17 ok=17 miss=0'
+  check PASS 'policy presets=ok configs=ok tests=18 ok=18 miss=0'
 
   fixture derived-store
   fx_configs_last='configs seeds=10 valid=10 store=derived'
@@ -439,7 +454,7 @@ self_test() {
 
   fixture cargo-exit-without-a-failed-line
   fx_cargo_fails=halvo-agent-store
-  check FAIL-cargo 'policy presets=ok configs=ok tests=17 ok=17 miss=0'
+  check FAIL-cargo 'policy presets=ok configs=ok tests=18 ok=18 miss=0'
 
   fixture tree-dirty-before
   dirty_now=yes
