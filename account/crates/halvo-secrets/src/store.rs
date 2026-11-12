@@ -40,29 +40,55 @@ use crate::{Directory, Name, Secret};
 /// directory that is missing answers `Fault`, and a write makes the store directory alone,
 /// never a step above it.
 ///
-/// Both stores of a Mac, for `Store::new`: in both builds a read that finds no Keychain
-/// item and no file looks at the Keychain once more before it answers `NotStored`, so a
-/// move that another process finishes between its two looks is seen. A build without the
-/// feature `keychain` also
-/// looks for the Keychain item of `service` and `name`, by its attributes alone. When one
-/// stands there, a read answers `Locked::OtherStore` whatever the file holds. When the
-/// Keychain cannot be searched, a read that finds no file answers the Keychain's `Locked`
-/// or `Fault`, never `NotStored`. Its write and its delete never change the Keychain.
-/// A build with the feature also reads the file `<dir>/<name>`. When the Keychain item and
-/// the file both stand with other bytes, a read answers `Locked::OtherStore` and changes
-/// nothing. When the file stands and the Keychain holds no item, the read moves the file
-/// once: it adds its bytes to the Keychain (only-create), reads the item back, and only
-/// when the bytes are equal removes the file and answers `Found`. When the add or the read
-/// back fails or the removal is refused, it answers `Locked::Move` with that step's code
-/// and keeps the file; a removal that faults answers that `Fault`. An item that the add
-/// made stays, so when the item and the file stand with equal bytes, a read removes the
-/// file and answers `Found`: it finishes a move that stopped there. When the Keychain item
-/// stands and the file cannot be read, a read gives the item. Its write touches the
-/// Keychain alone. In both builds a delete first reads as above, moves included, and
-/// removes the item only when that read gives it, from the store that the build keeps;
-/// otherwise it answers what the read answered, so it answers `Locked::OtherStore` while
-/// the other store holds an item, and `NotStored` only when the read did.
-/// `Store::in_directory` reads and writes the file alone.
+/// Both stores of a Mac, for `Store::new`. Every macOS build searches the login keychain: a
+/// build without the feature `keychain` looks for the Keychain item of `service` and `name`
+/// by its attributes alone at every read, write and delete, and a build with it keeps its
+/// secret there and also reads the file `<dir>/<name>`. In both builds a read that finds no
+/// Keychain item and no file looks at the Keychain once more before it answers `NotStored`,
+/// so a move that another process finishes between its two looks is seen.
+///
+/// A read of a build without the feature answers `Locked::OtherStore` when a Keychain item
+/// stands, whatever the file holds; when the Keychain cannot be searched and no file stands,
+/// it answers the Keychain's `Locked` or `Fault`; otherwise it reads the file.
+///
+/// A read of a build with the feature can move. When the file stands and the Keychain holds
+/// no item, it adds the file's bytes to the Keychain (only-create), reads the item back, and
+/// only when the bytes are equal removes the file, as the place above says, and answers
+/// `Found`. When the add or the read back fails, or the removal is refused or finds another
+/// file, it answers `Locked::Move` with that step's code and keeps the file; a removal that
+/// faults, or a file that it could not name back, answers `Fault`. An add that finds an item
+/// that another process added first makes the read start again once and answer what it
+/// then finds; a second one answers `Locked::Move`. A removal that finds the file gone
+/// answers what the Keychain holds. When the Keychain item and the file stand with equal
+/// bytes, a read removes the file and answers `Found`: it finishes a move that stopped
+/// there. When they stand with other bytes, every read and delete of both builds answers
+/// `Locked::OtherStore` and changes nothing, and no operation of this crate leaves that
+/// state. When the Keychain item stands and the file cannot be read, a read gives the item.
+///
+/// A write of either build first reads as above, the move included. On `NotStored` it makes
+/// the only-create write in the store that the build keeps; on `Found` it answers
+/// `Occupied`; on `Locked` or `Fault` it answers that and stores nothing. What this does not
+/// close: two first sign-ins on the two builds at one moment can still store one each.
+///
+/// A delete of either build first reads as above, the move included, and answers the
+/// read's `Locked` or `Fault`. When the read gives the item, the delete removes it from the
+/// store that the build keeps and passes on a `Locked` or a `Fault` of that removal. After
+/// a removal, or when the read answered `NotStored`, it looks at the other store once more:
+/// - removed, and the other store is empty: `Deleted`;
+/// - removed, and the other store holds an item: `Fault` with the code -1, because the
+///   removal took effect and a credential still stands;
+/// - removed, and the other store cannot be looked at: `Fault` with its code, or -1 where
+///   its answer carries none;
+/// - nothing removed, and the other store is empty: `NotStored`;
+/// - nothing removed, and the other store holds an item: `Locked::OtherStore`;
+/// - nothing removed, and the other store cannot be looked at: its `Locked` or `Fault`.
+///
+/// One limit stays: a delete of a build without the feature whose two steps both fall
+/// between a move's read of the file and its add answers `Deleted`, and the move then adds
+/// the credential that it read. No order of steps closes this without one lock over the
+/// operations of both builds.
+///
+/// `Store::in_directory` reads and writes the file alone and never searches the Keychain.
 ///
 /// The place on Windows: the crate makes the directory with a protected access list that
 /// gives the person, SYSTEM and Administrators full control, and refuses a directory whose
@@ -96,7 +122,8 @@ enum Place {
 impl Store {
     /// The store that this build keeps the secret `name` in: on macOS the file `name` in
     /// `dir`, or with the feature `keychain` the Keychain item of `service` and `name`; on
-    /// Windows the DPAPI file `name` in `dir`.
+    /// Windows the DPAPI file `name` in `dir`. On macOS both builds also look in the other
+    /// store, so every read, write and delete searches the login keychain; see the type.
     pub fn new(dir: Directory, service: Name, name: Name) -> Store {
         #[cfg(target_os = "macos")]
         let place = {
@@ -151,7 +178,8 @@ impl Store {
         Store { place }
     }
 
-    /// The kind of store that this one reads and writes.
+    /// The kind of store that this one keeps its secret in. On macOS a store of the kind
+    /// `File` that `Store::new` made still searches the Keychain at every call.
     pub fn kind(&self) -> StoreKind {
         match &self.place {
             #[cfg(target_os = "macos")]
@@ -166,7 +194,9 @@ impl Store {
         }
     }
 
-    /// Reads the secret: `NotStored`, `Found`, `Locked` or `Fault`.
+    /// Reads the secret: `NotStored`, `Found`, `Locked` or `Fault`. On macOS a read of the
+    /// store that `Store::new` made with the feature `keychain` can move the file into the
+    /// Keychain; see the type.
     pub fn read(&self) -> Read {
         match &self.place {
             #[cfg(target_os = "macos")]
@@ -179,6 +209,8 @@ impl Store {
     }
 
     /// Stores `secret` when nothing stands under the name, and changes nothing otherwise.
+    /// On macOS a write of the store that `Store::new` made first reads, the move included,
+    /// and stores only where that read answers `NotStored`; see the type.
     pub fn write(&self, secret: &Secret) -> Write {
         match &self.place {
             #[cfg(target_os = "macos")]
@@ -190,7 +222,9 @@ impl Store {
         }
     }
 
-    /// Removes the item that a read would give, and nothing else.
+    /// Removes the item that a read would give, and nothing else. On macOS a delete of the
+    /// store that `Store::new` made first reads, the move included, and answers from both
+    /// stores; see the type.
     pub fn delete(&self) -> Delete {
         match &self.place {
             #[cfg(target_os = "macos")]
