@@ -38,8 +38,13 @@ macro_rules! tokens {
     };
 }
 
+mod admit;
 mod edit;
 
+pub use admit::{
+    admit, brought, build_list, is_rejected, new_locators, value_hit, AdmitCause, AdmitFacts,
+    Locator, RunMode, Target,
+};
 pub use edit::{edit_step, EditAnswer, EditMove, EditState};
 
 /// The clean uses that make a `provisional` edit `active` (L3.6).
