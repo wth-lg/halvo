@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
 import { exchange, request, parse, parseAll, appHeaders, portOf, spawnStub, spawnShell, exited, fresh, startStub, STUB, ID, CRED } from "./support.mjs";
@@ -178,9 +178,13 @@ test("a connection whose raw file cannot be opened is closed with the line raw-o
   const dir = fresh();
   const { child, ready } = await spawnStub(["--record", dir]);
   const port = portOf(ready.app);
-  mkdirSync(join(dir, "connection-000002.raw"));
+  writeFileSync(join(dir, "connection-000002.raw"), "keep");
   assert.equal(parse(await exchange(port, request("GET", "/v1/done"))).status, 200);
+  const started = performance.now();
   assert.equal((await exchange(port, request("GET", "/v1/done")).catch(() => Buffer.alloc(0))).length, 0);
+  const waited = performance.now() - started;
+  assert.ok(waited < 2000, `the refused connection closed after ${Math.round(waited)} ms`);
+  assert.equal(readFileSync(join(dir, "connection-000002.raw"), "utf8"), "keep");
   assert.equal(parse(await exchange(port, request("GET", "/v1/done"))).status, 200);
   assert.equal(child.exitCode, null);
   assert.deepEqual(lines(dir).map((line) => [line.seq, line.connection, line.status ?? line.error]), [[1, 1, 200], [2, 2, "raw-open"], [3, 3, 200]]);
