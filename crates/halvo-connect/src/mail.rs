@@ -21,8 +21,9 @@ pub trait Mail {
 
     /// For each message of `messages`, once and in order: createReply, then PATCH of the draft's body to `body` as
     /// plain text. Keeps `drafts`, each with its `to` and `subject` as the PATCH answered them. Takes `messages`
-    /// whole, so that a list is drafted once. Stops at the first error; drafts made before it stay with the
-    /// provider, unsent.
+    /// whole, so that a list is drafted once. Refuses a createReply answer whose id is the id of a kept message or
+    /// of an earlier draft with `Answer(Repeated)`, before its PATCH. Stops at the first error; drafts made before
+    /// it stay with the provider, unsent.
     fn mail_draft_reply(
         &self,
         token: &Token,
@@ -213,6 +214,7 @@ impl Mail for Graph {
         body: &str,
     ) -> Result<Drafts, CallError> {
         let content = json!({"body": {"contentType": "text", "content": body}});
+        let mut ids = Ids::of(messages.iter().map(Message::id));
         let mut drafts = Vec::with_capacity(messages.len());
         for message in messages.0 {
             let created = self.json(
@@ -222,6 +224,7 @@ impl Mail for Graph {
                 Some(&json!({})),
             )?;
             let id = answer::id(&created)?;
+            ids.first(&id)?;
             let patched = self.json(
                 token,
                 Method::PATCH,

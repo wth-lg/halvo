@@ -6,7 +6,7 @@ use std::time::Duration;
 use halvo_schema::executable::WebOrigin;
 use reqwest::blocking::{Client, Response};
 use reqwest::header::CONTENT_TYPE;
-use reqwest::{redirect, retry, Method};
+use reqwest::{redirect, retry, Method, Url};
 use serde_json::Value;
 
 use crate::answer::FORM;
@@ -18,8 +18,9 @@ use crate::token::Token;
 pub enum Route {
     /// The system's resolver. The origin must be `https`.
     System,
-    /// The test configuration of A11.2: the client maps the origin's host to 127.0.0.1 at the origin's port and
-    /// looks no name up. Only this route takes an `http` origin.
+    /// The test configuration of A11.2: the client maps the origin's host name to 127.0.0.1 at the origin's port
+    /// and looks no name up. Only this route takes an `http` origin, and it takes no host that the URL parser reads
+    /// as an IP address.
     Loopback,
 }
 
@@ -34,17 +35,21 @@ pub struct Graph {
 
 impl Graph {
     /// The adapter for `origin`, whose requests each end within `timeout`. Refuses an `http` origin on the route
-    /// `System` with `Cleartext`, and answers `Client` when the TLS configuration or the client cannot be built.
+    /// `System` with `Cleartext` and an address host on the route `Loopback` with `Address`, and answers `Client`
+    /// when the TLS configuration or the client cannot be built.
     pub fn new(origin: &WebOrigin, route: Route, timeout: Duration) -> Result<Graph, BuildError> {
-        let (scheme, authority) = origin
-            .as_str()
-            .split_once("://")
-            .ok_or(BuildError::Client)?;
-        let (host, port) = authority.rsplit_once(':').ok_or(BuildError::Client)?;
-        let port: u16 = port.parse().map_err(|_| BuildError::Client)?;
-        if scheme != "https" && route != Route::Loopback {
+        let url = Url::parse(origin.as_str()).map_err(|_| BuildError::Client)?;
+        if url.scheme() != "https" && route != Route::Loopback {
             return Err(BuildError::Cleartext);
         }
+        let mapped = match route {
+            Route::System => None,
+            Route::Loopback => {
+                let host = url.domain().ok_or(BuildError::Address)?;
+                let port = url.port_or_known_default().ok_or(BuildError::Client)?;
+                Some((host, SocketAddr::from((Ipv4Addr::LOCALHOST, port))))
+            }
+        };
         let provider = Arc::new(rustls::crypto::ring::default_provider());
         let verifier = rustls_platform_verifier::Verifier::new(provider.clone())
             .map_err(|_| BuildError::Client)?;
@@ -61,8 +66,8 @@ impl Graph {
             .retry(retry::never())
             .connect_timeout(timeout)
             .timeout(timeout);
-        if route == Route::Loopback {
-            builder = builder.resolve(host, SocketAddr::from((Ipv4Addr::LOCALHOST, port)));
+        if let Some((host, address)) = mapped {
+            builder = builder.resolve(host, address);
         }
         let client = builder.build().map_err(|_| BuildError::Client)?;
         Ok(Graph {

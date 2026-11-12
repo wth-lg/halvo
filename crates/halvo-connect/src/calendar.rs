@@ -175,6 +175,9 @@ fn start_day(text: &str) -> Option<i64> {
     }
     let number = |from: usize, to: usize| text[from..to].parse::<i64>().ok();
     let (year, month, day) = (number(0, 4)?, number(5, 7)?, number(8, 10)?);
+    if number(11, 13)? > 23 || number(14, 16)? > 59 || number(17, 19)? > 59 {
+        return None;
+    }
     let days = days_of(year, month, day);
     (civil(days) == (year, month, day)).then_some(days)
 }

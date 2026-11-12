@@ -43,6 +43,9 @@ pub enum Effect {
 pub enum BuildError {
     /// The origin is `http` and the route is `System`: the token would cross a network in clear.
     Cleartext,
+    /// The route is `Loopback` and the URL parser reads the origin's host as an IP address, in any of its written
+    /// forms, which no mapping of a host name redirects: the token would go to that address.
+    Address,
     /// The TLS configuration or the HTTP client could not be built on this system.
     Client,
 }
@@ -79,6 +82,9 @@ impl fmt::Display for BuildError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             BuildError::Cleartext => "an http origin needs the loopback route",
+            BuildError::Address => {
+                "the loopback route maps a host name, and the host of this origin is an address"
+            }
             BuildError::Client => "the TLS configuration or the HTTP client could not be built",
         })
     }

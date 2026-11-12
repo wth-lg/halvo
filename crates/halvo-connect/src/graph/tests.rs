@@ -110,6 +110,29 @@ fn http_needs_the_loopback_route() {
 }
 
 #[test]
+fn the_loopback_route_maps_host_names_only() {
+    for host in [
+        "192.0.2.1",
+        "3221225985",
+        "0xc0000201",
+        "192.0.513",
+        "127.0.0.1",
+        "2130706433",
+    ] {
+        for scheme in ["http", "https"] {
+            let origin = WebOrigin::parse(&format!("{scheme}://{host}:18090")).expect("an origin");
+            assert_eq!(
+                Graph::new(&origin, Route::Loopback, LIMIT).err(),
+                Some(BuildError::Address),
+                "{scheme}://{host}"
+            );
+        }
+    }
+    let https = WebOrigin::parse("https://192.0.2.1:443").expect("an origin");
+    assert!(Graph::new(&https, Route::System, LIMIT).is_ok());
+}
+
+#[test]
 fn https_builds_on_the_system_route_with_the_os_trust_store() {
     let origin = WebOrigin::parse("https://graph.microsoft.com:443").expect("an origin");
     let graph = Graph::new(&origin, Route::System, LIMIT).expect("the client builds");

@@ -284,3 +284,66 @@ fn an_effect_without_an_answer_is_unknown_and_not_sent_again() {
         ]
     );
 }
+
+#[test]
+fn a_draft_id_that_is_not_new_is_refused_before_its_patch() {
+    let patch = json!({"body": {"contentType": "text", "content": "Thanks."}});
+    let rows = [("d1", "d1", true), ("d1", "m1", true), ("m1", "d2", false)];
+    for (first, second, first_patched) in rows {
+        let inbox = json!({"value": [
+            message("m1", false, "ann@people.test", &["me@home.test"]),
+            message("m2", false, "ann@people.test", &["me@home.test"]),
+        ]});
+        let stub = Stub::start(vec![
+            (format!("GET {INBOX}"), 200, inbox.to_string()),
+            (
+                "POST /v1.0/me/messages/m1/createReply".to_owned(),
+                201,
+                json!({"id": first}).to_string(),
+            ),
+            (
+                "POST /v1.0/me/messages/m2/createReply".to_owned(),
+                201,
+                json!({"id": second}).to_string(),
+            ),
+            (
+                "PATCH /v1.0/me/messages/d1".to_owned(),
+                200,
+                draft("d1", "ann@people.test", "RE: s-m1"),
+            ),
+            (
+                "PATCH /v1.0/me/messages/d2".to_owned(),
+                200,
+                draft("d2", "ann@people.test", "RE: s-m2"),
+            ),
+        ]);
+        let graph = stub.graph("mail");
+        let rule = ReplyRule::new(
+            "me@home.test".to_owned(),
+            vec!["ann@people.test".to_owned()],
+        );
+        let messages = graph.mail_list(&token(), &rule).expect("mail_list answers");
+        assert_eq!(
+            graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
+            Some(CallError::Answer(AnswerFault::Repeated)),
+            "createReply answers {first} then {second}"
+        );
+        let mut want = vec![
+            seen("GET", INBOX, None),
+            seen("POST", "/v1.0/me/messages/m1/createReply", Some(json!({}))),
+        ];
+        if first_patched {
+            want.push(seen("PATCH", "/v1.0/me/messages/d1", Some(patch.clone())));
+            want.push(seen(
+                "POST",
+                "/v1.0/me/messages/m2/createReply",
+                Some(json!({})),
+            ));
+        }
+        assert_eq!(
+            stub.seen(),
+            want,
+            "createReply answers {first} then {second}"
+        );
+    }
+}

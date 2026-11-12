@@ -37,6 +37,10 @@ pub(crate) fn text(item: &Value, key: &str) -> Result<String, CallError> {
 pub(crate) struct Ids(HashSet<String>);
 
 impl Ids {
+    pub(crate) fn of<'a>(ids: impl Iterator<Item = &'a str>) -> Ids {
+        Ids(ids.map(str::to_owned).collect())
+    }
+
     pub(crate) fn first(&mut self, id: &str) -> Result<(), CallError> {
         if self.0.insert(id.to_owned()) {
             Ok(())

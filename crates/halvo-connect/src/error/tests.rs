@@ -65,4 +65,8 @@ fn texts() {
         BuildError::Client.to_string(),
         "the TLS configuration or the HTTP client could not be built"
     );
+    assert_eq!(
+        BuildError::Address.to_string(),
+        "the loopback route maps a host name, and the host of this origin is an address"
+    );
 }
