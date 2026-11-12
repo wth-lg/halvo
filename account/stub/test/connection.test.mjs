@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
-import { exchange, request, parse, parseAll, appHeaders, portOf, spawnStub, exited, fresh, startStub, ID, CRED } from "./support.mjs";
+import { exchange, request, parse, parseAll, appHeaders, portOf, spawnStub, spawnShell, exited, fresh, startStub, STUB, ID, CRED } from "./support.mjs";
 
 const CAP = '{"cap":{"amount":1,"period":"week"}}';
 const json = [["content-type", "application/json"]];
@@ -119,16 +119,90 @@ test("close ends a connection that holds half a request, over HTTP and over TLS 
   }
 });
 
-test("the line of a request is written before its answer: with a record that cannot be written, no answer goes out", async () => {
+if (process.platform !== "win32") {
+  test("the line of a request is written before its answer: with a record that cannot be written, no answer goes out", async () => {
+    const dir = fresh();
+    const { child, ready } = await spawnShell(`ulimit -f 1 && exec "$0" "$1" --record "$2"`, [process.execPath, STUB, dir]);
+    const sent = request("GET", "/v1/done", [["x-quote", '"'.repeat(480)]]);
+    assert.ok(sent.length < 1024, "the raw file stays under the limit of 1,024 bytes");
+    const got = await exchange(portOf(ready.app), sent).catch(() => Buffer.alloc(0));
+    assert.equal(got.toString("latin1").includes("HTTP/1.1 200"), false);
+    assert.notEqual(await exited(child), 0);
+    assert.deepEqual(readFileSync(join(dir, "connection-000001.raw")), sent);
+    assert.equal(readFileSync(join(dir, "requests.jsonl")).length, 1024);
+  });
+}
+
+test("a connection whose raw file cannot be opened is closed with the line raw-open, and the stub serves the next one", async () => {
   const dir = fresh();
   const { child, ready } = await spawnStub(["--record", dir]);
-  chmodSync(join(dir, "requests.jsonl"), 0o444);
-  const got = await exchange(portOf(ready.app), request("GET", "/v1/done")).catch(() => Buffer.alloc(0));
-  assert.equal(got.toString("latin1").includes("HTTP/1.1 200"), false);
-  assert.notEqual(await exited(child), 0);
+  const port = portOf(ready.app);
+  mkdirSync(join(dir, "connection-000002.raw"));
+  assert.equal(parse(await exchange(port, request("GET", "/v1/done"))).status, 200);
+  assert.equal((await exchange(port, request("GET", "/v1/done")).catch(() => Buffer.alloc(0))).length, 0);
+  assert.equal(parse(await exchange(port, request("GET", "/v1/done"))).status, 200);
+  assert.equal(child.exitCode, null);
+  assert.deepEqual(lines(dir).map((line) => [line.seq, line.connection, line.status ?? line.error]), [[1, 1, 200], [2, 2, "raw-open"], [3, 3, 200]]);
+  await exchange(portOf(ready.control), request("POST", "/stop"));
+  assert.equal(await exited(child), 0);
+});
+
+test("a request whose body file cannot be opened gets the line body-open, changes no state, and ends its connection after the answers before it", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir });
+  const port = portOf(stub.app);
+  mkdirSync(join(dir, "request-000002.body"));
+  const keep = "GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n";
+  const checkout = request("POST", "/v1/checkout", [...appHeaders(), ...json], CAP).toString("latin1").replace("connection: close\r\n", "");
+  const answers = parseAll(await exchange(port, Buffer.from(keep + checkout + keep, "latin1")));
+  assert.deepEqual(answers.map((a) => a.status), [200]);
+  assert.equal(parse(await exchange(port, request("GET", "/v1/subscription", appHeaders()))).body, '{"result":"no-such-account"}');
+  assert.deepEqual(lines(dir).map((line) => [line.seq, line.connection, line.status ?? line.error]), [[1, 1, 200], [2, 1, "body-open"], [3, 2, 200]]);
 });
 
 if (process.platform !== "win32") {
+  test("with the open-file limit reached, each connection that finds no file is closed alone, and the stub serves once files are free", async () => {
+    const stubs = await Promise.all(
+      [64, 65].map(async (limit) => {
+        const dir = fresh();
+        const { child, ready } = await spawnShell(`ulimit -n ${limit} && exec "$0" "$1" --record "$2"`, [process.execPath, STUB, dir]);
+        assert.notEqual(ready, null, `the stub started under ulimit -n ${limit}`);
+        return { limit, dir, child, ready, held: [] };
+      }),
+    );
+    for (const stub of stubs) {
+      for (let index = 0; index < 60; index += 1) {
+        const socket = connect({ host: "127.0.0.1", port: portOf(stub.ready.app) });
+        socket.on("error", () => {});
+        await new Promise((resolve) => {
+          socket.on("connect", resolve);
+          socket.on("close", resolve);
+        });
+        socket.write("GET /v1/done HTTP/1.1\r\n");
+        stub.held.push(socket);
+      }
+    }
+    await pause(5600);
+    let refused = 0;
+    for (const { limit, dir, child, held } of stubs) {
+      assert.equal(child.exitCode, null, `the stub under ulimit -n ${limit} runs on past the idle limit`);
+      const got = lines(dir);
+      refused += got.filter((line) => line.error === "raw-open").length;
+      assert.ok(got.filter((line) => line.error === "idle").length > 10, `ulimit -n ${limit}: the idle lines were written with the table full`);
+      for (const socket of held) socket.destroy();
+    }
+    assert.ok(refused > 0, "at one of the two limits an accepted connection met EMFILE at its raw file");
+    await pause(300);
+    for (const { dir, child, ready } of stubs) {
+      const answer = parse(await exchange(portOf(ready.app), request("GET", "/v1/subscription", appHeaders())));
+      assert.equal(answer.body, '{"result":"no-such-account"}');
+      const last = lines(dir).at(-1);
+      assert.deepEqual([last.target, last.status], ["/v1/subscription", 200]);
+      await exchange(portOf(ready.control), request("POST", "/stop"));
+      assert.equal(await exited(child), 0);
+    }
+  });
+
   test("the command line stops and exits 0 on SIGINT", async () => {
     const { child, ready } = await spawnStub(["--record", fresh()]);
     assert.notEqual(ready, null);

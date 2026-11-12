@@ -111,9 +111,14 @@ export function fresh() {
 }
 
 /** Starts the stub's command line with `args`; resolves to the child, its first line of standard output parsed as JSON, and its standard error. */
-export function spawnStub(args) {
+export const spawnStub = (args) => spawnReady(process.execPath, [STUB, ...args]);
+
+/** As spawnStub, for a command line that `sh -c script` starts with `args` as $0, $1 and so on. */
+export const spawnShell = (script, args) => spawnReady("/bin/sh", ["-c", script, ...args]);
+
+function spawnReady(file, args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [STUB, ...args], { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(file, args, { stdio: ["ignore", "pipe", "pipe"] });
     const gone = new Promise((done) => child.on("exit", done));
     ends.push(() => {
       if (child.exitCode !== null || child.signalCode !== null) return undefined;

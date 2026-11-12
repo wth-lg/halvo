@@ -76,8 +76,11 @@ function serve(socket, connection, app, record, idleMs) {
   const reader = makeReader({
     request(message) {
       const { method, target, headers, trailers, body } = message;
-      const answer = app.handle({ method, target, headers, body });
-      record.request({ connection, method, target, headers, trailers, body, status: answer.status, result: answer.result });
+      const answer = record.request({ connection, method, target, headers, trailers, body, judge: () => app.handle({ method, target, headers, body }) });
+      if (answer === null) {
+        stop();
+        return false;
+      }
       const close = closes(message);
       if (close) stop(answerBytes(method, answer, close));
       else socket.write(answerBytes(method, answer, close));
@@ -156,7 +159,15 @@ export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = I
   const stopped = new Promise((resolve) => {
     done = resolve;
   });
-  const onSocket = (socket) => serve(socket, record.connection(socket), app, record, idleMs);
+  const onSocket = (socket) => {
+    const { connection, opened } = record.connection(socket);
+    if (opened) {
+      serve(socket, connection, app, record, idleMs);
+      return;
+    }
+    socket.destroy();
+    record.refused({ connection, error: "raw-open" });
+  };
   let appServer;
   if (made === null) {
     appServer = createPlainServer({ allowHalfOpen: true }, onSocket);
@@ -174,7 +185,10 @@ export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = I
   const controlSockets = new Set();
   let closing = null;
   const close = () => {
-    closing ??= Promise.all([shut(appServer, sockets), shut(controlServer, controlSockets)]).then(() => done());
+    closing ??= Promise.all([shut(appServer, sockets), shut(controlServer, controlSockets)]).then(() => {
+      record.close();
+      done();
+    });
     return closing;
   };
   const controlServer = createServer(serveControl(app, close));

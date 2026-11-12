@@ -126,6 +126,13 @@ A line of `requests.jsonl` has these keys:
 
 The line writes each byte of a target, a name or a value as one character, its latin1 reading, so a byte above 0x7F stands as one character and not as UTF-8. A search for a value sent as UTF-8 reads the raw files.
 
-Bytes that are no request get the line `{"seq", "connection", "error"}`, where `error` is the cause. A connection that the idle limit closes with no request begun gets the same line with `error` set to `idle-close`. A TLS handshake that the server sees fail, such as one that the client ends with an alert, gets a line with `seq` and `error` only, and `error` is Node's code. A client that refuses the certificate and closes without an alert leaves no line, and neither does a connection that the peer resets.
+Bytes that are no request get the line `{"seq", "connection", "error"}`, where `error` is the cause. A connection that the idle limit closes with no request begun gets the same line with `error` set to `idle-close`.
+
+The stub holds `requests.jsonl` open while it runs, and the raw file of each connection while that connection is open, so that writing a line or the bytes of a connection opens no file. Two writes still open a file, and when such an open fails, for example with EMFILE at the limit of open files, the stub ends that one connection and goes on:
+
+- When the raw file of a new connection cannot be opened, the stub closes the connection at once, reads none of its bytes, and writes the line `{"seq", "connection", "error"}` with `error` set to `raw-open`.
+- When the body file of a request cannot be opened, the request gets no answer and changes no state. The stub writes the line with `error` set to `body-open`, sends the answers to the requests before it, and closes the connection.
+
+At the limit of open files the system can also refuse a connection before the stub sees it; such a connection gets no line. A TLS handshake that the server sees fail, such as one that the client ends with an alert, gets a line with `seq` and `error` only, and `error` is Node's code. A client that refuses the certificate and closes without an alert leaves no line, and neither does a connection that the peer resets.
 
 The stub writes no value of a request to standard output or standard error.
