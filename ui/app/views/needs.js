@@ -18,6 +18,7 @@
     '.hn-button{-webkit-appearance:none;appearance:none;min-width:44px;min-height:44px;padding:8px;border-width:2px;border-style:solid;border-color:#1a1a1a;border-radius:4px;background-color:#f2f2f2;color:#1a1a1a;font:inherit;overflow-wrap:anywhere}',
     '.hn-button:focus,.hn-radio:focus,.hn-typed:focus{outline-width:3px;outline-style:solid;outline-color:#0b57d0;outline-offset:2px}',
     '.hn-dialog{border-width:2px;border-style:solid;border-color:#1a1a1a;padding:16px;max-width:28rem;background-color:#ffffff;color:#1a1a1a}',
+    '.hn-dialog:focus{outline-width:3px;outline-style:solid;outline-color:#0b57d0;outline-offset:2px}',
     '.hn-dialog::backdrop{background-color:rgba(0,0,0,0.4)}'
   ];
 
@@ -29,6 +30,11 @@
   let cards = new Map();
   const answered = new Set();
   let serial = 0;
+  let tick = 0;
+  let press = null;
+  let pointer = null;
+  let raising = false;
+  const keys = new Map();
 
   function fresh() {
     serial += 1;
@@ -166,12 +172,40 @@
     });
   }
 
-  function repeated(event) {
-    if (event.repeat && event.key === 'Enter' && event.target.tagName === 'BUTTON' && list.contains(event.target)) event.preventDefault();
+  function input(event) {
+    tick += 1;
+    const type = event.type;
+    if (type === 'keydown') {
+      if (event.repeat && event.key === 'Enter' && event.target.tagName === 'BUTTON' && list.contains(event.target)) event.preventDefault();
+      if (!event.repeat) keys.set(event.key, { at: tick, target: event.target });
+      press = { target: event.target, repeat: event.repeat, at: event.repeat ? null : tick, from: event.target, raise: false };
+    } else if (type === 'keyup') {
+      const down = keys.get(event.key) || null;
+      keys.delete(event.key);
+      press = { target: event.target, repeat: false, at: down ? down.at : null, from: down ? down.target : null, raise: false };
+    } else if (type === 'pointerdown') {
+      pointer = { at: tick, target: event.target, raise: raising };
+      raising = false;
+      press = { target: event.target, repeat: false, at: tick, from: event.target, raise: pointer.raise };
+    } else {
+      press = { target: event.target, repeat: false, at: pointer ? pointer.at : null, from: pointer ? pointer.target : null, raise: pointer ? pointer.raise : false };
+    }
+  }
+
+  function raised(event) {
+    if (event.target === window) raising = true;
+  }
+
+  function freshFor(card, event) {
+    const p = press;
+    press = null;
+    if (!p || p.target !== event.currentTarget) return true;
+    if (p.repeat || p.raise || p.at === null || p.at <= card.opened) return false;
+    return Boolean(p.from && card.dialog.contains(p.from));
   }
 
   function build(item, key) {
-    const card = { key: key, json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, answers: [], gone: false, busy: false };
+    const card = { key: key, json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, answers: [], gone: false, busy: false, opened: 0 };
     const page = isPage(item);
     const box = page ? el('dialog', 'hn-dialog', '') : card.li;
     if (item.title) {
@@ -191,9 +225,9 @@
       b.type = 'button';
       b.setAttribute('data-act', c.choice);
       b.setAttribute('data-param', item.item);
-      if (page && c.safe === 'yes') b.autofocus = true;
       b.addEventListener('click', function (event) {
         if (event.detail > 1) return;
+        if (card.dialog && !freshFor(card, event)) return;
         answer(item, c, card);
       });
       controls.appendChild(b);
@@ -201,6 +235,8 @@
     box.appendChild(controls);
     if (page) {
       box.setAttribute('role', 'alertdialog');
+      box.setAttribute('tabindex', '-1');
+      box.autofocus = true;
       box.setAttribute('aria-modal', 'true');
       if (item.title) box.setAttribute('aria-labelledby', box.firstChild.id);
       box.setAttribute('aria-describedby', about.id);
@@ -217,9 +253,10 @@
   }
 
   function modal(card) {
+    card.opened = tick;
     card.dialog.showModal();
-    const safe = card.dialog.querySelector('[autofocus]');
-    if (safe) safe.focus();
+    card.dialog.scrollTop = 0;
+    card.dialog.focus();
   }
 
   function drop(key) {
@@ -306,7 +343,10 @@
       element.appendChild(style);
       list = el('ul', 'hn-items', '');
       element.appendChild(list);
-      window.addEventListener('keydown', repeated, true);
+      ['keydown', 'keyup', 'pointerdown', 'pointerup'].forEach(function (type) {
+        window.addEventListener(type, input, true);
+      });
+      window.addEventListener('focus', raised);
     },
     show: function () {
       if (shown) return;

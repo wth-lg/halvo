@@ -638,6 +638,12 @@ export async function act(h, { act: name, param, n, text } = {}) {
   } else if (name === 'typed') {
     await loc.pressSequentially(String(text === undefined || text === null ? '' : text));
     type = 'type';
+  } else if (await loc.evaluate((el) => Boolean(el.closest('[role="alertdialog"]') && el.closest('[role="alertdialog"]').matches(':modal')))) {
+    const on = () => loc.evaluate((el) => el === document.activeElement);
+    for (let i = 0; i < 40 && !(await on()); i++) await h.page.keyboard.press(h.build.walkKey);
+    if (!(await on())) throw new Error('act: the walk key does not reach data-act=' + name + ' in its confirmation');
+    await h.page.keyboard.press('Enter');
+    type = 'key';
   } else {
     await loc.click();
     type = 'click';
@@ -859,8 +865,11 @@ const HELPER = () => {
       const list = controls().filter((el) => (d ? d.contains(el) : !el.closest('[inert]')));
       const a = document.activeElement;
       const active = a && a !== document.body && a !== document.documentElement ? idOf(a) : 0;
+      const own = d ? d.querySelector('[data-param]') : null;
       return {
         dialog: Boolean(d),
+        dialogId: d ? idOf(d) : 0,
+        dialogParam: own ? own.getAttribute('data-param') : null,
         dialogs: dialogs().map(props),
         active,
         controls: list.map((el) => ({ id: idOf(el), group: el.tagName === 'INPUT' && el.type === 'radio' && el.name ? 'radio:' + (el.form ? idOf(el.form) : 0) + ':' + el.name : null, name: name(el) })),
@@ -876,6 +885,9 @@ const HELPER = () => {
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       return list.map((id) => (byId.has(id) && byId.get(id).isConnected ? style(byId.get(id)) : null));
     },
+    element(id) {
+      return byId.get(id) || null;
+    },
     focus(id) {
       const el = byId.get(id);
       if (el) el.focus();
@@ -889,18 +901,19 @@ const HELPER = () => {
       const d = dialog();
       return d ? [d, ...d.querySelectorAll('*')].map(idOf) : [];
     },
-    closed(ids) {
+    closed(ids, more) {
       const gone = ids.every((id) => {
         const el = byId.get(id);
         return !el || !el.isConnected || !rendered(el);
       });
-      let modal = false;
+      let modals = [];
       try {
-        modal = document.querySelector(':modal') !== null;
+        modals = [...document.querySelectorAll(':modal')];
       } catch {
-        modal = false;
+        modals = [document.body];
       }
-      return gone && !modal && document.querySelector('[inert]') === null;
+      const next = modals.every((m) => more && role(m) === 'alertdialog' && !ids.includes(idOf(m)));
+      return gone && next && document.querySelector('[inert]') === null;
     },
     sizes() {
       const small = [];
@@ -997,22 +1010,25 @@ async function walkCheck(h) {
   const b = await page.evaluate(() => window.__r4w.begin());
   const misses = new Set();
   const confirms = confirmItems(h);
-  if (confirms.length > b.dialogs.length) misses.add('dialog_missing');
+  if (confirms.length > 0 && b.dialogs.length === 0) misses.add('dialog_missing');
   for (const p of b.dialogs) {
     if (!p.modal) misses.add('dialog_not_modal');
     if (!p.label) misses.add('dialog_no_label');
     if (!p.description) misses.add('dialog_no_description');
     if (!p.inert) misses.add('dialog_not_inert');
   }
-  const safeAct = safeChoice(confirms[b.dialogs.length - 1]);
+  const safeAct = safeChoice(confirms.find((i) => i.item === b.dialogParam) || confirms[0]);
+  let safeId = null;
   if (b.dialog) {
     const idx = safeAct === null ? 0 : b.controls.findIndex((c) => c.name === safeAct);
     if (idx !== 0) misses.add('dialog_safe_not_first');
-    if (idx < 0 || b.active !== b.controls[idx].id) misses.add('dialog_not_taken');
+    if (idx >= 0) safeId = b.controls[idx].id;
+    if (b.active !== b.dialogId) misses.add('dialog_not_taken');
   }
   const stops = new Map();
   const first = b.active;
-  let start = first;
+  let start = b.dialog && first === b.dialogId ? 0 : first;
+  let firstStop = null;
   let back = false;
   let body = false;
   const max = b.controls.length * 2 + 8;
@@ -1029,6 +1045,10 @@ async function walkCheck(h) {
     if (s.outside) misses.add('dialog_focus_lost');
     if (b.dialog && body && b.controls.length && s.id !== b.controls[0].id) misses.add('dialog_focus_lost');
     body = false;
+    if (firstStop === null) {
+      firstStop = s.id;
+      if (b.dialog && s.id !== safeId) misses.add('dialog_safe_not_first');
+    }
     if (!stops.has(s.id)) stops.set(s.id, { style: s.style, ring: s.ring });
     if (start === 0) {
       start = s.id;
@@ -1090,14 +1110,15 @@ async function walkCheck(h) {
       await fresh.page.evaluate(HELPER);
       const fb = await fresh.page.evaluate(() => window.__r4w.begin());
       const target = safeAct === null ? fb.controls[0] : fb.controls.find((c) => c.name === safeAct);
-      const focused = fb.dialog && target ? await fresh.page.evaluate((id) => window.__r4w.focus(id), target.id) : false;
-      if (!focused) {
+      if (fb.dialog) await fresh.page.keyboard.press(key);
+      const reached = fb.dialog && target ? await fresh.page.evaluate((id) => document.activeElement === window.__r4w.element(id), target.id) : false;
+      if (!reached) {
         misses.add('dialog_not_closed');
       } else {
         const marks = await fresh.page.evaluate(() => window.__r4w.mark());
         await fresh.page.keyboard.press('Enter');
         await settle(fresh);
-        if (!(await fresh.page.evaluate((ids) => window.__r4w.closed(ids), marks))) misses.add('dialog_not_closed');
+        if (!(await fresh.page.evaluate((args) => window.__r4w.closed(args[0], args[1]), [marks, confirms.length > 1]))) misses.add('dialog_not_closed');
       }
     } finally {
       await fresh.close();

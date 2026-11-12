@@ -133,6 +133,7 @@ export async function read(h) {
     const dialogs = [...section.querySelectorAll('[role="alertdialog"]')].map((d) => ({
       rendered: d.getClientRects().length > 0,
       modal: d.matches(':modal'),
+      item: (d.querySelector('[data-param]') || d).getAttribute('data-param'),
     }));
     return { units, nodes, controls, dialogs };
   });

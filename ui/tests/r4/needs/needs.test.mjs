@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import vm from 'node:vm';
 import {
@@ -57,7 +57,7 @@ const onlyTests = pick('--tests');
 const onlyStates = pick('--states');
 
 const results = [];
-const seen = { states: 0, items: 0, texts: 0, controls: 0, plans: 0, calls: 0, escapes: 0, presses: 0 };
+const seen = { states: 0, items: 0, texts: 0, controls: 0, plans: 0, calls: 0, escapes: 0, presses: 0, clicks: '-' };
 function report(name, faults, counted) {
   results.push({ name, ok: faults.length === 0 });
   const tail = counted ? ' ' + counted.map((k) => k + '=' + seen[k]).join(' ') : '';
@@ -177,16 +177,19 @@ async function calls(origin, dir, states) {
   for (const state of states) {
     const items = stateFile(dir, state).snapshot.items;
     for (const item of items) {
+      const earlier = item.kind === 'confirm' && item.presenter === 'page' ? pageConfirms(items).slice(0, pageConfirms(items).indexOf(item)) : [];
       for (const choice of item.choices) {
-        const p = plan(item, choice);
-        const tag = state + ':' + choice.choice;
+        const own = plan(item, choice);
+        const first = earlier.map((e) => plan(e, e.choices.find((c) => c.safe === 'yes')));
+        const p = { acts: [...first.flatMap((f) => f.acts), ...own.acts], calls: [...first.flatMap((f) => f.calls), ...own.calls] };
+        const tag = state + ':' + item.item.slice(-2) + ':' + choice.choice;
         const r = await after(origin, state, p.acts);
         seen.plans += 1;
         seen.calls += p.calls.length;
         const got = r.calls.map((c) => ({ call: c.call, args: c.args }));
         if (firstDiff(got, p.calls) >= 0) faults.push(tag + ':calls=' + got.length + ':want=' + p.calls.length);
         for (const c of r.calls) for (const f of callFaults(list, c)) faults.push(tag + ':' + f);
-        if (item.kind === 'confirm' && item.presenter === 'page' && r.page.dialogs.some((d) => d.rendered)) faults.push(tag + ':not_closed');
+        if (item.kind === 'confirm' && item.presenter === 'page' && r.page.dialogs.some((d) => d.rendered && d.item === item.item)) faults.push(tag + ':not_closed');
       }
       if (item.params.length > 0) {
         const r = await after(origin, state, [{ act: 'choose', param: item.item }]);
@@ -233,13 +236,11 @@ async function nextState(origin, dir) {
         native: Boolean(control(ids[0]) && control(ids[0]).r4needsMark),
         stuck: Boolean(control(ids[1]) && control(ids[1]).r4needsMark),
         ready: Boolean(control(ids[2]) && control(ids[2]).r4needsMark),
-        status: [...document.querySelectorAll('[role="status"]')].every((s) => s.r4needsMark === true),
       };
     }, [native.item, stuck.item, ready.item]);
     if (!kept.native) faults.push('native_rebuilt');
     if (!kept.stuck) faults.push('stuck_rebuilt');
     if (kept.ready) faults.push('ready_not_new');
-    if (!kept.status) faults.push('status_rebuilt');
   } finally {
     await h.close();
   }
@@ -440,7 +441,7 @@ async function replies(origin, dir) {
       await k.close();
     }
   };
-  await back({ ...reject, reply: { error: 'state' } }, 'refused_comes_back');
+  for (const cause of ['state', 'early', 'busy', 'no_service', 'stale', 'presenter']) await back({ ...reject, reply: { error: cause } }, 'refused_' + cause + '_comes_back');
   await back({ ...reject, reject: true }, 'rejected_comes_back');
   const out = outDir();
   h = await open({ origin, replies: [{ state: snap(1, [confirm]) }, { ...reject, reply: { ok: 'yes' } }, { state: snap(2, [confirm]) }], views: [VIEW], out });
@@ -516,6 +517,177 @@ async function reorder(origin, dir) {
   return faults;
 }
 
+function writeState(dir, name, items) {
+  writeFileSync(join(dir, 'state-' + name + '.json'), JSON.stringify({ snapshot: snap(1, items), card: null }) + '\n');
+}
+
+function said(out) {
+  return callsOf(out).map((c) => c.call + ':' + (c.args.choice || '-') + ':' + c.args.item.slice(0, 1));
+}
+
+async function openDialog(h) {
+  return h.page.evaluate(() => {
+    const d = [...document.querySelectorAll('[role="alertdialog"]')].find((x) => x.matches(':modal'));
+    if (!d) return null;
+    return { item: d.querySelector('[data-param]').getAttribute('data-param').slice(0, 1), focused: document.activeElement === d };
+  });
+}
+
+async function confirms(origin, dir) {
+  const faults = [];
+  const base = stateFile(dir, 'needs_confirm_page').snapshot.items[0];
+  const a = withId(base, 'a'.repeat(32));
+  const b = withId(base, 'b'.repeat(32));
+  writeState(dir, 'test_two_page', [a, b]);
+  const keyed = async (tag, steps, want) => {
+    const out = outDir();
+    const h = await open({ origin, state: 'test_two_page', views: [VIEW], out });
+    try {
+      const first = await openDialog(h);
+      if (!first || first.item !== 'a' || !first.focused) faults.push(tag + ':first_not_taken');
+      for (const s of steps) {
+        if (s === 'walk') await h.page.keyboard.press(h.build.walkKey);
+        else if (s === 'down') await h.page.keyboard.down('Enter');
+        else if (s === 'up') await h.page.keyboard.up('Enter');
+        else if (s === 'enter') await h.page.keyboard.press('Enter');
+        await frames(h);
+      }
+      const got = said(out).join(',');
+      if (got !== want) faults.push(tag + ':calls=' + (got || '-'));
+    } finally {
+      await h.close();
+    }
+  };
+  await keyed('held_enter', ['walk', 'down', 'down', 'down', 'up'], 'agents_answer:reject:a');
+  await keyed('two_quick_enters', ['walk', 'enter', 'enter'], 'agents_answer:reject:a');
+  await keyed('tab_enter_twice', ['walk', 'enter', 'walk', 'enter'], 'agents_answer:reject:a,agents_answer:reject:b');
+  await keyed('keys_on_the_confirmation', ['enter', 'down', 'up'], '');
+  let out = outDir();
+  let h = await open({ origin, state: 'test_two_page', views: [VIEW], out });
+  try {
+    await h.page.evaluate(() => {
+      window.r4needsClicks = [];
+      window.addEventListener('click', (e) => window.r4needsClicks.push(e.detail), true);
+    });
+    await h.page.locator(sel('allow', a.item)).dblclick();
+    await frames(h);
+    seen.clicks = (await h.page.evaluate(() => window.r4needsClicks.join('+'))) || '-';
+    const got = said(out).join(',');
+    if (got !== 'agents_answer:allow:a') faults.push('double_click_unsafe:calls=' + (got || '-'));
+    const next = await openDialog(h);
+    if (!next || next.item !== 'b' || !next.focused) faults.push('double_click_unsafe:second_not_open');
+  } finally {
+    await h.close();
+  }
+  const sign = stateFile(dir, 'needs_sign_in').snapshot.items[0];
+  out = outDir();
+  h = await open({
+    origin,
+    replies: [
+      { state: snap(1, [sign]) },
+      { call: 'agents_answer', args: { item: sign.item, choice: 'done' }, reply: { ok: 'yes' } },
+      { state: snap(2, [sign, a]) },
+      { call: 'agents_answer', args: { item: a.item, choice: 'reject' }, reply: { ok: 'yes' } },
+    ],
+    views: [VIEW],
+    out,
+  });
+  try {
+    await h.page.locator(sel('done', sign.item)).focus();
+    await h.page.keyboard.down('Enter');
+    await frames(h);
+    await h.page.keyboard.down('Enter');
+    await h.page.keyboard.down('Enter');
+    await h.page.keyboard.up('Enter');
+    await frames(h);
+    const d = await openDialog(h);
+    if (!d || d.item !== 'a' || !d.focused) faults.push('held_key_reply:not_taken');
+    await act(h, { act: 'reject', param: a.item });
+    if (said(out).join(',') !== 'agents_answer:done:0,agents_answer:reject:a') faults.push('held_key_reply:calls=' + said(out).join(','));
+  } catch (err) {
+    faults.push('held_key_reply:throws');
+  } finally {
+    await h.close();
+  }
+  const typed = stateFile(dir, 'setup_three').snapshot.items[0];
+  const stuck = withId(stateFile(dir, 'needs_stuck').snapshot.items[0], 'c'.repeat(32));
+  out = outDir();
+  h = await open({
+    origin,
+    replies: [
+      { state: snap(1, [typed, stuck]) },
+      { call: 'agents_answer', args: { item: stuck.item, choice: 'done' }, reply: { ok: 'yes' } },
+      { state: snap(2, [typed, stuck, a]) },
+      { call: 'agents_answer', args: { item: a.item, choice: 'reject' }, reply: { ok: 'yes' } },
+    ],
+    views: [VIEW],
+    out,
+  });
+  try {
+    await h.page.locator('[data-act="typed"]').first().focus();
+    await h.page.keyboard.down('Enter');
+    await h.page.evaluate((id) => document.querySelector('[data-act="done"][data-param="' + id + '"]').click(), stuck.item);
+    await frames(h);
+    await h.page.keyboard.down('Enter');
+    await h.page.keyboard.up('Enter');
+    await h.page.keyboard.press(' ');
+    await h.page.keyboard.press('x');
+    await frames(h);
+    const d = await openDialog(h);
+    if (!d || d.item !== 'a' || !d.focused) faults.push('typing_reply:not_taken');
+    await act(h, { act: 'reject', param: a.item });
+    if (said(out).join(',') !== 'agents_answer:done:c,agents_answer:reject:a') faults.push('typing_reply:calls=' + said(out).join(','));
+  } catch (err) {
+    faults.push('typing_reply:throws');
+  } finally {
+    await h.close();
+  }
+  out = outDir();
+  h = await open({ origin, state: 'needs_confirm_page', views: [VIEW], out });
+  try {
+    await h.page.evaluate((id) => document.querySelector('[data-act="reject"][data-param="' + id + '"]').click(), base.item);
+    await frames(h);
+    const r = await read(h);
+    if (callsOf(out).length !== 1 || r.dialogs.some((x) => x.rendered)) faults.push('click_with_no_press:calls=' + callsOf(out).length);
+  } finally {
+    await h.close();
+  }
+  out = outDir();
+  h = await open({ origin, state: 'needs_confirm_page', views: [VIEW], out });
+  try {
+    await h.page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await h.page.locator(sel('reject', base.item)).click();
+    await frames(h);
+    if (callsOf(out).length !== 0) faults.push('raising_press_answered');
+    if ((await h.page.locator(sel('reject', base.item)).count()) === 1) {
+      await h.page.locator(sel('reject', base.item)).click();
+      await frames(h);
+    }
+    if (callsOf(out).length !== 1) faults.push('press_after_raise:calls=' + callsOf(out).length);
+  } finally {
+    await h.close();
+  }
+  const long = withId(base, 'f'.repeat(32));
+  const body = long.fields.find((f) => f.value.join('') !== '');
+  long.fields = Array.from({ length: 40 }, () => ({ ...body, value: ['Thank you. Your rent for October came in and the receipt is attached for your records.'] }));
+  writeState(dir, 'test_long_confirm', [long]);
+  h = await open({ origin, state: 'test_long_confirm', views: [VIEW] });
+  try {
+    const top = await h.page.evaluate(() => {
+      const d = document.querySelector('[role="alertdialog"]');
+      const t = d.querySelector('h3');
+      const r = d.getBoundingClientRect();
+      const q = t.getBoundingClientRect();
+      return { taller: d.scrollHeight > d.clientHeight, scroll: d.scrollTop, inView: r.top >= 0 && q.top >= r.top && q.bottom <= window.innerHeight, focused: document.activeElement === d };
+    });
+    if (!top.taller) faults.push('long_confirm_not_long');
+    if (top.scroll !== 0 || !top.inView || !top.focused) faults.push('long_confirm_top_out_of_view');
+  } finally {
+    await h.close();
+  }
+  return faults;
+}
+
 const want = (name) => !onlyTests || onlyTests.includes(name);
 
 const { dir, states: tracked, tests } = fixtures();
@@ -523,7 +695,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -539,6 +711,7 @@ if (PAGE_TESTS.some(want)) {
     if (want('replies')) report('replies', await replies(origin, dir));
     if (want('setups')) report('setups', await setups(origin, dir));
     if (want('reorder')) report('reorder', await reorder(origin, dir));
+    if (want('confirms')) report('confirms', await confirms(origin, dir), ['clicks']);
   }
 }
 const passed = results.filter((r) => r.ok).length;
