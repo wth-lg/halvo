@@ -736,7 +736,8 @@ enum Turn {
     /// It first stores this event at the `seq` of the log, as a log of the earlier life that
     /// lands after recovery read the ledger.
     Late(What),
-    /// It stores the log and answers `no_service`: the acknowledgement is lost.
+    /// It stores the log and answers `no_service`: the acknowledgement is lost. A log that the
+    /// owner refuses gets the owner's refusal and leaves the turn to the next log.
     Lose,
 }
 
@@ -764,8 +765,11 @@ impl<P: Owner> Owner for Late<'_, P> {
         match (turn, events.first()) {
             (Some(Turn::Refuse(e)), _) => return Err(e),
             (Some(Turn::Lose), _) => {
-                self.ports.log(events).expect("the owner stores the log");
-                return Err(PortError::NoService);
+                let stored = self.ports.log(events);
+                if stored.is_err() {
+                    self.turns.borrow_mut().push_front(Turn::Lose);
+                }
+                return stored.and(Err(PortError::NoService));
             }
             (Some(Turn::Late(what)), Some(first)) => {
                 let late = Event {
@@ -1434,5 +1438,125 @@ fn a_recovery_body_of_two_runs_stored_with_a_lost_acknowledgement_ends_each_run_
         vec![1, 1],
         "the verifier's case x3: each run ends once"
     );
+    assert!(w.board.owed.is_empty());
+}
+
+/// The items of the kind `check` of agent 0 that the owner holds open.
+fn open_checks(w: &World) -> Vec<ItemId> {
+    let events = w.ports.events.borrow();
+    events
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::ItemRaised {
+                item,
+                raised: Raised::Check(_),
+            } if e.agent == agent(0) => Some(item.clone()),
+            _ => None,
+        })
+        .filter(|item| {
+            !events.iter().any(|e| match &e.what {
+                What::ItemLapsed { item: i, .. }
+                | What::ItemAnswered { item: i, .. }
+                | What::ItemReleased { item: i, .. } => i == item,
+                _ => false,
+            })
+        })
+        .collect()
+}
+
+#[test]
+fn a_check_stored_with_a_lost_acknowledgement_beside_an_owed_lapse_is_raised_once() {
+    let mut w = world(&[MANUAL]);
+    let first = w.ports.agents.borrow()[0].last.clone().unwrap().run;
+    w.ports.store_end(
+        &agent(0),
+        PastRun {
+            run: first,
+            day: DAY,
+            outcome: Outcome::Completed,
+            unknown: 1,
+        },
+    );
+    w.act(Act::Tick);
+    assert_eq!(open_checks(&w).len(), 1, "the first life raises the check");
+    relife_with(&mut w, vec![Turn::Lose, Turn::Lose]);
+    let open = open_checks(&w);
+    assert_eq!(
+        open.len(),
+        1,
+        "the owner stored the lapse of the first check and a second check item"
+    );
+    assert_eq!(w.board.owed.len(), 1, "the lapse is owed");
+    assert_eq!(
+        w.facts(0).doing,
+        halvo_coord::types::Doing::Idle(None),
+        "the board does not hold the check item whose acknowledgement was lost"
+    );
+    two_ticks(&mut w);
+    assert_eq!(
+        open_checks(&w),
+        open,
+        "the verifier's case x1: no check item is raised a second time (RD-12 (b))"
+    );
+    assert_eq!(
+        w.facts(0).doing,
+        halvo_coord::types::Doing::Idle(Some(halvo_coord::types::OwnItem {
+            item: open[0].clone(),
+            kind: halvo_coord::types::OwnItemKind::Check,
+        })),
+        "the board holds the open check item"
+    );
+    assert!(w.board.owed.is_empty());
+}
+
+#[test]
+fn a_debts_read_takes_up_a_check_item_that_the_owner_stored_with_a_lost_acknowledgement() {
+    let mut w = world(&[MANUAL]);
+    let first = w.ports.agents.borrow()[0].last.clone().unwrap().run;
+    w.ports.store_end(
+        &agent(0),
+        PastRun {
+            run: first,
+            day: DAY,
+            outcome: Outcome::Completed,
+            unknown: 1,
+        },
+    );
+    w.act(Act::Tick);
+    let earlier = open_checks(&w);
+    assert_eq!(earlier.len(), 1, "the first life raises the check");
+    relife_with(&mut w, vec![Turn::Refuse(PortError::NoService), Turn::Lose]);
+    let open = open_checks(&w);
+    assert_eq!(
+        open.len(),
+        2,
+        "the owner refused the body and stored the new check item"
+    );
+    let stored = open.iter().find(|i| !earlier.contains(i)).unwrap().clone();
+    assert_eq!(
+        w.board.owed.len(),
+        1,
+        "the lapse of the earlier check is owed"
+    );
+    assert_eq!(w.facts(0).doing, halvo_coord::types::Doing::Idle(None));
+    let held = halvo_coord::types::Doing::Idle(Some(halvo_coord::types::OwnItem {
+        item: stored.clone(),
+        kind: halvo_coord::types::OwnItemKind::Check,
+    }));
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(
+        w.facts(0).doing,
+        held,
+        "the lapse's log is refused with seq, and its read takes up the open check item (RD-12 (b))"
+    );
+    w.set_clock(T0 + 20_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(
+        open_checks(&w),
+        vec![stored],
+        "the earlier check lapsed and no check item is raised a second time"
+    );
+    assert_eq!(w.facts(0).doing, held);
     assert!(w.board.owed.is_empty());
 }

@@ -646,8 +646,7 @@ fn send_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, owed
                 Ok(()) => true,
                 Err(e) if seq_refusal(&e) => {
                     let facts = &mut board.members[i].facts;
-                    resync(cx.ports, &facts.agent, &mut facts.events).is_ok()
-                        && item_closed(&facts.events, item)
+                    read_after_seq(cx.ports, facts).is_ok() && item_closed(&facts.events, item)
                 }
                 Err(e) => gone_refusal(&e),
             }
@@ -680,6 +679,46 @@ pub(crate) fn resync<P: Owner>(
     }
 }
 
+/// The newest item of the coordinator's own kinds that an event after `after` raised and no
+/// event closes: the owner stored it with an acknowledgement that was lost (I7.2, XB-31).
+fn revealed(events: &[Event], after: u32) -> Option<OwnItem> {
+    events
+        .iter()
+        .rev()
+        .take_while(|e| e.seq.get() > after)
+        .find_map(|e| match &e.what {
+            What::ItemRaised { item, raised } if !item_closed(events, item) => {
+                let kind = match raised {
+                    Raised::Check(_) => OwnItemKind::Check,
+                    Raised::Ready => OwnItemKind::Ready,
+                    Raised::Setup => OwnItemKind::Setup,
+                    _ => return None,
+                };
+                Some(OwnItem {
+                    item: item.clone(),
+                    kind,
+                })
+            }
+            _ => None,
+        })
+}
+
+/// A read of the owner's events after a refusal `seq` (I7.2, XB-31, ruling RD-12 (b)): the facts
+/// take the owner's events after their last one, and an agent that is idle with no item holds
+/// the newest item of the coordinator's own kinds that those events raised and left open,
+/// whichever log was refused: the check's own or a debt's.
+pub(crate) fn read_after_seq<P: Owner, C>(
+    ports: &P,
+    facts: &mut Facts<C>,
+) -> Result<(), PortError> {
+    let after = facts.events.last().map_or(0, |e| e.seq.get());
+    resync(ports, &facts.agent, &mut facts.events)?;
+    if let Some(own) = revealed(&facts.events, after).filter(|_| facts.doing == Doing::Idle(None)) {
+        facts.doing = Doing::Idle(Some(own));
+    }
+    Ok(())
+}
+
 /// Whether the events close the item: they hold its `item_released` or its `item_lapsed`, or,
 /// for a kind other than `confirm`, its `item_answered` (I5.8, I7.1).
 pub(crate) fn item_closed(events: &[Event], item: &ItemId) -> bool {
@@ -693,13 +732,13 @@ pub(crate) fn item_closed(events: &[Event], item: &ItemId) -> bool {
     })
 }
 
-/// After the owner refused an owed `run_ended` with `seq` (I7.2): the facts take the owner's
-/// events after the last one that they hold, and the debt is paid when those hold the run's
-/// `run_ended`, which the owner stored with an acknowledgement that was lost; else the next tick
-/// logs it after them.
+/// After the owner refused an owed `run_ended` with `seq` (I7.2): `read_after_seq` reads the
+/// owner's events after the last one that the facts hold, and the debt is paid when those hold
+/// the run's `run_ended`, which the owner stored with an acknowledgement that was lost; else the
+/// next tick logs it after them.
 fn resync_end<P: Owner, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize, run: &RunId) -> bool {
     let facts = &mut board.members[i].facts;
-    resync(cx.ports, &facts.agent, &mut facts.events).is_ok() && holds_end(&facts.events, run)
+    read_after_seq(cx.ports, facts).is_ok() && holds_end(&facts.events, run)
 }
 
 /// Whether the events hold a `run_ended` of the run.

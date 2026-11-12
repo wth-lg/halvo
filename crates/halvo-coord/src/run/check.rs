@@ -1,5 +1,5 @@
 use crate::ports::{Clock, Owner, Rng};
-use crate::schedule::{holds, item_closed, resync, seq_refusal, Board, Hold};
+use crate::schedule::{holds, read_after_seq, seq_refusal, Board, Hold};
 use crate::types::{
     hex, AgentId, ConfigView, Doing, Event, Facts, ItemId, OwnItem, OwnItemKind, Raised, What,
 };
@@ -12,30 +12,6 @@ use std::num::NonZeroU32;
 /// run.
 pub fn check_due<C: ConfigView>(facts: &Facts<C>, gone: bool) -> bool {
     !gone && facts.doing == Doing::Idle(None) && holds(facts).contains(&Hold::Check)
-}
-
-/// The newest item of the coordinator's own kinds that an event after `after` raised and no
-/// event closes: the owner stored it with an acknowledgement that was lost (I7.2, XB-31).
-fn revealed(events: &[Event], after: u32) -> Option<OwnItem> {
-    events
-        .iter()
-        .rev()
-        .take_while(|e| e.seq.get() > after)
-        .find_map(|e| match &e.what {
-            What::ItemRaised { item, raised } if !item_closed(events, item) => {
-                let kind = match raised {
-                    Raised::Check(_) => OwnItemKind::Check,
-                    Raised::Ready => OwnItemKind::Ready,
-                    Raised::Setup => OwnItemKind::Setup,
-                    _ => return None,
-                };
-                Some(OwnItem {
-                    item: item.clone(),
-                    kind,
-                })
-            }
-            _ => None,
-        })
 }
 
 /// Raises the item `check` for each agent of the board, or for `only`, for which `check_due`
@@ -88,12 +64,10 @@ where
         match ports.log(std::slice::from_ref(&event)) {
             Ok(()) => held = Some(item.clone()),
             Err(e) if seq_refusal(&e) => {
-                let after = facts.events.last().map_or(0, |e| e.seq.get());
-                if resync(ports, &facts.agent, &mut facts.events).is_err() {
+                if read_after_seq(ports, facts).is_err() {
                     continue;
                 }
-                if let Some(own) = revealed(&facts.events, after) {
-                    facts.doing = Doing::Idle(Some(own.clone()));
+                if let Doing::Idle(Some(own)) = &facts.doing {
                     if own.kind == OwnItemKind::Check {
                         raised.push(facts.agent.clone());
                     }
