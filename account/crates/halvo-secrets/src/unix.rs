@@ -59,6 +59,8 @@ struct Acl {
 }
 
 fn acl_of(file: &File) -> io::Result<Acl> {
+    // SAFETY: the descriptor is open for as long as `file` is borrowed here, and the list
+    // that the call allocates is freed by acl_free below, the one place that frees it.
     let acl = unsafe { acl_get_fd_np(file.as_raw_fd(), ACL_TYPE_EXTENDED) };
     if acl.is_null() {
         let error = io::Error::last_os_error();
@@ -77,25 +79,36 @@ fn acl_of(file: &File) -> io::Result<Acl> {
     };
     let mut entry = ptr::null_mut();
     let mut which = ACL_FIRST_ENTRY;
-    while unsafe { acl_get_entry(acl, which, &mut entry) } == 0 {
+    loop {
+        // SAFETY: `acl` is the non-null list from above and is not yet freed; the call only
+        // writes the local `entry`, which points into that list.
+        if unsafe { acl_get_entry(acl, which, &mut entry) } != 0 {
+            break;
+        }
         which = ACL_NEXT_ENTRY;
         found.any = true;
         let mut tag = 0;
         let mut permset = ptr::null_mut();
-        if unsafe { acl_get_tag_type(entry, &mut tag) } != 0
-            || unsafe { acl_get_permset(entry, &mut permset) } != 0
-        {
+        // SAFETY: `entry` points into the live list `acl`; the call writes the local `tag`.
+        let tagged = unsafe { acl_get_tag_type(entry, &mut tag) } == 0;
+        // SAFETY: the same live entry; the call writes the local `permset`, which points into
+        // the entry and is read only inside this pass of the loop.
+        let permitted = unsafe { acl_get_permset(entry, &mut permset) } == 0;
+        if !tagged || !permitted {
             found.changes_entries = true;
             continue;
         }
-        if tag == ACL_EXTENDED_ALLOW
-            && ACL_CHANGES_ENTRIES
-                .iter()
-                .any(|perm| unsafe { acl_get_perm_np(permset, *perm) } == 1)
-        {
+        let allows = |perm: &c_int| {
+            // SAFETY: `permset` belongs to the live entry above, and the call only reads it.
+            let set = unsafe { acl_get_perm_np(permset, *perm) };
+            set == 1
+        };
+        if tag == ACL_EXTENDED_ALLOW && ACL_CHANGES_ENTRIES.iter().any(allows) {
             found.changes_entries = true;
         }
     }
+    // SAFETY: `acl` came from acl_get_fd_np above, no entry or permission set taken from it
+    // outlives this line, and it is freed once.
     unsafe { acl_free(acl) };
     Ok(found)
 }
@@ -128,6 +141,9 @@ fn c_name(name: &OsStr) -> io::Result<CString> {
 
 fn open_at(dir: &File, name: &OsStr, flags: c_int) -> io::Result<File> {
     let name = c_name(name)?;
+    // SAFETY: `dir` is a borrowed open descriptor, `name` is a NUL-terminated string that
+    // lives to the end of this function, and the mode is passed as the promoted int that the
+    // variadic openat reads when O_CREAT is set.
     let fd = unsafe {
         openat(
             dir.as_raw_fd(),
@@ -139,6 +155,8 @@ fn open_at(dir: &File, name: &OsStr, flags: c_int) -> io::Result<File> {
     if fd < 0 {
         return Err(io::Error::last_os_error());
     }
+    // SAFETY: openat returned a new descriptor that nothing else owns, so the File takes it
+    // and closes it once.
     Ok(unsafe { File::from_raw_fd(fd) })
 }
 
@@ -187,6 +205,7 @@ impl Fs for UnixFs {
     type Temp = File;
 
     fn user(&self) -> u32 {
+        // SAFETY: geteuid takes no argument, touches no memory of ours and cannot fail.
         unsafe { geteuid() }
     }
 
@@ -239,6 +258,8 @@ impl Fs for UnixFs {
         }
         for name in missing.iter().chain([&last]) {
             let c = c_name(name)?;
+            // SAFETY: `dir` is an open descriptor owned by this function and `c` is a
+            // NUL-terminated string that outlives the call.
             if unsafe { mkdirat(dir.as_raw_fd(), c.as_ptr(), 0o700) } != 0 {
                 let error = io::Error::last_os_error();
                 if error.raw_os_error() != Some(EEXIST) {
@@ -253,6 +274,8 @@ impl Fs for UnixFs {
     fn exists(&self, dir: &File, name: &str) -> io::Result<bool> {
         let name = c_name(OsStr::new(name))?;
         let mut space = [0u8; STAT_SPACE];
+        // SAFETY: `space` holds 512 bytes, more than the 144 of the struct stat that the call
+        // writes, and is never read as one; `dir` and `name` are live for the call.
         let result = unsafe {
             fstatat(
                 dir.as_raw_fd(),
@@ -313,6 +336,8 @@ impl Fs for UnixFs {
         let from = c_name(OsStr::new(from))?;
         let to = c_name(OsStr::new(to))?;
         let fd = dir.as_raw_fd();
+        // SAFETY: `fd` belongs to the borrowed `dir`, which stays open through the call, and
+        // both names are NUL-terminated strings that live to the end of this function.
         if unsafe { renameatx_np(fd, from.as_ptr(), fd, to.as_ptr(), RENAME_EXCL) } == 0 {
             return Ok(Published::Done);
         }
@@ -326,6 +351,8 @@ impl Fs for UnixFs {
 
     fn remove(&self, dir: &File, name: &str) -> io::Result<()> {
         let name = c_name(OsStr::new(name))?;
+        // SAFETY: `dir` stays open through the call and `name` is a NUL-terminated string
+        // that outlives it.
         last_error_unless(unsafe { unlinkat(dir.as_raw_fd(), name.as_ptr(), 0) })
     }
 

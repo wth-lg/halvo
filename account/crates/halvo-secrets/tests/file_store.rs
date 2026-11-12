@@ -1,4 +1,5 @@
 #![cfg(all(target_os = "macos", debug_assertions))]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 use halvo_secrets::{Delete, Directory, Locked, Name, Read, Secret, Store, StoreKind, Write};
 use std::ffi::CString;
@@ -220,7 +221,9 @@ fn a_fifo_in_the_place_of_the_file_is_refused_without_waiting() {
     let dir = scratch("fifo");
     private_dir(&dir);
     let path = CString::new(dir.join("account").as_os_str().as_bytes()).expect("a path");
-    assert_eq!(unsafe { mkfifo(path.as_ptr(), 0o600) }, 0);
+    // SAFETY: `path` is a NUL-terminated string that lives to the end of the test.
+    let made = unsafe { mkfifo(path.as_ptr(), 0o600) };
+    assert_eq!(made, 0);
     let store = store_in(&dir);
     let start = Instant::now();
     assert!(matches!(store.read(), Read::Locked(Locked::NotAFile)));

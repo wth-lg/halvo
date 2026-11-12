@@ -1,4 +1,5 @@
 #![cfg(all(target_os = "macos", debug_assertions))]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 use halvo_secrets::{Delete, Directory, Locked, Name, Read, Secret, Store, Write};
 use std::collections::BTreeMap;
@@ -242,6 +243,8 @@ fn writes_against_a_thread_that_swaps_the_store_directory_never_reach_the_other_
         let b = CString::new(other.as_os_str().as_bytes()).expect("a path");
         thread::spawn(move || {
             while !stop.load(Ordering::Relaxed) && start.elapsed() < Duration::from_secs(60) {
+                // SAFETY: both names are NUL-terminated strings that the thread owns for its
+                // whole life.
                 if unsafe { renamex_np(a.as_ptr(), b.as_ptr(), RENAME_SWAP) } == 0 {
                     swaps.fetch_add(1, Ordering::Relaxed);
                 }

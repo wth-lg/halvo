@@ -67,10 +67,19 @@ impl Drop for Buffer {
 }
 
 fn wipe(bytes: &mut Vec<u8>) {
+    // SAFETY: a Vec owns an allocation of `capacity` bytes at `as_mut_ptr`, the exclusive
+    // borrow keeps every other reader out, and zero is a valid value for each byte.
     unsafe { wipe_raw(bytes.as_mut_ptr(), bytes.capacity()) };
     bytes.clear();
 }
 
+/// Overwrites `len` bytes from `start` with zeros through volatile writes, which the
+/// compiler may not drop, and then fences.
+///
+/// # Safety
+///
+/// `start` must point to `len` bytes that the caller may write, all inside one live
+/// allocation, and nothing may read or write them through another pointer during the call.
 pub(crate) unsafe fn wipe_raw(start: *mut u8, len: usize) {
     for offset in 0..len {
         std::ptr::write_volatile(start.add(offset), 0);

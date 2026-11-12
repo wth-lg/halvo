@@ -1,3 +1,5 @@
+#![deny(clippy::undocumented_unsafe_blocks)]
+
 use halvo_secrets::{Secret, MAX_SECRET_LEN};
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -15,6 +17,9 @@ static SEEN: [AtomicUsize; 6] = [const { AtomicUsize::new(0) }; 6];
 
 struct Detector;
 
+// SAFETY: each method passes its call to System with the same layout, alloc hands out only
+// zeroed blocks so that every byte is initialized, and dealloc reads the block that it is
+// about to free, which is live and of `layout.size()` bytes, before it frees it once.
 unsafe impl GlobalAlloc for Detector {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         System.alloc_zeroed(layout)

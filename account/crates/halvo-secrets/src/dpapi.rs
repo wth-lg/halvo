@@ -146,9 +146,12 @@ impl Fs for WindowsFs {
     fn publish(&self, dir: &PathBuf, from: &str, to: &str) -> io::Result<Published> {
         let from = wide(&dir.join(from));
         let to = wide(&dir.join(to));
+        // SAFETY: both names are NUL-terminated wide strings in vectors that live to the end of
+        // this function, and the call keeps no pointer to them.
         if unsafe { MoveFileExW(from.as_ptr(), to.as_ptr(), MOVEFILE_WRITE_THROUGH) } != 0 {
             return Ok(Published::Done);
         }
+        // SAFETY: reads the last error of this thread, which the failed call above set.
         let code = unsafe { GetLastError() };
         if code == ERROR_ALREADY_EXISTS || code == ERROR_FILE_EXISTS {
             Ok(Published::Exists)
@@ -186,6 +189,9 @@ impl Codec for Dpapi {
     fn seal<'a>(&self, secret: &'a Secret) -> Result<Sealed<'a>, Fault> {
         let input = blob_of(secret.expose());
         let mut output = empty_blob();
+        // SAFETY: `input` points at the secret's bytes, which `secret` keeps alive and which the
+        // call only reads; `output` is a local that receives a buffer that LocalFree releases
+        // below; the optional arguments are null.
         let ok = unsafe {
             CryptProtectData(
                 &input,
@@ -198,12 +204,18 @@ impl Codec for Dpapi {
             )
         };
         if ok == 0 {
+            // SAFETY: reads the last error of this thread, which the failed call above set.
+            let code = unsafe { GetLastError() };
             return Err(Fault {
-                code: i64::from(unsafe { GetLastError() }),
+                code: i64::from(code),
             });
         }
+        // SAFETY: on success DPAPI hands over `cbData` initialized bytes at `pbData`, which this
+        // function owns until the LocalFree below and copies before freeing.
         let sealed =
             unsafe { std::slice::from_raw_parts(output.pbData, output.cbData as usize) }.to_vec();
+        // SAFETY: the buffer came from CryptProtectData, which documents LocalFree as its
+        // release; no pointer to it is used after this line.
         unsafe { LocalFree(output.pbData.cast()) };
         Ok(Sealed::Blob(sealed))
     }
@@ -211,6 +223,9 @@ impl Codec for Dpapi {
     fn open(&self, bytes: Vec<u8>) -> Result<Secret, Locked> {
         let input = blob_of(&bytes);
         let mut output = empty_blob();
+        // SAFETY: `input` points at `bytes`, which lives to the end of this function and which
+        // the call only reads; `output` is a local that receives a buffer that LocalFree
+        // releases below; the optional arguments are null.
         let ok = unsafe {
             CryptUnprotectData(
                 &input,
@@ -223,8 +238,10 @@ impl Codec for Dpapi {
             )
         };
         if ok == 0 {
+            // SAFETY: reads the last error of this thread, which the failed call above set.
+            let code = unsafe { GetLastError() };
             return Err(Locked::Refused {
-                code: i64::from(unsafe { GetLastError() }),
+                code: i64::from(code),
             });
         }
         let len = output.cbData as usize;
@@ -232,9 +249,15 @@ impl Codec for Dpapi {
             None
         } else {
             let mut plain = Vec::with_capacity(len);
-            plain.extend_from_slice(unsafe { std::slice::from_raw_parts(output.pbData, len) });
+            // SAFETY: on success DPAPI hands over `len` initialized bytes at `pbData`, which stay
+            // valid until the LocalFree below.
+            let opened = unsafe { std::slice::from_raw_parts(output.pbData, len) };
+            plain.extend_from_slice(opened);
             Secret::new(plain)
         };
+        // SAFETY: `pbData` holds the `len` bytes that this function owns and writes no more
+        // through another pointer; the buffer came from CryptUnprotectData, whose release is
+        // LocalFree, and it is freed once after the wipe.
         unsafe {
             wipe_raw(output.pbData, len);
             LocalFree(output.pbData.cast());

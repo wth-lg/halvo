@@ -1,6 +1,8 @@
 //! Where the account helper keeps its one secret, the credential of the person's account,
 //! through the system's own store and nothing else.
 
+#![deny(clippy::undocumented_unsafe_blocks)]
+
 #[cfg(not(any(target_os = "macos", windows)))]
 compile_error!("halvo-secrets keeps its secret on macOS and on Windows only");
 
