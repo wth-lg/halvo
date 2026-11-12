@@ -328,6 +328,7 @@ pub const KEYS: &[(&str, &str)] = &[
         "You have as many agents as Halvo can hold, so it cannot add one for a new task.",
     ),
     ("tray.needs", "Agents that need you: {count}"),
+    ("item.link_account.origin", "Site of your account"),
 ];
 
 fn sentence(key: &str) -> Option<&'static str> {

@@ -26,7 +26,7 @@
 //! | `needs_confirm_page` | `email`: `needs_you.confirm`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run in the phase `waiting` with an open `confirm` item of three effects of the class `send`, presenter `page`, `armed` `yes`, no `new_origin` |
 //! | `needs_confirm_native` | `utility_bill_payment`: `needs_you.confirm`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run `waiting` with an open `confirm` item of one effect of the class `payment`, presenter `native`, `armed` `no`, its one choice `present` |
 //! | `needs_sign_in` | `shop_order`: `needs_you.sign_in`; `stop`, `switch_off`, `delete` | `approved`, no playbook, no ended run, its three slots, a live first run `waiting` with an open `sign_in` item |
-//! | `needs_link_account` | `email`: `needs_you.link_account`; `stop`, `switch_off`, `delete` | `active`, no ended run, a live first run `waiting` with an open `link_account` item |
+//! | `needs_link_account` | `email`: `needs_you.link_account`; `stop`, `switch_off`, `delete` | `active`, no ended run, a live first run `waiting` with an open `link_account` item, whose request's origin is `https://`, the workflow's site value and the port 443, so that its field shows the site value |
 //! | `needs_stuck` | `utility_bill_payment`: `needs_you.stuck`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run `waiting` with an open `stuck` item |
 //! | `needs_check` | `utility_bill_payment`: `needs_you.check`; `switch_off`, `delete` | as in `ten`, and a run on 20759 `effect_unknown` with `unknown` 1, so the hold `check` stands; its `check` item shows the four kept fields of a `payment` |
 //! | `needs_setup` | `utility_bill_payment`: `needs_you.setup`; `switch_off`, `delete` | `approved`, no run, slots `start` and `instrument`, so the hold `setup` stands for `payee`, which has one candidate from `records`, the workflow's site value |
@@ -845,7 +845,13 @@ fn item(state: State, b: &Built) -> Option<Item> {
         }
         ItemKind::LinkAccount => {
             let (title, text, choices) = plain();
-            Item::link_account(id, agent, title, text, choices)
+            let site = Field {
+                label: t("item.link_account.origin"),
+                value: vec![b.facts.workflow.site.clone().expect("a site")],
+                from: FieldFrom::Halvo,
+                from_text: t("from.halvo"),
+            };
+            Item::link_account(id, agent, title, text, site, choices)
         }
         ItemKind::Stuck => {
             let (title, text, choices) = plain();

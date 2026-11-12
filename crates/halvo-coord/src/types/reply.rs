@@ -83,7 +83,8 @@ pub struct CardRun {
 /// An item, as the page gets it (I3.4), made by the one constructor of its kind: a
 /// confirmation has its presenter and an empty `text`, every other kind a null presenter and
 /// `armed` `no`;
-/// `fields` stand only in a confirmation and a check, and `params` only in a setup.
+/// `fields` stand only in a confirmation, a check and a `link_account` item, which holds the one
+/// field of its site, and `params` only in a setup.
 ///
 /// ```
 /// use halvo_coord::types::{AgentId, Item, ItemId, ItemKind, YesNo};
@@ -214,15 +215,17 @@ impl Item {
         }
     }
 
-    /// A `link_account` item.
+    /// A `link_account` item with the field of the site of its request's origin.
     pub fn link_account(
         item: ItemId,
         agent: AgentId,
         title: String,
         text: String,
+        site: Field,
         choices: Vec<ChoiceText>,
     ) -> Item {
         Item {
+            fields: vec![site],
             choices,
             ..Item::of_kind(ItemKind::LinkAccount, item, agent, YesNo::No, title, text)
         }

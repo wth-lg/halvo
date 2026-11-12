@@ -10,9 +10,9 @@ use halvo_coord::mem::{Call, Config, Method, Ports};
 use halvo_coord::ports::{Clock, Owner, PortError, Rng, Runs};
 use halvo_coord::types::{
     Agent, AgentId, Answer, Answered, Body, Category, Cause, Choice, Class, ConfirmAsk, Decision,
-    DecisionEntry, EffectAnswer, Event, FullWorkflow, HandbackResult, LapseCause, Lapsed, Limits,
-    Name, Presenter, Raised, Reply, RunId, RunItemKind, RunSpec, What, Workflow, WorkflowState,
-    WorkflowTrigger,
+    DecisionEntry, DoneAnswer, EffectAnswer, Event, FullWorkflow, HandbackAsk, HandbackReason,
+    HandbackResult, LapseCause, Lapsed, Limits, LinkAnswer, Name, Origin, Presenter, Raised, Reply,
+    RunId, RunSpec, What, Workflow, WorkflowState, WorkflowTrigger,
 };
 use std::cell::{Cell, RefCell};
 use support::{agent_id, ask, ask_of, asked, field, run_id, workflow_id};
@@ -884,6 +884,16 @@ fn waiting_events_go_first_and_keep_their_order() {
     assert!(l.waiting().is_empty());
 }
 
+/// A handback request of run 1 with its reason and origin.
+fn handback(reason: HandbackReason, origin: Option<&str>) -> HandbackAsk {
+    HandbackAsk {
+        run: run_id(1),
+        agent: agent_id(1),
+        reason,
+        origin: origin.map(|o| Origin::parse(o).unwrap()),
+    }
+}
+
 #[test]
 fn a_handback_answer_is_stored_before_the_runner_gets_it() {
     let p = ports();
@@ -895,8 +905,7 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
         &mut l,
         &LIMITS,
         &item,
-        &run,
-        RunItemKind::SignIn,
+        &handback(HandbackReason::SignIn, None),
         Choice::Done,
     )
     .unwrap();
@@ -915,8 +924,7 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
             &mut l,
             &LIMITS,
             &item,
-            &run,
-            RunItemKind::Check,
+            &handback(HandbackReason::EffectUnknown, None),
             Choice::WentThrough
         ),
         Err(Cause::NoService)
@@ -937,8 +945,7 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
             &mut l,
             &LIMITS,
             &item,
-            &run,
-            RunItemKind::Stuck,
+            &handback(HandbackReason::StepFailed, None),
             Choice::Decline
         ),
         Ok(()),
@@ -950,12 +957,63 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
             &mut l,
             &LIMITS,
             &item,
-            &run,
-            RunItemKind::Stuck,
+            &handback(HandbackReason::StepFailed, None),
             Choice::Allow
         ),
         Err(Cause::Malformed)
     );
+}
+
+/// The row of an answer of a `link_account` item holds the whole origin of its request, whose
+/// site's name the item showed, before the runner gets the result; a request with no origin gets
+/// no row and no result, because its item cannot show a site (I7.1, I3.4, ruling IG-14).
+#[test]
+fn a_link_account_answer_stores_the_whole_origin_of_its_request() {
+    let item = support::item_id(1);
+    let origin = "https://mail.site2.example:8443";
+    for (choice, done, result) in [
+        (Choice::Done, DoneAnswer::Done, HandbackResult::Done),
+        (
+            Choice::Decline,
+            DoneAnswer::Decline,
+            HandbackResult::Declined,
+        ),
+    ] {
+        let p = ports();
+        let mut l = ledger();
+        let ask = handback(HandbackReason::AccountLink, Some(origin));
+        answer_handback(&p, &mut l, &LIMITS, &item, &ask, choice).unwrap();
+        let calls: Vec<Call> = p.calls.borrow().iter().map(|c| c.call.clone()).collect();
+        let row = What::ItemAnswered {
+            item: item.clone(),
+            answer: Answered::LinkAccount(LinkAnswer {
+                answer: done,
+                origin: Origin::parse(origin).unwrap(),
+            }),
+        };
+        assert!(
+            matches!(
+                &calls[..],
+                [Call::Log(rows), Call::AnswerHandback(r, got)]
+                    if rows.len() == 1 && rows[0].what == row && r == &run_id(1) && *got == result
+            ),
+            "{calls:?}"
+        );
+    }
+    let p = ports();
+    let mut l = ledger();
+    assert_eq!(
+        answer_handback(
+            &p,
+            &mut l,
+            &LIMITS,
+            &item,
+            &handback(HandbackReason::AccountLink, None),
+            Choice::Done
+        ),
+        Err(Cause::Malformed)
+    );
+    assert!(p.calls.borrow().is_empty());
 }
 
 /// The page item of a held confirmation.

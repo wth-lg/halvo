@@ -319,11 +319,17 @@ fn the_failure_class_is_the_six_ends_of_i5_6() {
 
 #[test]
 fn an_answered_row_pairs_each_kind_with_its_own_choices_of_i3_1() {
+    let linked = |answer| {
+        Answered::LinkAccount(LinkAnswer {
+            answer,
+            origin: Origin::parse("https://mail.site2.example:443").unwrap(),
+        })
+    };
     let rows = [
         Answered::SignIn(DoneAnswer::Decline),
         Answered::SignIn(DoneAnswer::Done),
-        Answered::LinkAccount(DoneAnswer::Decline),
-        Answered::LinkAccount(DoneAnswer::Done),
+        linked(DoneAnswer::Decline),
+        linked(DoneAnswer::Done),
         Answered::Stuck(DoneAnswer::Decline),
         Answered::Stuck(DoneAnswer::Done),
         Answered::Check(CheckAnswer::TryAgain),
@@ -448,6 +454,15 @@ fn a_progress_has_its_step_at_most_its_total() {
     assert!(Progress::new(1, 3).is_ok());
 }
 
+fn empty_field() -> Field {
+    Field {
+        label: String::new(),
+        value: vec![],
+        from: FieldFrom::Halvo,
+        from_text: String::new(),
+    }
+}
+
 #[test]
 fn an_item_is_made_by_one_constructor_per_kind() {
     let id = || ItemId::parse(&"3".repeat(32)).unwrap();
@@ -457,7 +472,7 @@ fn an_item_is_made_by_one_constructor_per_kind() {
     let items = [
         Item::confirm(id(), agent(), Presenter::Native, no, s(), vec![], vec![]),
         Item::sign_in(id(), agent(), s(), s(), vec![]),
-        Item::link_account(id(), agent(), s(), s(), vec![]),
+        Item::link_account(id(), agent(), s(), s(), empty_field(), vec![]),
         Item::stuck(id(), agent(), s(), s(), vec![]),
         Item::check(id(), agent(), s(), s(), vec![], vec![]),
         Item::setup(id(), agent(), s(), s(), vec![], vec![]),
@@ -570,7 +585,7 @@ fn an_item_that_is_no_confirmation_is_not_armed() {
     let s = String::new;
     let others = [
         Item::sign_in(id(), agent(), s(), s(), vec![]),
-        Item::link_account(id(), agent(), s(), s(), vec![]),
+        Item::link_account(id(), agent(), s(), s(), empty_field(), vec![]),
         Item::stuck(id(), agent(), s(), s(), vec![]),
         Item::check(id(), agent(), s(), s(), vec![], vec![]),
         Item::setup(id(), agent(), s(), s(), vec![], vec![]),

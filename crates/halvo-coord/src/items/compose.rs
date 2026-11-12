@@ -4,18 +4,18 @@ use super::{ConfirmState, Confirmation};
 use crate::guard::Table;
 use crate::types::{
     AgentId, BoundFrom, Candidate, CandidateFrom, Cause, Choice, ChoiceText, Class, ConfirmAsk,
-    Field, FieldFrom, Item, ItemId, ItemKind, Limits, Param, ParamEntry, Presenter, Unknown, YesNo,
+    Field, FieldFrom, Item, ItemId, ItemKind, Limits, Origin, Param, ParamEntry, Presenter,
+    Unknown, YesNo,
 };
 
 const PIECE_MAX: usize = 1024;
 
-/// The kinds whose item holds a title, a text and two choices and nothing else (I3.4).
+/// The kinds whose item holds a title, a text and two choices and nothing else (I3.4); a
+/// `link_account` item also holds the field of its site (`compose_link_account`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Plain {
     /// `sign_in`.
     SignIn,
-    /// `link_account`.
-    LinkAccount,
     /// `stuck`.
     Stuck,
     /// `ready`.
@@ -29,12 +29,39 @@ impl Plain {
     pub const fn kind(self) -> ItemKind {
         match self {
             Plain::SignIn => ItemKind::SignIn,
-            Plain::LinkAccount => ItemKind::LinkAccount,
             Plain::Stuck => ItemKind::Stuck,
             Plain::Ready => ItemKind::Ready,
             Plain::Show => ItemKind::Show,
         }
     }
+}
+
+/// The site's name of an origin, which is what a person reads of it (I1.4, ruling IG-14): its
+/// host, with `:` and its port where the port is not the usual one of its scheme (443 for
+/// `https`, 80 for `http`), and never its scheme.
+pub fn site_name(origin: &Origin) -> String {
+    let usual = match origin.scheme() {
+        "https" => 443,
+        "http" => 80,
+        _ => 0,
+    };
+    let mut site = origin.host().to_owned();
+    if origin.port() != usual {
+        site.push(':');
+        site.push_str(&origin.port().to_string());
+    }
+    site
+}
+
+/// A field set by Halvo that names a site: the sentence of `key` as its label and the site's name
+/// of `origin` as its value (I3.4, I4.3, ruling IG-14).
+fn site_field(key: &str, origin: &Origin) -> Result<Field, Cause> {
+    Ok(Field {
+        label: say(key)?,
+        value: pieces(&[site_name(origin)])?,
+        from: FieldFrom::Halvo,
+        from_text: say(&format!("from.{}", FieldFrom::Halvo.name()))?,
+    })
 }
 
 /// A parameter of a setup with the values of its candidates and where each came from, as the
@@ -187,7 +214,8 @@ fn halvo_line(key: &str) -> Result<Field, Cause> {
 /// `confirm.changed`, with no value and `from` `halvo` (`Table::newest_allows`, rulings IG-6d,
 /// IG-25). For each effect every bound field follows in the
 /// request's order, labelled `field.<class>.<name>` with `from` by its source, and after them a
-/// line `confirm.new_site` for a `new_origin`; `armed` `yes` only while the item is `armed`.
+/// line `confirm.new_site` for a `new_origin`, whose value is the site's name of that origin
+/// (`site_name`, ruling IG-14); `armed` `yes` only while the item is `armed`.
 /// `malformed` for a field that the words table has no label for, or a piece of a value of
 /// more than 1,024 bytes; `state` for a confirmation of another request.
 pub fn compose_confirm(
@@ -228,12 +256,7 @@ pub fn compose_confirm(
             )?);
         }
         if let Some(origin) = &effect.new_origin {
-            fields.push(Field {
-                label: say("confirm.new_site")?,
-                value: pieces(&[origin.as_str().to_owned()])?,
-                from: FieldFrom::Halvo,
-                from_text: say(&format!("from.{}", FieldFrom::Halvo.name()))?,
-            });
+            fields.push(site_field("confirm.new_site", origin)?);
         }
     }
     let choices = match presenter {
@@ -271,11 +294,30 @@ pub fn compose_plain(
     let (item, agent) = (item.clone(), agent.clone());
     Ok(match kind {
         Plain::SignIn => Item::sign_in(item, agent, title, text, choices),
-        Plain::LinkAccount => Item::link_account(item, agent, title, text, choices),
         Plain::Stuck => Item::stuck(item, agent, title, text, choices),
         Plain::Ready => Item::ready(item, agent, title, text, choices),
         Plain::Show => Item::show(item, agent, title, text, choices),
     })
+}
+
+/// The item `link_account` (I3.4): the plain parts and one field, labelled
+/// `item.link_account.origin`, whose value is the site's name of the request's `origin` and whose
+/// `from` is `halvo` (ruling IG-14).
+pub fn compose_link_account(
+    item: &ItemId,
+    agent: &AgentId,
+    name: &str,
+    origin: &Origin,
+) -> Result<Item, Cause> {
+    let (title, text) = title_and_text(ItemKind::LinkAccount, name)?;
+    Ok(Item::link_account(
+        item.clone(),
+        agent.clone(),
+        title,
+        text,
+        site_field("item.link_account.origin", origin)?,
+        two_choices(ItemKind::LinkAccount)?,
+    ))
 }
 
 /// The item `check` (I3.4): the plain parts and the kept fields of the effects of an unknown

@@ -3,7 +3,7 @@
 //! keeps the guard's table in step with the items, and sends the setup's body until the owner
 //! acknowledges it (I3.5).
 
-use super::{compose_confirm, confirm_step, handback_result, setup_step};
+use super::{compose_confirm, confirm_step, handback_kind, handback_result, setup_step};
 use super::{ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
 use super::{Setup, SetupBody, SetupInput, SetupMove, SetupState};
 use crate::guard::Table;
@@ -11,8 +11,8 @@ use crate::ports::{Clock, Owner, PortError, Rng, Runs};
 use crate::schedule::wants_active;
 use crate::types::{
     hex, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Choice, ConfigView, ConfirmAsk,
-    DoneAnswer, Event, Facts, Item, ItemId, LapseCause, Lapsed, Limits, Presenter, Raised, RunId,
-    RunItemKind, What, WorkflowId,
+    DoneAnswer, Event, Facts, HandbackAsk, Item, ItemId, LapseCause, Lapsed, Limits, LinkAnswer,
+    Presenter, Raised, RunItemKind, What, WorkflowId,
 };
 use std::num::NonZeroU32;
 
@@ -451,24 +451,30 @@ pub fn lapse<P: Owner + Runs + Clock>(
     Ok(())
 }
 
-/// The person's choice on an item that a handback of `run` raised (I3.1): stores its
-/// `item_answered` row, and only once the owner acknowledged it hands the run its result. A
-/// choice that is not one of the kind's is `malformed`; with no acknowledgement the answer is
-/// `no_service` and the run gets nothing; a run that ended (`ended`) takes nothing back.
+/// The person's choice on the item that the handback request `ask` raised (I3.1): stores its
+/// `item_answered` row, which for a `link_account` item holds the request's whole origin (I7.1,
+/// ruling IG-14), and only once the owner acknowledged it hands the run its result. A choice that
+/// is not one of the kind's, and a `link_account` request with no origin, are `malformed`; with
+/// no acknowledgement the answer is `no_service` and the run gets nothing; a run that ended
+/// (`ended`) takes nothing back.
 pub fn answer_handback<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
     limits: &Limits,
     item: &ItemId,
-    run: &RunId,
-    kind: RunItemKind,
+    ask: &HandbackAsk,
     choice: Choice,
 ) -> Result<(), Cause> {
+    let run = &ask.run;
+    let kind = handback_kind(ask.reason);
     let result = handback_result(kind, choice)?;
     let done = || DoneAnswer::parse(choice.name());
     let answer = match kind {
         RunItemKind::SignIn => Answered::SignIn(done()?),
-        RunItemKind::LinkAccount => Answered::LinkAccount(done()?),
+        RunItemKind::LinkAccount => Answered::LinkAccount(LinkAnswer {
+            answer: done()?,
+            origin: ask.origin.clone().ok_or(Cause::Malformed)?,
+        }),
         RunItemKind::Stuck => Answered::Stuck(done()?),
         RunItemKind::Show => Answered::Show(done()?),
         RunItemKind::Check => Answered::Check(CheckAnswer::parse(choice.name())?),

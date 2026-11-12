@@ -154,6 +154,27 @@ impl Origin {
         }
     }
 
+    fn parts(&self) -> (&str, &str, &str) {
+        let (scheme, rest) = self.0.split_once("://").unwrap_or(("", &self.0));
+        let (host, port) = rest.rsplit_once(':').unwrap_or((rest, ""));
+        (scheme, host, port)
+    }
+
+    /// The scheme: `http` or `https`.
+    pub fn scheme(&self) -> &str {
+        self.parts().0
+    }
+
+    /// The host.
+    pub fn host(&self) -> &str {
+        self.parts().1
+    }
+
+    /// The port, from 1 to 65,535.
+    pub fn port(&self) -> u16 {
+        self.parts().2.parse().unwrap_or(0)
+    }
+
     /// The origin's text.
     pub fn as_str(&self) -> &str {
         &self.0
