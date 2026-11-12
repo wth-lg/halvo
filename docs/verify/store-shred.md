@@ -443,8 +443,10 @@ the words of the code:
   the while. "no open began and was refused within one hold of another
   contender" means that the run could not read that order.
   "open failed with Io(NotFound), which is no refusal of a second writer"
-  has one known cause, which is no fault of a lock: see The open of the
-  lock file under an unlink, under Not covered.
+  had one known cause, the open of the lock file under an unlink, and the
+  store now tries that open again (see Sync). Since then the message means
+  that the directory of the store is gone, or that every try of that open
+  answered "no such file".
 
 A step that cannot happen in the code marks a modeling error in the harness:
 for example an op the harness applies to a state the daemon can never reach.
@@ -975,18 +977,6 @@ it in the plan before weakening an assertion.
   those edges passes.
   `store::hardening_tests::a_held_store_answers_locked_before_its_custody_is_called`
   counts the custody calls of one open of a held store.
-- The open of the lock file under an unlink. `WriterLock::take` opens
-  `writer.lock` with the create flag. On macOS that open can answer "no
-  such file" when two processes open the name while a third unlinks it,
-  and `open` hands the error on as `Io(NotFound)`. A case of check 2 with
-  an unlink cadence makes exactly that. Its contender takes `Io(NotFound)`
-  as no refusal and ends, and the run fails with "contender N exited with
-  exit status: 101" and, on stderr, "open failed with Io(NotFound), which
-  is no refusal of a second writer". No second process is admitted and
-  nothing is written. The section Sync gives the counts of the fourth
-  formal step. The contender is left as it is: one that took
-  `Io(NotFound)` for a refusal would pass a store that answers so for a
-  held store.
 - Two writers in different user accounts, or over a network filesystem.
 - The unlock call in `WriterLock`'s `Drop`, as distinct from the release of
   the lock. Check 1 fails when the lock outlives the store, and check 2
@@ -1034,7 +1024,7 @@ did not read that order: it passed a store that drops the answer of
 read, with the row `formal-held-store-asks-its-custody`.
 
 One finding is about the store and not about the checks: the open of the
-lock file under an unlink (see Not covered). Check 2 as it stood before
+lock file under an unlink. Check 2 as it stood before
 this pass, alone, in 376 runs on a 16-core Mac at a 1-minute load of
 18 to 37: 4 runs failed, each with `Io(NotFound)` from the open of one
 contender, in a case with an unlink cadence. `WriterLock::take` alone, in
@@ -1042,3 +1032,25 @@ a changed copy with a probe test: 9 answers `Io(NotFound)` in 1,703,204
 takes from two or five threads while another thread unlinked the file
 every 1 or 7 ms, none in 142,013 takes from one thread, and no failure of
 the narrowing of the directory in 1,845,217 calls.
+
+The cause is the open of `writer.lock` with the create flag. When two
+processes are in that open while a third unlinks the name, macOS answers it
+with "no such file". The narrowing of the directory before every take made
+that about 36 times more frequent: in a changed copy, 8 in 1,450,310 takes
+with it and 1 in 6,490,549 without it. Since the fix of ruling ST-23,
+`WriterLock::take` tries that open again, at most 4 times, while it answers
+"no such file", with no sleep and no clock. The narrowing before every take
+stays. A directory that is gone answers so on every try, and `open` still
+answers `Io(NotFound)` for it
+(`db::tests::a_take_of_the_writer_lock_in_a_directory_that_is_gone_answers_not_found`).
+What holds since then, counted on the same 16-core Mac:
+`db::tests::a_take_of_the_writer_lock_never_answers_not_found_while_another_thread_unlinks_the_file`
+takes the lock 1,000,000 times from five threads while another thread
+unlinks the file every 1 ms. Without the retry 7 takes answered
+`Io(NotFound)`, the first at take 182,838; with it, none. Check 2 alone:
+4 failed runs in 376 before the fix, none in 300 after it, at a 1-minute
+load of 46 to 95. The row `lock-file-open-not-retried` of
+`store/mutants.rows` takes the retry out, and that test then fails. On
+Windows a delete of the name while a holder keeps it open leaves it
+delete-pending, and the open answers access denied, not "no such file", so
+the retry changes no answer there.
