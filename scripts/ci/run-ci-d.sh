@@ -16,6 +16,9 @@ EOF
 nl='
 '
 root=${CI_D_SCRIPTS:-scripts}
+st_jobs_set=${CI_D_SELF_TEST_JOBS+set}
+st_jobs=${CI_D_SELF_TEST_JOBS-}
+st_limit=${CI_D_SCRIPT_LIMIT_S-1200}
 mode=run
 job=
 wanted=
@@ -243,18 +246,13 @@ run_script() {
     record FAIL "FAIL $script_name (its artifacts directory cannot be made)"
     return
   }
-  if [ "$mode" = self-test ]; then
-    set -- --self-test
-  else
-    set --
-  fi
   started=$(date +%s)
   (
     CI_D_REPO=$repo
     CI_D_JOB=$job
     CI_D_ARTIFACTS=$artifacts
     export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS
-    sh "$script_file" "$@" </dev/null
+    sh "$script_file" </dev/null
     printf '%s\n' "$?" >"$code_file"
   ) | tee "$out"
   ended=$(date +%s)
@@ -262,6 +260,192 @@ run_script() {
   code=$(cat "$code_file" 2>/dev/null)
   last=$(tail -n 1 "$out")
   judge
+}
+
+note() {
+  if [ "$mode" = self-test ]; then
+    eval "st_kind_$st_n=note st_state_$st_n=done st_line_$st_n=\$1"
+    st_n=$((st_n + 1))
+  else
+    record FAIL "$1"
+  fi
+}
+
+st_track() {
+  st_now=$(date +%s)
+  eval "st_kind_$st_n=\$1 st_pid_$st_n=\$2 st_dir_$st_n=\$3 st_name_$st_n=\$4 st_since_$st_n=\$st_now st_state_$st_n=running"
+  st_running="$st_running$st_n "
+  st_count=$((st_count + 1))
+  st_n=$((st_n + 1))
+  st_naps=0
+}
+
+st_own() {
+  st_d=$tmp/self-test.run-ci-d
+  mkdir -p "$st_d" || {
+    note 'FAIL self-test:run-ci-d (its temporary directory cannot be made)'
+    return
+  }
+  (
+    record() {
+      printf '%s %s\n' "$1" "$2" >"$st_d/verdict"
+    }
+    own_self_test
+    : >"$st_d/done"
+  ) </dev/null >"$st_d/out" 2>"$st_d/err" &
+  st_track own "$!" "$st_d" run-ci-d
+}
+
+st_queue() {
+  st_q_file=$script_file
+  st_q_name=$script_name
+  st_q_solo=$(sed -n '1,10s/^# self-test: alone$/alone/p' "$st_q_file")
+  case $st_alone in
+    *" $st_q_name "*) st_q_solo=alone ;;
+  esac
+  if [ -n "$st_q_solo" ]; then
+    st_wait_below 1
+  else
+    st_wait_below "$st_jobs"
+  fi
+  st_q_artifacts=$repo/target/ci-artifacts/$st_q_name
+  mkdir -p "$st_q_artifacts" || {
+    note "FAIL $st_q_name (its artifacts directory cannot be made)"
+    return
+  }
+  st_d=$tmp/self-test.$st_q_name
+  mkdir -p "$st_d/tmp" || {
+    note "FAIL self-test:$st_q_name (its temporary directory cannot be made)"
+    return
+  }
+  (
+    CI_D_REPO=$repo
+    CI_D_JOB=$job
+    CI_D_ARTIFACTS=$st_q_artifacts
+    TMPDIR=$st_d/tmp
+    export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR
+    st_t0=$(date +%s)
+    sh "$st_q_file" --self-test </dev/null >"$st_d/out" 2>"$st_d/err" &
+    printf '%s\n' "$!" >"$st_d/pid"
+    wait "$!"
+    st_c=$?
+    st_t1=$(date +%s)
+    printf '%s %s\n' "$st_c" "$((st_t1 - st_t0))" >"$st_d/code"
+    : >"$st_d/done"
+  ) &
+  st_track script "$!" "$st_d" "$st_q_name"
+  [ -z "$st_q_solo" ] || st_wait_below 1
+}
+
+st_stop() {
+  eval "st_d=\$st_dir_$1 st_p=\$st_pid_$1 st_state_$1=timeout"
+  st_sp=
+  [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"
+  kill -TERM "${st_sp:-$st_p}" 2>/dev/null
+  st_grace=0
+  while [ ! -e "$st_d/done" ] && kill -0 "$st_p" 2>/dev/null && [ "$st_grace" -lt 50 ]; do
+    sleep 0.1
+    st_grace=$((st_grace + 1))
+  done
+  if [ ! -e "$st_d/done" ]; then
+    [ -z "$st_sp" ] || kill -KILL "$st_sp" 2>/dev/null
+    kill -KILL "$st_p" 2>/dev/null
+  fi
+  wait "$st_p" 2>/dev/null
+}
+
+st_poll() {
+  st_now=$(date +%s)
+  st_left=' '
+  st_count=0
+  for st_i in $st_running; do
+    eval "st_d=\$st_dir_$st_i st_p=\$st_pid_$st_i st_t=\$st_since_$st_i"
+    if [ -e "$st_d/done" ]; then
+      eval "st_state_$st_i=done"
+      st_naps=0
+    elif ! kill -0 "$st_p" 2>/dev/null; then
+      if [ -e "$st_d/done" ]; then
+        eval "st_state_$st_i=done"
+      else
+        eval "st_state_$st_i=lost"
+      fi
+      st_naps=0
+    elif [ "$((st_now - st_t))" -ge "$st_limit" ]; then
+      st_stop "$st_i"
+      st_naps=0
+    else
+      st_left="$st_left$st_i "
+      st_count=$((st_count + 1))
+    fi
+  done
+  st_running=$st_left
+}
+
+st_print() {
+  eval "st_d=\$st_dir_$1 st_k=\$st_kind_$1 st_x=\$st_state_$1 st_t=\$st_since_$1 script_name=\$st_name_$1"
+  [ ! -e "$st_d/out" ] || cat "$st_d/out"
+  [ ! -s "$st_d/err" ] || cat "$st_d/err" >&2
+  if [ "$st_k" = own ]; then
+    st_vs=
+    st_vl=
+    [ ! -s "$st_d/verdict" ] || read -r st_vs st_vl <"$st_d/verdict"
+    case $st_x:$st_vs in
+      timeout:*) record FAIL "FAIL self-test:run-ci-d (time limit $st_limit s)" ;;
+      *:PASS | *:FAIL) record "$st_vs" "$st_vl" ;;
+      *) record FAIL 'FAIL self-test:run-ci-d (it ended without a verdict)' ;;
+    esac
+    return
+  fi
+  code=
+  st_sec=
+  [ ! -s "$st_d/code" ] || read -r code st_sec <"$st_d/code"
+  if [ -z "$st_sec" ]; then
+    st_now=$(date +%s)
+    st_sec=$((st_now - st_t))
+  fi
+  printf 'seconds %s %s\n' "$script_name" "$st_sec"
+  last=
+  [ ! -e "$st_d/out" ] || last=$(tail -n 1 "$st_d/out")
+  case $st_x in
+    timeout) record FAIL "FAIL self-test:$script_name (time limit $st_limit s)" ;;
+    lost) record FAIL "FAIL self-test:$script_name (it ended without an exit status)" ;;
+    *) judge ;;
+  esac
+}
+
+st_flush() {
+  while [ "$st_next" -lt "$st_n" ]; do
+    eval "st_k=\$st_kind_$st_next st_x=\$st_state_$st_next"
+    if [ "$st_k" = note ]; then
+      eval "st_l=\$st_line_$st_next"
+      record FAIL "$st_l"
+    elif [ "$st_x" = running ]; then
+      return 0
+    else
+      st_print "$st_next"
+    fi
+    st_next=$((st_next + 1))
+  done
+}
+
+st_wait_below() {
+  while :; do
+    st_poll
+    st_flush
+    [ "$st_count" -ge "$1" ] || return 0
+    if [ "$st_naps" -lt 10 ]; then
+      sleep 0.1
+    else
+      sleep 0.5
+    fi
+    st_naps=$((st_naps + 1))
+  done
+}
+
+whole_number() {
+  case $1 in
+    '' | 0* | *[!0-9]*) return 1 ;;
+  esac
 }
 
 new_repo() {
@@ -513,7 +697,7 @@ own_self_test() {
   case_jobs=2
   case_first="line 1 of 10-a${nl}line 2 of 10-a${nl}PASS self-test:10-a (1 failing fixtures rejected)${nl}note of 10-a${nl}seconds 10-a "
   case_then="line 1 of 20-b${nl}line 2 of 20-b${nl}PASS self-test:20-b (1 failing fixtures rejected)${nl}note of 20-b${nl}seconds 20-b "
-  own_case outputs-kept-apart-in-name-order 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test
+  own_case outputs-kept-apart-in-name-order 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
   new_repo && add_script r1 10-a.sh "$good" "$prelude; meet || $ran_alone; sleep 1; $ends; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; meet || $ran_alone; sleep 1; $ends; $passes" &&
     add_script r1 30-c.sh "$good$nl# self-test: alone" "$prelude; $alone; $ends; $passes" &&
@@ -573,18 +757,58 @@ own_self_test() {
   fi
 }
 
+st_n=0
+st_next=0
+st_running=' '
+st_count=0
+st_naps=0
+st_alone=' '
+st_list=$root/ci/self-test-alone.txt
+st_d=
+st_p=
+st_t=
+st_k=
+st_x=
+st_l=
+cr=$(printf '\r')
+if [ "$mode" = self-test ]; then
+  if [ -z "$st_jobs_set" ]; then
+    st_jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null) || st_jobs=
+    whole_number "$st_jobs" || st_jobs=${NUMBER_OF_PROCESSORS:-1}
+    whole_number "$st_jobs" || st_jobs=1
+  else
+    whole_number "$st_jobs" || {
+      printf 'FAIL run-ci-d (CI_D_SELF_TEST_JOBS=%s is not a whole number from 1)\n' "$st_jobs"
+      exit 1
+    }
+  fi
+  whole_number "$st_limit" || {
+    printf 'FAIL run-ci-d (CI_D_SCRIPT_LIMIT_S=%s is not a whole number from 1)\n' "$st_limit"
+    exit 1
+  }
+  if [ -e "$st_list" ]; then
+    while IFS= read -r st_line || [ -n "$st_line" ]; do
+      st_line=${st_line%"$cr"}
+      st_alone="$st_alone${st_line%% *} "
+    done <"$st_list" || {
+      printf 'FAIL run-ci-d (%s cannot be read)\n' "$st_list"
+      exit 1
+    }
+  fi
+fi
+
 ran=' '
 if [ "$mode" = self-test ]; then
   ran=' run-ci-d '
   case " $wanted " in
-    '  ' | *' run-ci-d '*) own_self_test ;;
+    '  ' | *' run-ci-d '*) st_own ;;
   esac
 fi
 
 for file in "$root"/*/ci.d/* "$root"/*/ci.d/.*; do
   is_entry "$file" || continue
   if ! inspect "$file"; then
-    record FAIL "FAIL $script_name ($refusal)"
+    note "FAIL $script_name ($refusal)"
     continue
   fi
   names_job "$job" || continue
@@ -596,8 +820,29 @@ for file in "$root"/*/ci.d/* "$root"/*/ci.d/.*; do
   fi
   ran="$ran$script_name "
   selected=$((selected + 1))
-  run_script
+  if [ "$mode" = self-test ]; then
+    st_queue
+  else
+    run_script
+  fi
 done
+
+if [ "$mode" = self-test ]; then
+  if [ -e "$st_list" ]; then
+    while IFS= read -r st_line || [ -n "$st_line" ]; do
+      st_line=${st_line%"$cr"}
+      st_word=${st_line%% *}
+      [ -n "$st_word" ] || continue
+      case $seen in
+        *" $st_word "*) ;;
+        *) note "FAIL run-ci-d ($st_list names $st_word, which is no script)" ;;
+      esac
+    done <"$st_list"
+  fi
+  st_wait_below 1
+  st_flush
+  wait
+fi
 
 for name in $wanted; do
   case $ran in
