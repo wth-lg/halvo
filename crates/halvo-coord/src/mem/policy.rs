@@ -38,6 +38,26 @@ impl<C> Policy<C> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::Policy;
+    use crate::guard::Policy as _;
+    use crate::mem::Config;
+    use crate::types::{Autonomy, Class};
+
+    #[test]
+    fn its_answer_is_for_the_class_of_the_record_and_for_no_other() {
+        let config = Config::parse(&format!(
+            "{{\"v\":1,\"workflow\":\"{:032x}\",\"agent\":\"{:032x}\",\"rev\":1,\"category\":\"spreadsheet_fill\",\"tier\":\"on_device\",\"reasoning\":\"medium\",\"autonomy\":\"draft_and_confirm\",\"allow\":[],\"caps\":{{\"untrusted\":\"yes\",\"private\":\"yes\",\"external\":\"no\"}},\"limits\":{{\"steps\":20,\"wall_s\":120,\"model_tokens\":0}},\"budget\":null,\"permissions\":[],\"runtime\":\"file\",\"playbook\":1}}",
+            1, 2
+        ))
+        .unwrap();
+        let policy: Policy<Config> = Policy::new(&[(Autonomy::DraftAndConfirm, Class::Send, true)]);
+        assert_eq!(policy.gives_run(&config, Class::Send), Ok(true));
+        assert_eq!(policy.gives_run(&config, Class::LocalEdit), Ok(false));
+    }
+}
+
 impl<C: ConfigView> guard::Policy for Policy<C> {
     type Config = C;
 

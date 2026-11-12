@@ -1,4 +1,4 @@
-use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
+use crate::ports::{Analysis, Clock, Owner, Page, PortError, Reaped, Rng, Runs, Tray};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answer, ApprovalId, Body, Category, ConfigView, Decision,
     DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, Outcome, PastRun,
@@ -17,6 +17,9 @@ fn refusal(name: &str) -> PortError {
 pub enum Method {
     /// `Owner::log`.
     Log,
+    /// `Owner::log` with a body that holds a `run_started` event, and no other body (ruling
+    /// XB-12).
+    LogRunStarted,
     /// `Owner::history`.
     History,
     /// `Owner::workflows`.
@@ -27,6 +30,8 @@ pub enum Method {
     Send,
     /// `Owner::send` with the body `end_run` alone.
     EndRun,
+    /// `Owner::send` with the body `start_run` alone.
+    StartRun,
     /// `Runs::start`.
     Start,
     /// `Runs::answer_confirm`.
@@ -112,12 +117,34 @@ pub struct Timed {
     pub call: Call,
 }
 
+/// A call that the coordinator made, with the refusal that answered it or none: the port
+/// column of a trace line, in which a refused call stands as it was made (rulings XB-12,
+/// XB-18).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Tried {
+    /// `Clock::now()` at the call.
+    pub at: u64,
+    /// The call.
+    pub call: Call,
+    /// The refusal, or none for a call that did its work.
+    pub refused: Option<PortError>,
+}
+
 /// Every port in memory, one value for `Coordinator<P>` and the `drive` functions (I5.10). The
 /// clock gives what the test set; the random bytes count up from 1; the owner lists what the
 /// test put into `workflows` and `agents` and answers each body as A-A7.2 says; `Runs` mints
-/// approval ids from a counter of its own, starts no process, and `reap` ends the trees that
-/// the test left with `leave_trees`; a method that the test named in `refuse` answers that
-/// error and does nothing else.
+/// approval ids from a counter of its own, starts no process, and `reap` answers the marks
+/// that the test left with `leave_marks`; a method that the test named in `refuse` answers
+/// that error and does nothing else. `tried` records every call as it was made, a refused one
+/// among them with its refusal, and `calls` the calls that did their work.
+///
+/// `Runs` answers as the supervisor library does (I5.10, A-A6.6): `started` for a `start` of a
+/// run id that this life of the library already started, and no second runner is made;
+/// `unknown_run` for `cancel`, `kill` and `answer_handback` of a run id that this life never
+/// started; `ended` for `cancel` and `answer_handback` of a run whose runner has ended, by
+/// `end_runner` or by a kill, while `kill` of such a run succeeds. `new_life` is a new process
+/// of the library: it knows no runner of the earlier one, and the marks stay. `reap` answers
+/// every mark once with its answer and keeps only the marks that it answered `alive`.
 ///
 /// The owner keeps the refusals that the real one gives (I7.2, A-A7.2), each as
 /// `PortError::Refused` with the error name, and a refusal stores nothing, records no call and
@@ -148,6 +175,8 @@ pub struct Ports<C> {
     pub events: RefCell<Vec<Event>>,
     /// Every recorded call, in order.
     pub calls: RefCell<Vec<Timed>>,
+    /// Every call as it was made, in order, a refused one with its refusal.
+    pub tried: RefCell<Vec<Tried>>,
     now: Cell<u64>,
     today: Cell<u32>,
     bytes: Cell<u128>,
@@ -156,7 +185,9 @@ pub struct Ports<C> {
     refusals: RefCell<Vec<(Method, PortError)>>,
     limits: Limits,
     created: RefCell<Vec<(WorkflowId, AgentId)>>,
-    trees: Cell<u32>,
+    marks: RefCell<Vec<(RunId, Reaped)>>,
+    runners: RefCell<Vec<RunId>>,
+    ended: RefCell<Vec<RunId>>,
 }
 
 impl<C> Ports<C> {
@@ -173,6 +204,7 @@ impl<C> Ports<C> {
             agents: RefCell::new(Vec::new()),
             events: RefCell::new(Vec::new()),
             calls: RefCell::new(Vec::new()),
+            tried: RefCell::new(Vec::new()),
             now: Cell::new(now),
             today: Cell::new(today),
             bytes: Cell::new(0),
@@ -181,7 +213,9 @@ impl<C> Ports<C> {
             refusals: RefCell::new(Vec::new()),
             limits,
             created: RefCell::new(Vec::new()),
-            trees: Cell::new(0),
+            marks: RefCell::new(Vec::new()),
+            runners: RefCell::new(Vec::new()),
+            ended: RefCell::new(Vec::new()),
         }
     }
 
@@ -225,10 +259,34 @@ impl<C> Ports<C> {
         }
     }
 
-    /// Leaves `count` runner trees of an earlier life of the app, which the next `Runs::reap`
-    /// ends and counts.
-    pub fn leave_trees(&self, count: u32) {
-        self.trees.set(self.trees.get().saturating_add(count));
+    /// Leaves marks of the supervisor library, each with the answer that `Runs::reap` gives
+    /// for it (I5.10).
+    pub fn leave_marks(&self, marks: &[(RunId, Reaped)]) {
+        self.marks.borrow_mut().extend_from_slice(marks);
+    }
+
+    /// A runner of `run` stands in this life of the supervisor library, as after its
+    /// `Runs::start`, with no call recorded.
+    pub fn runner_of(&self, run: &RunId) {
+        let mut runners = self.runners.borrow_mut();
+        if !runners.contains(run) {
+            runners.push(run.clone());
+        }
+    }
+
+    /// The runner of `run` ended by itself: with its last frame, or gone with none.
+    pub fn end_runner(&self, run: &RunId) {
+        let mut ended = self.ended.borrow_mut();
+        if !ended.contains(run) {
+            ended.push(run.clone());
+        }
+    }
+
+    /// A new process of the supervisor library: it knows no runner of the earlier one, and the
+    /// marks stay.
+    pub fn new_life(&self) {
+        self.runners.borrow_mut().clear();
+        self.ended.borrow_mut().clear();
     }
 
     /// Sets the clock.
@@ -269,10 +327,36 @@ impl<C> Ports<C> {
     }
 
     fn record(&self, call: Call) {
-        self.calls.borrow_mut().push(Timed {
+        let at = self.now.get();
+        self.tried.borrow_mut().push(Tried {
+            at,
+            call: call.clone(),
+            refused: None,
+        });
+        self.calls.borrow_mut().push(Timed { at, call });
+    }
+
+    fn note(&self, call: Call, error: PortError) -> PortError {
+        self.tried.borrow_mut().push(Tried {
             at: self.now.get(),
             call,
+            refused: Some(error.clone()),
         });
+        error
+    }
+
+    fn checked(&self, method: Method, call: &Call) -> Result<(), PortError> {
+        self.refused(method).map_err(|e| self.note(call.clone(), e))
+    }
+
+    fn runner(&self, run: &RunId, call: &Call, ended_too: bool) -> Result<(), PortError> {
+        if !self.runners.borrow().contains(run) {
+            return Err(self.note(call.clone(), refusal("unknown_run")));
+        }
+        if ended_too && self.ended.borrow().contains(run) {
+            return Err(self.note(call.clone(), refusal("ended")));
+        }
+        Ok(())
     }
 
     fn bound(&self, workflow: &WorkflowId, agent: &AgentId) -> bool {
@@ -462,17 +546,24 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
     type Config = C;
 
     fn log(&self, events: &[Event]) -> Result<(), PortError> {
-        self.refused(Method::Log)?;
-        if let Some(name) = self.log_refusal(events) {
-            return Err(refusal(name));
+        let call = Call::Log(events.to_vec());
+        self.checked(Method::Log, &call)?;
+        if events
+            .iter()
+            .any(|e| matches!(e.what, What::RunStarted { .. }))
+        {
+            self.checked(Method::LogRunStarted, &call)?;
         }
-        self.record(Call::Log(events.to_vec()));
+        if let Some(name) = self.log_refusal(events) {
+            return Err(self.note(call, refusal(name)));
+        }
+        self.record(call);
         self.events.borrow_mut().extend_from_slice(events);
         Ok(())
     }
 
     fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
-        self.refused(Method::History)?;
+        self.checked(Method::History, &Call::History(agent.clone(), after))?;
         self.record(Call::History(agent.clone(), after));
         let mut found: Vec<Event> = self
             .events
@@ -487,24 +578,27 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
     }
 
     fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
-        self.refused(Method::Workflows)?;
+        self.checked(Method::Workflows, &Call::Workflows)?;
         self.record(Call::Workflows);
         Ok(self.workflows.borrow().clone())
     }
 
     fn agents(&self) -> Result<Vec<Agent<C>>, PortError> {
-        self.refused(Method::Agents)?;
+        self.checked(Method::Agents, &Call::Agents)?;
         self.record(Call::Agents);
         Ok(self.agents.borrow().clone())
     }
 
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
-        self.refused(Method::Send)?;
-        if matches!(body, Body::EndRun { .. }) {
-            self.refused(Method::EndRun)?;
+        let call = Call::Send(body.clone());
+        self.checked(Method::Send, &call)?;
+        match body {
+            Body::EndRun { .. } => self.checked(Method::EndRun, &call)?,
+            Body::StartRun { .. } => self.checked(Method::StartRun, &call)?,
+            _ => {}
         }
         if let Some(name) = self.send_refusal(body) {
-            return Err(refusal(name));
+            return Err(self.note(call, refusal(name)));
         }
         self.record(Call::Send(body.clone()));
         Ok(match body {
@@ -533,8 +627,13 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
 
 impl<C> Runs for Ports<C> {
     fn start(&self, spec: &RunSpec) -> Result<(), PortError> {
-        self.refused(Method::Start)?;
-        self.record(Call::Start(spec.clone()));
+        let call = Call::Start(spec.clone());
+        self.checked(Method::Start, &call)?;
+        if self.runners.borrow().contains(&spec.run) {
+            return Err(self.note(call, refusal("started")));
+        }
+        self.record(call);
+        self.runners.borrow_mut().push(spec.run.clone());
         Ok(())
     }
 
@@ -560,33 +659,44 @@ impl<C> Runs for Ports<C> {
     }
 
     fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {
-        self.refused(Method::AnswerHandback)?;
-        self.record(Call::AnswerHandback(run.clone(), result));
+        let call = Call::AnswerHandback(run.clone(), result);
+        self.checked(Method::AnswerHandback, &call)?;
+        self.runner(run, &call, true)?;
+        self.record(call);
         Ok(())
     }
 
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {
-        self.refused(Method::Cancel)?;
-        self.record(Call::Cancel(run.clone()));
+        let call = Call::Cancel(run.clone());
+        self.checked(Method::Cancel, &call)?;
+        self.runner(run, &call, true)?;
+        self.record(call);
         Ok(())
     }
 
     fn kill(&self, run: &RunId) -> Result<(), PortError> {
-        self.refused(Method::Kill)?;
-        self.record(Call::Kill(run.clone()));
+        let call = Call::Kill(run.clone());
+        self.checked(Method::Kill, &call)?;
+        self.runner(run, &call, false)?;
+        self.record(call);
+        self.end_runner(run);
         Ok(())
     }
 
-    fn reap(&self) -> Result<u32, PortError> {
-        self.refused(Method::Reap)?;
+    fn reap(&self) -> Result<Vec<(RunId, Reaped)>, PortError> {
+        self.checked(Method::Reap, &Call::Reap)?;
         self.record(Call::Reap);
-        Ok(self.trees.replace(0))
+        let marks = self.marks.borrow().clone();
+        self.marks
+            .borrow_mut()
+            .retain(|(_, answer)| *answer == Reaped::Alive);
+        Ok(marks)
     }
 }
 
 impl<C> Analysis for Ports<C> {
     fn defer(&self, until: u64) -> Result<(), PortError> {
-        self.refused(Method::Defer)?;
+        self.checked(Method::Defer, &Call::Defer(until))?;
         self.record(Call::Defer(until));
         Ok(())
     }
