@@ -820,6 +820,43 @@ mod login_item_tests {
     }
 
     #[test]
+    fn umask_077_gives_a_0644_plist_in_a_new_0755_directory() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let home = tempfile::tempdir().unwrap();
+        let dir = agents(home.path());
+        let before = unsafe { libc::umask(0o077) };
+        let result = install_login_item(&login_item(), &dir);
+        unsafe { libc::umask(before) };
+        assert_eq!(result.unwrap(), InstallOutcome::Written);
+        assert_eq!(mode(dir.path()), 0o755);
+        assert_eq!(mode(&login_item_path(&login_item(), &dir)), 0o644);
+    }
+
+    #[test]
+    fn a_failed_rename_takes_its_temp_file_away() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let home = tempfile::tempdir().unwrap();
+        let dir = agents(home.path());
+        let spec = login_item();
+        std::fs::create_dir_all(login_item_path(&spec, &dir)).unwrap();
+        assert!(install_login_item(&spec, &dir).is_err());
+        let names: Vec<String> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, [spec.file_name()]);
+    }
+
+    #[test]
+    fn a_data_directory_with_a_control_character_is_an_error() {
+        let data = DataDir::from_flag("/Users/a b/Halvo\u{7}").unwrap();
+        assert_eq!(
+            LoginItemSpec::new(LOGIN_ITEM_LABEL, Path::new(APP), Some(&data)),
+            Err(SpecError::Text)
+        );
+    }
+
+    #[test]
     fn umask_000_gives_a_0644_plist_in_a_new_0755_directory() {
         let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
         let home = tempfile::tempdir().unwrap();

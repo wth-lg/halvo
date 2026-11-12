@@ -1383,6 +1383,98 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
+    fn a_temp_dir_of_another_account_never_holds_the_fallback_socket() {
+        use std::os::unix::fs::MetadataExt;
+
+        let me = unsafe { libc::geteuid() };
+        let long = DataDir::from_flag(format!("/{}", "a".repeat(120))).unwrap();
+        let mut seen = 0;
+        for a in std::fs::read_dir("/var/folders").unwrap().flatten() {
+            let Ok(inner) = std::fs::read_dir(a.path()) else {
+                continue;
+            };
+            for b in inner.flatten() {
+                let temp = b.path().join("T");
+                let Ok(meta) = std::fs::metadata(&temp) else {
+                    continue;
+                };
+                if !meta.is_dir() || meta.uid() == me || meta.mode() & 0o777 != 0o700 {
+                    continue;
+                }
+                seen += 1;
+                let account = Account {
+                    base: None,
+                    temp: Some(temp),
+                };
+                assert_eq!(
+                    socket_path(&long, &account),
+                    Err(PathError::SocketPathTooLong)
+                );
+            }
+        }
+        println!("temp dirs of other accounts with mode 0700: {seen}");
+        assert!(seen > 0, "no directory of another account here");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_path_that_is_not_utf8_is_refused_by_both_types() {
+        use std::os::unix::ffi::OsStrExt;
+
+        let path = Path::new(std::ffi::OsStr::from_bytes(b"/data-\xff"));
+        let data = DataDir::from_flag("/data").unwrap();
+        assert_eq!(DataDir::from_flag(path), Err(PathError::NotUtf8));
+        assert_eq!(ScratchDir::new(path, &data), Err(PathError::NotUtf8));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_fallback_starts_at_a_socket_path_of_exactly_104_bytes() {
+        let none = Account {
+            base: None,
+            temp: None,
+        };
+        let socket_for = |len: usize| {
+            let name = "a".repeat(len - "/run/control.sock".len() - 1);
+            let data = DataDir::from_flag(format!("/{name}")).unwrap();
+            assert_eq!(data.control_socket().as_os_str().len(), len);
+            socket_path(&data, &none)
+        };
+        assert!(socket_for(SOCKET_PATH_MAX_BYTES - 1).is_ok());
+        assert_eq!(
+            socket_for(SOCKET_PATH_MAX_BYTES),
+            Err(PathError::SocketPathTooLong)
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_fallback_socket_path_of_exactly_104_bytes_is_refused() {
+        let mine = SystemAccount.user_temp_dir().unwrap().unwrap();
+        let private: PathBuf = Path::new("/private")
+            .join(mine.path().strip_prefix("/").unwrap())
+            .components()
+            .collect();
+        let fallback =
+            private.as_os_str().len() + "/com.halvo.capture/0123456789abcdef/control.sock".len();
+        println!("fallback bytes through the /private spelling: {fallback}");
+        assert_eq!(
+            fallback, SOCKET_PATH_MAX_BYTES,
+            "the case needs a path of 104 bytes"
+        );
+        let long = DataDir::from_flag(format!("/{}", "a".repeat(120))).unwrap();
+        let account = Account {
+            base: None,
+            temp: Some(private),
+        };
+        assert_eq!(
+            socket_path(&long, &account),
+            Err(PathError::SocketPathTooLong)
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
     fn two_long_data_directories_get_two_fallback_sockets_under_104_bytes() {
         let long = |c: &str| DataDir::from_flag(format!("/{}", c.repeat(120))).unwrap();
         let (a, b) = (long("a"), long("b"));

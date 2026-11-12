@@ -1116,4 +1116,11 @@ mod tests {
         assert_eq!(inv.total_bytes(), 6);
         assert_eq!(inv.total_events(), 3);
     }
+
+    #[test]
+    fn a_day_text_with_another_byte_in_place_of_a_hyphen_is_refused() {
+        for text in ["2026-11x09", "2026-11009", "2026x11-09", "2026011-09"] {
+            assert!(text.parse::<UtcDay>().is_err(), "{text}");
+        }
+    }
 }
