@@ -221,6 +221,72 @@ fn an_owed_end_run_whose_run_ended_in_an_earlier_life_is_sent_and_no_second_run_
 }
 
 #[test]
+fn a_new_life_keeps_the_agent_of_a_dismissed_workflow_and_owes_what_its_run_is_owed() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    {
+        let mut list = w.ports.workflows.borrow_mut();
+        list[0] = halvo_coord::types::Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+            id: flow(0),
+            category: halvo_coord::types::Category::CalendarCleanup,
+            site: None,
+        });
+    }
+    let ended = relife(&mut w, &[(run.clone(), Reaped::Gone)]);
+    assert_eq!(ended, vec![(run, RunEnd::Interrupted)]);
+    assert_eq!(
+        w.calls(),
+        vec!["reap", "log run_ended interrupted", "end_run"]
+    );
+    assert_eq!(
+        w.board.members.len(),
+        1,
+        "the agent is known to the new life"
+    );
+    assert_ne!(
+        w.act(Act::Start { agent: agent(0) }).report.answer,
+        Err(Cause::UnknownAgent)
+    );
+}
+
+#[test]
+fn refusal_gone_outlives_app() {
+    for answers in [vec![Reaped::Gone], vec![Reaped::Alive, Reaped::Gone]] {
+        let mut w = world(&[MANUAL]);
+        let run = started(&mut w, 0);
+        let stored = w.ports.events.borrow().len();
+        w.ports.workflows.borrow_mut().clear();
+        for answer in &answers {
+            let ended = relife(&mut w, &[(run.clone(), *answer)]);
+            assert!(ended.is_empty(), "no run of the restart's ends");
+            assert_eq!(w.calls(), vec!["reap"], "reap is called, nothing else acts");
+            assert_eq!(
+                w.act(Act::Start { agent: agent(0) }).report.answer,
+                Err(Cause::UnknownAgent)
+            );
+        }
+        let reaps = w
+            .ports
+            .tried
+            .borrow()
+            .iter()
+            .filter(|t| matches!(t.call, halvo_coord::mem::Call::Reap))
+            .count();
+        assert_eq!(reaps, answers.len(), "each life's reap tries the run");
+        assert_eq!(
+            halvo_coord::ports::Runs::reap(&w.ports),
+            Ok(vec![]),
+            "the mark goes once reap answered gone"
+        );
+        assert_eq!(
+            w.ports.events.borrow().len(),
+            stored,
+            "no event for that run"
+        );
+    }
+}
+
+#[test]
 fn recovery_owes_nothing_for_an_agent_whose_newest_run_the_store_has_ended() {
     let mut w = world(&[MANUAL]);
     let run = started(&mut w, 0);

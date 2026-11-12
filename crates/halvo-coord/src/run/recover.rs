@@ -2,8 +2,9 @@ use super::check::raise_checks;
 use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
 use crate::schedule::{Board, Ended, Member, Owed, Owing};
 use crate::types::{
-    Agent, AgentId, Body, Cause, ConfigView, Doing, Event, Facts, ItemId, LapseCause, Lapsed,
-    Limits, OtherLapse, PastRun, Raised, RunEnd, RunId, What, Workflow,
+    Agent, AgentId, Body, Cause, ConfigView, Doing, Event, Facts, FullWorkflow, ItemId, LapseCause,
+    Lapsed, Limits, OtherLapse, PastRun, Raised, RunEnd, RunId, What, Workflow, WorkflowState,
+    WorkflowTrigger,
 };
 use std::num::NonZeroU32;
 
@@ -139,6 +140,26 @@ fn history<P: Owner>(ports: &P, agent: &AgentId) -> Result<Vec<Event>, PortError
     }
 }
 
+/// The workflow of an agent of a new life as the owner's list holds it (ruling XB-28 (a)): the
+/// full shape as it is, and the dismissed shape with its id, its category and its site, the
+/// state `paused`, the trigger `manual` and no period, so that no tick starts its agent or
+/// sends `active` for it.
+fn known(workflow: &Workflow, agent: &AgentId, day: u32) -> FullWorkflow {
+    match workflow {
+        Workflow::Full(f) => f.clone(),
+        Workflow::Dismissed(d) => FullWorkflow {
+            id: d.id.clone(),
+            state: WorkflowState::Paused,
+            category: d.category,
+            site: d.site.clone(),
+            trigger: WorkflowTrigger::Manual,
+            period: None,
+            last: day,
+            agent: Some(agent.clone()),
+        },
+    }
+}
+
 fn started_at(events: &[Event], run: &RunId) -> i64 {
     events
         .iter()
@@ -151,7 +172,7 @@ fn started_at(events: &[Event], run: &RunId) -> i64 {
 
 struct Found<C> {
     agent: Agent<C>,
-    workflow: crate::types::FullWorkflow,
+    workflow: FullWorkflow,
     events: Vec<Event>,
     step: Recovery,
 }
@@ -181,10 +202,11 @@ where
     let agents = ports.agents().map_err(|e| cause(&e))?;
     let mut found: Vec<Found<P::Config>> = Vec::new();
     for agent in agents {
-        let Some(workflow) = workflows.iter().find_map(|w| match w {
-            Workflow::Full(f) if f.id == agent.workflow => Some(f.clone()),
-            _ => None,
-        }) else {
+        let Some(workflow) = workflows
+            .iter()
+            .find(|w| w.id() == &agent.workflow)
+            .map(|w| known(w, &agent.agent, day))
+        else {
             continue;
         };
         let events = history(ports, &agent.agent).map_err(|e| cause(&e))?;
