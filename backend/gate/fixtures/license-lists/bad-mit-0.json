@@ -1,0 +1,9 @@
+{
+  "expect": "FAIL licenses: 1 problems; first: a-tool-under-mit-0@1.0.0 has the license MIT-0, which is neither on the allowlist nor in the exceptions",
+  "packages": [
+    {
+      "id": "a-tool-under-mit-0@1.0.0",
+      "license": "MIT-0"
+    }
+  ]
+}
