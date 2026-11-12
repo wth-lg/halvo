@@ -7,16 +7,21 @@ usage: sh formal/r4-coordinator/export.sh --jar PATH [--out DIR] [--seed N --cou
 
 Writes traces-schedule.jsonl and traces-confirm.jsonl from the models Schedule and
 Confirm4 of this directory: N random walks of each model and, after them, the directed
-traces, 11 of Schedule and 15 of Confirm4. PATH is tla2tools.jar of the release that
-README.md names. DIR is an existing directory and defaults to this one. Without --seed
-and --count the export takes both from the first line of the committed
-traces-schedule.jsonl. The first line of both files holds one stamp, the SHA-256 of
-the model files that the traces were exported from.
+traces, 13 of Schedule and 15 of Confirm4. Each directed trace names a configuration, and
+the export fails when a move of it is no move of the model under that configuration's
+constants. PATH is tla2tools.jar of the release that README.md names. DIR is an existing
+directory and defaults to this one. Without --seed and --count the export takes both
+from the first line of the committed traces-schedule.jsonl. The first line of both files
+holds one stamp, the SHA-256 of the model files and the configuration files that the
+traces were exported from.
 
 Exit status: 0 when both files are written. 1 when the export ran and a check or a
 write missed; it prints which, the two trace files of DIR are as they were, and DIR
 holds no file that the export made. 2 on a refusal: one line
 "REFUSED <cause>: <detail>" on standard error, with the cause usage, java or jar.
+
+The export works in a directory that it makes under the temporary directory and
+removes when it ends, also after a miss, a refusal or a signal.
 EOF
 }
 
@@ -60,6 +65,17 @@ directed() {
     esac
 }
 
+work=
+cleanup() {
+    case $work in
+        */r4-export.??????) rm -rf "$work" ;;
+    esac
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 here=$(cd "$(dirname "$0")" && pwd)
 jar=
 out=$here
@@ -100,7 +116,7 @@ fi
 test "$count" -ge 1 || refuse usage "--count is at least 1"
 
 command -v java >/dev/null 2>&1 || refuse java "no java on the path"
-major=$(java -version 2>&1 | sed -n '1s/.* version "\([0-9][0-9]*\).*/\1/p')
+major=$(java -version 2>&1 | sed -n 's/.* version "\([0-9][0-9]*\).*/\1/p' | sed -n 1p)
 test -n "$major" || refuse java "the version of java is not readable"
 test "$major" -ge 17 || refuse java "java $major is older than 17"
 
@@ -120,32 +136,48 @@ done
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/r4-export.XXXXXX") || miss "scratch=miss"
 cp "$here"/*.tla "$here"/*.cfg "$here/limits.json" "$work/" || miss "scratch=miss"
-stamp=$(cd "$work" && cat Schedule.tla Schedule.cfg Confirm4.tla Confirm4.cfg ScheduleTrace.tla Confirm4Trace.tla TraceText.tla limits.json | tr -d '\r' | sha256)
+stamp=$(cd "$work" && cat Schedule.tla Schedule.cfg Schedule-holds.cfg Schedule-left.cfg Schedule-reap.cfg Confirm4.tla Confirm4.cfg ScheduleTrace.tla Confirm4Trace.tla TraceText.tla limits.json | tr -d '\r' | sha256)
 test "${#stamp}" -eq 64 || miss "stamp=miss"
 
+: >"$work/cases.txt"
 for model in Schedule Confirm4; do
     case $model in
         Schedule)
             file=traces-schedule.jsonl
-            cases=11
+            cases=13
+            set -- full holds left reap
             ;;
         Confirm4)
             file=traces-confirm.jsonl
             cases=15
+            set -- full
             ;;
     esac
-    {
-        grep -v -e '^INIT ' -e '^NEXT ' -e '^CONSTRAINT ' -e '^VIEW ' "$work/$model.cfg"
-        printf 'CONSTANT Seed = %s\nCONSTANT Count = %s\nCONSTANT Depth = 16\n' "$seed" "$count"
-        printf 'INIT TraceInit\nNEXT TraceNext\n'
-    } >"$work/${model}Trace.cfg"
-    (cd "$work" && java -Xmx1g -XX:+UseParallelGC -cp "$jar" tlc2.TLC -workers 1 -deadlock \
-        -metadir "meta-$model" -config "${model}Trace.cfg" "${model}Trace" >"$model.out" 2>&1)
-    code=$?
-    test "$code" -eq 0 || miss "model=$model tlc=$code"
+    : >"$work/$model.lines"
+    for config in "$@"; do
+        case $config in
+            full) source=$model.cfg ;;
+            *) source=$model-$config.cfg ;;
+        esac
+        test -f "$work/$source" || miss "model=$model configuration=$config file=missing"
+        {
+            grep -v -e '^INIT ' -e '^NEXT ' -e '^CONSTRAINT ' -e '^VIEW ' "$work/$source"
+            printf 'CONSTANT Seed = %s\nCONSTANT Count = %s\nCONSTANT Depth = 16\n' "$seed" "$count"
+            printf 'CONSTANT Config = "%s"\n' "$config"
+            printf 'INIT TraceInit\nNEXT TraceNext\n'
+        } >"$work/${model}Trace.cfg"
+        (cd "$work" && java -Xmx1g -XX:+UseParallelGC -cp "$jar" tlc2.TLC -workers 1 -deadlock \
+            -metadir "meta-$model-$config" -config "${model}Trace.cfg" "${model}Trace" >"$model-$config.out" 2>&1)
+        code=$?
+        test "$code" -eq 0 || miss "model=$model configuration=$config tlc=$code"
+        tr -d '\r' <"$work/$model-$config.out" | sed -n 's/^"\({.*}\)"$/\1/p' | sed 's/\\"/"/g' >"$work/$model-$config.lines"
+        sed -n 's/^{"n":[0-9]*,"case":"\([a-z_0-9]*\)",.*$/\1/p' "$work/$model-$config.lines" |
+            sed "s/^/export model=$model case=/; s/\$/ configuration=$config/" >>"$work/cases.txt"
+        cat "$work/$model-$config.lines" >>"$work/$model.lines"
+    done
     {
         printf '{"seed":%s,"count":%s,"stamp":"%s"}\n' "$seed" "$count" "$stamp"
-        tr -d '\r' <"$work/$model.out" | sed -n 's/^"\({.*}\)"$/\1/p' | sed 's/\\"/"/g'
+        awk -F'[:,]' '{ print $2 "\t" $0 }' "$work/$model.lines" | sort -n | cut -f2-
     } >"$work/$file"
     lines=$(wc -l <"$work/$file" | tr -d ' ')
     test "$lines" -eq $((count + 1 + cases)) || miss "model=$model lines=$lines want=$((count + 1 + cases))"
@@ -169,6 +201,8 @@ directed "$s" queue_full start queue_full
 directed "$s" outlives_app restart ok '"cause":"interrupted"'
 directed "$s" stop_tree tick ok '"cause":"cancelled"'
 directed "$s" deleted_workflow tick ok '"cause":"deleted"'
+directed "$s" store_not_ended start state
+directed "$s" reap_alive restart ok '"call":"end_run","run":"r1"'
 c=$work/traces-confirm.jsonl
 directed "$c" answer_twice answer stale
 directed "$c" answer_early answer early
@@ -219,5 +253,6 @@ if ! mv "$new_c" "$old_c"; then
     miss "write=miss rename=confirm"
 fi
 rm -f "$kept"
+cat "$work/cases.txt"
 printf 'export seed=%s count=%s stamp=%s schedule=%s confirm=%s\n' "$seed" "$count" "$stamp" \
     "$(($(wc -l <"$old_s") - 1))" "$(($(wc -l <"$old_c") - 1))"
