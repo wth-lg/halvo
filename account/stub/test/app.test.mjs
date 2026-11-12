@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { makeApp } from "../src/app.mjs";
+import { makeApp, periodEnd } from "../src/app.mjs";
 import { readVendored } from "../src/stub.mjs";
 import { keysAgree } from "../src/schema.mjs";
 
@@ -164,8 +164,11 @@ test("a body route checks the content type, then the size, then the JSON, its by
   assert.equal(result(route(app, "checkout-start", { body: '{"cap":{"period":"month","amount":100000000}}' })), "session");
 });
 
+const T = Date.UTC(2027, 0, 31, 10, 0, 0, 5);
+const T_MONTH_END = Date.UTC(2027, 1, 28, 10, 0, 0, 5);
+
 test("the scripted states answer as the backend's entries do", () => {
-  const app = makeApp(vendored);
+  const app = makeApp({ ...vendored, now: () => T });
   const as = (name, options) => result(route(app, name, options));
   for (const name of APP_ROUTES.filter((n) => n !== "checkout-start")) assert.equal(as(name), "no-such-account", name);
   assert.equal(app.complete(), 0);
@@ -184,9 +187,9 @@ test("the scripted states answer as the backend's entries do", () => {
   assert.equal(app.complete(), 0);
   assert.equal(as("status"), "active");
   assert.equal(as("checkout-start"), "account-exists");
-  assert.deepEqual(JSON.parse(route(app, "cap-get").body), { result: "cap", cap: { amount: 7, period: "month" }, spend: { spent: 0, held: 0, period_end: 0 } });
+  assert.deepEqual(JSON.parse(route(app, "cap-get").body), { result: "cap", cap: { amount: 7, period: "month" }, spend: { spent: 0, held: 0, period_end: T_MONTH_END } });
   const set = route(app, "cap-set", { body: '{"cap":{"amount":100000000,"period":"week"}}' });
-  assert.deepEqual(JSON.parse(set.body), { result: "cap", cap: { amount: 100000000, period: "week" }, spend: { spent: 0, held: 0, period_end: 0 } });
+  assert.deepEqual(JSON.parse(set.body), { result: "cap", cap: { amount: 100000000, period: "week" }, spend: { spent: 0, held: 0, period_end: T_MONTH_END } });
   assert.deepEqual(JSON.parse(route(app, "cap-get").body).cap, { amount: 100000000, period: "week" });
   assert.deepEqual(JSON.parse(route(app, "manage").body), samples.answers.manage.page);
   for (const name of APP_ROUTES) assert.equal(as(name, { credential: WRONG }), "credential-mismatch", `account ${name}`);
@@ -287,6 +290,25 @@ test("every answer in every state validates against its schema and agrees with r
     const want = Object.keys(ROUTE[name].results).filter((value) => !(never[name] ?? []).includes(value));
     assert.deepEqual([...seen.get(name)].sort(), want.sort(), name);
   }
+});
+
+test("the end of the first cap period follows contract 4 from the time of the completion", () => {
+  assert.equal(periodEnd(T, "week"), T + 604800000);
+  assert.equal(periodEnd(T, "month"), T_MONTH_END);
+  assert.equal(periodEnd(Date.UTC(2028, 0, 31, 23, 59, 59, 999), "month"), Date.UTC(2028, 1, 29, 23, 59, 59, 999));
+  assert.equal(periodEnd(Date.UTC(2027, 11, 15, 1, 2, 3, 4), "month"), Date.UTC(2028, 0, 15, 1, 2, 3, 4));
+  assert.equal(periodEnd(Date.UTC(2027, 2, 31), "month"), Date.UTC(2027, 3, 30));
+  assert.equal(periodEnd(Date.UTC(2027, 4, 20), "month"), Date.UTC(2027, 5, 20));
+  let clock = T;
+  const app = makeApp({ ...vendored, now: () => clock });
+  route(app, "checkout-start", { body: '{"cap":{"amount":5,"period":"week"}}' });
+  clock = T + 1000;
+  app.complete();
+  clock = T + 99999;
+  assert.equal(JSON.parse(route(app, "cap-get").body).spend.period_end, T + 1000 + 604800000);
+  route(app, "cap-set", { body: '{"cap":{"amount":5,"period":"month"}}' });
+  assert.equal(JSON.parse(route(app, "cap-get").body).spend.period_end, T + 1000 + 604800000);
+  assert.notEqual(JSON.parse(route(app, "cap-get").body).spend.period_end, 0);
 });
 
 test("a credential that does not match changes nothing, also with a body", () => {

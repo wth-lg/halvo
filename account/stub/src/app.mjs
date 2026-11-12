@@ -3,6 +3,18 @@ import { createHash } from "node:crypto";
 const DONE_PAGE = '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><title>Done</title></head><body><p>Done. You can close this page.</p></body></html>\n';
 const JSON_TYPE = "application/json";
 
+/**
+ * The end of the first cap period of an account made at `anchor` (Ms), as contract 4 counts it: 604,800,000 ms later
+ * for `week`, and for `month` the anchor's day and time of day one calendar month later in UTC, or that month's last day.
+ */
+export function periodEnd(anchor, period) {
+  if (period === "week") return anchor + 604800000;
+  const at = new Date(anchor);
+  const month = at.getUTCMonth() + 1;
+  const last = new Date(Date.UTC(at.getUTCFullYear(), month + 1, 0)).getUTCDate();
+  return Date.UTC(at.getUTCFullYear(), month, Math.min(at.getUTCDate(), last), at.getUTCHours(), at.getUTCMinutes(), at.getUTCSeconds(), at.getUTCMilliseconds());
+}
+
 const hashOf = (credential) => createHash("sha256").update(credential, "ascii").digest("hex");
 
 /**
@@ -11,9 +23,10 @@ const hashOf = (credential) => createHash("sha256").update(credential, "ascii").
  * [name, value] pairs in their order and the body bytes, and returns `{status, type, body, result}`: the answer of
  * contracts.md 1.4 and 1.3, with `type` null for an empty body and `result` null for an answer that is no JSON.
  * `malformed()` returns the answer for bytes that are no request: 400 with the samples' rejected body.
- * The control functions move the scripted states and return how many accounts changed.
+ * The control functions move the scripted states and return how many accounts changed; `complete` takes the time
+ * from `now()` and sets the end of the account's first cap period from it (see periodEnd).
  */
-export function makeApp({ schema, routes, samples }) {
+export function makeApp({ schema, routes, samples, now = Date.now }) {
   const patterns = new Map(Object.entries(routes.headers).map(([name, header]) => [name, new RegExp(header.pattern)]));
   const accounts = new Map();
   let notFinished = false;
@@ -21,7 +34,7 @@ export function makeApp({ schema, routes, samples }) {
   const sample = (route, result) => structuredClone(samples.answers[route][result]);
   const reply = (status, answer) => ({ status, type: JSON_TYPE, body: JSON.stringify(answer), result: answer.result });
   const reject = (status) => reply(status, structuredClone(samples.rejected));
-  const capAnswer = (entry) => ({ result: "cap", cap: { ...entry.cap }, spend: { ...samples.answers["cap-get"].cap.spend } });
+  const capAnswer = (entry) => ({ result: "cap", cap: { ...entry.cap }, spend: { ...samples.answers["cap-get"].cap.spend, period_end: entry.periodEnd } });
 
   function decide(name, id, hash, body) {
     const entry = accounts.get(id);
@@ -115,7 +128,11 @@ export function makeApp({ schema, routes, samples }) {
   return {
     handle,
     malformed: () => reject(400),
-    complete: () => move(["pending"], "active"),
+    complete: () => {
+      const at = now();
+      for (const entry of accounts.values()) if (entry.state === "pending") entry.periodEnd = periodEnd(at, entry.cap.period);
+      return move(["pending"], "active");
+    },
     expire: () => move(["pending"], null),
     cancel: () => move(["active", "payment-failed"], "cancelled"),
     failPayment: () => move(["active"], "payment-failed"),
