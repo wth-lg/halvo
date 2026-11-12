@@ -114,14 +114,22 @@ pub(crate) fn prepare(
     if !refused.is_empty() {
         return Err(Error::Workbook(Refusal::Kinds(refused)));
     }
-    let part = patch::part_of(&entries, sheet)?;
+    let part = parts::part_of(&entries, sheet)?;
+    let workbook_part = parts::workbook_name(&entries)?;
     let changed = spoiled(patch::write(&original, &entries, &part, range, values)?);
     let checkpoint = beside(&workbook, "checkpoint", run);
     let copy = beside(&workbook, "prepared", run);
     let made = keep_checkpoint(&checkpoint, &original)?;
     let checked = write_copy(&copy, &changed).and_then(|()| {
         let disk = fs::read(&copy)?;
-        check(&original, &disk, &part, sheet, range, values)?;
+        check(
+            &original,
+            &disk,
+            (&part, &workbook_part),
+            sheet,
+            range,
+            values,
+        )?;
         Ok(disk)
     });
     match checked {
@@ -206,13 +214,13 @@ fn write_copy(copy: &Path, bytes: &[u8]) -> Result<(), Error> {
 fn check(
     original: &[u8],
     disk: &[u8],
-    part: &str,
+    written: (&str, &str),
     sheet: &str,
     range: Range,
     values: &[Vec<Value>],
 ) -> Result<(), Error> {
     let cells: Vec<(u32, u32)> = range.cells().collect();
-    if !same::package(original, disk, part, &cells) {
+    if !same::package(original, disk, written, &cells) {
         return Err(Error::Sheet);
     }
     if guarded(|| book::holds(disk, sheet, range, values)) != Ok(true) {

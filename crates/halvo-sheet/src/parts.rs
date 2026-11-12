@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Cursor, Read};
 
-use quick_xml::escape::resolve_predefined_entity;
+use quick_xml::escape::{resolve_predefined_entity, unescape};
 use quick_xml::events::attributes::Attribute;
 use quick_xml::events::{BytesRef, BytesStart, Event};
 use quick_xml::{Reader, XmlVersion};
@@ -19,8 +19,9 @@ pub enum Kind {
     /// `pivot`: an archive entry under `xl/pivotTables/` or `xl/pivotCache/`, or a part that
     /// a relationship of a pivot table or a pivot cache links.
     Pivot,
-    /// `macro`: the archive entry `xl/vbaProject.bin`, or a part that a relationship of a VBA
-    /// project links.
+    /// `macro`: the archive entry `xl/vbaProject.bin`, a part that a relationship of a VBA
+    /// project links, or a sheet that a relationship of an Excel 4 macro sheet links
+    /// (`xlMacrosheet` or `xlIntlMacrosheet`).
     Macro,
     /// `table`: an archive entry under `xl/tables/`.
     Table,
@@ -88,30 +89,118 @@ impl Inventory {
     }
 }
 
+/// The workbook part, found by the rule of names below.
+pub(crate) const WORKBOOK: &str = "xl/workbook.xml";
+
+/// The last segment of each relationship type that the crate or its reader reads. A
+/// relationship of such a type names an entry, and a type that equals one of them only when
+/// ASCII case is ignored refuses the workbook.
+const READ: [&str; 11] = [
+    "officeDocument",
+    "worksheet",
+    "chartsheet",
+    "dialogsheet",
+    "table",
+    "vbaProject",
+    "pivotTable",
+    "pivotCacheDefinition",
+    "pivotCacheRecords",
+    "xlMacrosheet",
+    "xlIntlMacrosheet",
+];
+
+/// The types of [`READ`] whose target is a sheet part that the element rules scan.
+const SHEETS: [&str; 5] = [
+    "worksheet",
+    "chartsheet",
+    "dialogsheet",
+    "xlMacrosheet",
+    "xlIntlMacrosheet",
+];
+
+fn relationship() -> Error {
+    Error::Workbook(Refusal::Relationship)
+}
+
+fn part() -> Error {
+    Error::Workbook(Refusal::Part)
+}
+
 pub(crate) fn entries(bytes: &[u8]) -> Result<Entries, Error> {
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|_| unreadable())?;
     if archive.has_duplicate_names() {
         return Err(unreadable());
     }
     let mut all = BTreeMap::new();
+    let mut folded = BTreeSet::new();
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index).map_err(|_| unreadable())?;
         let name = entry.name().map_err(|_| unreadable())?.to_string();
-        let mut content = Vec::new();
-        entry.read_to_end(&mut content).map_err(|_| unreadable())?;
-        if all.insert(name, content).is_some() {
+        if !folded.insert(fold(&name)) {
             return Err(unreadable());
         }
+        let mut content = Vec::new();
+        entry.read_to_end(&mut content).map_err(|_| unreadable())?;
+        all.insert(name, content);
     }
     Ok(all)
 }
 
-fn lower(name: &str) -> String {
+/// A name as the package format compares part names: without ASCII case, `\` read as `/`.
+pub(crate) fn fold(name: &str) -> String {
     name.replace('\\', "/").to_ascii_lowercase()
 }
 
+/// The entries of a package by their folded names. [`entries`] refuses two entries whose names
+/// fold alike, so each folded name stands for one entry.
+pub(crate) struct Names<'a> {
+    folded: BTreeMap<String, (&'a str, &'a [u8])>,
+}
+
+impl<'a> Names<'a> {
+    pub(crate) fn new(entries: &'a Entries) -> Names<'a> {
+        let folded = entries
+            .iter()
+            .map(|(name, bytes)| (fold(name), (name.as_str(), bytes.as_slice())))
+            .collect();
+        Names { folded }
+    }
+
+    /// The entry that `name` names, with its name as the archive spells it.
+    pub(crate) fn find(&self, name: &str) -> Option<(&'a str, &'a [u8])> {
+        self.folded.get(&fold(name)).copied()
+    }
+}
+
+/// A target with each `%` and two hex digits decoded. Refused: a `%` without two hex digits,
+/// an encoded `/` or `\`, and bytes that are not UTF-8.
+fn decoded(target: &str) -> Result<String, Error> {
+    let bytes = target.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        if bytes[at] != b'%' {
+            out.push(bytes[at]);
+            at += 1;
+            continue;
+        }
+        let hex = |i: usize| bytes.get(i).copied().filter(u8::is_ascii_hexdigit);
+        let (Some(high), Some(low)) = (hex(at + 1), hex(at + 2)) else {
+            return Err(relationship());
+        };
+        let digit = |b: u8| (b as char).to_digit(16).unwrap_or_default() as u8;
+        let byte = digit(high) * 16 + digit(low);
+        if byte == b'/' || byte == b'\\' {
+            return Err(relationship());
+        }
+        out.push(byte);
+        at += 3;
+    }
+    String::from_utf8(out).map_err(|_| relationship())
+}
+
 fn entry_kind(name: &str) -> Option<Kind> {
-    let name = lower(name);
+    let name = fold(name);
     if name.ends_with('/') {
         return None;
     }
@@ -136,10 +225,9 @@ fn entry_kind(name: &str) -> Option<Kind> {
     }
 }
 
-fn relationship_kind(kind_type: &str) -> Option<Kind> {
-    let tail = kind_type.rsplit('/').next().unwrap_or_default();
+fn relationship_kind(tail: &str) -> Option<Kind> {
     match tail {
-        "vbaProject" => Some(Kind::Macro),
+        "vbaProject" | "xlMacrosheet" | "xlIntlMacrosheet" => Some(Kind::Macro),
         "pivotTable" | "pivotCacheDefinition" | "pivotCacheRecords" => Some(Kind::Pivot),
         _ => None,
     }
@@ -365,68 +453,200 @@ fn resolve(source: &str, target: &str) -> String {
     path.join("/")
 }
 
-type Attrs = BTreeMap<String, String>;
+/// A relationship as the crate reads it: its id and target as written (the reader keys and
+/// joins them so), its target's value, and the last segment of its type.
+struct Rel {
+    id: String,
+    tail: String,
+    target: String,
+    raw: String,
+}
 
-fn element_attributes(xml: &[u8]) -> Vec<(String, Attrs)> {
+fn tail(kind_type: &str) -> &str {
+    kind_type.rsplit('/').next().unwrap_or_default()
+}
+
+fn relationships(rels: &[u8]) -> Result<Vec<Rel>, Error> {
+    let mut reader = new_reader(rels);
+    let mut buf = Vec::new();
+    let mut found = Vec::new();
+    loop {
+        let event = reader.read_event_into(&mut buf).map_err(|_| part())?;
+        match &event {
+            Event::Eof => break,
+            Event::Start(e) | Event::Empty(e) if local(e.name().as_ref()) == "Relationship" => {
+                let mut rel = Rel {
+                    id: String::new(),
+                    tail: String::new(),
+                    target: String::new(),
+                    raw: String::new(),
+                };
+                for attribute in e.attributes() {
+                    let attribute = attribute.map_err(|_| part())?;
+                    let value = attribute
+                        .normalized_value(XmlVersion::Implicit1_0)
+                        .map_err(|_| part())?;
+                    match attribute.key.as_ref() {
+                        "Id" => rel.id = attribute.value.to_string(),
+                        "Type" => rel.tail = tail(&value).to_string(),
+                        "Target" => {
+                            rel.target = value.into_owned();
+                            rel.raw = attribute.value.to_string();
+                        }
+                        _ => {}
+                    }
+                }
+                found.push(rel);
+            }
+            _ => {}
+        }
+        buf.clear();
+    }
+    Ok(found)
+}
+
+/// The entry that `target`, decoded and taken from the part `source`, names.
+fn named<'a>(names: &Names<'a>, source: &str, target: &str) -> Result<Option<&'a str>, Error> {
+    let path = resolve(source, &decoded(target)?);
+    Ok(names.find(&path).map(|(name, _)| name))
+}
+
+/// The workbook part, as the archive spells its name. Refused: no such entry, no package
+/// relationships, no office document relationship, or one whose target as written is not
+/// `xl/workbook.xml` (ASCII case ignored, one leading `/` allowed): the reader opens the part
+/// that this relationship names.
+pub(crate) fn workbook<'a>(names: &Names<'a>) -> Result<(&'a str, &'a [u8]), Error> {
+    let found = names.find(WORKBOOK).ok_or_else(unreadable)?;
+    let (_, root) = names.find("_rels/.rels").ok_or_else(unreadable)?;
+    let documents: Vec<Rel> = relationships(root)?
+        .into_iter()
+        .filter(|rel| rel.tail == "officeDocument")
+        .collect();
+    let at_workbook = |rel: &Rel| {
+        let raw = rel.raw.strip_prefix('/').unwrap_or(&rel.raw);
+        raw.eq_ignore_ascii_case(WORKBOOK)
+    };
+    if documents.is_empty() || !documents.iter().all(at_workbook) {
+        return Err(relationship());
+    }
+    Ok(found)
+}
+
+/// The name of the workbook part as the archive spells it.
+pub(crate) fn workbook_name(entries: &Entries) -> Result<String, Error> {
+    Ok(workbook(&Names::new(entries))?.0.to_string())
+}
+
+struct Sheet<'a> {
+    name: String,
+    part: Option<&'a str>,
+    agrees: bool,
+}
+
+/// The sheets that the workbook part names, in its order, read as the reader reads them: the
+/// element `sheet` at any depth, its name with entities decoded, and its relationship by the
+/// last attribute `id` of any prefix. Each comes with the entry that its relationship names,
+/// and with whether the reader, which joins `xl/` and the target as written, finds that entry.
+fn sheets<'a>(names: &Names<'a>) -> Result<Vec<Sheet<'a>>, Error> {
+    let (book, xml) = workbook(names)?;
+    let rels = match names.find(&rels_of(book)) {
+        Some((_, rels)) => relationships(rels)?,
+        None => Vec::new(),
+    };
+    let by_id: BTreeMap<&str, &Rel> = rels.iter().map(|rel| (rel.id.as_str(), rel)).collect();
+    let mut found = Vec::new();
+    for (name, id) in sheet_elements(xml)? {
+        let Some(rel) = id.as_deref().and_then(|id| by_id.get(id)) else {
+            found.push(Sheet {
+                name,
+                part: None,
+                agrees: false,
+            });
+            continue;
+        };
+        let part = named(names, book, &rel.target)?;
+        let read = match rel.raw.strip_prefix('/') {
+            Some(path) => path.to_string(),
+            None => format!("xl/{}", rel.raw),
+        };
+        let agrees = part.is_some_and(|part| fold(part) == read.to_ascii_lowercase());
+        found.push(Sheet { name, part, agrees });
+    }
+    Ok(found)
+}
+
+fn sheet_elements(xml: &[u8]) -> Result<Vec<(String, Option<String>)>, Error> {
     let mut reader = new_reader(xml);
     let mut buf = Vec::new();
     let mut found = Vec::new();
     loop {
-        match reader.read_event_into(&mut buf) {
-            Ok(Event::Eof) | Err(_) => break,
-            Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
-                let attrs = e
-                    .attributes()
-                    .flatten()
-                    .map(|a| (a.key.as_ref().to_string(), attribute_value(&a)))
-                    .collect();
-                found.push((local(e.name().as_ref()).to_string(), attrs));
+        let event = reader.read_event_into(&mut buf).map_err(|_| part())?;
+        match &event {
+            Event::Eof => break,
+            Event::Start(e) | Event::Empty(e) if local(e.name().as_ref()) == "sheet" => {
+                let mut name = String::new();
+                let mut id = None;
+                for attribute in e.attributes() {
+                    let attribute = attribute.map_err(|_| part())?;
+                    let key = attribute.key.as_ref();
+                    if key == "name" {
+                        name = unescape(&attribute.value).map_err(|_| part())?.into_owned();
+                    } else if key == "id" || key.ends_with(":id") {
+                        id = Some(attribute.value.to_string());
+                    }
+                }
+                found.push((name, id));
             }
-            Ok(_) => {}
+            _ => {}
         }
         buf.clear();
     }
-    found
+    Ok(found)
 }
 
-fn relationships(rels: &[u8]) -> Vec<Attrs> {
-    element_attributes(rels)
-        .into_iter()
-        .filter(|(element, _)| element == "Relationship")
-        .map(|(_, attrs)| attrs)
-        .collect()
-}
-
+#[derive(Default)]
 struct Linked {
     sheets: BTreeSet<String>,
     kinds: BTreeSet<Kind>,
 }
 
-fn by_relationship(entries: &Entries) -> Linked {
-    let mut linked = Linked {
-        sheets: BTreeSet::new(),
-        kinds: BTreeSet::new(),
-    };
+/// Reads every relationship of the package. Refuses a target that does not decode, a type that
+/// equals a type of [`READ`] only when ASCII case is ignored, and a relationship of a type of
+/// [`READ`] whose target names no entry. Collects the kinds that relationships link, and the
+/// sheet parts that the element rules scan: each target of a sheet type and each part that the
+/// workbook names as a sheet.
+fn by_relationship(entries: &Entries, names: &Names<'_>) -> Result<Linked, Error> {
+    let mut linked = Linked::default();
     for (name, xml) in entries {
-        let name = name.replace('\\', "/");
-        if !lower(&name).ends_with(".rels") {
+        let folded = fold(name);
+        if !folded.ends_with(".rels") {
             continue;
         }
-        let source = source_of(&name).unwrap_or_default();
-        for rel in relationships(xml) {
-            let kind_type = rel.get("Type").cloned().unwrap_or_default();
-            linked.kinds.extend(relationship_kind(&kind_type));
-            if kind_type.rsplit('/').next() == Some("worksheet") {
-                let target = rel.get("Target").cloned().unwrap_or_default();
-                linked.sheets.insert(lower(&resolve(&source, &target)));
+        let source = source_of(&folded).unwrap_or_default();
+        for rel in relationships(xml)? {
+            let target = named(names, &source, &rel.target)?;
+            let tail = rel.tail.as_str();
+            if !READ.contains(&tail) {
+                if READ.iter().any(|read| read.eq_ignore_ascii_case(tail)) {
+                    return Err(relationship());
+                }
+                continue;
+            }
+            let target = target.ok_or_else(relationship)?;
+            linked.kinds.extend(relationship_kind(tail));
+            if SHEETS.contains(&tail) {
+                linked.sheets.insert(fold(target));
             }
         }
     }
-    linked
+    for sheet in sheets(names)? {
+        linked.sheets.extend(sheet.part.map(fold));
+    }
+    Ok(linked)
 }
 
 fn holds(set: PartSet, name: &str, sheets: &BTreeSet<String>) -> bool {
-    let name = lower(name);
+    let name = fold(name);
     match set {
         PartSet::Sheets => {
             let by_path = name.starts_with("xl/worksheets/")
@@ -440,7 +660,8 @@ fn holds(set: PartSet, name: &str, sheets: &BTreeSet<String>) -> bool {
 }
 
 pub(crate) fn inventory(entries: &Entries) -> Result<Inventory, Error> {
-    let linked = by_relationship(entries);
+    let names = Names::new(entries);
+    let linked = by_relationship(entries, &names)?;
     let mut found = Inventory::default();
     found.present.extend(linked.kinds.iter().copied());
     for (name, xml) in entries {
@@ -476,39 +697,44 @@ fn new_reader(xml: &[u8]) -> Reader<&[u8]> {
     reader
 }
 
-pub(crate) fn linked(entries: &Entries, part: &str, kind: &str) -> Vec<String> {
-    let Some(rels) = entries.get(&rels_of(part)) else {
-        return Vec::new();
+/// The entries that the relationships of type `kind` of the part `part` name, as the archive
+/// spells them. A target that names no entry refuses the workbook, whatever its target mode.
+pub(crate) fn linked(entries: &Entries, part: &str, kind: &str) -> Result<Vec<String>, Error> {
+    let names = Names::new(entries);
+    let Some((_, rels)) = names.find(&rels_of(part)) else {
+        return Ok(Vec::new());
     };
-    relationships(rels)
-        .into_iter()
-        .filter(|rel| {
-            rel.get("Type").and_then(|t| t.rsplit('/').next()) == Some(kind)
-                && rel.get("TargetMode").map(String::as_str) != Some("External")
-        })
-        .filter_map(|rel| rel.get("Target").map(|target| resolve(part, target)))
-        .collect()
+    let mut found = Vec::new();
+    for rel in relationships(rels)? {
+        if rel.tail == kind {
+            let target = named(&names, part, &rel.target)?.ok_or_else(relationship)?;
+            found.push(target.to_string());
+        }
+    }
+    Ok(found)
 }
 
-pub(crate) fn sheet_parts(entries: &Entries) -> Vec<(String, String)> {
-    let empty = Vec::new();
-    let workbook = entries.get("xl/workbook.xml").unwrap_or(&empty);
-    let rels = entries.get("xl/_rels/workbook.xml.rels").unwrap_or(&empty);
-    let targets: BTreeMap<String, String> = relationships(rels)
+/// The entry of the sheet named `sheet` (compared byte for byte), as the archive spells it.
+/// [`Error::NoSheet`] when the workbook names no such sheet. Refused when its relationship is
+/// missing, names no entry, or names another entry than the one that the reader reads.
+pub(crate) fn part_of(entries: &Entries, sheet: &str) -> Result<String, Error> {
+    let names = Names::new(entries);
+    let found = sheets(&names)?
         .into_iter()
-        .filter_map(|rel| Some((rel.get("Id")?.clone(), rel.get("Target")?.clone())))
-        .collect();
-    element_attributes(workbook)
-        .into_iter()
-        .filter(|(element, _)| element == "sheet")
-        .filter_map(|(_, attrs)| {
-            let name = attrs.get("name")?.clone();
-            let id = attrs
-                .iter()
-                .find(|(k, _)| local(k) == "id" && k.contains(':'))?
-                .1;
-            Some((name, resolve("xl/workbook.xml", targets.get(id)?)))
-        })
+        .find(|found| found.name == sheet)
+        .ok_or(Error::NoSheet)?;
+    match found.part {
+        Some(part) if found.agrees => Ok(part.to_string()),
+        _ => Err(relationship()),
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn sheet_parts(entries: &Entries) -> Vec<String> {
+    let names = Names::new(entries);
+    let all = sheets(&names).expect("the sheets");
+    all.into_iter()
+        .filter_map(|sheet| sheet.part.map(str::to_string))
         .collect()
 }
 
@@ -549,6 +775,27 @@ mod tests {
             };
             assert_eq!(names(refused), want_refused.to_vec(), "{file}");
         }
+    }
+
+    #[test]
+    fn a_target_is_percent_decoded_and_an_encoded_separator_or_a_broken_escape_is_refused() {
+        let cases: [(&str, Option<&str>); 10] = [
+            ("../tables/table1.xml", Some("../tables/table1.xml")),
+            ("table%31.xml", Some("table1.xml")),
+            ("t%61ble%2E%78ml", Some("table.xml")),
+            ("%C3%A9.xml", Some("\u{e9}.xml")),
+            ("..%2Ftables", None),
+            ("..%2ftables", None),
+            ("..%5Ctables", None),
+            ("table%3.xml", None),
+            ("table%+1.xml", None),
+            ("%E9.xml", None),
+        ];
+        for (target, want) in cases {
+            let got = decoded(target).ok();
+            assert_eq!(got.as_deref(), want, "{target}");
+        }
+        assert_eq!(decoded("%2F"), Err(Error::Workbook(Refusal::Relationship)));
     }
 
     #[test]

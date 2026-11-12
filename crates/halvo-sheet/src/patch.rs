@@ -10,8 +10,6 @@ use crate::parts::{self, Entries};
 use crate::range::Range;
 use crate::source::Value;
 
-pub(crate) const WORKBOOK: &str = "xl/workbook.xml";
-
 type Pos = (u32, u32);
 
 struct Edit {
@@ -544,11 +542,8 @@ fn with_calc(xml: &str, at: usize, root: &str) -> String {
 
 pub(crate) fn table_headers(entries: &Entries, part: &str) -> Result<Vec<Range>, Error> {
     let mut headers = Vec::new();
-    for target in parts::linked(entries, part, "table") {
-        let Some(bytes) = entries.get(&target) else {
-            continue;
-        };
-        let xml = text(bytes)?;
+    for target in parts::linked(entries, part, "table")? {
+        let xml = text(entries.get(&target).ok_or_else(unreadable)?)?;
         let mut reader = Reader::from_reader(xml.as_bytes());
         let mut buf = Vec::new();
         loop {
@@ -578,9 +573,8 @@ pub(crate) fn table_headers(entries: &Entries, part: &str) -> Result<Vec<Range>,
 
 pub(crate) fn package(
     original: &[u8],
-    part: &str,
-    sheet: &str,
-    book: Option<&str>,
+    (part, sheet): (&str, &str),
+    (workbook, book): (&str, Option<&str>),
 ) -> Result<Vec<u8>, Error> {
     let mut archive = zip::ZipArchive::new(Cursor::new(original)).map_err(|_| unreadable())?;
     let mut out = zip::ZipWriter::new(Cursor::new(Vec::new()));
@@ -589,7 +583,7 @@ pub(crate) fn package(
         let name = entry.name().map_err(|_| unreadable())?.to_string();
         let replaced = if name == part {
             Some(sheet)
-        } else if name == WORKBOOK {
+        } else if name == workbook {
             book
         } else {
             None
@@ -611,14 +605,6 @@ pub(crate) fn package(
     Ok(written.into_inner())
 }
 
-pub(crate) fn part_of(entries: &Entries, sheet: &str) -> Result<String, Error> {
-    parts::sheet_parts(entries)
-        .into_iter()
-        .find(|(name, _)| name == sheet)
-        .map(|(_, part)| part)
-        .ok_or(Error::NoSheet)
-}
-
 pub(crate) fn write(
     original: &[u8],
     entries: &Entries,
@@ -634,8 +620,9 @@ pub(crate) fn write(
     }
     let source = text(entries.get(part).ok_or_else(unreadable)?)?;
     let patched = sheet_part(source, &named)?;
-    let book = workbook_part(text(entries.get(WORKBOOK).ok_or_else(unreadable)?)?)?;
-    package(original, part, &patched, book.as_deref())
+    let workbook = parts::workbook_name(entries)?;
+    let book = workbook_part(text(entries.get(&workbook).ok_or_else(unreadable)?)?)?;
+    package(original, (part, &patched), (&workbook, book.as_deref()))
 }
 
 #[cfg(test)]
@@ -671,7 +658,7 @@ mod tests {
     fn every_sheet_part_and_workbook_part_of_the_corpus_with_no_cell_written_is_its_source() {
         for file in FILES {
             let all = corpus(file);
-            for (_, part) in parts::sheet_parts(&all) {
+            for part in parts::sheet_parts(&all) {
                 let source = String::from_utf8(all[&part].clone()).expect("utf-8");
                 assert_eq!(
                     sheet_part(&source, &BTreeMap::new()).expect("patched"),
@@ -679,7 +666,7 @@ mod tests {
                     "{file} {part}"
                 );
             }
-            let book = String::from_utf8(all[WORKBOOK].clone()).expect("utf-8");
+            let book = String::from_utf8(all[parts::WORKBOOK].clone()).expect("utf-8");
             assert_eq!(workbook_part(&book).expect("read"), None, "{file}");
         }
     }

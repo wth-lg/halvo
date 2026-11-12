@@ -73,6 +73,13 @@ pub enum Refusal {
     /// mark, or the worksheet part is not in the form that the writer takes: a row or a cell
     /// with no reference, rows or cells out of order, a cell outside its row.
     Part,
+    /// A relationship does not name a part the way the package format names parts. Its target
+    /// does not decode: a percent sign is not followed by two hex digits, a `/` or a `\` is
+    /// percent-encoded, or the bytes are not UTF-8. Or a relationship of a type that the crate
+    /// or its reader reads names no entry, or its type equals such a type only when ASCII case
+    /// is ignored. Or the package's office document is not `xl/workbook.xml`, or the crate and
+    /// the reader would find the named sheet in two different parts.
+    Relationship,
     /// A cell to write lies in the header row of a table that the sheet's relationships link.
     TableHeader,
     /// A cell to write holds an array formula or a data-table formula, or lies inside the

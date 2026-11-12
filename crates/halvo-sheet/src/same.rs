@@ -19,7 +19,12 @@ fn listed(bytes: &[u8]) -> Option<Vec<(String, Vec<u8>)>> {
     Some(all)
 }
 
-pub(crate) fn package(original: &[u8], copy: &[u8], part: &str, cells: &[Pos]) -> bool {
+pub(crate) fn package(
+    original: &[u8],
+    copy: &[u8],
+    (part, book): (&str, &str),
+    cells: &[Pos],
+) -> bool {
     let (Some(before), Some(after)) = (listed(original), listed(copy)) else {
         return false;
     };
@@ -33,7 +38,7 @@ pub(crate) fn package(original: &[u8], copy: &[u8], part: &str, cells: &[Pos]) -
             name == other
                 && if name == part {
                     sheet(old, new, cells)
-                } else if name == "xl/workbook.xml" {
+                } else if name == book {
                     old == new || workbook(old, new)
                 } else {
                     old == new
@@ -245,6 +250,10 @@ mod tests {
 
     fn source(file: &str) -> Vec<u8> {
         std::fs::read(corpus_file(file)).expect("read the corpus file")
+    }
+
+    fn package(original: &[u8], copy: &[u8], part: &str, cells: &[Pos]) -> bool {
+        super::package(original, copy, (part, BOOK), cells)
     }
 
     fn changed(file: &str, edits: &[(&str, &str, &str)]) -> Vec<u8> {

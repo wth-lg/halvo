@@ -264,6 +264,36 @@ pub fn rewrite(source: &Path, target: &Path, edits: &[(&str, &str, &str)]) {
     assert!(used.iter().all(|u| *u), "an edit found no entry");
 }
 
+pub type Repack<'a> = &'a dyn Fn(&str, Vec<u8>) -> Option<(String, Vec<u8>)>;
+
+pub fn repack(source: &Path, target: &Path, each: Repack<'_>, extra: &[(&str, &[u8])]) {
+    use std::io::{Read, Write};
+    let mut archive = zip::ZipArchive::new(fs::File::open(source).expect("open")).expect("a zip");
+    let mut out = zip::ZipWriter::new(fs::File::create(target).expect("create"));
+    let options = zip::write::SimpleFileOptions::default();
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).expect("entry");
+        let name = entry.name().expect("name").to_string();
+        let mut bytes = Vec::new();
+        entry.read_to_end(&mut bytes).expect("read");
+        if let Some((name, bytes)) = each(&name, bytes) {
+            out.start_file(name.as_str(), options).expect("start");
+            out.write_all(&bytes).expect("write");
+        }
+    }
+    for (name, bytes) in extra {
+        out.start_file(*name, options).expect("start");
+        out.write_all(bytes).expect("write");
+    }
+    out.finish().expect("finish");
+}
+
+pub fn replaced(bytes: Vec<u8>, from: &str, to: &str) -> Vec<u8> {
+    let text = String::from_utf8(bytes).expect("utf-8");
+    assert_eq!(text.matches(from).count(), 1, "the part holds {from} once");
+    text.replacen(from, to, 1).into_bytes()
+}
+
 pub fn rewrite_bytes(source: &Path, target: &Path, part: &str, edit: &dyn Fn(Vec<u8>) -> Vec<u8>) {
     use std::io::{Read, Write};
     let mut archive = zip::ZipArchive::new(fs::File::open(source).expect("open")).expect("a zip");
@@ -281,6 +311,15 @@ pub fn rewrite_bytes(source: &Path, target: &Path, part: &str, edit: &dyn Fn(Vec
         out.write_all(&bytes).expect("write");
     }
     out.finish().expect("finish");
+}
+
+pub fn entry(path: &Path, name: &str) -> Vec<u8> {
+    use std::io::Read;
+    let mut archive = zip::ZipArchive::new(fs::File::open(path).expect("open")).expect("a zip");
+    let mut entry = archive.by_name(name).expect("the entry");
+    let mut bytes = Vec::new();
+    entry.read_to_end(&mut bytes).expect("read");
+    bytes
 }
 
 pub fn entry_names(path: &Path) -> Vec<String> {
