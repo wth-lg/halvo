@@ -1038,6 +1038,25 @@ fn the_test_of_the_core_files_refuses_a_path_attribute_and_the_include_macros() 
 }
 
 #[test]
+fn the_path_rule_reads_a_raw_identifier_and_exempts_a_fragment_only_inside_a_matcher() {
+    for text in [
+        "macro_rules! own_mod {\n    ($a:ident $b:literal) => {\n        #[$a = $b]\n        mod sneak;\n    };\n}\nown_mod!(r#path \"learning.rs\");\n",
+        "macro_rules! own_mod {\n    ($d:tt $a:ident : $($m:tt)*) => {\n        #[$($m)*]\n        mod sneak;\n    };\n}\nown_mod! {$ a: path = \"learning.rs\"}\n",
+    ] {
+        assert_eq!(
+            later_faults("learning.rs", text),
+            ["learning.rs holds path in an attribute or a macro"],
+            "{text}"
+        );
+        assert_eq!(
+            later_faults("kinds.rs", &format!("{}{text}", source("kinds.rs"))),
+            ["kinds.rs holds path in an attribute or a macro"],
+            "{text}"
+        );
+    }
+}
+
+#[test]
 fn the_walk_reads_every_rust_file_of_src_outside_the_lock_at_any_depth() {
     let src = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("walk-outside-lib")
@@ -2199,6 +2218,10 @@ fn the_grammar_of_a_list_file_refuses_each_form_outside_it() {
             three.to_owned(),
         ),
         (
+            format!("{USE_LINE}\n\n/*\n/// X\n*/\n/** X*/\npub const KINDS: &[KindEntry] = &[];\npub const ERROR_NAMES: &[&str] = &[];\n"),
+            three.to_owned(),
+        ),
+        (
             changed("/// The error names.\n", "/** The error names. */\n"),
             three.to_owned(),
         ),
@@ -2431,13 +2454,97 @@ fn each_later_file_re_exports_its_two_lists_at_their_old_paths() {
     );
     for module in LATER {
         let text = read(&schema_dir().join("src").join(format!("{module}.rs")));
-        let line = format!("pub use halvo_schema_core::{module}::{{ERROR_NAMES, KINDS}};");
-        let want = tokens(&line);
-        let want: Vec<&str> = want.iter().map(String::as_str).collect();
+        assert_eq!(old_path_faults(module, &text), Vec::<String>::new());
+    }
+    let line = "pub use ::halvo_schema_core::learning::{ERROR_NAMES, KINDS};\n";
+    let old = "pub use halvo_schema_core::learning::{ERROR_NAMES, KINDS};\n";
+    let fake = "pub mod fake;\nmod halvo_schema_core {\n    pub use super::fake as learning;\n}\n";
+    let own =
+        "pub const KINDS: &[crate::KindEntry] = &[];\npub const ERROR_NAMES: &[&str] = &[];\n";
+    let file = "halvo-schema/src/learning.rs";
+    let no_line = format!(
+        "{file} does not hold the line `{}` once at the top level",
+        line.trim_end()
+    );
+    let attribute = format!("{file} puts an attribute on the line `{}`", line.trim_end());
+    let named = format!(
+        "{file} names KINDS or ERROR_NAMES outside the line `{}`",
+        line.trim_end()
+    );
+    for (text, faults) in [
+        (own.to_owned(), vec![no_line.clone()]),
+        (String::new(), vec![no_line.clone(), named.clone()]),
+        (format!("#[cfg(any())]\n{line}"), vec![attribute.clone()]),
+        (format!("#[cfg(any())]\n{line}{own}"), vec![attribute.clone(), named.clone()]),
+        (
+            format!("#[cfg(any())]\n{line}pub const KINDS: &[crate::KindEntry; 0] = &[];\npub const ERROR_NAMES: &[&str; 0] = &[];\n"),
+            vec![attribute.clone(), named.clone()],
+        ),
+        (
+            format!("mod inner {{\n    {line}}}\npub use inner::*;\n"),
+            vec![no_line.clone()],
+        ),
+        (
+            format!("{line}mod other {{\n    pub const KINDS: u8 = 0;\n}}\n"),
+            vec![named.clone()],
+        ),
+        (
+            format!("{line}pub use crate::kinds::KindEntry as r#ERROR_NAMES;\n"),
+            vec![named.clone()],
+        ),
+        (format!("{line}{line}"), vec![no_line.clone(), named.clone()]),
+        (old.to_owned(), vec![no_line.clone()]),
+        (
+            format!("{old}mod halvo_schema_core {{\n    pub use ::halvo_schema_core::routing as learning;\n}}\n"),
+            vec![no_line.clone()],
+        ),
+        (format!("{old}{fake}"), vec![no_line.clone()]),
+    ] {
+        assert_eq!(old_path_faults("learning", &text), faults, "{text}");
+    }
+    for twin in [
+        format!(
+            "/// The lists of the learning run.\npub mod more {{}}\n{line}pub fn shown() {{}}\n"
+        ),
+        format!("#![allow(unused)]\n{line}"),
+        format!("{line}{fake}"),
+    ] {
         assert_eq!(
-            find(&tokens(&text), &want).len(),
-            1,
-            "halvo-schema/src/{module}.rs: {line}"
+            old_path_faults("learning", &twin),
+            Vec::<String>::new(),
+            "{twin}"
         );
     }
+}
+
+fn old_path_faults(module: &str, text: &str) -> Vec<String> {
+    let file = format!("halvo-schema/src/{module}.rs");
+    let top: Vec<TokenTree> = match TokenStream::from_str(text) {
+        Ok(stream) => stream.into_iter().collect(),
+        Err(cause) => return vec![unread(&file, &cause.to_string())],
+    };
+    let line = format!("pub use ::halvo_schema_core::{module}::{{ERROR_NAMES, KINDS}};");
+    let want = trees(&line);
+    let at: Vec<usize> = (0..top.len())
+        .filter(|&i| top.len() >= i + want.len() && flat(&top[i..i + want.len()]) == flat(&want))
+        .collect();
+    let mut faults = Vec::new();
+    if at.len() != 1 {
+        faults.push(format!(
+            "{file} does not hold the line `{line}` once at the top level"
+        ));
+    }
+    if at.iter().any(|&i| {
+        i >= 2 && is_punct(top.get(i - 2), '#') && inner(&top[i - 1], Delimiter::Bracket).is_some()
+    }) {
+        faults.push(format!("{file} puts an attribute on the line `{line}`"));
+    }
+    let all = flat(&top);
+    let named = |name: &str| all.iter().filter(|t| bare(t) == name).count();
+    if named("KINDS") != 1 || named("ERROR_NAMES") != 1 {
+        faults.push(format!(
+            "{file} names KINDS or ERROR_NAMES outside the line `{line}`"
+        ));
+    }
+    faults
 }

@@ -29,7 +29,7 @@ pub use record::{AgentBindings, AgentEffect, AgentLog, AgentPlaybook, AgentRun, 
 pub use step::{ExecutableStep, Playbook};
 pub use text::{ApprovalId, Digest, EffectId, Name, OwnText, OwnValue, RunId, WebOrigin};
 
-pub use halvo_schema_core::executable::{ERROR_NAMES, KINDS};
+pub use ::halvo_schema_core::executable::{ERROR_NAMES, KINDS};
 
 /// The keys and closed-list names that this run's records, bodies and replies write, the names of its two kinds and
 /// its family. Left out: `tier`, `amount`, `period`, `week` and `month`, which the billing run's wire holds, and
