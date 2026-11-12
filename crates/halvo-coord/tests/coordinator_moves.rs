@@ -1181,7 +1181,16 @@ fn a_lapse_at_the_runners_end_that_met_a_busy_owner_is_stored_at_the_next_tick_b
         !events(&c).contains(&lapse),
         "the busy owner stored nothing"
     );
+    let from = c.ports().ports.tried.borrow().len();
     c.tick();
+    let refused = c.ports().ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| matches!(t.call, Call::Log(_)) && t.refused.is_some())
+        .count();
+    assert_eq!(
+        refused, 0,
+        "the board reads the lapse back, so that the owed run_ended follows it at once"
+    );
     let stored = events(&c);
     assert_eq!(stored.iter().filter(|w| **w == lapse).count(), 1);
     let at = |what: &What| stored.iter().position(|w| w == what);
