@@ -72,7 +72,8 @@ fn the_file_registers_the_six_kinds_of_origin_own_after_its_two_kinds_of_origin_
 }
 
 #[test]
-fn each_example_is_taken_by_the_store_and_by_its_strict_reader_byte_for_byte() {
+fn each_example_is_taken_by_the_store_and_byte_for_byte_by_the_strict_reader_where_its_kind_has_one(
+) {
     for name in OWN {
         let kind = entry(name);
         assert_eq!(check_record(kind, kind.example), Ok(()), "{name}");
@@ -140,7 +141,7 @@ fn a_row_that_names_a_key_outside_its_shape_or_holds_a_value_of_another_type_is_
         ),
         (
             "agent_log",
-            r#""model":"qwen3_1_7b""#,
+            r#""model":"minicpm5_2b""#,
             r#""model":"Qwen3 1.7B""#,
             "model: string_form",
         ),
@@ -203,6 +204,12 @@ fn a_row_without_its_workflow_or_its_day_is_refused_so_none_escapes_the_delete_o
                 "{to}"
             );
         }
+        let without = swap(kind.example, &format!("{workflow},"), "");
+        assert_eq!(
+            check_record(kind, &without),
+            Err(format!("{name}: workflow: missing_key"))
+        );
+        assert!(strict(name, &without).is_err(), "{name}");
         if let RetentionClass::Bounded { .. } = kind.class {
             let day = r#""day":20768"#;
             assert_eq!(
@@ -294,7 +301,8 @@ fn the_directory_of_own_rows_holds_one_file_for_each_kind_of_origin_own_and_noth
 }
 
 #[test]
-fn every_own_row_is_taken_by_the_store_and_by_its_strict_reader_byte_for_byte() {
+fn every_own_row_is_taken_by_the_store_and_byte_for_byte_by_the_strict_reader_where_its_kind_has_one(
+) {
     for name in OWN {
         let kind = entry(name);
         let lines = own_lines(name);
@@ -322,8 +330,24 @@ fn the_checkpoint_rows_hold_the_four_states_of_the_shape() {
             })
             .collect()
     };
+    let kind = entry("agent_checkpoint");
+    let mut keys: Vec<&str> = Vec::new();
+    for (key, _) in kind.fields {
+        if !keys.contains(key) {
+            keys.push(key);
+        }
+    }
     let mut states = BTreeSet::new();
     for line in own_lines("agent_checkpoint") {
+        let at: Vec<Option<usize>> = keys
+            .iter()
+            .map(|key| line.find(&format!("\"{key}\":")))
+            .collect();
+        assert!(at.iter().all(Option::is_some), "{line}");
+        assert!(
+            at.windows(2).all(|w| w[0] < w[1]),
+            "keys out of order: {line}"
+        );
         let row: serde_json::Value = serde_json::from_str(&line).unwrap();
         let state = row["state"].as_str().unwrap();
         states.insert(state.to_owned());
@@ -336,20 +360,165 @@ fn the_checkpoint_rows_hold_the_four_states_of_the_shape() {
             "gone" | "left" => assert!(row["seq"].as_u64() > Some(1), "{line}"),
             _ => panic!("{line}"),
         }
-        let left = row["left"].as_str();
-        assert_eq!(left.is_some(), state == "left", "{line}");
-        assert!(left.is_none_or(|l| {
-            ["changed", "link", "not_file", "name", "unreadable"].contains(&l)
-        }));
+        match &row["left"] {
+            serde_json::Value::Null => assert_ne!(state, "left", "{line}"),
+            serde_json::Value::String(left) => {
+                assert_eq!(state, "left", "{line}");
+                let reasons = ["changed", "link", "not_file", "name", "unreadable"];
+                assert!(reasons.contains(&left.as_str()), "{line}");
+            }
+            _ => panic!("left is neither null nor a name: {line}"),
+        }
         let folder = pieces(&row["folder"]);
         let workbook = pieces(&row["workbook"]);
         assert!(workbook.starts_with(&format!("{folder}/")), "{line}");
+        let file = workbook.rsplit('/').next().unwrap();
+        let (name, ext) = match file.rsplit_once('.') {
+            Some((name, ext)) => (name, format!(".{ext}")),
+            None => (file, String::new()),
+        };
         let run = row["run"].as_str().unwrap();
         let copy = pieces(&row["copy"]);
-        assert_eq!(copy, format!("bills.halvo-checkpoint-{run}.xlsx"), "{line}");
+        assert_eq!(
+            copy,
+            format!("{name}.halvo-checkpoint-{run}{ext}"),
+            "{line}"
+        );
     }
     let all: BTreeSet<String> = ["planned", "made", "gone", "left"]
         .map(str::to_owned)
         .into();
     assert_eq!(states, all);
+}
+
+fn first_states(class: &str) -> &'static [&'static str] {
+    match class {
+        "local_edit" => &["cleared", "refused"],
+        "payment" | "purchase" | "sign" => &["held", "refused"],
+        "send" | "delete" | "submit" => &["cleared", "held", "refused"],
+        _ => &[],
+    }
+}
+
+const MOVES: [(&str, &str); 10] = [
+    ("held", "held"),
+    ("approved", "held"),
+    ("held", "approved"),
+    ("held", "rejected"),
+    ("cleared", "rejected"),
+    ("approved", "rejected"),
+    ("cleared", "releasing"),
+    ("approved", "releasing"),
+    ("releasing", "committed"),
+    ("releasing", "unknown"),
+];
+
+#[test]
+fn the_rows_of_each_effect_start_as_a5_1_decides_for_the_class_and_move_as_a5_2_allows() {
+    let mut effects: Vec<(String, Vec<serde_json::Value>)> = Vec::new();
+    for line in own_lines("agent_effect") {
+        let row: serde_json::Value = serde_json::from_str(&line).unwrap();
+        let id = row["effect"].as_str().unwrap().to_owned();
+        match effects.iter_mut().find(|(e, _)| *e == id) {
+            Some((_, rows)) => rows.push(row),
+            None => effects.push((id, vec![row])),
+        }
+    }
+    assert!(!effects.is_empty());
+    for (id, rows) in &effects {
+        let class = rows[0]["class"].as_str().unwrap();
+        let mut before: Option<&serde_json::Value> = None;
+        for (i, row) in rows.iter().enumerate() {
+            assert_eq!(row["seq"].as_u64(), Some(i as u64 + 1), "{id}");
+            assert_eq!(row["class"].as_str(), Some(class), "{id}");
+            let state = row["state"].as_str().unwrap();
+            match before.map(|b| b["state"].as_str().unwrap()) {
+                None => assert!(
+                    first_states(class).contains(&state),
+                    "{id}: a {class} effect cannot start {state}"
+                ),
+                Some(from) => {
+                    assert!(MOVES.contains(&(from, state)), "{id}: {from} to {state}");
+                    let money = ["purchase", "payment", "sign"].contains(&class);
+                    assert!(
+                        !(money && state == "releasing" && from != "approved"),
+                        "{id}"
+                    );
+                }
+            }
+            let approval = row["approval"].as_str();
+            match state {
+                "held" | "cleared" | "refused" => assert_eq!(approval, None, "{id}: {state}"),
+                "approved" => assert!(approval.is_some(), "{id}: approved"),
+                "releasing" | "committed" | "unknown" => assert_eq!(
+                    approval,
+                    before.and_then(|b| b["approval"].as_str()),
+                    "{id}: {state}"
+                ),
+                _ => {}
+            }
+            before = Some(row);
+        }
+    }
+}
+
+const MODEL_TOKENS: [&str; 5] = [
+    "qwen3_5_2b",
+    "minicpm5_2b",
+    "granite_4_2_3b",
+    "ministral_3_3b",
+    "qwen3_5_4b",
+];
+
+#[test]
+fn the_model_of_each_log_row_is_null_or_a_token_of_the_table_of_a13_5() {
+    let lines = own_lines("agent_log");
+    assert_eq!(lines[0], entry("agent_log").example);
+    let mut named = 0;
+    for line in &lines {
+        let row: serde_json::Value = serde_json::from_str(line).unwrap();
+        match row["model"].as_str() {
+            Some(model) => {
+                assert!(MODEL_TOKENS.contains(&model), "{model}");
+                named += 1;
+            }
+            None => assert!(row["model"].is_null(), "{line}"),
+        }
+    }
+    assert!(named > 0);
+}
+
+#[test]
+fn each_later_revision_of_the_bindings_keeps_every_origin_and_slot_of_the_one_before() {
+    let names = |list: &serde_json::Value, key: Option<&str>| -> BTreeSet<String> {
+        let items = list.as_array().unwrap().iter();
+        let item = |v: &serde_json::Value| match key {
+            Some(key) => v[key].as_str().unwrap().to_owned(),
+            None => v.as_str().unwrap().to_owned(),
+        };
+        items.map(item).collect()
+    };
+    let mut revisions: Vec<(u64, BTreeSet<String>, BTreeSet<String>)> = own_lines("agent_bindings")
+        .iter()
+        .map(|line| {
+            let row: serde_json::Value = serde_json::from_str(line).unwrap();
+            (
+                row["rev"].as_u64().unwrap(),
+                names(&row["origins"], None),
+                names(&row["slots"], Some("name")),
+            )
+        })
+        .collect();
+    revisions.sort();
+    let revs: Vec<u64> = revisions.iter().map(|r| r.0).collect();
+    assert_eq!(revs, (1..=revisions.len() as u64).collect::<Vec<_>>());
+    for pair in revisions.windows(2) {
+        let (before, after) = (&pair[0], &pair[1]);
+        assert!(
+            before.1.is_subset(&after.1),
+            "rev {} drops an origin",
+            after.0
+        );
+        assert!(before.2.is_subset(&after.2), "rev {} drops a slot", after.0);
+    }
 }
