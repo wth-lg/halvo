@@ -252,11 +252,13 @@ impl Db {
             "PRAGMA secure_delete = ON;\n\
              PRAGMA temp_store = MEMORY;\n\
              PRAGMA journal_mode = WAL;\n\
-             PRAGMA foreign_keys = ON;",
+             PRAGMA foreign_keys = ON;\n\
+             PRAGMA checkpoint_fullfsync = ON;",
         )
         .map_err(db_error)?;
         require_secure_delete(&conn)?;
         require_exclusive_locking(&conn)?;
+        require_checkpoint_fullfsync(&conn)?;
         let db = Self {
             conn,
             wal_path: path.with_extension("db-wal"),
@@ -502,6 +504,13 @@ fn require_exclusive_locking(conn: &Connection) -> StoreResult<()> {
         Ok(())
     } else {
         Err(StoreError::SettingNotInEffect("locking_mode"))
+    }
+}
+
+fn require_checkpoint_fullfsync(conn: &Connection) -> StoreResult<()> {
+    match pragma_int(conn, "checkpoint_fullfsync")? {
+        1 => Ok(()),
+        _ => Err(StoreError::SettingNotInEffect("checkpoint_fullfsync")),
     }
 }
 
@@ -1002,6 +1011,7 @@ mod tests {
         assert_eq!(db.pragma_int("secure_delete").unwrap(), 1);
         assert_eq!(db.pragma_int("temp_store").unwrap(), 2);
         assert_eq!(db.fts_secure_delete().unwrap(), 1);
+        assert_eq!(db.pragma_int("checkpoint_fullfsync").unwrap(), 1);
     }
 
     fn persistent_store(dir: &Path) -> (EncryptedStore, RootId) {

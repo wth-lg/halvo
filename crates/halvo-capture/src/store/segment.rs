@@ -351,7 +351,23 @@ pub(crate) fn decrypt_segment_bytes(file_bytes: &[u8], key: &SegmentKey) -> Stor
 }
 
 pub(crate) fn remove_segment_file(path: &Path) -> StoreResult<()> {
-    remove_if_present(path)
+    remove_if_present(path)?;
+    sync_shard(path)
+}
+
+#[cfg(unix)]
+fn sync_shard(path: &Path) -> StoreResult<()> {
+    match path.parent() {
+        Some(shard) => std::fs::File::open(shard)
+            .and_then(|dir| dir.sync_all())
+            .map_err(io_error),
+        None => Ok(()),
+    }
+}
+
+#[cfg(not(unix))]
+fn sync_shard(_path: &Path) -> StoreResult<()> {
+    Ok(())
 }
 
 #[cfg(test)]
