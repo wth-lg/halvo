@@ -759,7 +759,13 @@ mod login_item_tests {
             InstallOutcome::Written
         );
         let path = login_item_path(&spec, &target);
-        assert_eq!(path, root.path().join("com.halvo.check-l.plist"));
+        assert_eq!(
+            path,
+            root.path()
+                .canonicalize()
+                .unwrap()
+                .join("com.halvo.check-l.plist")
+        );
         assert_eq!(std::fs::read_to_string(&path).unwrap(), spec.plist());
         assert!(spec
             .plist()
@@ -772,10 +778,10 @@ mod login_item_tests {
         );
         let user_dir = std::fs::read_dir(root.path()).unwrap().count();
         assert_eq!(user_dir, 1);
-        let gone = ScratchDir::new(root.path().join("missing"), &user).unwrap();
-        let gone_dir =
-            LoginItemDir::scratch_form(&gone, &Home(PathBuf::from("/Users/a b"))).unwrap();
-        assert!(install_login_item(&spec, &gone_dir).is_err());
+        assert_eq!(
+            ScratchDir::new(root.path().join("missing"), &user),
+            Err(PathError::Unresolved)
+        );
     }
 
     #[test]
@@ -783,7 +789,7 @@ mod login_item_tests {
         let home = tempfile::tempdir().unwrap();
         let account = Home(home.path().to_path_buf());
         let agents = LoginItemDir::for_account(&account).unwrap();
-        std::fs::create_dir_all(agents.path()).unwrap();
+        std::fs::create_dir_all(agents.path().join("check")).unwrap();
         let user = DataDir::for_account(&account).unwrap();
         let link = home.path().join("link");
         std::os::unix::fs::symlink(agents.path(), &link).unwrap();
@@ -802,6 +808,7 @@ mod login_item_tests {
                 inside.display()
             );
         }
+        std::fs::create_dir(home.path().join("scratch")).unwrap();
         let outside = ScratchDir::new(home.path().join("scratch"), &user).unwrap();
         assert_eq!(
             LoginItemDir::scratch_form(&outside, &account)

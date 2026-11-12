@@ -17,6 +17,8 @@ pub enum PathError {
     NotNormal,
     #[error("the path is not UTF-8")]
     NotUtf8,
+    #[error("the scratch directory does not resolve to a directory that exists")]
+    Unresolved,
     #[error("the scratch directory is the data directory or lies inside it")]
     InsideDataDir,
     #[error("the scratch directory is the account's LaunchAgents directory or lies inside it")]
@@ -242,11 +244,12 @@ pub struct ScratchDir(PathBuf);
 
 impl ScratchDir {
     pub fn new(path: impl Into<PathBuf>, user_data_dir: &DataDir) -> Result<Self, PathError> {
-        let path = checked(path.into())?;
-        if lies_within(&path, user_data_dir.path()) {
+        let given = checked(path.into())?;
+        let real = checked(given.canonicalize().map_err(|_| PathError::Unresolved)?)?;
+        if lies_within(&given, &real, user_data_dir.path()) {
             return Err(PathError::InsideDataDir);
         }
-        Ok(Self(path))
+        Ok(Self(real))
     }
 
     pub fn path(&self) -> &Path {
@@ -285,7 +288,7 @@ impl LoginItemDir {
 
     pub fn scratch_form(dir: &ScratchDir, account: &dyn AccountLookup) -> Result<Self, PathError> {
         let agents = Self::for_account(account)?;
-        if lies_within(dir.path(), agents.path()) {
+        if lies_within(dir.path(), dir.path(), agents.path()) {
             return Err(PathError::InsideLaunchAgents);
         }
         Ok(Self {
@@ -324,12 +327,31 @@ fn checked(path: PathBuf) -> Result<PathBuf, PathError> {
     Ok(path.components().collect())
 }
 
-fn lies_within(path: &Path, dir: &Path) -> bool {
-    same_or_inside(path, dir)
-        || same_or_inside(&resolved(path), &resolved(dir))
-        || inside_by_identity(path, dir)
+#[cfg(unix)]
+fn lies_within(given: &Path, real: &Path, dir: &Path) -> bool {
+    let Some(target) = identity(dir) else {
+        return false;
+    };
+    real.ancestors()
+        .chain(given.ancestors())
+        .any(|ancestor| identity(ancestor) == Some(target))
 }
 
+#[cfg(unix)]
+fn identity(path: &Path) -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+
+    std::fs::metadata(path)
+        .ok()
+        .map(|meta| (meta.dev(), meta.ino()))
+}
+
+#[cfg(not(unix))]
+fn lies_within(given: &Path, real: &Path, dir: &Path) -> bool {
+    same_or_inside(given, dir) || same_or_inside(real, &resolved(dir))
+}
+
+#[cfg(not(unix))]
 fn same_or_inside(path: &Path, dir: &Path) -> bool {
     let mut path = path.components();
     dir.components().all(|d| match path.next() {
@@ -342,41 +364,7 @@ fn same_or_inside(path: &Path, dir: &Path) -> bool {
     })
 }
 
-#[cfg(unix)]
-fn inside_by_identity(path: &Path, dir: &Path) -> bool {
-    use std::os::unix::fs::MetadataExt;
-
-    let Some((existing, rest)) = deepest_existing(dir) else {
-        return false;
-    };
-    let Ok(target) = std::fs::metadata(existing) else {
-        return false;
-    };
-    path.ancestors().any(|ancestor| {
-        std::fs::metadata(ancestor)
-            .is_ok_and(|meta| meta.dev() == target.dev() && meta.ino() == target.ino())
-            && path
-                .strip_prefix(ancestor)
-                .is_ok_and(|tail| same_or_inside(tail, &rest))
-    })
-}
-
 #[cfg(not(unix))]
-fn inside_by_identity(_path: &Path, _dir: &Path) -> bool {
-    false
-}
-
-#[cfg(unix)]
-fn deepest_existing(dir: &Path) -> Option<(&Path, PathBuf)> {
-    let mut rest = Vec::new();
-    let mut existing = dir;
-    while !existing.exists() {
-        rest.push(existing.file_name()?);
-        existing = existing.parent()?;
-    }
-    Some((existing, rest.into_iter().rev().collect()))
-}
-
 fn resolved(path: &Path) -> PathBuf {
     let mut existing = path;
     let mut rest = Vec::new();
@@ -790,7 +778,8 @@ mod tests {
     fn a_scratch_directory_is_never_the_data_directory_or_inside_it() {
         let root = tempfile::tempdir().unwrap();
         let data = DataDir::from_flag(root.path().join("Halvo")).unwrap();
-        std::fs::create_dir_all(data.path()).unwrap();
+        std::fs::create_dir_all(data.path().join("store")).unwrap();
+        std::fs::create_dir_all(data.path().join("a").join("b")).unwrap();
         let upper = PathBuf::from(data.path().to_str().unwrap().to_uppercase());
         for inside in [
             data.path().to_path_buf(),
@@ -809,9 +798,10 @@ mod tests {
             root.path().join("Halvo-scratch"),
             root.path().join("scratch"),
         ] {
+            std::fs::create_dir(&outside).unwrap();
             assert_eq!(
                 ScratchDir::new(&outside, &data).unwrap().path(),
-                outside.as_path()
+                outside.canonicalize().unwrap()
             );
         }
         #[cfg(unix)]
@@ -929,18 +919,14 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let real = root.path().canonicalize().unwrap();
         let data = DataDir::from_flag(real.join("Halvo")).unwrap();
-        std::fs::create_dir_all(data.path()).unwrap();
+        std::fs::create_dir_all(data.path().join("store")).unwrap();
         let firm = Path::new("/System/Volumes/Data").join(data.path().strip_prefix("/").unwrap());
         let (a, b) = (
             std::fs::metadata(data.path()).unwrap(),
             std::fs::metadata(&firm).unwrap(),
         );
         assert_eq!((a.dev(), a.ino()), (b.dev(), b.ino()));
-        for inside in [
-            firm.clone(),
-            firm.join("store"),
-            firm.join("not-yet").join("x"),
-        ] {
+        for inside in [firm.clone(), firm.join("store")] {
             assert_eq!(
                 ScratchDir::new(&inside, &data),
                 Err(PathError::InsideDataDir),
@@ -948,13 +934,18 @@ mod tests {
                 inside.display()
             );
         }
+        assert_eq!(
+            ScratchDir::new(firm.join("not-yet").join("x"), &data),
+            Err(PathError::Unresolved)
+        );
         let missing = DataDir::from_flag(real.join("Later")).unwrap();
         let firm_missing =
             Path::new("/System/Volumes/Data").join(missing.path().strip_prefix("/").unwrap());
         assert_eq!(
             ScratchDir::new(firm_missing.join("store"), &missing),
-            Err(PathError::InsideDataDir)
+            Err(PathError::Unresolved)
         );
+        std::fs::create_dir(real.join("Halvo-scratch")).unwrap();
         assert!(ScratchDir::new(firm.with_file_name("Halvo-scratch"), &data).is_ok());
     }
 
@@ -1025,6 +1016,189 @@ mod tests {
         let final_path = real.canonicalize().unwrap();
         let hash = endpoint_hash(&final_path.to_str().unwrap().to_lowercase());
         assert_eq!(by_real, format!(r"\\.\pipe\halvo-control-{sid}-{hash}"));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_scratch_path_is_refused_in_every_form_of_the_data_or_launch_agents_directory() {
+        use std::os::unix::fs::symlink;
+
+        enum Target<'a> {
+            Data(&'a Path),
+            LaunchAgents,
+        }
+        let guard = tempfile::tempdir().unwrap();
+        let root = guard.path().canonicalize().unwrap();
+        let home = root.join("home");
+        std::fs::create_dir_all(home.join("Library")).unwrap();
+        let account = Account {
+            base: Some(Box::leak(
+                home.to_str().unwrap().to_owned().into_boxed_str(),
+            )),
+            temp: None,
+        };
+        let agents = LoginItemDir::for_account(&account).unwrap();
+        let far = DataDir::from_flag(root.join("far-data")).unwrap();
+        let mut wrong = Vec::new();
+        let mut count = 0;
+        let mut judge =
+            |form: &str, target: Target, scratch: &Path, want: Result<(), PathError>| {
+                count += 1;
+                let got = match target {
+                    Target::Data(data) => {
+                        ScratchDir::new(scratch, &DataDir::from_flag(data).unwrap()).map(|_| ())
+                    }
+                    Target::LaunchAgents => ScratchDir::new(scratch, &far)
+                        .and_then(|scratch| LoginItemDir::scratch_form(&scratch, &account))
+                        .map(|_| ()),
+                };
+                if got != want {
+                    wrong.push(format!("{form}: got {got:?}, want {want:?}"));
+                }
+            };
+        let dir_of = |case: &str| {
+            let dir = root.join(case);
+            std::fs::create_dir_all(&dir).unwrap();
+            dir
+        };
+        let unresolved = Err(PathError::Unresolved);
+
+        for (case, data, scratch, form) in [
+            (
+                "1",
+                "Caf\u{e9}",
+                "Cafe\u{301}",
+                "another spelling (NFD) of a missing data dir",
+            ),
+            (
+                "2",
+                "stra\u{df}e",
+                "STRASSE",
+                "another spelling (STRASSE) of a missing data dir",
+            ),
+            (
+                "3",
+                "store",
+                "\u{17f}tore",
+                "another spelling (long s) of a missing data dir",
+            ),
+        ] {
+            let dir = dir_of(case);
+            judge(
+                form,
+                Target::Data(&dir.join(data)),
+                &dir.join(scratch),
+                unresolved,
+            );
+        }
+
+        let dir = dir_of("4");
+        let data = dir.join("data");
+        symlink(&data, dir.join("link")).unwrap();
+        judge(
+            "a dangling link to a missing data dir",
+            Target::Data(&data),
+            &dir.join("link"),
+            unresolved,
+        );
+        judge(
+            "a path below a dangling link to a missing data dir",
+            Target::Data(&data),
+            &dir.join("link").join("store"),
+            unresolved,
+        );
+
+        judge(
+            "another spelling (long s) of a missing LaunchAgents",
+            Target::LaunchAgents,
+            &home.join("Library").join("LaunchAgent\u{17f}"),
+            unresolved,
+        );
+        symlink(agents.path(), root.join("agents-link")).unwrap();
+        judge(
+            "a dangling link to a missing LaunchAgents",
+            Target::LaunchAgents,
+            &root.join("agents-link"),
+            unresolved,
+        );
+
+        let dir = dir_of("8");
+        let live = dir.join("live-data");
+        std::fs::create_dir(&live).unwrap();
+        symlink(live.join("store"), dir.join("store-link")).unwrap();
+        judge(
+            "a dangling link to a missing child of an existing data dir",
+            Target::Data(&live),
+            &dir.join("store-link"),
+            unresolved,
+        );
+        judge(
+            "a missing parent below an existing data dir",
+            Target::Data(&live),
+            &live.join("no-such-parent").join("scratch"),
+            unresolved,
+        );
+
+        std::fs::create_dir(live.join("store")).unwrap();
+        symlink(&live, dir.join("live-link")).unwrap();
+        for (form, scratch) in [
+            ("a link to an existing data dir", dir.join("live-link")),
+            (
+                "a path below a link to an existing data dir",
+                dir.join("live-link").join("store"),
+            ),
+            (
+                "another case of an existing data dir",
+                dir.join("LIVE-DATA").join("store"),
+            ),
+            (
+                "another spelling (long s) of an existing data dir's store",
+                live.join("\u{17f}tore"),
+            ),
+        ] {
+            judge(
+                form,
+                Target::Data(&live),
+                &scratch,
+                Err(PathError::InsideDataDir),
+            );
+        }
+
+        std::fs::create_dir_all(agents.path()).unwrap();
+        symlink(agents.path(), root.join("agents-link-2")).unwrap();
+        for (form, scratch) in [
+            (
+                "a link to an existing LaunchAgents",
+                root.join("agents-link-2"),
+            ),
+            (
+                "another spelling (long s) of an existing LaunchAgents",
+                home.join("Library").join("LaunchAgent\u{17f}"),
+            ),
+        ] {
+            judge(
+                form,
+                Target::LaunchAgents,
+                &scratch,
+                Err(PathError::InsideLaunchAgents),
+            );
+        }
+
+        let outside = dir_of("outside");
+        judge(
+            "control: an existing directory outside both",
+            Target::Data(&live),
+            &outside,
+            Ok(()),
+        );
+
+        assert!(
+            wrong.is_empty(),
+            "{} of {count} forms wrong:\n{}",
+            wrong.len(),
+            wrong.join("\n")
+        );
+        assert!(!agents.path().join("com.halvo.check-l.plist").exists());
     }
 
     #[test]
