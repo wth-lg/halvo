@@ -148,6 +148,9 @@ pub enum Act {
     CloseReadThenAnswer,
     /// No reply, and the link stays open until the runner ends.
     Hold,
+    /// The supervisor closes the end on which it reads the runner's frames and writes the answer, and leaves the
+    /// runner's standard input open, so that the runner sees the close at its next write alone.
+    CloseReadKeepInput,
     /// This frame, then the act.
     Then(ToRunner, Box<Act>),
 }
@@ -583,6 +586,14 @@ impl Supervisor {
                 false
             }
             Act::Hold => true,
+            Act::CloseReadKeepInput => {
+                runner.close_output();
+                if let Some(reply) = self.answer(frame) {
+                    runner.send(&reply);
+                }
+                *closed_at = Some(Instant::now());
+                false
+            }
             Act::Then(first, then) => {
                 runner.send(&first);
                 self.act(runner, frame, *then, closed_at)

@@ -161,3 +161,22 @@ fn closed_while_the_runner_waits_for_a_secret_reply() {
     ended_by_the_close(&seen, "secret reply");
     assert!(matches!(seen.frames.last(), Some(FromRunner::Secret(_))));
 }
+
+#[test]
+fn closed_by_a_write_error_on_standard_output_alone() {
+    let files = FillFiles::new("close-write", 1);
+    let before = files.workbook_bytes();
+    let sup = Supervisor::new(26, Category::SpreadsheetFill, files.slots());
+    let seen = sup.serve(
+        |frame, _| {
+            if is_op(frame, "load") {
+                Act::CloseReadKeepInput
+            } else {
+                Act::Answer
+            }
+        },
+        LONG,
+    );
+    ended_by_the_close(&seen, "write error");
+    assert_eq!(files.workbook_bytes(), before);
+}
