@@ -392,11 +392,17 @@ fn a_relative_directory_or_one_with_a_parent_step_is_refused() {
     assert!(Directory::new(PathBuf::from("")).is_none());
     assert!(Directory::new(PathBuf::from("/a/../b")).is_none());
     assert!(Directory::new(PathBuf::from("/a/b/..")).is_none());
-    for (given, kept) in [("/a/b/", "/a/b"), ("/a/./b/.", "/a/b"), ("/a//b", "/a/b")] {
+    for (given, kept) in [
+        ("/a/b/", "/a/b"),
+        ("/a/./b/.", "/a/b"),
+        ("/a//b", "/a/b"),
+        ("/a/b/./", "/a/b"),
+    ] {
+        let dir = Directory::new(PathBuf::from(given)).expect("an absolute directory");
         assert_eq!(
-            Directory::new(PathBuf::from(given)).map(|dir| dir.as_path().to_path_buf()),
-            Some(PathBuf::from(kept)),
-            "{given}"
+            dir.as_path().as_os_str(),
+            std::ffi::OsStr::new(kept),
+            "{given}: the text of the path, not its components, which compare equal either way"
         );
     }
     let absolute = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));

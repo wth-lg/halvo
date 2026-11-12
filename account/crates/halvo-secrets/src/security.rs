@@ -153,8 +153,10 @@ fn sid_text(sid: PSID) -> Option<String> {
         return None;
     }
     let mut text = ptr::null_mut();
-    // SAFETY: `sid` points into a security descriptor that the caller keeps alive through
-    // this call; the call writes the local `text` with a string that LocalFree releases below.
+    // SAFETY: `sid` points to a SID inside a buffer that the caller keeps alive through this
+    // call: the security descriptor of `owner_of` or `security_of`, or the token information
+    // of `user_sid`; the call writes the local `text` with a string that LocalFree releases
+    // below.
     if unsafe { ConvertSidToStringSidW(sid, &mut text) } == 0 {
         return None;
     }
