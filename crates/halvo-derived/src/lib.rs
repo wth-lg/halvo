@@ -11,6 +11,7 @@ mod hash;
 mod host;
 mod propose;
 mod purge;
+mod read;
 mod report;
 mod sql;
 mod state;
@@ -25,6 +26,7 @@ pub use batch::{CommitOutcome, ProposalOutcome};
 pub use error::{Error, Fault, OpenError};
 pub use handler::{Cause, Committed, Handler, HandlerCx, Refusal, Takes};
 pub use host::{Clock, DbKey, Host, IdSource, ReportSink};
+pub use read::ReadHandle;
 pub use report::{Counts, Report};
 pub use state::MoveTo;
 

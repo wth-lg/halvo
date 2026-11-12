@@ -89,4 +89,10 @@ catalogue! {
     COUNT_CLASS = "SELECT count(*) FROM rows WHERE class = ?1";
     MIN_EXPIRES = "SELECT min(expires) FROM rows";
     MIN_GONE = "SELECT min(gone) FROM rows";
+    WORKFLOW_BODY = "SELECT body FROM rows WHERE workflow = ?1 AND kind = 'workflow'";
+    EVIDENCE_OF = "SELECT body FROM rows WHERE summary = ?1 AND kind = 'evidence'";
+    WORKFLOWS_AFTER = "SELECT workflow FROM rows WHERE kind = 'workflow' AND workflow > ?1 ORDER BY workflow";
+    SUPPORT_WITH_EVIDENCE = "SELECT s.summary FROM rows AS s WHERE s.kind = 'support' AND s.workflow = ?1 \
+        AND s.summary > ?2 AND EXISTS (SELECT 1 FROM rows AS e WHERE e.summary = s.summary AND e.kind = 'evidence') \
+        ORDER BY s.summary";
 }
