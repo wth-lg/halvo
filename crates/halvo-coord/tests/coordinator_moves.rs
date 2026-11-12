@@ -529,7 +529,10 @@ fn the_page_holds_the_state_of_a_new_snapshot_after_each_move_and_hears_each_cha
     check(&c, &mut held);
 }
 
-fn recorded(c: &Coordinator<Both>) -> (RunId, ItemId) {
+/// A confirmation of a run of agent 0 whose decision the port records and whose answer the
+/// support port then fails with `no_service` (`Both::drop_decision`), so that the item stays
+/// recorded: the `no_service` comes from that stand-in, not from the memory ports.
+fn recorded_with_the_answer_failed_by_the_stand_in(c: &Coordinator<Both>) -> (RunId, ItemId) {
     let run = start(c, 0);
     c.on_run(&run, ask_confirm(&run, 0)).unwrap();
     let item = c
@@ -550,7 +553,7 @@ fn recorded(c: &Coordinator<Both>) -> (RunId, ItemId) {
 #[test]
 fn a_recorded_confirmation_of_a_stopped_run_lapses_with_run_ended_at_the_runners_end() {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
-    let (run, item) = recorded(&c);
+    let (run, item) = recorded_with_the_answer_failed_by_the_stand_in(&c);
     assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
     c.ports().ports.end_runner(&run);
     assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
@@ -575,7 +578,7 @@ fn the_quit_lapses_every_open_item_with_app_ended_in_the_life_that_ends() {
         slotted: true,
     };
     let c = coordinator(&[MANUAL, MANUAL, slotted], limits);
-    let (_, recorded_item) = recorded(&c);
+    let (_, recorded_item) = recorded_with_the_answer_failed_by_the_stand_in(&c);
     let run = start(&c, 1);
     c.on_run(&run, ask_confirm(&run, 1)).unwrap();
     let ready = c

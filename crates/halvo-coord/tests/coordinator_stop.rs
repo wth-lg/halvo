@@ -63,7 +63,7 @@ fn a_stop_of_a_waiting_run_whose_item_has_not_lapsed_is_state_and_calls_nothing(
 }
 
 #[test]
-fn the_lapse_of_an_item_of_another_kind_with_cancelled_stops_its_run_in_the_table() {
+fn lapse_item_with_cancelled_from_the_test_stops_the_run_of_an_item_of_another_kind_in_the_table() {
     let kinds = [
         (RunItemKind::SignIn, Lapsed::SignIn(OtherLapse::Cancelled)),
         (
@@ -133,6 +133,10 @@ fn the_lapse_of_an_item_with_run_ended_or_app_ended_stops_no_run() {
         assert!(!w.table.is_stopped(&run));
         assert_eq!(cancels(&w.calls()), 0);
     }
+}
+
+#[test]
+fn lapse_item_refuses_an_item_of_the_kind_confirm_with_malformed_and_calls_nothing() {
     let mut w = world(&[MANUAL]);
     let it = item(10);
     let run = waiting(&mut w, RunItemKind::Confirm, &it);
@@ -154,7 +158,7 @@ fn the_lapse_of_an_item_with_run_ended_or_app_ended_stops_no_run() {
 }
 
 #[test]
-fn the_persons_stop_of_a_held_confirmation_lapses_it_with_cancelled_and_stops_its_run() {
+fn stop_confirm_of_a_held_confirmation_lapses_it_with_cancelled_and_stops_its_run_in_the_table() {
     let mut w = world(&[MANUAL]);
     let run = w.act(Act::Start { agent: agent(0) }).report.run.unwrap();
     w.act(Act::Hello { run: run.clone() });

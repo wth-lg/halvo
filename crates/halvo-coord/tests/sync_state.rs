@@ -4,7 +4,9 @@ use halvo_coord::sync::{Next, Sync};
 use halvo_coord::types::fixtures::{facts, State};
 use halvo_coord::types::{Item, ItemKind, Limits, Row, Snapshot};
 
-/// The rows and the items of a state of the fixtures, as the roster composes them.
+/// The rows and the items of a state of the fixtures, built here from the roster's functions
+/// and not by `Coordinator::compose`, so that the tests of this file hold for `Sync` alone;
+/// `coordinator_moves.rs` runs a page against the coordinator's own snapshots.
 fn state(s: State) -> (Vec<Row>, Vec<Item>, Option<String>) {
     let all = facts(s);
     let refs: Vec<_> = all.iter().collect();
@@ -56,7 +58,7 @@ impl Page {
 }
 
 #[test]
-fn a_snapshot_and_the_changes_that_follow_it_give_the_state_of_a_new_snapshot() {
+fn sync_alone_a_snapshot_and_the_changes_that_follow_it_give_the_state_of_a_new_snapshot() {
     let mut sync = Sync::new();
     let mut page = Page::shown(&sync);
     let mut late = Page::shown(&sync);
@@ -92,7 +94,7 @@ fn a_snapshot_and_the_changes_that_follow_it_give_the_state_of_a_new_snapshot() 
 }
 
 #[test]
-fn the_reply_with_no_change_holds_the_old_seq_and_empty_lists() {
+fn sync_alone_the_reply_with_no_change_holds_the_old_seq_and_empty_lists() {
     let mut sync = Sync::new();
     let (rows, items, note) = state(State::Ten);
     sync.publish(rows, items, note);
@@ -103,7 +105,7 @@ fn the_reply_with_no_change_holds_the_old_seq_and_empty_lists() {
 }
 
 #[test]
-fn a_page_whose_seq_is_not_the_coordinators_gets_the_whole_state() {
+fn sync_alone_a_page_whose_seq_is_not_the_syncs_gets_the_whole_state() {
     let mut sync = Sync::new();
     assert_eq!(sync.snapshot().seq, 1);
     let (rows, items, note) = state(State::Ten);
