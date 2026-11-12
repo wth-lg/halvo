@@ -105,7 +105,8 @@ pub mod macos {
     fn request_accessibility_with_prompt() -> bool {
         // SAFETY: the keys and values arrays outlive the call; the dictionary
         // holds one CFString -> CFBoolean pair, both process-lifetime constants,
-        // with the CFType callbacks, and it is released once after use.
+        // with the CFType callbacks. A null dictionary is neither passed on nor
+        // released; a non-null one is released once, after its one use.
         unsafe {
             let keys = [kAXTrustedCheckOptionPrompt];
             let values = [kCFBooleanTrue];
@@ -117,6 +118,9 @@ pub mod macos {
                 &raw const kCFTypeDictionaryKeyCallBacks,
                 &raw const kCFTypeDictionaryValueCallBacks,
             );
+            if options.is_null() {
+                return AXIsProcessTrusted();
+            }
             let trusted = AXIsProcessTrustedWithOptions(options);
             CFRelease(options);
             trusted
