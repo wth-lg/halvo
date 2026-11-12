@@ -73,8 +73,11 @@ search for states with no next state: an effect has final states.
 
 `Full.cfg` is run by hand, with the same command and `-workers 4`. It prints `3570126
 states generated, 1500352 distinct states found`. On 2026-11-11 it took 128 seconds with
-four workers on a 16-core machine whose load average was 200. Run it after every change of
-`Confirm.tla`, and run every wrong design of the table that belongs to the model with it.
+four workers on a 16-core machine whose load average was 200. After the round of CP-35, on
+2026-11-12, it printed the same counts and took 306 seconds with four workers through the
+machine's timed-run helper, at a 1-minute load average of 85 before and 94 after. Run it
+after every change of `Confirm.tla`, and run every wrong design of the table that belongs to
+the model with it.
 
 ```sh
 TLA2TOOLS_JAR="$JAR" sh formal/r3-confirm/export.sh
