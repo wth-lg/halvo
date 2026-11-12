@@ -1,5 +1,59 @@
 use halvo_schema::executable::names::YesNo;
-use halvo_schema::executable::{ActionClass, AllowedClass, Autonomy, Caps};
+use halvo_schema::executable::{ActionClass, AgentConfig, AllowedClass, Autonomy, Caps};
+
+/// The decision that the table gives for an agent's configuration and a class (A5.1), as `decide` returns it and
+/// `propose` takes it. Only `decide` makes one: the fields are private and the type has no public constructor, so
+/// a plain `Decision` cannot become a `Decided`. What must not compile, a `Decided` made from a decision of its own:
+///
+/// ```compile_fail
+/// use halvo_policy::{Decided, Decision};
+/// use halvo_schema::executable::ActionClass;
+/// let own = Decided { class: ActionClass::Payment, decision: Decision::Run };
+/// let _ = own;
+/// ```
+///
+/// Its twin, which takes the `Decided` from `decide` and compiles:
+///
+/// ```
+/// use halvo_policy::{decide, Checkpoint, Decided, Decision};
+/// use halvo_schema::executable::{ActionClass, AgentConfig};
+/// let config = AgentConfig::parse(br#"{"v":1,"workflow":"30000000000000000000000000000001","agent":"40000000000000000000000000000001","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{"untrusted":"yes","private":"yes","external":"yes"},"limits":{"steps":20,"wall_s":120,"model_tokens":0},"budget":null,"permissions":[],"runtime":"web","playbook":null}"#).unwrap();
+/// let own: Decided = decide(&config, ActionClass::Payment, Checkpoint::No);
+/// assert_eq!(own.decision(), Decision::Confirm);
+/// let _ = own;
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Decided {
+    class: ActionClass,
+    decision: Decision,
+}
+
+impl Decided {
+    /// The class that was decided.
+    pub fn class(&self) -> ActionClass {
+        self.class
+    }
+
+    /// The decision that `decide_row` gave for the configuration and the class.
+    pub fn decision(&self) -> Decision {
+        self.decision
+    }
+}
+
+/// The `Decided` for `config`, `class` and `checkpoint`: the class and the decision that `decide_row` gives for
+/// the configuration's `autonomy`, `allow` and `caps`.
+pub fn decide(config: &AgentConfig, class: ActionClass, checkpoint: Checkpoint) -> Decided {
+    Decided {
+        class,
+        decision: decide_row(
+            config.autonomy,
+            class,
+            &config.allow,
+            &config.caps,
+            checkpoint,
+        ),
+    }
+}
 
 /// The decision of one row of the table (A5.1): `run`, `confirm`, `handback` or `refuse`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

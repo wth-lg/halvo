@@ -8,4 +8,4 @@ mod class;
 mod decide;
 
 pub use class::{check_playbook, class_of, ClassDiffers};
-pub use decide::{decide_row, Checkpoint, Decision};
+pub use decide::{decide, decide_row, Checkpoint, Decided, Decision};
