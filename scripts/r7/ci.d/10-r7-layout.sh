@@ -191,6 +191,16 @@ self_test() {
   stage "$scratch/owner-is-no-unit"
   expect FAIL owner-is-no-unit
 
+  fixture three-fields
+  printf '0.1\tbackend/src/a/two.ts\textra\n' >>"$scratch/three-fields/$layout"
+  stage "$scratch/three-fields"
+  expect FAIL three-fields
+
+  fixture root-twice
+  printf 'root\tbackend/\n' >>"$scratch/root-twice/$layout"
+  stage "$scratch/root-twice"
+  expect FAIL root-twice
+
   fixture pattern-twice
   printf 'P4\tbackend/src/**\n' >>"$scratch/pattern-twice/$layout"
   stage "$scratch/pattern-twice"

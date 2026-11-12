@@ -102,6 +102,10 @@ self_test() {
     "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" >"$scratch/coloured-failed-test/state/vitest.out"
   expect FAIL coloured-failed-test
 
+  fixture failed-file-with-passed-tests-and-exit-0
+  printf '\n Test Files  1 failed | 1 passed (2)\n      Tests  5 passed (5)\n' >"$scratch/failed-file-with-passed-tests-and-exit-0/state/vitest.out"
+  expect FAIL failed-file-with-passed-tests-and-exit-0
+
   fixture tests-fail
   printf '\n Test Files  1 failed | 1 passed (2)\n      Tests  1 failed | 4 passed (5)\n' >"$scratch/tests-fail/state/vitest.out"
   printf '1\n' >"$scratch/tests-fail/state/vitest.exit"

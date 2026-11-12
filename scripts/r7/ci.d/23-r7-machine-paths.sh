@@ -168,6 +168,20 @@ self_test() {
   stage check-exits-2-with-files-listed
   expect FAIL check-exits-2-with-files-listed
 
+  fixture home-path-in-a-model-file-that-is-no-tla
+  home_path >"$scratch/home-path-in-a-model-file-that-is-no-tla/formal/r7-ledger/check.mjs"
+  stage home-path-in-a-model-file-that-is-no-tla
+  expect FAIL home-path-in-a-model-file-that-is-no-tla
+
+  fixture model-copy-fails-while-the-list-works
+  stage model-copy-fails-while-the-list-works
+  git -C "$scratch/model-copy-fails-while-the-list-works" update-index --add --info-only --cacheinfo 100644,1111111111111111111111111111111111111111,formal/r7-ledger/gone.tla || exit 2
+  expect FAIL model-copy-fails-while-the-list-works
+
+  fixture model-tracked-and-nothing-under-backend
+  git -C "$scratch/model-tracked-and-nothing-under-backend" add formal || exit 2
+  expect FAIL model-tracked-and-nothing-under-backend
+
   fixture home-path-outside-backend-is-not-read
   home_path >"$scratch/home-path-outside-backend-is-not-read/other/notes.txt"
   stage home-path-outside-backend-is-not-read

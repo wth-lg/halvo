@@ -193,6 +193,12 @@ self_test() {
   seal no-record
   expect FAIL no-record
 
+  fixture file-that-is-no-check
+  mkdir -p "$scratch/file-that-is-no-check/backend/gate/checks/old" || exit 2
+  printf 'echo\n' >"$scratch/file-that-is-no-check/backend/gate/checks/old/10-subscription.sh"
+  seal file-that-is-no-check
+  expect FAIL file-that-is-no-check
+
   fixture record-of-no-check
   record "$scratch/record-of-no-check/$records/50-concurrency.txt" 'PASS concurrency: runs=1 of 1'
   seal record-of-no-check
