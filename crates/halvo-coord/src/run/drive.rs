@@ -413,11 +413,7 @@ where
     let Some((_, phase)) = live(board, run) else {
         return answer(Some(Cause::State));
     };
-    if !matches!(
-        run_step(Some(&phase), RunMove::Stop(by.cause())),
-        Ok(Next::Live(Phase::Stopping(_)))
-    ) || matches!(phase, Phase::Stopping(_))
-    {
+    if run_step(Some(&phase), RunMove::Stop(by.cause())).is_err() {
         return answer(Some(Cause::State));
     }
     if !table.is_stopped(run) {

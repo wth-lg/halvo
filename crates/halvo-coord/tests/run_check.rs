@@ -136,6 +136,35 @@ fn no_check_item_for_an_agent_with_an_open_item_or_a_failed_store() {
 }
 
 #[test]
+fn no_check_is_sent_for_the_agent_of_a_workflow_that_is_gone() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    w.ports.workflows.borrow_mut().clear();
+    w.act(Act::Tick);
+    w.act(Act::Tick);
+    let sent = w
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .filter(|t| match &t.call {
+            halvo_coord::mem::Call::Log(events) => events.iter().any(|e| {
+                matches!(
+                    e.what,
+                    What::ItemRaised {
+                        raised: Raised::Check(None),
+                        ..
+                    }
+                )
+            }),
+            _ => false,
+        })
+        .count();
+    assert_eq!(sent, 0, "no event of a gone workflow is sent");
+}
+
+#[test]
 fn recovery_raises_the_check_of_an_earlier_life_again() {
     let mut w = world(&[MANUAL]);
     let run = ended_unknown(&mut w, 0);

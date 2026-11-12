@@ -72,6 +72,10 @@ fn refusal_outlives_app() {
     );
     assert_eq!(w.events_of(0).last().unwrap(), "run_ended interrupted");
     assert_eq!(w.events_of(1).last().unwrap(), "run_ended interrupted");
+    assert!(
+        !w.facts(0).store_ended && !w.facts(1).store_ended,
+        "the new board reads from the owner that the store has not ended them"
+    );
     assert_eq!(
         calls,
         vec![
@@ -80,6 +84,22 @@ fn refusal_outlives_app() {
             "log run_ended interrupted",
             "end_run",
             "end_run"
+        ]
+    );
+}
+
+#[test]
+fn recovery_ends_the_runs_in_the_order_of_their_starts() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    let later_agent_first = started(&mut w, 1);
+    w.set_clock(T0 + 1, DAY);
+    let then = started(&mut w, 0);
+    let ended = relife(&mut w, &[]);
+    assert_eq!(
+        ended,
+        vec![
+            (later_agent_first, RunEnd::Interrupted),
+            (then, RunEnd::Interrupted)
         ]
     );
 }
@@ -243,6 +263,14 @@ fn a_new_life_keeps_the_agent_of_a_dismissed_workflow_and_owes_what_its_run_is_o
         1,
         "the agent is known to the new life"
     );
+    w.set_clock(T0 + 10_000, DAY + 1);
+    w.act(Act::Tick);
+    assert!(
+        !w.calls()
+            .iter()
+            .any(|c| c.starts_with("set_state") || c.starts_with("start_run")),
+        "no active and no start by the schedule for the agent of a dismissed workflow"
+    );
     assert_ne!(
         w.act(Act::Start { agent: agent(0) }).report.answer,
         Err(Cause::UnknownAgent)
@@ -297,6 +325,7 @@ fn recovery_owes_nothing_for_an_agent_whose_newest_run_the_store_has_ended() {
     w.store_end(0, &run, Outcome::Completed, 0);
     assert!(relife(&mut w, &[]).is_empty());
     assert_eq!(w.calls(), vec!["reap"]);
+    assert!(w.facts(0).store_ended);
 }
 
 #[test]
