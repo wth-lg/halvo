@@ -211,6 +211,7 @@ runner
 runtime
 schedule
 scroll
+secret
 seg
 segments
 select

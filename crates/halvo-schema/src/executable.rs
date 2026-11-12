@@ -237,4 +237,5 @@ pub const NAMES: &[&str] = &[
     "sign_in",
     "account_link",
     "new_origin",
+    "secret",
 ];

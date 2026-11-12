@@ -199,7 +199,8 @@ impl EffectState {
 }
 
 names! {
-    /// The one closed list of the `cause` keys of `agent_effect` and `agent_log`.
+    /// The one closed list of the `cause` keys of `agent_effect` and `agent_log`. `secret` ends a run whose token
+    /// store could not be read, with the outcome `failed`.
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -224,6 +225,7 @@ names! {
         Effect = "effect",
         Ended = "ended",
         Changed = "changed",
+        Secret = "secret",
     }
 }
 

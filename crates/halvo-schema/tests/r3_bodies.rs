@@ -1,5 +1,5 @@
 use halvo_schema::executable::body::{CoordinatorCall, CoordinatorReply, RunnerCall, RunnerReply};
-use halvo_schema::executable::names::{ActionClass, FieldName, Way};
+use halvo_schema::executable::names::{ActionClass, Cause, FieldName, Way};
 use halvo_schema::executable::record::{
     AgentBindings, AgentEffect, AgentLog, AgentPlaybook, AgentRun, AgentSession,
 };
@@ -1855,4 +1855,41 @@ fn an_add_origin_body_with_a_fourth_way_is_refused() {
         "unknown_op",
         "op",
     );
+}
+
+#[test]
+fn a_log_line_ends_a_run_with_the_cause_secret_and_no_other_spelling() {
+    let event = r#""event":"model_call","step":3,"cause":null"#;
+    let stopped = run_record(
+        R,
+        &swap(
+            LOG_REST,
+            event,
+            r#""event":"stopped","step":3,"cause":"secret""#,
+        ),
+    );
+    let line = AgentLog::parse(stopped.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(line.cause, Some(Cause::Secret));
+    assert_eq!(line.to_json().unwrap(), stopped);
+    assert_eq!(Cause::parse("secret"), Ok(Cause::Secret));
+    assert_eq!(
+        Cause::ALL.iter().filter(|c| c.as_str() == "secret").count(),
+        1
+    );
+    for other in ["Secret", "secrets", "unreadable", "locked", "fault", "none"] {
+        let text = run_record(
+            R,
+            &swap(
+                LOG_REST,
+                event,
+                &format!(r#""event":"stopped","step":3,"cause":"{other}""#),
+            ),
+        );
+        expect(
+            AgentLog::parse(text.as_bytes()),
+            "Cause",
+            "unknown_name",
+            "cause",
+        );
+    }
 }
