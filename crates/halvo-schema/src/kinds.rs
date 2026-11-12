@@ -205,6 +205,18 @@ pub fn registry() -> impl Iterator<Item = &'static KindEntry> {
         .chain(crate::routing::KINDS)
 }
 
+/// Every error name that a file of a later run declares: the lists `ERROR_NAMES` of the files of the agent-setup,
+/// interface, learning and routing runs, in that order. Two lists may hold one name, and a list may hold a name of
+/// the nine of the reply form, which is that one name.
+pub fn declared_error_names() -> impl Iterator<Item = &'static str> {
+    crate::executable::ERROR_NAMES
+        .iter()
+        .chain(crate::coordinator::ERROR_NAMES)
+        .chain(crate::learning::ERROR_NAMES)
+        .chain(crate::routing::ERROR_NAMES)
+        .copied()
+}
+
 fn name_form(s: &str) -> bool {
     (1..=32).contains(&s.len())
         && s.bytes()
