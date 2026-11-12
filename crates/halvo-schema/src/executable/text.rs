@@ -1,0 +1,498 @@
+use std::fmt;
+
+use serde::{Serialize, Serializer};
+use serde_json::value::RawValue;
+
+use super::json::{self, FromJson};
+use super::Refusal;
+
+/// The most bytes of one `own_text`.
+pub const OWN_TEXT_MAX: usize = 1024;
+
+/// A text that capture did not supply (field type `own_text`): a string of at most 1,024 bytes, never masked and
+/// never shortened. `Debug` prints the type name and the length alone.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct OwnText(String);
+
+impl OwnText {
+    /// Returns the text when it has at most 1,024 bytes, else the refusal with the rule `own_text_length`.
+    pub fn parse(s: &str) -> Result<OwnText, Refusal> {
+        if s.len() > OWN_TEXT_MAX {
+            return Err(Refusal::malformed("OwnText", "own_text_length"));
+        }
+        Ok(OwnText(s.to_owned()))
+    }
+
+    /// The text.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Debug for OwnText {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "OwnText({} bytes)", self.0.len())
+    }
+}
+
+impl Serialize for OwnText {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl FromJson for OwnText {
+    fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
+        OwnText::parse(&json::string("OwnText", raw)?)
+    }
+}
+
+fn cut(s: &str) -> Vec<String> {
+    let mut pieces = Vec::new();
+    let mut rest = s;
+    while !rest.is_empty() {
+        let mut end = rest.len().min(OWN_TEXT_MAX);
+        while !rest.is_char_boundary(end) {
+            end -= 1;
+        }
+        pieces.push(rest[..end].to_owned());
+        rest = &rest[end..];
+    }
+    pieces
+}
+
+/// A value written as a list of `own_text` pieces, `["<own_text>"...]`: the value cut at character bounds into the
+/// longest pieces of at most 1,024 bytes, in order, which a reader joins. The empty value is the empty list. A list
+/// that is not this cut of its joined value is refused, so one value has one form. `Debug` prints the length alone.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct OwnValue(Vec<String>);
+
+impl OwnValue {
+    /// The cut of `s`.
+    pub fn new(s: &str) -> OwnValue {
+        OwnValue(cut(s))
+    }
+
+    /// The pieces in order.
+    pub fn pieces(&self) -> &[String] {
+        &self.0
+    }
+
+    /// The joined value.
+    pub fn joined(&self) -> String {
+        self.0.concat()
+    }
+
+    /// The number of bytes of the joined value.
+    pub fn len(&self) -> usize {
+        self.0.iter().map(String::len).sum()
+    }
+
+    /// Whether the value is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl fmt::Debug for OwnValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "OwnValue({} bytes)", self.len())
+    }
+}
+
+impl Serialize for OwnValue {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(serializer)
+    }
+}
+
+impl FromJson for OwnValue {
+    fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
+        let pieces: Vec<OwnText> = json::list(OwnText::from_json)(raw)
+            .map_err(|r| r.at("value"))?
+            .into_iter()
+            .collect();
+        let pieces: Vec<String> = pieces.into_iter().map(|p| p.0).collect();
+        if cut(&pieces.concat()) != pieces {
+            return Err(Refusal::malformed("OwnValue", "not_the_cut"));
+        }
+        Ok(OwnValue(pieces))
+    }
+}
+
+fn name_form(s: &str) -> bool {
+    (1..=32).contains(&s.len())
+        && s.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+}
+
+/// A name (field type `name`): 1 to 32 bytes of `a` to `z`, `0` to `9` and `_`. A slot name, an arg name, the name
+/// under which a value is kept, a model token and a secret name have this form.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Name(String);
+
+impl Name {
+    /// Returns the name when `s` has the form, else the refusal with the rule `name_form`.
+    pub fn parse(s: &str) -> Result<Name, Refusal> {
+        if !name_form(s) {
+            return Err(Refusal::malformed("Name", "name_form"));
+        }
+        Ok(Name(s.to_owned()))
+    }
+
+    /// The name.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for Name {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Serialize for Name {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl FromJson for Name {
+    fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
+        Name::parse(&json::string("Name", raw)?)
+    }
+}
+
+fn port(s: &str) -> bool {
+    !s.is_empty()
+        && !s.starts_with('0')
+        && s.len() <= 5
+        && s.bytes().all(|b| b.is_ascii_digit())
+        && s.parse::<u32>().is_ok_and(|n| (1..=65_535).contains(&n))
+}
+
+fn host(s: &str) -> bool {
+    (1..=253).contains(&s.len())
+        && s.split('.').all(|label| {
+            (1..=63).contains(&label.len())
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        })
+}
+
+fn web_origin(s: &str) -> bool {
+    let Some((scheme, rest)) = s.split_once("://") else {
+        return false;
+    };
+    let Some((h, p)) = rest.rsplit_once(':') else {
+        return false;
+    };
+    (scheme == "http" || scheme == "https") && host(h) && port(p)
+}
+
+/// A web origin, `<scheme>://<host>:<port>` in lower case with the port always written: the scheme `http` or
+/// `https`, the host a name of dot-separated labels of `a` to `z`, `0` to `9` and `-` (an IPv4 address among them)
+/// of at most 253 bytes, the port a decimal from 1 to 65,535 with no leading zero.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct WebOrigin(String);
+
+impl WebOrigin {
+    /// Returns the origin when `s` has the form, else the refusal with the rule `origin_form`.
+    pub fn parse(s: &str) -> Result<WebOrigin, Refusal> {
+        if !web_origin(s) {
+            return Err(Refusal::malformed("WebOrigin", "origin_form"));
+        }
+        Ok(WebOrigin(s.to_owned()))
+    }
+
+    /// The origin.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for WebOrigin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Serialize for WebOrigin {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl FromJson for WebOrigin {
+    fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
+        WebOrigin::parse(&json::string("WebOrigin", raw)?)
+    }
+}
+
+fn hex(s: &str, len: usize) -> bool {
+    s.len() == len
+        && s.bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// A digest: the lower-case hex SHA-256 of the compact JSON of a bound object, 64 digits.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Digest(String);
+
+impl Digest {
+    /// Returns the digest when `s` is 64 lower-case hex digits, else the refusal with the rule `hex64`.
+    pub fn parse(s: &str) -> Result<Digest, Refusal> {
+        if !hex(s, 64) {
+            return Err(Refusal::malformed("Digest", "hex64"));
+        }
+        Ok(Digest(s.to_owned()))
+    }
+
+    /// The 64 digits.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for Digest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Serialize for Digest {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl FromJson for Digest {
+    fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
+        Digest::parse(&json::string("Digest", raw)?)
+    }
+}
+
+fn random_hex(bytes: [u8; 16]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(32);
+    for b in bytes {
+        out.push(char::from(DIGITS[usize::from(b >> 4)]));
+        out.push(char::from(DIGITS[usize::from(b & 0x0f)]));
+    }
+    out
+}
+
+macro_rules! random_id {
+    ($(#[$meta:meta])* $name:ident) => {
+        $(#[$meta])*
+        #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name(String);
+
+        impl $name {
+            /// Returns the id when `s` is 32 lower-case hex digits, else the refusal with the rule `hex32`.
+            pub fn parse(s: &str) -> Result<Self, Refusal> {
+                if !hex(s, 32) {
+                    return Err(Refusal::malformed(stringify!($name), "hex32"));
+                }
+                Ok($name(s.to_owned()))
+            }
+
+            /// Writes the 16 bytes as 32 lower-case hex digits, in order: the one constructor from outside a
+            /// parser. The sender that first names the id supplies 16 random bytes.
+            pub fn from_random(bytes: [u8; 16]) -> Self {
+                $name(random_hex(bytes))
+            }
+
+            /// The 32 digits.
+            pub fn as_str(&self) -> &str {
+                &self.0
+            }
+        }
+
+        impl fmt::Display for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str(&self.0)
+            }
+        }
+
+        impl Serialize for $name {
+            fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                serializer.serialize_str(&self.0)
+            }
+        }
+
+        impl FromJson for $name {
+            fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
+                $name::parse(&json::string(stringify!($name), raw)?)
+            }
+        }
+    };
+}
+
+random_id! {
+    /// The id of a run: 32 lower-case hex digits from 16 random bytes.
+    RunId
+}
+
+random_id! {
+    /// The id of an effect: 32 lower-case hex digits from 16 random bytes.
+    EffectId
+}
+
+random_id! {
+    /// The id of an approval, which the supervisor mints: 32 lower-case hex digits from 16 random bytes.
+    ApprovalId
+}
+
+/// The debugging address of the stand-in's browser, `127.0.0.1:<port>`, the port from 1 to 65,535.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Endpoint(String);
+
+impl Endpoint {
+    /// Returns the address when `s` is `127.0.0.1:` and a port, else the refusal with the rule `endpoint_form`.
+    pub fn parse(s: &str) -> Result<Endpoint, Refusal> {
+        match s.strip_prefix("127.0.0.1:") {
+            Some(p) if port(p) => Ok(Endpoint(s.to_owned())),
+            _ => Err(Refusal::malformed("Endpoint", "endpoint_form")),
+        }
+    }
+
+    /// The address.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Serialize for Endpoint {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl FromJson for Endpoint {
+    fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
+        Endpoint::parse(&json::string("Endpoint", raw)?)
+    }
+}
+
+/// The value of an entry of the supervisor's secret store, which only a `secret_reply` frame carries. `Debug`
+/// prints the type name alone.
+#[derive(Clone, PartialEq, Eq)]
+pub struct SecretText(String);
+
+impl SecretText {
+    /// The value.
+    pub fn new(s: &str) -> SecretText {
+        SecretText(s.to_owned())
+    }
+
+    /// The value.
+    pub fn expose(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Debug for SecretText {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("SecretText")
+    }
+}
+
+impl Serialize for SecretText {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl FromJson for SecretText {
+    fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
+        Ok(SecretText(json::string("SecretText", raw)?))
+    }
+}
+
+/// The key `v` of a record, a frame or a request of this run: the integer 1, read from the text `1` alone.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct V1;
+
+impl Serialize for V1 {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u32(crate::ids::VERSION)
+    }
+}
+
+impl FromJson for V1 {
+    fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
+        if raw.get() != "1" {
+            return Err(Refusal::malformed("V1", "version"));
+        }
+        Ok(V1)
+    }
+}
+
+/// The base64 text of one part of a stored session, `["<own_text>"...]`: 1 to 48 pieces of the base64 alphabet
+/// (`A` to `Z`, `a` to `z`, `0` to `9`, `+`, `/` and `=`), each 1,024 bytes but the last, which holds 1 to 1,024.
+/// `Debug` prints the number of pieces alone.
+#[derive(Clone, PartialEq, Eq)]
+pub struct SessionData(Vec<String>);
+
+/// The most pieces of one part of a stored session.
+pub const SESSION_PIECES_MAX: usize = 48;
+
+impl SessionData {
+    /// Returns the data when the pieces have the form, else the refusal with the rule that they break.
+    pub fn new(pieces: Vec<String>) -> Result<SessionData, Refusal> {
+        let fail = |rule| Err(Refusal::malformed("SessionData", rule));
+        if pieces.is_empty() || pieces.len() > SESSION_PIECES_MAX {
+            return fail("piece_count");
+        }
+        for (i, piece) in pieces.iter().enumerate() {
+            if !piece
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'+' || b == b'/' || b == b'=')
+            {
+                return fail("base64");
+            }
+            let last = i + 1 == pieces.len();
+            if piece.is_empty()
+                || piece.len() > OWN_TEXT_MAX
+                || (!last && piece.len() != OWN_TEXT_MAX)
+            {
+                return fail("piece_length");
+            }
+        }
+        Ok(SessionData(pieces))
+    }
+
+    /// The pieces in order.
+    pub fn pieces(&self) -> &[String] {
+        &self.0
+    }
+
+    /// Whether the part is full: 48 pieces of 1,024 bytes.
+    pub fn is_full(&self) -> bool {
+        self.0.len() == SESSION_PIECES_MAX && self.0.iter().all(|p| p.len() == OWN_TEXT_MAX)
+    }
+}
+
+impl fmt::Debug for SessionData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "SessionData({} pieces)", self.0.len())
+    }
+}
+
+impl Serialize for SessionData {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(serializer)
+    }
+}
+
+impl FromJson for SessionData {
+    fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
+        let pieces = json::list(OwnText::from_json)(raw)?;
+        SessionData::new(pieces.into_iter().map(|p| p.0).collect())
+    }
+}
