@@ -348,6 +348,29 @@ fn a_draft_id_that_is_not_new_is_refused_before_its_patch() {
     }
 }
 
+#[test]
+fn the_reply_body_reaches_the_patch_byte_for_byte() {
+    let stub = reply_stub(201, 200, 202);
+    let graph = stub.graph("mail");
+    let messages = graph
+        .mail_list(&token(), &reply_rule())
+        .expect("mail_list answers");
+    let body = " Thanks,\n\tAnn. ";
+    graph
+        .mail_draft_reply(&token(), messages, body)
+        .expect("mail_draft_reply answers");
+    let patched: Vec<_> = stub
+        .seen()
+        .into_iter()
+        .filter(|seen| seen.method == "PATCH")
+        .filter_map(|seen| seen.body)
+        .collect();
+    assert_eq!(
+        patched,
+        [json!({"body": {"contentType": "text", "content": body}})]
+    );
+}
+
 fn reply_stub(create: u16, patch: u16, send: u16) -> Stub {
     let inbox = json!({"value": [message("m1", false, "ann@people.test", &["me@home.test"])]});
     Stub::start(vec![

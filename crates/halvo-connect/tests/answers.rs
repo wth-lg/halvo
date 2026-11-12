@@ -109,3 +109,29 @@ fn an_answer_of_64_mib_is_refused_before_it_is_read_whole() {
         "the stand-in's connection closed before it wrote the whole answer"
     );
 }
+
+#[test]
+fn a_declared_length_over_the_bound_is_refused_before_its_body_comes() {
+    let stand_in = StandIn::serve(Plan {
+        head_after: Duration::ZERO,
+        head: head(Some(BOUND + 1)),
+        body_after: Duration::from_secs(10),
+        body: inbox_of(BOUND + 1),
+        hold: Duration::ZERO,
+    });
+    let (result, took) = list(&stand_in, Duration::from_secs(5));
+    assert_eq!(result, Err(CallError::Answer(AnswerFault::Size)));
+    assert!(
+        took < Duration::from_secs(2),
+        "the refusal waited for the body: {took:?}"
+    );
+}
+
+#[test]
+fn an_answer_whose_body_ends_before_its_declared_length_is_no_answer() {
+    let stand_in = StandIn::serve(answer(head(Some(100)), br#"{"value": []}"#.to_vec()));
+    assert_eq!(
+        list(&stand_in, Duration::from_secs(5)).0,
+        Err(CallError::NoAnswer)
+    );
+}
