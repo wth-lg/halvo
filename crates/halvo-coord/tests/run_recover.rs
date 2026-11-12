@@ -729,23 +729,46 @@ fn review_life_3() {
     );
 }
 
-/// The ports with a late writer: before the first log, the owner stores `late` at the `seq`
-/// of that log, as a log of the earlier life that lands after recovery read the ledger.
+/// What the owner does at one log of `Late`.
+enum Turn {
+    /// It refuses the log with the error.
+    Refuse(PortError),
+    /// It first stores this event at the `seq` of the log, as a log of the earlier life that
+    /// lands after recovery read the ledger.
+    Late(What),
+}
+
+/// The ports with a late writer: the owner takes the turns in order, one for each log, and
+/// then stores each log as the memory owner does.
 struct Late<'a, P> {
     ports: &'a P,
-    late: std::cell::RefCell<Option<What>>,
+    turns: std::cell::RefCell<std::collections::VecDeque<Turn>>,
+}
+
+impl<'a, P> Late<'a, P> {
+    fn new(ports: &'a P, turns: Vec<Turn>) -> Late<'a, P> {
+        Late {
+            ports,
+            turns: std::cell::RefCell::new(turns.into()),
+        }
+    }
 }
 
 impl<P: Owner> Owner for Late<'_, P> {
     type Config = P::Config;
 
     fn log(&self, events: &[Event]) -> Result<(), PortError> {
-        if let (Some(what), Some(first)) = (self.late.borrow_mut().take(), events.first()) {
-            let late = Event {
-                what,
-                ..first.clone()
-            };
-            self.ports.log(&[late]).expect("the late log is stored");
+        let turn = self.turns.borrow_mut().pop_front();
+        match (turn, events.first()) {
+            (Some(Turn::Refuse(e)), _) => return Err(e),
+            (Some(Turn::Late(what)), Some(first)) => {
+                let late = Event {
+                    what,
+                    ..first.clone()
+                };
+                self.ports.log(&[late]).expect("the late log is stored");
+            }
+            _ => {}
         }
         self.ports.log(events)
     }
@@ -840,13 +863,13 @@ fn a_recovery_body_refused_with_seq_is_read_again_from_the_owners_events_and_log
     w.ports.new_life();
     w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
     w.forget();
-    let late = Late {
-        ports: &w.ports,
-        late: std::cell::RefCell::new(Some(What::RunEnded {
+    let late = Late::new(
+        &w.ports,
+        vec![Turn::Late(What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Completed,
-        })),
-    };
+        })],
+    );
     let life = recover(&late, &w.limits).expect("recovery");
     assert!(
         life.ended.is_empty(),
@@ -1014,6 +1037,18 @@ fn an_owed_item_lapsed_refused_with_seq_for_another_event_is_logged_after_it() {
     }
     assert_eq!(lapses_of(&w, &item), 1, "logged after the other event");
     assert!(w.board.owed.is_empty());
+    let at = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .find(|e| matches!(&e.what, What::ItemLapsed { item: i, .. } if *i == item))
+        .map(|e| (e.day, e.at));
+    assert_eq!(
+        at,
+        Some((DAY, i64::try_from(T0).unwrap() * 1_000_000)),
+        "the lapse keeps the day and the instant of recovery"
+    );
 }
 
 #[test]
@@ -1048,4 +1083,55 @@ fn an_owed_item_lapsed_of_a_gone_workflow_is_logged_once_more_and_ends_at_no_wor
         "recovery's body, then once more, and the refusal no_workflow ends the debt"
     );
     assert!(w.board.owed.is_empty());
+}
+
+#[test]
+fn a_read_after_a_seq_refusal_of_recoverys_check_holds_no_item_of_the_earlier_life() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    w.act(Act::End {
+        run: run.clone(),
+        outcome: None,
+    });
+    w.ports.store_end(
+        &agent(0),
+        PastRun {
+            run,
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 1,
+        },
+    );
+    let item = ItemId::parse(&format!("{:032x}", 0x7304)).unwrap();
+    stored_outside(
+        &w,
+        0,
+        What::ItemRaised {
+            item: item.clone(),
+            raised: Raised::Ready,
+        },
+    );
+    w.ports.new_life();
+    w.forget();
+    let late = Late::new(
+        &w.ports,
+        vec![
+            Turn::Refuse(PortError::NoService),
+            Turn::Late(What::SlotSkipped { slot: None }),
+        ],
+    );
+    let life = recover(&late, &w.limits).expect("recovery");
+    assert_eq!(life.board.owed.len(), 1, "the ready item's lapse is owed");
+    assert_eq!(
+        life.checked,
+        vec![agent(0)],
+        "the check is logged after the late event"
+    );
+    assert!(
+        matches!(
+            &life.board.members[0].facts.doing,
+            halvo_coord::types::Doing::Idle(Some(o)) if o.item != item
+        ),
+        "the agent holds the check, not the item of the earlier life that lapses"
+    );
 }
