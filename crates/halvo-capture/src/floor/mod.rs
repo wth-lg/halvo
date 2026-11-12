@@ -473,6 +473,38 @@ mod tests {
     }
 
     #[test]
+    fn a_title_keeps_its_site_only_while_site_read_is_on() {
+        use super::exclude::{FloorHandle, NoLineage, PrivateWindow, ProcessId, Subject, Verdict};
+        use std::sync::Arc;
+
+        fn site_of(switches: Switches) -> Option<String> {
+            let floor = FloorHandle::new(None, Arc::new(NoLineage), switches);
+            let subject = Subject::new(app(), ProcessId::new(9));
+            let probe = FixedProbe(SecureInputReading::Inactive);
+            let Verdict::Keep(keep) =
+                floor.decide::<kind::WindowTitle>(subject, PrivateWindow::Unknown, &probe)
+            else {
+                panic!("the title was dropped");
+            };
+            let site = Site::cut("https://news.example.org/today".to_string());
+            let text = CapturedText::enter(TextField::Title, "Today".to_string());
+            let title = Title::new(text, TitleWhy::TitleChange, site);
+            let event = FloorEvent::window_title(keep, title, None, EventClock::system());
+            let received = FloorReceived::for_test(event, ArrivalNumber::for_test(0));
+            let line = encode(&received, &IdentityPoint).unwrap();
+            match decode(line.as_str()).unwrap().payload {
+                DecodedPayload::WindowTitle { site, .. } => site,
+                _ => panic!("not a title"),
+            }
+        }
+
+        assert_eq!(site_of(Switches::default()), None);
+        let mut on = Switches::default();
+        on.set(Switch::SiteRead, true);
+        assert_eq!(site_of(on).as_deref(), Some("example.org"));
+    }
+
+    #[test]
     fn the_text_filter_point_sees_every_string_once() {
         let site = Site::cut("https://www.planted-site.com/path".to_string());
         let text = CapturedText::enter(TextField::Title, "Planted title".to_string());

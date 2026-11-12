@@ -1223,6 +1223,40 @@ mod tests {
     }
 
     #[test]
+    fn a_floor_frame_on_a_full_queue_is_dropped_and_counted() {
+        let (handle, writer) = bounded(NonZeroUsize::MIN);
+        let frame = || {
+            let keep = keep(terminal(), 7);
+            FloorEvent::screen_frame(keep, None, EventClock::system())
+        };
+        assert_eq!(handle.emit_event(frame()), Emitted::Queued);
+        let (done_tx, done) = mpsc::channel();
+        let emitter = {
+            let handle = handle.clone();
+            let second = frame();
+            thread::spawn(move || {
+                let _ = done_tx.send(handle.emit_event(second));
+            })
+        };
+        let outcome = done
+            .recv_timeout(Duration::from_secs(1))
+            .expect("a frame on a full queue returned inside 1 s");
+        emitter.join().unwrap();
+        assert_eq!(outcome, Emitted::Dropped);
+        let frames = KindCounts {
+            accepted: 1,
+            dropped: 1,
+            ..KindCounts::default()
+        };
+        assert_eq!(handle.counts().of(Modality::ScreenFrame), frames);
+        assert_eq!(
+            writer.try_recv().unwrap().number(),
+            ArrivalNumber::for_test(0)
+        );
+        assert!(matches!(writer.try_recv(), Err(TryRecvError::Empty)));
+    }
+
+    #[test]
     fn a_floor_value_is_refused_when_the_writer_is_gone() {
         let (handle, writer) = bounded(NonZeroUsize::new(2).unwrap());
         drop(writer);
