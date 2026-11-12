@@ -11,20 +11,20 @@ pub trait CaptureSource {
 
     /// The old form of [`CaptureSource::begin`].
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
-        let _call = DefaultPairCall::enter(&*self);
+        let _call = DefaultPairCall::enter(&*self, DefaultMember::Start);
         self.begin(SourceContext::new(sink)).map(|_| ())
     }
 
     /// The old form of [`CaptureSource::shutdown`].
     fn stop(&mut self) {
-        let _call = DefaultPairCall::enter(&*self);
+        let _call = DefaultPairCall::enter(&*self, DefaultMember::Stop);
         let _ = self.shutdown();
     }
 
     /// An implementer answers a second `begin` on a source that is already
     /// started with [`CaptureError::AlreadyStarted`]; the default body does not.
     fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
-        let _call = DefaultPairCall::enter(&*self);
+        let _call = DefaultPairCall::enter(&*self, DefaultMember::Begin);
         self.start(ctx.sink).map(|()| Started::Running)
     }
 
@@ -32,7 +32,7 @@ pub trait CaptureSource {
     /// done, [`CaptureError::ThreadEnded`] when the thread had ended before,
     /// [`CaptureError::Timeout`] when the source's deadline passed.
     fn shutdown(&mut self) -> Result<(), CaptureError> {
-        let _call = DefaultPairCall::enter(&*self);
+        let _call = DefaultPairCall::enter(&*self, DefaultMember::Shutdown);
         self.stop();
         Ok(())
     }
@@ -42,33 +42,42 @@ pub trait CaptureSource {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DefaultMember {
+    Start,
+    Stop,
+    Begin,
+    Shutdown,
+}
+
 thread_local! {
-    static DEFAULT_PAIR_CALLS: RefCell<Vec<(usize, &'static str)>> =
+    static DEFAULT_PAIR_CALLS: RefCell<Vec<(usize, &'static str, DefaultMember)>> =
         const { RefCell::new(Vec::new()) };
 }
 
 struct DefaultPairCall {
-    source: (usize, &'static str),
+    call: (usize, &'static str, DefaultMember),
 }
 
 impl DefaultPairCall {
-    fn enter<S: ?Sized>(source: &S) -> Self {
-        let source = (
+    fn enter<S: ?Sized>(source: &S, member: DefaultMember) -> Self {
+        let call = (
             (source as *const S).cast::<()>().addr(),
             std::any::type_name::<S>(),
+            member,
         );
         let again = DEFAULT_PAIR_CALLS.with(|calls| {
             let mut calls = calls.borrow_mut();
-            let again = calls.contains(&source);
+            let again = calls.contains(&call);
             if !again {
-                calls.push(source);
+                calls.push(call);
             }
             again
         });
         if again {
             panic!("CaptureSource implements neither begin and shutdown nor start and stop");
         }
-        Self { source }
+        Self { call }
     }
 }
 
@@ -76,7 +85,7 @@ impl Drop for DefaultPairCall {
     fn drop(&mut self) {
         let _ = DEFAULT_PAIR_CALLS.try_with(|calls| {
             let mut calls = calls.borrow_mut();
-            if let Some(at) = calls.iter().rposition(|source| *source == self.source) {
+            if let Some(at) = calls.iter().rposition(|call| *call == self.call) {
                 calls.remove(at);
             }
         });
@@ -573,6 +582,82 @@ mod tests {
             Ok(text) => (*text).to_string(),
             Err(payload) => *payload.downcast::<String>().expect("a text payload"),
         }
+    }
+
+    #[derive(Default)]
+    struct TidiesThroughTheOtherPair {
+        calls: Vec<&'static str>,
+    }
+
+    impl CaptureSource for TidiesThroughTheOtherPair {
+        fn begin(&mut self, _ctx: SourceContext) -> Result<Started, CaptureError> {
+            self.stop();
+            self.calls.push("begin");
+            Ok(Started::Running)
+        }
+
+        fn shutdown(&mut self) -> Result<(), CaptureError> {
+            self.calls.push("shutdown");
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_source_may_call_the_other_pair_inside_its_own() {
+        let mut source = TidiesThroughTheOtherPair::default();
+        let (handle, _writer) = sink::channel(1);
+        assert!(source.start(handle).is_ok());
+        assert_eq!(source.calls, ["shutdown", "begin"]);
+        source.stop();
+        assert_eq!(source.calls, ["shutdown", "begin", "shutdown"]);
+    }
+
+    #[derive(Default)]
+    struct OldPairOverNewPair(NewPair);
+
+    impl CaptureSource for OldPairOverNewPair {
+        fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
+            self.0.start(sink)
+        }
+
+        fn stop(&mut self) {
+            self.0.stop();
+        }
+    }
+
+    #[derive(Default)]
+    struct NewPairOverNewPair(NewPair);
+
+    impl CaptureSource for NewPairOverNewPair {
+        fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+            self.0.start(ctx.sink().clone()).map(|()| Started::Running)
+        }
+
+        fn shutdown(&mut self) -> Result<(), CaptureError> {
+            self.0.stop();
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_wrapper_reaches_the_source_inside_it_at_the_same_address() {
+        let mut old_over_new = OldPairOverNewPair::default();
+        let outer = (&old_over_new as *const OldPairOverNewPair).cast::<()>();
+        assert_eq!(outer, (&old_over_new.0 as *const NewPair).cast::<()>());
+        assert!(matches!(
+            old_over_new.begin(context()),
+            Ok(Started::Running)
+        ));
+        assert!(old_over_new.shutdown().is_ok());
+        assert_eq!(old_over_new.0.calls, ["begin", "shutdown"]);
+
+        let mut new_over_new = NewPairOverNewPair::default();
+        let outer = (&new_over_new as *const NewPairOverNewPair).cast::<()>();
+        assert_eq!(outer, (&new_over_new.0 as *const NewPair).cast::<()>());
+        let (handle, _writer) = sink::channel(1);
+        assert!(new_over_new.start(handle).is_ok());
+        new_over_new.stop();
+        assert_eq!(new_over_new.0.calls, ["begin", "shutdown"]);
     }
 
     #[test]
