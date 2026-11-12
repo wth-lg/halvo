@@ -16,6 +16,7 @@ use crate::source::{
     SourceHealth, SourceState, Started, StopCause,
 };
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant, SystemTime};
 use uuid::Uuid;
@@ -128,13 +129,35 @@ struct Queue {
     motion: Option<Packet>,
     closed: bool,
     writer_gone: bool,
-    counts: HandOffCounts,
+}
+
+/// The loss counts of a source, shared by every hand-off that the source
+/// starts, so that a packet which a stopped run still held is counted after a
+/// restart.
+#[derive(Default)]
+pub(crate) struct LossCounts {
+    lost: AtomicU64,
+    coalesced: AtomicU64,
+}
+
+impl LossCounts {
+    fn lose(&self, packets: u64) {
+        self.lost.fetch_add(packets, Ordering::Relaxed);
+    }
+
+    pub(crate) fn read(&self) -> HandOffCounts {
+        HandOffCounts {
+            lost: self.lost.load(Ordering::Relaxed),
+            coalesced: self.coalesced.load(Ordering::Relaxed),
+        }
+    }
 }
 
 struct Shared {
     queue: Mutex<Queue>,
     wake: Condvar,
     sink: SinkHandle,
+    counts: Arc<LossCounts>,
 }
 
 impl Shared {
@@ -158,17 +181,21 @@ pub(crate) struct Producer {
 }
 
 impl HandOff {
-    pub(crate) fn start(sink: SinkHandle, name: &str) -> Result<Self, CaptureError> {
+    pub(crate) fn start(
+        sink: SinkHandle,
+        name: &str,
+        counts: Arc<LossCounts>,
+    ) -> Result<Self, CaptureError> {
         let shared = Arc::new(Shared {
             queue: Mutex::new(Queue {
                 packets: VecDeque::new(),
                 motion: None,
                 closed: false,
                 writer_gone: false,
-                counts: HandOffCounts::default(),
             }),
             wake: Condvar::new(),
             sink,
+            counts,
         });
         let forwarded = Arc::clone(&shared);
         std::thread::Builder::new()
@@ -188,8 +215,9 @@ impl HandOff {
         }
     }
 
-    pub(crate) fn counts(&self) -> HandOffCounts {
-        self.shared.lock().counts
+    #[cfg(test)]
+    fn counts(&self) -> HandOffCounts {
+        self.shared.counts.read()
     }
 
     pub(crate) fn close(&self) {
@@ -215,11 +243,22 @@ impl Drop for HandOff {
 }
 
 impl Producer {
-    /// Queue a packet that is never collapsed: a key, a button, a title.
+    /// Queue a packet that is never collapsed: a key, a button, a title. A
+    /// motion sample that is pending goes into the queue ahead of it, so the
+    /// sink gets the source's packets in the order in which they came.
     pub(crate) fn push(&self, packet: Packet) {
         let mut queue = self.shared.lock();
-        if queue.closed || queue.packets.len() >= HANDOFF_CAPACITY {
-            queue.counts.lost += 1;
+        if queue.closed {
+            self.shared.counts.lose(1);
+            return;
+        }
+        if queue.packets.len() < HANDOFF_CAPACITY {
+            if let Some(motion) = queue.motion.take() {
+                queue.packets.push_back(motion);
+            }
+        }
+        if queue.packets.len() >= HANDOFF_CAPACITY {
+            self.shared.counts.lose(1);
             return;
         }
         queue.packets.push_back(packet);
@@ -232,11 +271,11 @@ impl Producer {
     pub(crate) fn push_motion(&self, packet: Packet) {
         let mut queue = self.shared.lock();
         if queue.closed {
-            queue.counts.lost += 1;
+            self.shared.counts.lose(1);
             return;
         }
         if queue.motion.replace(packet).is_some() {
-            queue.counts.coalesced += 1;
+            self.shared.counts.coalesced.fetch_add(1, Ordering::Relaxed);
         }
         drop(queue);
         self.shared.wake.notify_one();
@@ -259,7 +298,7 @@ fn forward(shared: &Shared) {
         if forward_one(&shared.sink, packet).is_err() {
             let mut queue = shared.lock();
             let left = queue.packets.len() + usize::from(queue.motion.is_some());
-            queue.counts.lost += left as u64;
+            shared.counts.lose(left as u64);
             queue.packets.clear();
             queue.motion = None;
             queue.closed = true;
@@ -418,18 +457,20 @@ pub(crate) struct PumpHandle {
     id: PumpThreadId,
     join: Option<std::thread::JoinHandle<()>>,
     signal: Arc<StopSignal>,
+    stop_requested: bool,
 }
 
 impl PumpHandle {
     /// Set the stop signal and post `WM_QUIT` until the thread ends: `Ok` when
     /// it ended and was joined, [`CaptureError::ThreadEnded`] when it had ended
-    /// before, [`CaptureError::Timeout`] when `deadline` passed first, which
-    /// leaves the thread running and unjoined.
+    /// before the first stop, [`CaptureError::Timeout`] when `deadline` passed
+    /// first, which keeps the thread to be joined by a later stop.
     pub(crate) fn stop(&mut self, deadline: Duration) -> Result<(), CaptureError> {
         let Some(join) = self.join.take() else {
             return Ok(());
         };
-        let ended_before = join.is_finished();
+        let ended_before = join.is_finished() && !self.stop_requested;
+        self.stop_requested = true;
         let began = Instant::now();
         self.signal.set();
         loop {
@@ -438,6 +479,7 @@ impl PumpHandle {
                 break;
             }
             if began.elapsed() >= deadline {
+                self.join = Some(join);
                 return Err(CaptureError::Timeout {
                     stage: "stop",
                     ms: deadline_ms(deadline),
@@ -464,12 +506,18 @@ impl Drop for PumpHandle {
     }
 }
 
-/// The run of a pump source: its pump and its hand-off, kept after a stop for
-/// the hand-off's counts. Dropping it stops the pump.
+/// The run of a pump source: its pump, its hand-off and the loss counts of
+/// every run. A stop that timed out keeps the pump, so that the source reads
+/// as failed and refuses a new begin until a later stop joins it. Dropping it
+/// stops the pump. `shutdown` returns once the pump has ended: the forwarder
+/// then sends what its queue held and ends on its own, so a shutdown can
+/// return while an emit is parked (C12.7).
 #[derive(Default)]
 pub(crate) struct Lifecycle {
     pump: Option<PumpHandle>,
     handoff: Option<HandOff>,
+    counts: Arc<LossCounts>,
+    timed_out: Option<CaptureError>,
     stopped: bool,
 }
 
@@ -485,7 +533,7 @@ impl Lifecycle {
         if self.pump.is_some() {
             return Err(CaptureError::AlreadyStarted);
         }
-        let handoff = HandOff::start(ctx.sink().clone(), forwarder)?;
+        let handoff = HandOff::start(ctx.sink().clone(), forwarder, Arc::clone(&self.counts))?;
         let pump = spawn(handoff.producer())?;
         self.pump = Some(pump);
         self.handoff = Some(handoff);
@@ -498,33 +546,40 @@ impl Lifecycle {
     }
 
     pub(crate) fn shutdown(&mut self) -> Result<(), CaptureError> {
-        let Some(mut pump) = self.pump.take() else {
+        let Some(pump) = self.pump.as_mut() else {
             return Ok(());
         };
         let stopped = pump.stop(INPUT_STOP_DEADLINE);
         if let Some(handoff) = &self.handoff {
             handoff.close();
         }
+        if let Err(timeout @ CaptureError::Timeout { .. }) = &stopped {
+            self.timed_out = Some(timeout.clone());
+            return stopped;
+        }
+        self.pump = None;
+        self.timed_out = None;
         self.stopped = true;
         stopped
     }
 
     pub(crate) fn health(&self, counters: SourceCounters) -> SourceHealth {
         let writer_gone = self.handoff.as_ref().is_some_and(HandOff::writer_gone);
-        let state = match &self.pump {
-            Some(pump) if pump.has_ended() || writer_gone => thread_ended(),
-            Some(_) => SourceState::Running,
-            None if self.stopped => SourceState::Stopped(StopCause::Request),
-            None => SourceState::NotReported,
+        let state = match (&self.pump, &self.timed_out) {
+            (Some(_), Some(timeout)) => SourceState::Failed {
+                reason: HealthReason::Timeout,
+                error: timeout.clone(),
+            },
+            (Some(pump), None) if pump.has_ended() || writer_gone => thread_ended(),
+            (Some(_), None) => SourceState::Running,
+            (None, _) if self.stopped => SourceState::Stopped(StopCause::Request),
+            (None, _) => SourceState::NotReported,
         };
         SourceHealth { state, counters }
     }
 
     pub(crate) fn handoff_counts(&self) -> HandOffCounts {
-        self.handoff
-            .as_ref()
-            .map(HandOff::counts)
-            .unwrap_or_default()
+        self.counts.read()
     }
 }
 
@@ -568,6 +623,7 @@ where
             id,
             join: Some(join),
             signal,
+            stop_requested: false,
         }),
         Ok(Err(error)) => {
             let _ = join.join();
@@ -833,7 +889,7 @@ pub(crate) mod tests {
     fn a_full_queue_drops_a_packet_and_counts_it_lost() {
         let (sink, _writer) = crate::sink::channel(1);
         assert!(forward_one(&sink, pointer("filler")).is_ok());
-        let handoff = HandOff::start(sink, "halvo-test-forward").expect("hand-off");
+        let handoff = HandOff::start(sink, "halvo-test-forward", Arc::default()).expect("hand-off");
         let producer = handoff.producer();
         producer.push(pointer("taken"));
         wait_until("the forwarder took no packet", || handoff.queued() == 0);
@@ -854,7 +910,7 @@ pub(crate) mod tests {
     fn a_gone_writer_closes_the_hand_off_and_counts_what_it_held() {
         let (sink, writer) = crate::sink::channel(1);
         drop(writer);
-        let handoff = HandOff::start(sink, "halvo-test-forward").expect("hand-off");
+        let handoff = HandOff::start(sink, "halvo-test-forward", Arc::default()).expect("hand-off");
         let producer = handoff.producer();
         producer.push(pointer("refused"));
         wait_until("the forwarder did not see the gone writer", || {
@@ -922,7 +978,7 @@ pub(crate) mod tests {
     #[test]
     fn a_motion_sample_made_before_a_button_reaches_the_sink_before_it() {
         let (sink, writer) = crate::sink::channel(16);
-        let handoff = HandOff::start(sink, "halvo-test-forward").expect("hand-off");
+        let handoff = HandOff::start(sink, "halvo-test-forward", Arc::default()).expect("hand-off");
         let producer = handoff.producer();
         producer.push_motion(pointer("motion-0"));
         let first = writer
@@ -1006,7 +1062,8 @@ pub(crate) mod tests {
     #[test]
     fn with_the_sink_full_one_motion_sample_is_pending_and_no_button_packet_is_lost() {
         let (sink, writer) = crate::sink::channel(1);
-        let handoff = HandOff::start(sink.clone(), "halvo-test-forward").expect("hand-off");
+        let handoff =
+            HandOff::start(sink.clone(), "halvo-test-forward", Arc::default()).expect("hand-off");
         assert!(matches!(
             forward_one(&sink, pointer("filler")),
             Ok(EmitOutcome::Queued)

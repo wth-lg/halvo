@@ -17,11 +17,11 @@ use windows_capture::settings::{
 
 use crate::event::Modality;
 use crate::source::{
-    CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, SourceState, Started,
-    StopCause,
+    CaptureError, CaptureSource, HealthReason, SourceContext, SourceCounters, SourceHealth,
+    SourceState, Started, StopCause,
 };
 
-use super::{HandOff, HandOffCounts, Packet, Producer};
+use super::{HandOff, HandOffCounts, LossCounts, Packet, Producer};
 
 /// The default minimum interval between captured frames.
 pub const DEFAULT_MIN_FRAME_INTERVAL: Duration = Duration::from_millis(500);
@@ -220,6 +220,7 @@ pub struct ScreenSource {
     min_interval: Duration,
     life: ScreenLife<Control>,
     handoff: Option<HandOff>,
+    counts: Arc<LossCounts>,
     closed: Arc<AtomicBool>,
 }
 
@@ -230,6 +231,7 @@ impl ScreenSource {
             min_interval: DEFAULT_MIN_FRAME_INTERVAL,
             life: ScreenLife::default(),
             handoff: None,
+            counts: Arc::default(),
             closed: Arc::default(),
         }
     }
@@ -240,12 +242,9 @@ impl ScreenSource {
         self
     }
 
-    /// The counts of this source's hand-off queue in its last run.
+    /// The counts of this source's hand-off queues since it was made.
     pub fn handoff_counts(&self) -> HandOffCounts {
-        self.handoff
-            .as_ref()
-            .map(HandOff::counts)
-            .unwrap_or_default()
+        self.counts.read()
     }
 }
 
@@ -257,7 +256,11 @@ impl CaptureSource for ScreenSource {
         hold_process_mta()?;
         let choice = choose_settings(probe_support, self.min_interval)?;
         let monitor = Monitor::primary().map_err(monitor_error)?;
-        let handoff = HandOff::start(ctx.sink().clone(), "halvo-screen-forward")?;
+        let handoff = HandOff::start(
+            ctx.sink().clone(),
+            "halvo-screen-forward",
+            Arc::clone(&self.counts),
+        )?;
         let closed = Arc::new(AtomicBool::new(false));
         let flags = ScreenFlags {
             producer: handoff.producer(),
@@ -363,9 +366,13 @@ impl Stopping {
     }
 }
 
-/// The session of a screen source, its stop and its state.
+/// The session of a screen source, its stop and its state. A stop that timed
+/// out keeps waiting on its thread at the next shutdown, and the source reads
+/// as failed and refuses a new begin until then.
 struct ScreenLife<S> {
     session: Option<S>,
+    stopping: Option<Stopping>,
+    timed_out: Option<CaptureError>,
     stopped: bool,
 }
 
@@ -373,6 +380,8 @@ impl<S> Default for ScreenLife<S> {
     fn default() -> Self {
         Self {
             session: None,
+            stopping: None,
+            timed_out: None,
             stopped: false,
         }
     }
@@ -380,7 +389,7 @@ impl<S> Default for ScreenLife<S> {
 
 impl<S: Session> ScreenLife<S> {
     fn is_busy(&self) -> bool {
-        self.session.is_some()
+        self.session.is_some() || self.stopping.is_some()
     }
 
     fn started(&mut self, session: S) {
@@ -389,19 +398,33 @@ impl<S: Session> ScreenLife<S> {
     }
 
     fn shutdown(&mut self, deadline: Duration) -> Result<(), CaptureError> {
-        let Some(session) = self.session.take() else {
+        if let Some(session) = self.session.take() {
+            self.stopping = Some(Stopping::start(session)?);
+        }
+        let Some(stopping) = &self.stopping else {
             return Ok(());
         };
-        self.stopped = true;
-        Stopping::start(session)?
-            .wait(deadline)
-            .unwrap_or(Err(CaptureError::Timeout {
+        let Some(stopped) = stopping.wait(deadline) else {
+            let timeout = CaptureError::Timeout {
                 stage: "stop",
                 ms: u64::try_from(deadline.as_millis()).unwrap_or(u64::MAX),
-            }))
+            };
+            self.timed_out = Some(timeout.clone());
+            return Err(timeout);
+        };
+        self.stopping = None;
+        self.timed_out = None;
+        self.stopped = true;
+        stopped
     }
 
     fn state(&self, item_closed: bool, writer_gone: bool) -> SourceState {
+        if let (Some(_), Some(timeout)) = (&self.stopping, &self.timed_out) {
+            return SourceState::Failed {
+                reason: HealthReason::Timeout,
+                error: timeout.clone(),
+            };
+        }
         match &self.session {
             Some(session) if session.finished() || item_closed || writer_gone => {
                 super::thread_ended()
@@ -566,7 +589,8 @@ mod tests {
     #[test]
     fn a_closed_capture_item_reads_as_failed_health() {
         let (sink, _writer) = crate::sink::channel(4);
-        let handoff = HandOff::start(sink, "halvo-test-screen-forward").expect("hand-off");
+        let handoff =
+            HandOff::start(sink, "halvo-test-screen-forward", Arc::default()).expect("hand-off");
         let closed = Arc::new(AtomicBool::new(false));
         let mut handler = ScreenHandler {
             producer: handoff.producer(),

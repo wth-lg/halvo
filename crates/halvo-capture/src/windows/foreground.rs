@@ -132,7 +132,7 @@ impl ForegroundAppSource {
         Arc::clone(&self.last_app)
     }
 
-    /// The counts of this source's hand-off queue in its last run.
+    /// The counts of this source's hand-off queues since it was made.
     pub fn handoff_counts(&self) -> super::HandOffCounts {
         self.life.handoff_counts()
     }
