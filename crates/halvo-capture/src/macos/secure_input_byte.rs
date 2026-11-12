@@ -43,7 +43,7 @@ pub(crate) fn hold_or_error(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::secure_input_macos::test_support::{hold_or_skip, one_hold_at_a_time};
+    use crate::secure_input_macos::test_support::one_hold_at_a_time;
 
     #[test]
     fn zero_reads_off_and_one_reads_on() {
@@ -69,8 +69,8 @@ mod tests {
             ),
             Ok(_) => panic!("a refused hold let the run go on"),
         }
-        let _one = one_hold_at_a_time();
-        let Some(hold) = hold_or_skip(
+        let one = one_hold_at_a_time();
+        let Some(hold) = one.hold_or_skip(
             "a_run_goes_on_with_no_hold_or_a_hold_and_ends_with_an_error_on_a_refusal",
         ) else {
             return;

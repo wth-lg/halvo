@@ -25,7 +25,9 @@ pub fn secure_input_active() -> bool {
 /// A live hold on secure input, the same state a focused password field asserts.
 /// The hold lasts until this value drops, which releases it.
 #[must_use = "dropping the hold releases secure input immediately"]
-pub struct SecureInputHold(());
+pub struct SecureInputHold {
+    release: fn() -> i32,
+}
 
 /// The status other than noErr with which `EnableSecureEventInput` refused a
 /// hold.
@@ -35,7 +37,7 @@ pub struct SecureInputRefused(pub i32);
 /// Hold secure input until the returned [`SecureInputHold`] drops, or the
 /// status with which the system refused the hold.
 pub fn hold_secure_input() -> Result<SecureInputHold, SecureInputRefused> {
-    hold_with(enable_secure_event_input)
+    hold_with(enable_secure_event_input, disable_secure_event_input)
 }
 
 fn enable_secure_event_input() -> i32 {
@@ -47,9 +49,12 @@ fn enable_secure_event_input() -> i32 {
     unsafe { EnableSecureEventInput() }
 }
 
-fn hold_with(enable: fn() -> i32) -> Result<SecureInputHold, SecureInputRefused> {
+fn hold_with(
+    enable: fn() -> i32,
+    release: fn() -> i32,
+) -> Result<SecureInputHold, SecureInputRefused> {
     crate::macos::secure_input_byte::take_hold(enable)
-        .map(|()| SecureInputHold(()))
+        .map(|()| SecureInputHold { release })
         .map_err(SecureInputRefused)
 }
 
@@ -64,7 +69,7 @@ pub(crate) fn disable_secure_event_input() -> i32 {
 
 impl Drop for SecureInputHold {
     fn drop(&mut self) {
-        crate::macos::secure_input_byte::release_hold(disable_secure_event_input);
+        crate::macos::secure_input_byte::release_hold(self.release);
     }
 }
 
@@ -91,18 +96,56 @@ impl SecureInputGuard for MacosSecureInput {
 #[cfg(test)]
 pub(crate) mod test_support {
     use super::{
-        hold_secure_input, DisableSecureEventInput, EnableSecureEventInput, SecureInputHold,
+        disable_secure_event_input, enable_secure_event_input, hold_with, DisableSecureEventInput,
+        EnableSecureEventInput, SecureInputHold,
     };
+    use std::sync::atomic::{AtomicIsize, Ordering};
     use std::sync::{Mutex, MutexGuard, PoisonError};
     use std::time::{Duration, Instant};
 
     static HOLDS: Mutex<()> = Mutex::new(());
 
+    static OWN_HOLDS: AtomicIsize = AtomicIsize::new(0);
+
     const HOLDS_OF_ALL_PROCESSES: &str = "/private/tmp/halvo-capture-secure-input-tests.lock";
 
+    fn counted_enable() -> i32 {
+        let status = enable_secure_event_input();
+        if status == 0 {
+            OWN_HOLDS.fetch_add(1, Ordering::SeqCst);
+        }
+        status
+    }
+
+    fn counted_release() -> i32 {
+        OWN_HOLDS.fetch_sub(1, Ordering::SeqCst);
+        disable_secure_event_input()
+    }
+
+    fn own_holds() -> isize {
+        OWN_HOLDS.load(Ordering::SeqCst)
+    }
+
     pub(crate) struct OneHold {
+        own_before: isize,
         _file: std::fs::File,
         _guard: MutexGuard<'static, ()>,
+    }
+
+    impl Drop for OneHold {
+        fn drop(&mut self) {
+            let left = own_holds() - self.own_before;
+            for _ in 0..left {
+                counted_release();
+            }
+            if left != 0 && !std::thread::panicking() {
+                panic!(
+                    "the test changed the count of this process's secure-input holds by {left} \
+                     (the guard gave back the holds that were left: {})",
+                    left.max(0)
+                );
+            }
+        }
     }
 
     pub(crate) fn one_hold_at_a_time() -> OneHold {
@@ -117,36 +160,39 @@ pub(crate) mod test_support {
         let locked = unsafe { libc::flock(std::os::fd::AsRawFd::as_raw_fd(&file), libc::LOCK_EX) };
         assert_eq!(locked, 0, "the lock of the hold tests was not taken");
         OneHold {
+            own_before: own_holds(),
             _file: file,
             _guard: guard,
         }
     }
 
-    pub(crate) fn hold_or_skip(test: &str) -> Option<SecureInputHold> {
-        let refused = match hold_secure_input() {
-            Ok(hold) => return Some(hold),
-            Err(refused) => refused,
-        };
-        // SAFETY: parameterless Carbon call that returns an OSStatus. The caller
-        // holds `one_hold_at_a_time`, which every test that holds or releases
-        // takes; another test may read the predicate meanwhile, which the
-        // header does not allow and which macos-2 settles, as for the hold above.
-        let system = unsafe { EnableSecureEventInput() };
-        if system == 0 {
-            // SAFETY: as above; it balances the hold that the line above took.
-            unsafe { DisableSecureEventInput() };
-            panic!(
-                "{test}: hold_secure_input reported the status {} although the system \
-                 accepts a hold",
+    impl OneHold {
+        pub(crate) fn hold_or_skip(&self, test: &str) -> Option<SecureInputHold> {
+            let refused = match hold_with(counted_enable, counted_release) {
+                Ok(hold) => return Some(hold),
+                Err(refused) => refused,
+            };
+            // SAFETY: parameterless Carbon call that returns an OSStatus. `self`
+            // holds the lock that every test that holds or releases takes;
+            // another test may read the predicate meanwhile, which the header
+            // does not allow and which macos-2 settles, as for the hold above.
+            let system = unsafe { EnableSecureEventInput() };
+            if system == 0 {
+                // SAFETY: as above; it balances the hold that the line above took.
+                unsafe { DisableSecureEventInput() };
+                panic!(
+                    "{test}: hold_with on the system's calls reported the status {} \
+                     although the system accepts a hold",
+                    refused.0
+                );
+            }
+            eprintln!(
+                "SKIP {test}: EnableSecureEventInput refused the hold with status {system} \
+                 (hold_with: {})",
                 refused.0
             );
+            None
         }
-        eprintln!(
-            "SKIP {test}: EnableSecureEventInput refused the hold with status {system} \
-             (hold_secure_input: {})",
-            refused.0
-        );
-        None
     }
 
     pub(crate) fn reads_on_within(reader: impl Fn() -> bool, limit: Duration) -> bool {
@@ -187,21 +233,55 @@ pub(crate) mod test_support {
 
 #[cfg(test)]
 mod tests {
-    use super::test_support::{agreed_reading, hold_or_skip, one_hold_at_a_time, reads_on_within};
+    use super::test_support::{agreed_reading, one_hold_at_a_time, reads_on_within};
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
 
     #[test]
     fn a_refused_hold_gives_its_status_and_no_hold() {
-        assert!(matches!(hold_with(|| -50), Err(SecureInputRefused(-50))));
+        assert!(matches!(
+            hold_with(|| -50, || 0),
+            Err(SecureInputRefused(-50))
+        ));
+    }
+
+    #[test]
+    fn each_held_hold_makes_one_release_call_on_its_drop_and_a_refused_hold_none() {
+        static RELEASES: AtomicUsize = AtomicUsize::new(0);
+        fn counted_release() -> i32 {
+            RELEASES.fetch_add(1, Ordering::SeqCst);
+            0
+        }
+        let releases = || RELEASES.load(Ordering::SeqCst);
+        let held = hold_with(|| 0, counted_release).expect("a hold with the status 0 is held");
+        assert_eq!(releases(), 0, "release calls before the drop of the hold");
+        drop(held);
+        assert_eq!(releases(), 1, "release calls after the drop of a held hold");
+        let refused = hold_with(|| -50, counted_release);
+        assert!(matches!(refused, Err(SecureInputRefused(-50))));
+        drop(refused);
+        assert_eq!(
+            releases(),
+            1,
+            "release calls after the drop of a refused hold"
+        );
+        let first = hold_with(|| 0, counted_release).expect("the first of two holds is held");
+        let second = hold_with(|| 0, counted_release).expect("the second of two holds is held");
+        drop((first, second));
+        assert_eq!(
+            releases(),
+            3,
+            "release calls after the drops of two more holds"
+        );
     }
 
     #[test]
     fn a_dropped_hold_gives_the_reading_of_before_back() {
-        let _one = one_hold_at_a_time();
+        let one = one_hold_at_a_time();
         let limit = Duration::from_secs(2);
         let before = agreed_reading(secure_input_active, limit);
-        let Some(hold) = hold_or_skip("a_dropped_hold_gives_the_reading_of_before_back") else {
+        let Some(hold) = one.hold_or_skip("a_dropped_hold_gives_the_reading_of_before_back") else {
             return;
         };
         drop(hold);
@@ -226,10 +306,11 @@ mod tests {
 
     #[test]
     fn the_predicate_follows_the_session_reading_through_a_hold() {
-        let _one = one_hold_at_a_time();
+        let one = one_hold_at_a_time();
         let limit = Duration::from_secs(2);
         let before = agreed_reading(secure_input_active, limit);
-        let Some(hold) = hold_or_skip("the_predicate_follows_the_session_reading_through_a_hold")
+        let Some(hold) =
+            one.hold_or_skip("the_predicate_follows_the_session_reading_through_a_hold")
         else {
             return;
         };
@@ -247,11 +328,12 @@ mod tests {
 
     #[test]
     fn the_guard_state_reads_off_on_during_a_hold_and_off_again() {
-        let _one = one_hold_at_a_time();
+        let one = one_hold_at_a_time();
         let limit = Duration::from_secs(2);
         let guard_on = || MacosSecureInput::new().state() == SecureInputState::Active;
         let before = agreed_reading(guard_on, limit);
-        let Some(hold) = hold_or_skip("the_guard_state_reads_off_on_during_a_hold_and_off_again")
+        let Some(hold) =
+            one.hold_or_skip("the_guard_state_reads_off_on_during_a_hold_and_off_again")
         else {
             return;
         };

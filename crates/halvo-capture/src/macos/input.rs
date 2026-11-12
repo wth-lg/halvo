@@ -454,7 +454,7 @@ mod tests {
     use super::*;
     use crate::macos::foreground::foreground_state;
     use crate::secure_input_macos::test_support::{
-        agreed_reading, hold_or_skip, one_hold_at_a_time, reads_on_within,
+        agreed_reading, one_hold_at_a_time, reads_on_within,
     };
     use crate::sink;
     use core_foundation::date::CFDate;
@@ -591,8 +591,9 @@ mod tests {
 
     #[test]
     fn the_production_reader_reads_a_real_hold_as_active() {
-        let _one = one_hold_at_a_time();
-        let Some(hold) = hold_or_skip("the_production_reader_reads_a_real_hold_as_active") else {
+        let one = one_hold_at_a_time();
+        let Some(hold) = one.hold_or_skip("the_production_reader_reads_a_real_hold_as_active")
+        else {
             return;
         };
         assert!(
@@ -607,12 +608,12 @@ mod tests {
 
     #[test]
     fn the_production_reader_reads_off_on_during_a_hold_and_off_again() {
-        let _one = one_hold_at_a_time();
+        let one = one_hold_at_a_time();
         let limit = Duration::from_secs(2);
         let reader_on = || current_secure_state() == SecureInputState::Active;
         let before = agreed_reading(reader_on, limit);
         let Some(hold) =
-            hold_or_skip("the_production_reader_reads_off_on_during_a_hold_and_off_again")
+            one.hold_or_skip("the_production_reader_reads_off_on_during_a_hold_and_off_again")
         else {
             return;
         };
@@ -682,8 +683,8 @@ mod tests {
             .unwrap_or_else(PoisonError::into_inner)
             .take()
             .expect("the maker was given a callback");
-        let _one = one_hold_at_a_time();
-        let Some(hold) = hold_or_skip(
+        let one = one_hold_at_a_time();
+        let Some(hold) = one.hold_or_skip(
             "a_started_source_counts_a_key_under_a_real_hold_through_the_callback_that_it_installs",
         ) else {
             return;
