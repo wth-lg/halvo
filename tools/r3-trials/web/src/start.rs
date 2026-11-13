@@ -924,23 +924,29 @@ mod tests {
 
     /// CP-126 E5 M13: a variable of the start replaces the process's own of that name (A11.1's
     /// `TMPDIR` of the browser): the child's environment holds the name once, with the start's
-    /// value. PATH stands in, which every test process has; `/usr/bin/env` prints the whole
-    /// environment, so a second entry of the name shows.
-    #[cfg(target_os = "macos")]
+    /// value. PATH stands in, which every test process has. The child is the stand-in in its `env`
+    /// mode, which writes every entry of its environment, so a second entry of the name shows.
+    #[cfg(all(target_os = "macos", feature = "driver"))]
     #[test]
     fn a_variable_of_the_start_replaces_the_processs_own() {
         let dir = std::env::temp_dir().join(format!("r3-web-env-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let out = dir.join("env.txt");
+        let me = std::env::current_exe().unwrap();
         let spec = Spec {
-            program: Path::new("/bin/sh"),
+            program: &me,
             args: vec![
-                "-c".into(),
-                "/usr/bin/env >\"$1\"".into(),
-                "sh".into(),
+                crate::standin::ENTRY.into(),
+                "--exact".into(),
+                "--quiet".into(),
+                "--test-threads=1".into(),
+                "--".into(),
                 out.clone().into_os_string(),
             ],
-            env: vec![("PATH".into(), "/r3-web-test-path".into())],
+            env: vec![
+                (crate::standin::VAR.into(), "env".into()),
+                ("PATH".into(), "/r3-web-test-path".into()),
+            ],
             stderr: None,
         };
         let mut on = {

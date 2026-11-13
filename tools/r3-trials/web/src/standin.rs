@@ -10,6 +10,8 @@
 // - `late`: waits 300 ms, starts `helper` and ends, so the helper appears after the browser ended.
 // - `helper`: waits up to 20 s and ends.
 // - `hang`: holds the pipe and answers nothing for up to 60 s, as a browser that stalls in its start.
+// - `env`: writes its environment as the start gave it, one `NAME=VALUE` a line and every entry
+//   (none dropped as a shell or a table would), into the file that its first argument names.
 // - `leave`: a first process that ends and leaves a process of its own: it starts `helper` with
 //   the pipe's ends closed to it (by `posix_spawn`, so the helper never runs this program's image
 //   with other arguments), then ends, which closes the pipe and fails the start.
@@ -105,6 +107,15 @@ fn entry() {
                 unsafe { libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) };
             }
             let _ = run(&me, "helper", &args);
+        }
+        "env" => {
+            if let Some(out) = args.first() {
+                let mut text = String::new();
+                for (k, v) in std::env::vars_os() {
+                    text.push_str(&format!("{}={}\n", k.to_string_lossy(), v.to_string_lossy()));
+                }
+                let _ = std::fs::write(out, text);
+            }
         }
         "hang" => {
             let until = Instant::now() + Duration::from_secs(60);
