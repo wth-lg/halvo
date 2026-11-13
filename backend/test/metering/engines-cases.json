@@ -116,11 +116,10 @@
         "send after the retry",
         {
           "call": {
-            "kind": "send",
+            "kind": "read",
             "interval": 1800001817000,
-            "identifier": "00000000-0000-4000-8000-0000000000e1:1800001817",
-            "amountMinor": 250,
-            "timestamp": 1800005416
+            "from": 1800005416,
+            "to": 1800005417
           },
           "notBillable": 0
         }
@@ -195,7 +194,9 @@
           "attempts": 0,
           "refusals": 0,
           "unanswered": 0,
+          "unanswered_at": null,
           "answer_due": 0,
+          "sent_at": null,
           "pending_refusal": null,
           "outcome": "no-call",
           "refusal": null,
@@ -214,9 +215,11 @@
           "first_attempt": 1800005417000,
           "next_attempt": 1800005597000,
           "attempts": 4,
-          "refusals": 2,
-          "unanswered": 0,
+          "refusals": 0,
+          "unanswered": 1,
+          "unanswered_at": 1800005417000,
           "answer_due": 0,
+          "sent_at": null,
           "pending_refusal": null,
           "outcome": "acknowledged",
           "refusal": null,
@@ -237,7 +240,9 @@
           "attempts": 0,
           "refusals": 0,
           "unanswered": 0,
+          "unanswered_at": null,
           "answer_due": 0,
+          "sent_at": null,
           "pending_refusal": null,
           "outcome": "not-billable",
           "refusal": "send_limit",

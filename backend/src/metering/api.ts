@@ -12,6 +12,7 @@ export type UsageAnswer =
   | { kind: "failed" };
 export const SEND_LIMIT_MS = 3_024_000_000;
 export const REFUSAL_LIMIT = 3;
+export const LATE_READ_SPAN_MS = 86_100_000;
 export interface Next {
   call: UsageCall | null;
   notBillable: number;
