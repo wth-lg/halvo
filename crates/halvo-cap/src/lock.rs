@@ -388,6 +388,10 @@ fn take_lock_at(path: PathBuf) -> Result<ModelLock, LockError> {
         }
         opened => opened,
     }
+    .and_then(|file| match file.metadata()?.is_file() {
+        true => Ok(file),
+        false => Err(io::Error::other("the lock path is no file")),
+    })
     .map_err(|source| LockError::Io {
         call: "open",
         path: path.clone(),
@@ -937,6 +941,50 @@ mod tests {
             other => panic!("a lock directory that cannot be written: {other:?}"),
         }
         assert!(!lock.exists());
+    }
+
+    #[test]
+    fn a_directory_at_the_lock_path_gives_io_and_no_lock() {
+        let dir = fresh_dir("lock-is-a-directory");
+        let lock = lock_path_in(&dir);
+        std::fs::create_dir_all(&lock).unwrap();
+        match take_lock_from(Ok(Some(dir.into_os_string()))) {
+            Err(LockError::Io { call: "open", .. }) => {}
+            other => panic!("a directory at the lock path: {other:?}"),
+        }
+        assert!(lock.is_dir());
+        assert_eq!(std::fs::read_dir(&lock).unwrap().count(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_existing_lock_file_that_cannot_be_read_gives_io_and_is_left_as_it_was() {
+        use std::os::unix::fs::PermissionsExt;
+        struct Unreadable(PathBuf);
+        impl Drop for Unreadable {
+            fn drop(&mut self) {
+                let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o644));
+            }
+        }
+        let dir = fresh_dir("unreadable");
+        let lock = lock_path_in(&dir);
+        std::fs::create_dir_all(lock.parent().unwrap()).unwrap();
+        std::fs::write(&lock, "left by an earlier run\n").unwrap();
+        let _unreadable = Unreadable(lock.clone());
+        std::fs::set_permissions(&lock, std::fs::Permissions::from_mode(0o000)).unwrap();
+        assert!(
+            File::open(&lock).is_err(),
+            "the test could not make the lock file unreadable"
+        );
+        match take_lock_from(Ok(Some(dir.into_os_string()))) {
+            Err(LockError::Io { call: "open", .. }) => {}
+            other => panic!("an unreadable lock file: {other:?}"),
+        }
+        std::fs::set_permissions(&lock, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(&lock).unwrap(),
+            "left by an earlier run\n"
+        );
     }
 
     #[test]
