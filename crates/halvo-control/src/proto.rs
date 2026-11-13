@@ -2743,6 +2743,29 @@ stopped/kind body
     }
 
     #[test]
+    fn the_twins_at_version_2_of_the_frames_with_white_space_are_invalid_argument() {
+        let frame = r#"{"v":2,"body":{"op":"pause"}}"#;
+        assert_eq!(
+            decode_request(frame.as_bytes()).unwrap_err().code(),
+            ErrorCode::UnsupportedVersion
+        );
+        for text in [format!(" {frame}"), format!("{frame}\n")] {
+            assert_eq!(
+                decode_request(text.as_bytes()).unwrap_err().code(),
+                ErrorCode::InvalidArgument,
+                "{text:?}"
+            );
+            assert!(
+                matches!(
+                    decode_reply(text.as_bytes()),
+                    Err(ReplyError::NotAnEnvelope)
+                ),
+                "{text:?}"
+            );
+        }
+    }
+
+    #[test]
     fn a_request_with_an_unknown_field_is_invalid_argument() {
         for request in every_request() {
             let mut value: serde_json::Value =
