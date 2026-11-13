@@ -30,10 +30,17 @@ use crate::{Directory, Name, Secret};
 /// answers `Fault`. The call opens the store directory once without following a link and
 /// makes every later call relative to that handle. A move into the Keychain removes the
 /// file only after it claims it by one rename, which never replaces a name, to a private
-/// name `.<name>.<pid>.<n>.tmp` in the store directory, the form of the place's own
-/// temporary files, and finds there the bytes that it moved; another file is named back. A
-/// file that stays under such a private name is a file that a move claimed and could not
-/// name back, because the name was taken again at that moment: no read gives it.
+/// name `.<name>.<pid>.<n>.claim` in the store directory, a form of the claim's own that no
+/// temporary file of a write has, and finds there the bytes that it moved; another file is
+/// named back. A move that is killed after its claim, or that could not name a file back
+/// because the name was taken again, leaves the file under that private name, where no
+/// read gives it. The next operation of `Store::new` ends it: before it reads the file, it
+/// lists the store directory, by the path that the handle names, for names of the claim's
+/// form, and handles each such file, relative to the handle, one by one: one that holds the
+/// bytes of the Keychain item is removed, which ends the move; one beside no item or other
+/// bytes is put back under the store's name; one that cannot be read, removed or put back
+/// makes the operation answer as for a file place that cannot be looked at. No other name
+/// in the directory is touched.
 ///
 /// Absent and missing, on both systems: a read answers `NotStored` only when the store
 /// directory or the item is absent under a parent that exists. A step above the store
