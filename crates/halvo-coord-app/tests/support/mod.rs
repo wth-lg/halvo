@@ -10,7 +10,7 @@ use halvo_coord::types::{
     Limits, Name, Outcome, PastRun, Reply, RunEnd, RunEvent, RunHistory, RunId, RunSpec, Trigger,
     What, Workflow, WorkflowId, WorkflowState, WorkflowTrigger,
 };
-use halvo_coord_app::{handler, Agents, Hub};
+use halvo_coord_app::{handler, Agents, Hub, Native, Present};
 use std::num::NonZeroU32;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread::ThreadId;
@@ -164,6 +164,31 @@ impl Counts {
 
     pub fn all(&self) -> Vec<u32> {
         self.0.lock().unwrap().clone()
+    }
+}
+
+/// A stand-in presenter whose dialogs stay open: it keeps every `Native` that it gets until the
+/// test takes it.
+#[derive(Clone, Default)]
+pub struct Dialogs(pub Arc<Mutex<Vec<Native>>>);
+
+impl Present for Dialogs {
+    fn present(&self, dialog: Native) {
+        self.0.lock().unwrap().push(dialog);
+    }
+}
+
+impl Dialogs {
+    pub fn boxed(&self) -> Box<dyn Present> {
+        Box::new(self.clone())
+    }
+
+    pub fn count(&self) -> usize {
+        self.0.lock().unwrap().len()
+    }
+
+    pub fn take(&self) -> Vec<Native> {
+        std::mem::take(&mut *self.0.lock().unwrap())
     }
 }
 

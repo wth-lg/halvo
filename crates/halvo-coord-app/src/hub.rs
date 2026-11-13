@@ -2,6 +2,7 @@ use crate::args::Args;
 use crate::bell::Bell;
 use crate::wired::Wired;
 use halvo_coord::guard::Policy;
+use halvo_coord::items::ConfirmAnswer;
 use halvo_coord::ports::{Analysis, Clock, Owner, Rng, Runs};
 use halvo_coord::sync::Next;
 use halvo_coord::types::commands::LIST;
@@ -12,7 +13,7 @@ use halvo_coord::types::{
 use halvo_coord::Coordinator;
 use serde::{Serialize, Serializer};
 use serde_json::Value;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError, Weak};
 use std::time::{Duration, Instant};
 
 /// A reply of a command (I8.1), written as the page's fixtures write it (I8.3).
@@ -89,6 +90,54 @@ pub trait Core: Send + Sync {
 
     /// The hook of the window `main` destroyed, which answers as `hidden` does.
     fn destroyed(&self);
+
+    /// The native dialog's report that the item is on screen (I4.2).
+    fn on_screen(&self, item: &ItemId);
+
+    /// The native dialog's answer to the item (I4.5).
+    fn answer_native(&self, item: &ItemId, answer: ConfirmAnswer) -> Result<(), Cause>;
+}
+
+/// The presenter of the native dialog (I4.9), which U4.2 builds: it gets each confirmation of
+/// the presenter `native` that the page asks to show through `agents_present`, never a second
+/// time while the dialog of that item is open, and returns at once, the dialog running on a
+/// thread of its own. It neither holds nor takes the coordinator's lock.
+pub trait Present: Send + Sync {
+    /// Shows the dialog of `dialog`'s item.
+    fn present(&self, dialog: Native);
+}
+
+/// A native confirmation handed to the presenter: its dialog counts as open until this value
+/// is dropped, and its answer reaches the coordinator as the native one (I4.5), which the page
+/// cannot give.
+pub struct Native {
+    core: Arc<dyn Core>,
+    open: Arc<Mutex<Vec<ItemId>>>,
+    item: ItemId,
+}
+
+impl Native {
+    /// The item.
+    pub fn item(&self) -> &ItemId {
+        &self.item
+    }
+
+    /// The dialog's first report that it is on screen, from which the item arms (I4.2).
+    pub fn on_screen(&self) {
+        self.core.on_screen(&self.item);
+    }
+
+    /// The person's answer in the dialog.
+    pub fn answer(&self, answer: ConfirmAnswer) -> Result<(), Cause> {
+        self.core.answer_native(&self.item, answer)
+    }
+}
+
+impl Drop for Native {
+    fn drop(&mut self) {
+        let mut open = self.open.lock().unwrap_or_else(PoisonError::into_inner);
+        open.retain(|i| i != &self.item);
+    }
 }
 
 /// The value that the app manages for the handler: the hub behind `Core`.
@@ -104,6 +153,9 @@ pub struct Hub<P: Owner> {
     bell: Arc<Bell>,
     waits: Waits,
     replied: Mutex<Option<Instant>>,
+    present: Box<dyn Present>,
+    open: Arc<Mutex<Vec<ItemId>>>,
+    me: Weak<Hub<P>>,
 }
 
 impl<P> Hub<P>
@@ -112,9 +164,15 @@ where
     Cfg<P>: ConfigView + Clone + Send + 'static,
 {
     /// A hub of a new life over `ports` and `limits`, whose count of agents under `needs_you`
-    /// goes to `tray`, with the waits of `limits`.
-    pub fn new(ports: P, limits: Limits, tray: Box<dyn Fn(u32) + Send + Sync>) -> Arc<Hub<P>> {
-        Hub::with_waits(ports, limits, tray, Waits::of(&limits))
+    /// goes to `tray` and whose native confirmations go to `present`, with the waits of
+    /// `limits`.
+    pub fn new(
+        ports: P,
+        limits: Limits,
+        tray: Box<dyn Fn(u32) + Send + Sync>,
+        present: Box<dyn Present>,
+    ) -> Arc<Hub<P>> {
+        Hub::with_waits(ports, limits, tray, present, Waits::of(&limits))
     }
 
     /// The same with other waits.
@@ -122,14 +180,18 @@ where
         ports: P,
         limits: Limits,
         tray: Box<dyn Fn(u32) + Send + Sync>,
+        present: Box<dyn Present>,
         waits: Waits,
     ) -> Arc<Hub<P>> {
         let bell = Arc::new(Bell::new(tray));
-        Arc::new(Hub {
+        Arc::new_cyclic(|me| Hub {
             coord: Coordinator::new(Wired::new(ports, bell.clone()), limits),
             bell,
             waits,
             replied: Mutex::new(None),
+            present,
+            open: Arc::new(Mutex::new(Vec::new())),
+            me: me.clone(),
         })
     }
 
@@ -155,7 +217,7 @@ where
                     self.coord.setup_typed(&i, param, args.text("text"))
                 })
                 .into(),
-            "agents_present" => item().and_then(|i| self.coord.present(&i)).into(),
+            "agents_present" => item().and_then(|i| self.present(i)).into(),
             "agents_control" => agent()
                 .and_then(|a| {
                     let action = Action::parse(args.text("action"))?;
@@ -181,6 +243,25 @@ where
             _ => None,
         };
         self.coord.answer(&item, choice, pick)
+    }
+
+    fn present(&self, item: ItemId) -> Result<(), Cause> {
+        self.coord.present(&item)?;
+        let mut open = self.open.lock().unwrap_or_else(PoisonError::into_inner);
+        if open.contains(&item) {
+            return Ok(());
+        }
+        open.push(item.clone());
+        drop(open);
+        let Some(core) = self.me.upgrade() else {
+            return Err(Cause::NoService);
+        };
+        self.present.present(Native {
+            core,
+            open: self.open.clone(),
+            item,
+        });
+        Ok(())
     }
 
     fn next(&self, after: u32) -> Reply {
@@ -251,5 +332,13 @@ where
 
     fn destroyed(&self) {
         self.bell.close();
+    }
+
+    fn on_screen(&self, item: &ItemId) {
+        self.coord.on_screen(item);
+    }
+
+    fn answer_native(&self, item: &ItemId, answer: ConfirmAnswer) -> Result<(), Cause> {
+        self.coord.answer_native(item, answer)
     }
 }

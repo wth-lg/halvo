@@ -6,13 +6,16 @@ use halvo_coord::types::commands::LIST;
 use halvo_coord::types::{Cause, Limits, RunEvent};
 use halvo_coord_app::{Core, Hub, Reply, REFUSED};
 use serde_json::{json, Value};
-use support::{agent, app, calls_since, events, fixture, invoke, mark, started, world, Counts};
+use support::{
+    agent, app, calls_since, events, fixture, invoke, mark, started, world, Counts, Dialogs,
+};
 
 fn hub(agents: usize) -> std::sync::Arc<Hub<support::Shared>> {
     let hub = Hub::new(
         world(agents, Limits::PRODUCT),
         Limits::PRODUCT,
         Counts::default().sink(),
+        Dialogs::default().boxed(),
     );
     hub.coordinator().tick();
     hub
@@ -140,6 +143,7 @@ fn each_refusal_is_written_as_its_fixture_and_never_rejects() {
         world(1, Limits::PRODUCT),
         Limits::PRODUCT,
         Counts::default().sink(),
+        Dialogs::default().boxed(),
     );
     let (_app, main, _other) = app(fresh);
     assert_eq!(

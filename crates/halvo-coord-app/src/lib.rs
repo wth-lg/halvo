@@ -13,6 +13,6 @@ mod wired;
 
 pub use bell::Bell;
 pub use handler::{handler, MAIN, REFUSED};
-pub use hub::{Agents, Core, Hub, Reply, Waits};
+pub use hub::{Agents, Core, Hub, Native, Present, Reply, Waits};
 pub use window::{on_window_event, Close, CLOSE};
 pub use wired::Wired;

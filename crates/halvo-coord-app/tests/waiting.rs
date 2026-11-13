@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use std::thread::{sleep, JoinHandle};
 use std::time::{Duration, Instant};
-use support::{agent, app, fixture, invoke, started, world, Counts, Shared};
+use support::{agent, app, fixture, invoke, started, world, Counts, Dialogs, Shared};
 use tauri::test::MockRuntime;
 use tauri::{WebviewWindow, WindowEvent};
 
@@ -23,6 +23,7 @@ fn hub(agents: usize, next: u64, coalesce: u64) -> Arc<Hub<Shared>> {
         world(agents, Limits::PRODUCT),
         Limits::PRODUCT,
         Counts::default().sink(),
+        Dialogs::default().boxed(),
         waits,
     );
     hub.coordinator().tick();
