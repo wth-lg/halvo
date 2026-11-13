@@ -468,6 +468,7 @@ fn supervise(
                             },
                         }),
                         sessions: Vec::new(),
+                        start: None,
                     }),
                     RunnerCall::Effect(b) => {
                         last.insert(b.record.effect.clone(), b.record.clone());
