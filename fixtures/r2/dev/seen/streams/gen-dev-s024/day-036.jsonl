@@ -1,9 +1,0 @@
-{"v":1,"id":"019c2d21-8be7-7664-bef1-f05080740a26","at":1770283699175000000,"seq":369,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c2d21-8be7-7b66-885a-bfc19b8e0938","at":1770283699175000000,"seq":370,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
-{"v":1,"id":"019c2d21-9ec0-7d61-9389-9ba931d74864","at":1770283704000000000,"seq":371,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
-{"v":1,"id":"019c2d21-cda0-7882-839a-fbcc73b3328d","at":1770283716000000000,"seq":372,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
-{"v":1,"id":"019c2d21-ece0-7cff-ae02-30fb44562573","at":1770283724000000000,"seq":373,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
-{"v":1,"id":"019c2d2e-f9c5-7467-92e4-eb90eeeb0ff5","at":1770284579269000000,"seq":374,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019c2d2e-f9c5-7789-b2e0-8fa254197e9c","at":1770284579269000000,"seq":375,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
-{"v":1,"id":"019c2d2f-1028-7ad9-8601-7a3cf8d97040","at":1770284585000000000,"seq":376,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}
-{"v":1,"id":"019c2d2f-2798-76e1-9c12-c9ce989c7e20","at":1770284591000000000,"seq":377,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

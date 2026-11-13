@@ -1,8 +1,0 @@
-{"v":1,"id":"019d1989-8d09-7668-ac1a-2fb59ab8e6f6","at":1774249938185000000,"seq":1190,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019d1989-8d09-7276-bf10-b2b47a2ab12a","at":1774249938185000000,"seq":1191,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
-{"v":1,"id":"019d198a-0de0-7de7-b4d2-480dfd4ce12c","at":1774249971168000000,"seq":1192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
-{"v":1,"id":"019d198a-6710-7cd0-a6a0-7126576e6051","at":1774249994000000000,"seq":1193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d198a-7e80-7cd4-9a52-6193e7527f08","at":1774250000000000000,"seq":1194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d1993-f805-77aa-98ba-06362574eaf7","at":1774250620933000000,"seq":1195,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019d1993-f805-777a-8bde-7c4bf81dcff8","at":1774250620933000000,"seq":1196,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
-{"v":1,"id":"019d1994-d6f0-7435-b6ea-c61a6e2810c1","at":1774250678000000000,"seq":1197,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}

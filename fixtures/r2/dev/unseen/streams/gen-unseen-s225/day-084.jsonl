@@ -1,4 +1,0 @@
-{"v":1,"id":"019d2497-a1d4-75e3-8c28-d283e7245d1e","at":1774435410388000000,"seq":1105,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019d2497-a1d4-725f-96aa-dba86c7166b3","at":1774435410388000000,"seq":1106,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
-{"v":1,"id":"019d2497-bba8-7297-892a-c36b003f7407","at":1774435417000000000,"seq":1107,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":20}}
-{"v":1,"id":"019d24a7-acba-79a1-941d-903962939467","at":1774436461754000000,"seq":1108,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}

@@ -1,9 +1,0 @@
-{"v":1,"id":"019c704b-887f-74ac-a7bb-2c38115e41d9","at":1771410524287000000,"seq":474,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019c704b-887f-7484-b4c1-1d317a645add","at":1771410524287000000,"seq":475,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
-{"v":1,"id":"019c704b-aa88-77f8-aa22-7cebc0f533c8","at":1771410533000000000,"seq":476,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
-{"v":1,"id":"019c704b-b640-700e-a9c0-38c2cf0b8b8f","at":1771410536000000000,"seq":477,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
-{"v":1,"id":"019c7067-09e7-7313-adff-a5269363ae26","at":1771412326887000000,"seq":478,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c7067-09e7-7dc7-8d72-4622b67464e5","at":1771412326887000000,"seq":479,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
-{"v":1,"id":"019c7067-9ec8-7a75-a20a-5bdd3dcb6d1d","at":1771412365000000000,"seq":480,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
-{"v":1,"id":"019c7067-b250-709f-b413-078dae03ef72","at":1771412370000000000,"seq":481,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c7067-f8a0-731a-bcbc-2ae6d75bc024","at":1771412388000000000,"seq":482,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

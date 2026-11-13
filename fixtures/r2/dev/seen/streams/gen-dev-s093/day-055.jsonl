@@ -1,9 +1,0 @@
-{"v":1,"id":"019c8e93-5f2b-7e15-b586-2f53de3fbc1e","at":1771918548779000000,"seq":783,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c8e93-5f2b-748b-b9fc-29b08f6c4bd2","at":1771918548779000000,"seq":784,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
-{"v":1,"id":"019c8e93-8718-79a9-a60e-04b96d54606a","at":1771918559000000000,"seq":785,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c8e93-fc48-7ca6-bbd3-b79f66a45cc9","at":1771918589000000000,"seq":786,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c8e94-4bde-7df7-a53c-ff698b3ce2d8","at":1771918609374000000,"seq":787,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Health dashboard - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
-{"v":1,"id":"019c8e94-7560-7103-98fa-7456c94e6d71","at":1771918620000000000,"seq":788,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c8e94-8118-7827-8b94-dd9257b458ff","at":1771918623000000000,"seq":789,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":11}}
-{"v":1,"id":"019c8e94-8995-71cf-aab8-6c7247b14250","at":1771918625173000000,"seq":790,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"glucose trend - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
-{"v":1,"id":"019c8e94-8cd0-7f05-8337-21c2a5b617d4","at":1771918626000000000,"seq":791,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}

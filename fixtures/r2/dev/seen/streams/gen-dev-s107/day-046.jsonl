@@ -1,7 +1,0 @@
-{"v":1,"id":"019c60b2-d5a8-7f9a-8e2c-6c48aecc07f1","at":1771148858792000000,"seq":673,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c60b2-d5a8-72c8-adc2-60ff35e14b77","at":1771148858792000000,"seq":674,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Gridwell Sheets","cut":false,"why":"app_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
-{"v":1,"id":"019c60b2-fd88-756d-afd8-ee06f1752049","at":1771148869000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c60b3-2880-7b34-8179-4f54ab69fac2","at":1771148880000000000,"seq":676,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c60b3-6335-7463-87ac-0c129b0840c1","at":1771148895029000000,"seq":677,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sheet templates - Gridwell Sheets","cut":false,"why":"title_change","site":{"domain":"gridwell-sheets.test","source":"address_field"}}}
-{"v":1,"id":"019c60b3-6ae8-7386-957b-255abae033a0","at":1771148897000000000,"seq":678,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
-{"v":1,"id":"019c60b4-1ab0-7040-b700-9a03cf312b8c","at":1771148942000000000,"seq":679,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

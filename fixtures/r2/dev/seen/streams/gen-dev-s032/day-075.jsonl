@@ -1,7 +1,0 @@
-{"v":1,"id":"019cf5b0-f7f8-7742-b959-ad9b4300d8bc","at":1773648541688000000,"seq":1141,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019cf5b0-f7f8-79a2-9215-aedfa2246132","at":1773648541688000000,"seq":1142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"app_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
-{"v":1,"id":"019cf5b1-3932-7f03-bad3-dd9d515aabf2","at":1773648558386000000,"seq":1143,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
-{"v":1,"id":"019cf5b1-3f80-79c6-b6cf-75504564c1dd","at":1773648560000000000,"seq":1144,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
-{"v":1,"id":"019cf5b1-9958-7d17-af08-638dd3b718ee","at":1773648583000000000,"seq":1145,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
-{"v":1,"id":"019cf5b1-b6da-7dc0-9256-bf68e1bf11e6","at":1773648590554000000,"seq":1146,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
-{"v":1,"id":"019cf5b1-e390-7898-853b-e4d58b49f6e0","at":1773648602000000000,"seq":1147,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,7 +1,0 @@
-{"v":1,"id":"019cb359-2a5b-7e61-9e7c-77a67569692a","at":1772535491163000000,"seq":640,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019cb359-2a5b-7540-bc1e-c29999c82070","at":1772535491163000000,"seq":641,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
-{"v":1,"id":"019cb359-48f8-7de9-937d-fd7366790553","at":1772535499000000000,"seq":642,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
-{"v":1,"id":"019cb359-b39e-7fb6-b409-c53bc1a89df8","at":1772535526302000000,"seq":643,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
-{"v":1,"id":"019cb359-e150-7043-a14c-b71d117139a1","at":1772535538000000000,"seq":644,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019cb359-e150-7afc-bb06-5c31413165d9","at":1772535538000000000,"seq":645,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
-{"v":1,"id":"019cb35a-6a08-7e60-9e81-93e4bf537ca8","at":1772535573000000000,"seq":646,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

@@ -1,9 +1,0 @@
-{"v":1,"id":"019c7f1b-c783-7fa3-b004-a60dcb05b497","at":1771659052931000000,"seq":938,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c7f1b-c783-7de8-ae25-d06e378ac60f","at":1771659052931000000,"seq":939,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
-{"v":1,"id":"019c7f1c-44c8-76f6-858f-0584db008e8f","at":1771659085000000000,"seq":940,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c7f1c-44c8-7886-ad82-c9144d861183","at":1771659085000000000,"seq":941,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
-{"v":1,"id":"019c7f1c-7486-7f11-9243-1aa0f56a03ef","at":1771659097222000000,"seq":942,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
-{"v":1,"id":"019c7f1c-7790-723a-9585-6313707ed876","at":1771659098000000000,"seq":943,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
-{"v":1,"id":"019c7f1c-d168-72ba-9b8d-b803addb17ae","at":1771659121000000000,"seq":944,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c7f1c-d550-7ae4-8dec-c74c0b217034","at":1771659122000000000,"seq":945,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
-{"v":1,"id":"019c7f1c-fc60-7944-aaf5-29fa4e71ab12","at":1771659132000000000,"seq":946,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

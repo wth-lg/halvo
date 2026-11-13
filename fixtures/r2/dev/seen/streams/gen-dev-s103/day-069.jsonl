@@ -1,8 +1,0 @@
-{"v":1,"id":"019cd6f3-434d-76ec-82e2-76cb32f7e354","at":1773132792653000000,"seq":1053,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019cd6f3-434d-7a4d-9c91-0bb666a0f0d0","at":1773132792653000000,"seq":1054,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
-{"v":1,"id":"019cd6f3-5448-7b81-97a1-02b69d828865","at":1773132797000000000,"seq":1055,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019cd6f3-5830-7ada-a687-08d19318f167","at":1773132798000000000,"seq":1056,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019cd6f4-3ac0-7706-8ba0-8cb3942e089b","at":1773132856000000000,"seq":1057,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":4}}
-{"v":1,"id":"019cd6f4-48e9-79ef-adb2-e3e863fa488a","at":1773132859625000000,"seq":1058,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bill-tracker.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
-{"v":1,"id":"019cd6f4-65b8-70cd-84f1-bddb10f59bff","at":1773132867000000000,"seq":1059,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":11}}
-{"v":1,"id":"019cd6f4-dae8-76b6-820e-102dfc4ddc9c","at":1773132897000000000,"seq":1060,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

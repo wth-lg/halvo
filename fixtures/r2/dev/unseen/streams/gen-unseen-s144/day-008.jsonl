@@ -1,7 +1,0 @@
-{"v":1,"id":"019b9c9c-837f-7fbe-990d-c1a4a6975ec7","at":1767859061631000000,"seq":127,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019b9c9c-837f-770c-bc3e-d3f241fdc5cc","at":1767859061631000000,"seq":128,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
-{"v":1,"id":"019b9c9c-bf88-7865-9719-eec21b784226","at":1767859077000000000,"seq":129,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
-{"v":1,"id":"019b9cb1-807c-7717-b894-7ddde8c132c7","at":1767860437116000000,"seq":130,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
-{"v":1,"id":"019b9cb1-baa0-7333-a309-af05af745dd3","at":1767860452000000000,"seq":131,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}
-{"v":1,"id":"019b9cb2-259a-7217-a749-3eb2a9b2f169","at":1767860479386000000,"seq":132,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
-{"v":1,"id":"019b9cb2-c828-7f97-83e8-ddb0fa8d85e2","at":1767860521000000000,"seq":133,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

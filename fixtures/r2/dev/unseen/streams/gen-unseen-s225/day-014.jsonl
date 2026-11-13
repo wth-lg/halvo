@@ -1,9 +1,0 @@
-{"v":1,"id":"019bbc13-75e5-72e7-8bc6-bd11af9f6669","at":1768386950629000000,"seq":135,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019bbc13-75e5-7686-9ef1-e2ec4cec55bf","at":1768386950629000000,"seq":136,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-south.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
-{"v":1,"id":"019bbc13-8ec8-794d-adf4-8f9fc175f8af","at":1768386957000000000,"seq":137,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019bbc13-8ec8-7987-b29e-3664db18cc8e","at":1768386957000000000,"seq":138,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":12}}
-{"v":1,"id":"019bbc13-9698-7420-aa5a-ab9a8bfbc73f","at":1768386959000000000,"seq":139,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019bbc13-ae08-70c5-8ff5-e6d85bb71ed5","at":1768386965000000000,"seq":140,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"tab"}}
-{"v":1,"id":"019bbc1c-b6ad-78a2-a55f-6ce10f2a17ef","at":1768387557037000000,"seq":141,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019bbc1c-b6ad-7f1a-973b-9bb7aa14d3c7","at":1768387557037000000,"seq":142,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
-{"v":1,"id":"019bbc1c-d1e0-76cb-baf7-25e6c59a9047","at":1768387564000000000,"seq":143,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

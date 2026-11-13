@@ -1,6 +1,0 @@
-{"v":1,"id":"019ccc9b-ccb3-7aee-be38-f46244864f51","at":1772959288499000000,"seq":871,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019ccc9b-ccb3-7628-be36-c9cdf6c0d4bb","at":1772959288499000000,"seq":872,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in to your gas account - Brightkiln Gas","cut":false,"why":"app_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
-{"v":1,"id":"019ccc9c-0170-7abf-bb73-a5002fb4aa08","at":1772959302000000000,"seq":873,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
-{"v":1,"id":"019ccc9c-1b9e-722d-b209-2f003c8ff45f","at":1772959308702000000,"seq":874,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gas use history - Brightkiln Gas","cut":false,"why":"title_change","site":{"domain":"brightkiln-gas.test","source":"address_field"}}}
-{"v":1,"id":"019ccc9c-b138-73be-865d-7736c9ab9132","at":1772959347000000000,"seq":875,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
-{"v":1,"id":"019ccc9d-0340-7a31-94b2-ead4b0bb9429","at":1772959368000000000,"seq":876,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

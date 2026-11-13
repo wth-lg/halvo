@@ -1,5 +1,0 @@
-{"v":1,"id":"019bac0e-707d-71fb-9be0-93f78f2264e9","at":1768118186109000000,"seq":138,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019bac0e-707d-72fe-93a4-d67dcc099d24","at":1768118186109000000,"seq":139,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
-{"v":1,"id":"019bac0e-fa60-79e2-a852-121aa4ad7a68","at":1768118221408000000,"seq":140,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Goals - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
-{"v":1,"id":"019bac0f-27a8-7c9c-822a-0ec5755ce1b4","at":1768118233000000000,"seq":141,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
-{"v":1,"id":"019bac0f-3748-7b5f-9a55-309735ed8b4d","at":1768118237000000000,"seq":142,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

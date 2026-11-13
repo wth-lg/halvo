@@ -1,8 +1,0 @@
-{"v":1,"id":"019c84c7-7180-7ec1-908e-0813798eae7b","at":1771754189184000000,"seq":787,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c84c7-7180-78cb-ae97-4d70fa58c56f","at":1771754189184000000,"seq":788,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Saltmarsh Supply","cut":false,"why":"app_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
-{"v":1,"id":"019c84c8-42b7-719e-8750-6d057b1c2fe0","at":1771754242743000000,"seq":789,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Catalogue ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
-{"v":1,"id":"019c84c8-5358-79ec-b1af-0e6e35cc334f","at":1771754247000000000,"seq":790,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
-{"v":1,"id":"019c84c8-f336-7c0c-8b23-4846ba7f9e3c","at":1771754287926000000,"seq":791,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing for ink cartridges - Saltmarsh Supply","cut":false,"why":"title_change","site":{"domain":"saltmarsh-supply.test","source":"address_field"}}}
-{"v":1,"id":"019c84c9-16a8-72d0-87bd-780fb457c7f6","at":1771754297000000000,"seq":792,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
-{"v":1,"id":"019c84c9-2a30-737b-83e9-0eccabdbc396","at":1771754302000000000,"seq":793,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":17}}
-{"v":1,"id":"019c84c9-ca58-74b7-8909-731418757f19","at":1771754343000000000,"seq":794,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

@@ -1,4 +1,0 @@
-{"v":1,"id":"019d3891-ff95-7cec-9d94-8541e7dda140","at":1774770585493000000,"seq":1381,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019d3891-ff95-7f2e-a2b7-7d31cecbe513","at":1774770585493000000,"seq":1382,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
-{"v":1,"id":"019d3893-07c1-7939-80e3-6ba61254b311","at":1774770653121000000,"seq":1383,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Export health data - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
-{"v":1,"id":"019d3893-22a0-7ba3-86ca-ba02086b201f","at":1774770660000000000,"seq":1384,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

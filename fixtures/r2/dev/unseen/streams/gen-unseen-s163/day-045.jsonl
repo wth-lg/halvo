@@ -1,8 +1,0 @@
-{"v":1,"id":"019c5b60-5116-778d-ba2b-cd3b53784870","at":1771059564822000000,"seq":554,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019c5b60-5116-76c4-980f-a1a5eaa8c49b","at":1771059564822000000,"seq":555,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
-{"v":1,"id":"019c5b60-9818-7ab2-b0ad-86afb71590d3","at":1771059583000000000,"seq":556,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
-{"v":1,"id":"019c5b62-5af1-7818-9d20-ad0b7026d5ba","at":1771059698417000000,"seq":557,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
-{"v":1,"id":"019c5b62-ce80-7d4f-a992-7e037c292aa7","at":1771059728000000000,"seq":558,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"editing"}}
-{"v":1,"id":"019c5b62-da38-7162-9783-491ac6c68315","at":1771059731000000000,"seq":559,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
-{"v":1,"id":"019c5b62-e9d8-70a3-a523-d166952fa751","at":1771059735000000000,"seq":560,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c5b62-f1a8-7f64-a51d-b9826723d877","at":1771059737000000000,"seq":561,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

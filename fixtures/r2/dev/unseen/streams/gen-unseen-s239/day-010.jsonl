@@ -1,8 +1,0 @@
-{"v":1,"id":"019ba6f9-33a6-7d06-9e99-fb76144210c8","at":1768032908198000000,"seq":175,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019ba6f9-33a6-72f4-8537-110161ea7fb2","at":1768032908198000000,"seq":176,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
-{"v":1,"id":"019ba6f9-59f0-70c4-bd5e-d7d25e23f647","at":1768032918000000000,"seq":177,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
-{"v":1,"id":"019ba6f9-61c0-7d21-96b1-8864d4a27c97","at":1768032920000000000,"seq":178,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
-{"v":1,"id":"019ba6f9-7160-7b4d-a886-2b5a38413088","at":1768032924000000000,"seq":179,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
-{"v":1,"id":"019ba6f9-7ecd-792d-83a7-3b2cab958dee","at":1768032927437000000,"seq":180,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
-{"v":1,"id":"019ba6f9-b3c8-7216-8638-609dd3120a02","at":1768032941000000000,"seq":181,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019ba6f9-d308-7484-a09b-eceb64c99904","at":1768032949000000000,"seq":182,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}

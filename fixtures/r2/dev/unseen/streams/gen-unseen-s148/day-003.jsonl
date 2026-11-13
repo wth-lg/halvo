@@ -1,7 +1,0 @@
-{"v":1,"id":"019b82c2-b1a3-7c27-bfb2-1058ec77cdfc","at":1767425356195000000,"seq":0,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019b82c2-b1a3-7fb5-a89c-476463fe3266","at":1767425356195000000,"seq":1,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Pebblemail","cut":false,"why":"app_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
-{"v":1,"id":"019b82c3-02e8-7282-9658-017156e192e9","at":1767425377000000000,"seq":2,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
-{"v":1,"id":"019b82c3-c0b3-7551-a76f-27cc37e1e559","at":1767425425587000000,"seq":3,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Mail settings - Pebblemail","cut":false,"why":"title_change","site":{"domain":"pebblemail.test","source":"address_field"}}}
-{"v":1,"id":"019b82c3-dda8-7ebb-9e2c-1b4e7d896255","at":1767425433000000000,"seq":4,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019b82c3-ed48-7d97-aa40-cb54d2a1ec53","at":1767425437000000000,"seq":5,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
-{"v":1,"id":"019b82c4-2bc8-7e37-943c-02adc6df4520","at":1767425453000000000,"seq":6,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":18}}

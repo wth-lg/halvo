@@ -1,9 +1,0 @@
-{"v":1,"id":"019c1301-9203-7d12-9f42-7873c670aaf4","at":1769845395971000000,"seq":355,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c1301-9203-717c-9cb3-7b13a2adc1e2","at":1769845395971000000,"seq":356,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
-{"v":1,"id":"019c1301-a5a8-7460-a585-c627fe3ecc3a","at":1769845401000000000,"seq":357,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c1301-d488-79ed-8b46-a247182a3eec","at":1769845413000000000,"seq":358,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c130c-c5f8-7b76-ab6a-6a5c382ddb35","at":1769846130168000000,"seq":359,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
-{"v":1,"id":"019c130d-1dfa-7283-baba-2efdcb274052","at":1769846152698000000,"seq":360,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved searches - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
-{"v":1,"id":"019c130d-4e08-71fa-a49f-df6225be6ad6","at":1769846165000000000,"seq":361,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
-{"v":1,"id":"019c130d-6190-7685-8b3a-1ab351f76103","at":1769846170000000000,"seq":362,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
-{"v":1,"id":"019c130d-f9e8-755b-b5c0-4595b0266ffa","at":1769846209000000000,"seq":363,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}

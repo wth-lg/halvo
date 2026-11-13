@@ -1,6 +1,0 @@
-{"v":1,"id":"019c1de3-3962-7b17-a987-1dfacaa7a302","at":1770027956578000000,"seq":614,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019c1de3-3962-7b02-a0cf-fe61ee6bafd4","at":1770027956578000000,"seq":615,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
-{"v":1,"id":"019c1de3-d360-700a-bd32-c4a839a8b4c5","at":1770027996000000000,"seq":616,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
-{"v":1,"id":"019c1de4-210c-7203-a5c4-744df30dd7ec","at":1770028015884000000,"seq":617,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
-{"v":1,"id":"019c1de4-2180-7cbf-9ffb-d120444f7cbf","at":1770028016000000000,"seq":618,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
-{"v":1,"id":"019c1de4-bdc0-7520-95d7-ac2acd60604d","at":1770028056000000000,"seq":619,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}

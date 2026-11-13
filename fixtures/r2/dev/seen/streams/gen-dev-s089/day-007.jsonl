@@ -1,9 +1,0 @@
-{"v":1,"id":"019b97c7-1c4f-7266-9939-251cc0a742cb","at":1767777967183000000,"seq":47,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019b97c7-1c4f-7704-82db-23d34dfee1bb","at":1767777967183000000,"seq":48,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
-{"v":1,"id":"019b97c7-cf48-7daf-802e-eb5b9e426feb","at":1767778013000000000,"seq":49,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
-{"v":1,"id":"019b97d4-7ca7-72da-9658-b6dfa16cbd98","at":1767778843815000000,"seq":50,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
-{"v":1,"id":"019b97d4-8530-7a31-bfca-f9dc0959b5f4","at":1767778846000000000,"seq":51,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
-{"v":1,"id":"019b97d4-c3eb-70b1-bd8c-7d81d366f98b","at":1767778862059000000,"seq":52,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Goals - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
-{"v":1,"id":"019b97d4-c798-77df-b5a3-350a664c4818","at":1767778863000000000,"seq":53,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019b97d4-e2f0-7bbe-b458-65c378a643b9","at":1767778870000000000,"seq":54,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019b97d5-40b0-795c-908a-c84b29da992d","at":1767778894000000000,"seq":55,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}

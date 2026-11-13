@@ -1,5 +1,0 @@
-{"v":1,"id":"019c4bf4-394d-7552-9ef0-aa074ad1fd96","at":1770800822605000000,"seq":754,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019c4bf4-394d-7ccd-aa3c-58dcf8a07afb","at":1770800822605000000,"seq":755,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"bank-export.csv - LibreOffice Calc","cut":false,"why":"app_change"}}
-{"v":1,"id":"019c4bf5-39e7-7fa3-b9ef-bcfb2175ce59","at":1770800888295000000,"seq":756,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"title_change"}}
-{"v":1,"id":"019c4bf5-4090-793b-81ce-fd527a00495c","at":1770800890000000000,"seq":757,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c4bf5-5be8-7999-942a-9ed462c31b23","at":1770800897000000000,"seq":758,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

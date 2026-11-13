@@ -1,7 +1,0 @@
-{"v":1,"id":"019bdaa9-c2ff-730d-9387-7aa939e997c8","at":1768900117247000000,"seq":298,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019bdaa9-c2ff-7d7e-be97-b64a6946cbd0","at":1768900117247000000,"seq":299,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
-{"v":1,"id":"019bdaa9-d978-7d99-b612-6e0e841de2c3","at":1768900123000000000,"seq":300,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
-{"v":1,"id":"019bdab2-b00b-72a1-b265-8b4ba60a80f8","at":1768900702219000000,"seq":301,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019bdab2-b00b-75eb-9d9f-01933be2ddff","at":1768900702219000000,"seq":302,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
-{"v":1,"id":"019bdab3-6f22-7fa4-a3e2-a41805adb6ec","at":1768900751138000000,"seq":303,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
-{"v":1,"id":"019bdab3-91c0-76b0-a147-2184b2fb42c3","at":1768900760000000000,"seq":304,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}

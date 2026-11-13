@@ -1,9 +1,0 @@
-{"v":1,"id":"019bbc12-21bb-7fbe-8cab-566868a61e3b","at":1768386863547000000,"seq":119,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019bbc12-21bb-7e18-b30a-4d02f5138a0f","at":1768386863547000000,"seq":120,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
-{"v":1,"id":"019bbc12-42c0-7118-8338-ef6f138eb8d0","at":1768386872000000000,"seq":121,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019bbc12-6200-7efe-8573-02d68d2c2ea8","at":1768386880000000000,"seq":122,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}
-{"v":1,"id":"019bbc12-7c56-7817-b9cf-d0c83d9f0145","at":1768386886742000000,"seq":123,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past trips - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
-{"v":1,"id":"019bbc12-a080-7c7e-b36d-7d74ab4cbbe0","at":1768386896000000000,"seq":124,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
-{"v":1,"id":"019bbc12-db18-7fbd-8472-4942acb202c3","at":1768386911000000000,"seq":125,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019bbc13-1998-7334-9fbf-5fb3e7c92577","at":1768386927000000000,"seq":126,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019bbc13-4878-7984-8274-d747a96cf211","at":1768386939000000000,"seq":127,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

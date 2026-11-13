@@ -1,8 +1,0 @@
-{"v":1,"id":"019ca3e2-d958-7c2f-941a-7de82a283a8e","at":1772276078936000000,"seq":867,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019ca3e2-d958-76fb-9972-11fbeab5b307","at":1772276078936000000,"seq":868,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Planner login - Tickmark Planner","cut":false,"why":"app_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
-{"v":1,"id":"019ca3e3-87c0-7c32-bfc6-3860dcae0c9f","at":1772276123584000000,"seq":869,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Goals - Tickmark Planner","cut":false,"why":"title_change","site":{"domain":"tickmark-planner.test","source":"address_field"}}}
-{"v":1,"id":"019ca3e3-b840-7694-af20-6e6d45c90574","at":1772276136000000000,"seq":870,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019ca3e4-44e0-7ca3-b20d-e06a2fb2cc54","at":1772276172000000000,"seq":871,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019ca3ef-e219-7328-bf61-90e119ae0416","at":1772276933145000000,"seq":872,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Five day forecast - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
-{"v":1,"id":"019ca3ef-f510-758c-9e8a-983e0527f634","at":1772276938000000000,"seq":873,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
-{"v":1,"id":"019ca3f0-0898-732d-8b4c-984217d9609b","at":1772276943000000000,"seq":874,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

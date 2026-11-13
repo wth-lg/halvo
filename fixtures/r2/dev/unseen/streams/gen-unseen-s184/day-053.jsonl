@@ -1,9 +1,0 @@
-{"v":1,"id":"019c8498-1f2e-7288-9600-d788ec5e5d21","at":1771751087918000000,"seq":777,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c8498-1f2e-7259-9a2b-be1e84418ce6","at":1771751087918000000,"seq":778,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
-{"v":1,"id":"019c8498-eaa0-731d-b026-6265e01a7efd","at":1771751140000000000,"seq":779,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c8498-ee88-7590-ba54-b0f8fcb7d926","at":1771751141000000000,"seq":780,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
-{"v":1,"id":"019c8498-fd3d-75f3-bd34-1c17ef3c6c5e","at":1771751144765000000,"seq":781,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
-{"v":1,"id":"019c8499-4090-7270-8f89-15a5d6e859d1","at":1771751162000000000,"seq":782,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
-{"v":1,"id":"019c8499-7740-7f3c-b1b0-242b4bb2cda1","at":1771751176000000000,"seq":783,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c8499-aa08-7b73-b7c4-256d2311c494","at":1771751189000000000,"seq":784,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
-{"v":1,"id":"019c8499-d8e8-776a-b4a6-e07788dda483","at":1771751201000000000,"seq":785,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

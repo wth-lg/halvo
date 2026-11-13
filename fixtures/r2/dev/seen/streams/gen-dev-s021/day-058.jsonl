@@ -1,5 +1,0 @@
-{"v":1,"id":"019c9e78-cebe-7a24-877a-260709aadfad","at":1772185243326000000,"seq":798,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c9e78-cebe-7968-a573-3b0c993a3baa","at":1772185243326000000,"seq":799,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
-{"v":1,"id":"019c9e78-e4e8-7ba6-aee6-2ac49ac5805a","at":1772185249000000000,"seq":800,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
-{"v":1,"id":"019c9e79-0c5b-7959-8f5c-0871fc2ba791","at":1772185259099000000,"seq":801,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
-{"v":1,"id":"019c9e79-5e00-72b9-99ad-0a86f5c4d036","at":1772185280000000000,"seq":802,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

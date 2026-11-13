@@ -1,9 +1,0 @@
-{"v":1,"id":"019d2918-a76a-77c0-b639-2bc367660965","at":1774510974826000000,"seq":1274,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019d2918-a76a-7385-b977-d212116f3e3b","at":1774510974826000000,"seq":1275,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
-{"v":1,"id":"019d2918-a818-74cc-b368-0222096047f5","at":1774510975000000000,"seq":1276,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d2918-ac00-74c7-b77b-357f4020df39","at":1774510976000000000,"seq":1277,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"other"}}
-{"v":1,"id":"019d2918-b7b8-73d9-88f7-1aaa86826c3d","at":1774510979000000000,"seq":1278,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
-{"v":1,"id":"019d292a-19f9-7c68-bc23-8e5fc1169357","at":1774512118265000000,"seq":1279,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019d292a-19f9-779e-928a-0e0a4e8699bf","at":1774512118265000000,"seq":1280,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
-{"v":1,"id":"019d292a-5b58-77dc-a0ac-a50ea535a04b","at":1774512135000000000,"seq":1281,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
-{"v":1,"id":"019d292a-a590-72c1-aa8e-27b4c810096c","at":1774512154000000000,"seq":1282,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

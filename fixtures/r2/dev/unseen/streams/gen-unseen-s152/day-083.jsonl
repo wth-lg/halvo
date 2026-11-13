@@ -1,7 +1,0 @@
-{"v":1,"id":"019d1ebd-1b5e-7462-b6e4-9b44df9a939f","at":1774337203038000000,"seq":1245,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019d1ebd-1b5e-793f-bf79-5c5d13c119f6","at":1774337203038000000,"seq":1246,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"app_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
-{"v":1,"id":"019d1ebd-4248-787c-b149-aaca72d32cbd","at":1774337213000000000,"seq":1247,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
-{"v":1,"id":"019d1ecf-db0b-7d0e-ab1a-7c6ba5e39490","at":1774338431755000000,"seq":1248,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019d1ecf-db0b-75d6-b055-9e1d48dc3a42","at":1774338431755000000,"seq":1249,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
-{"v":1,"id":"019d1ed0-5130-7e40-8194-86a66d6cd16a","at":1774338462000000000,"seq":1250,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
-{"v":1,"id":"019d1ed0-5ce8-731e-8a11-5fbda3372f49","at":1774338465000000000,"seq":1251,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":1}}

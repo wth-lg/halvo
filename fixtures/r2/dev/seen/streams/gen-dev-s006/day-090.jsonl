@@ -1,3 +1,0 @@
-{"v":1,"id":"019d435a-ff1a-704c-b898-8e041c32ceb7","at":1774951530266000000,"seq":1193,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019d435a-ff1a-7c95-9955-f6a674de204e","at":1774951530266000000,"seq":1194,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
-{"v":1,"id":"019d435c-003f-76a7-aa8a-bbb6b6616b61","at":1774951596095000000,"seq":1195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}

@@ -1,5 +1,0 @@
-{"v":1,"id":"019d2ed8-4ff1-7d84-845d-b78c406ce2b8","at":1774607421425000000,"seq":1063,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019d2ed8-4ff1-766a-b754-35844b95a477","at":1774607421425000000,"seq":1064,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
-{"v":1,"id":"019d2ed8-6d88-7ca8-b545-a8ebd9128904","at":1774607429000000000,"seq":1065,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
-{"v":1,"id":"019d2ed8-8110-7dcd-b116-64c88f028c46","at":1774607434000000000,"seq":1066,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d2ed8-a820-7e02-ae52-73cd4f7fc60e","at":1774607444000000000,"seq":1067,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":14}}

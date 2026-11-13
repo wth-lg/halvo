@@ -1,7 +1,0 @@
-{"v":1,"id":"019c46e1-e8a6-7028-bfdf-0456fdccfc3d","at":1770715736230000000,"seq":582,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c46e1-e8a6-7449-b7fa-2d78ebc155a8","at":1770715736230000000,"seq":583,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"app_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
-{"v":1,"id":"019c46e2-12b8-7af6-bdda-848a32d6572f","at":1770715747000000000,"seq":584,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
-{"v":1,"id":"019c46e2-32ec-7360-b851-db0cbd662215","at":1770715755244000000,"seq":585,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
-{"v":1,"id":"019c46e2-5520-7a9f-9451-99aac8de2763","at":1770715764000000000,"seq":586,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
-{"v":1,"id":"019c46e2-8018-7c3e-928b-9baa352d3aea","at":1770715775000000000,"seq":587,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c46e2-fd18-763f-bb2e-298bdd57995f","at":1770715807000000000,"seq":588,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}

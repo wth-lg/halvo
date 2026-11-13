@@ -1,7 +1,0 @@
-{"v":1,"id":"019c134e-3255-77e5-a82c-7e621d497b70","at":1769850417749000000,"seq":511,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c134e-3255-743b-99c3-9a47517088f4","at":1769850417749000000,"seq":512,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Vitalgraph","cut":false,"why":"app_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
-{"v":1,"id":"019c134e-a880-70c9-884e-51b6c3362165","at":1769850448000000000,"seq":513,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c134f-102d-7e99-81d7-9c05c294bd1f","at":1769850474541000000,"seq":514,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Export health data - Vitalgraph","cut":false,"why":"title_change","site":{"domain":"vitalgraph.test","source":"address_field"}}}
-{"v":1,"id":"019c1350-f7b7-7fbf-9c2b-f9c70a97253c","at":1769850599351000000,"seq":515,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
-{"v":1,"id":"019c1351-0dc8-7203-a617-3d245237ffbc","at":1769850605000000000,"seq":516,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c1351-3ca8-7592-b13e-eea21e15e204","at":1769850617000000000,"seq":517,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}

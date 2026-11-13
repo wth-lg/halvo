@@ -1,8 +1,0 @@
-{"v":1,"id":"019c27d1-889b-76ab-aed3-f893dfcd5101","at":1770194569371000000,"seq":488,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c27d1-889b-7b7a-b05f-cf1528c9aafe","at":1770194569371000000,"seq":489,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
-{"v":1,"id":"019c27d2-17b0-73d3-8270-b0465f72c3e0","at":1770194606000000000,"seq":490,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c27d2-5a18-7592-9bf9-de9fbe7dddef","at":1770194623000000000,"seq":491,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
-{"v":1,"id":"019c27d2-68d0-7f12-a215-089449beb12d","at":1770194626768000000,"seq":492,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
-{"v":1,"id":"019c27d2-94b0-7083-b12d-9e2bcd6c1b56","at":1770194638000000000,"seq":493,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
-{"v":1,"id":"019c27d2-eaa0-7302-8d5d-ab78c1655d89","at":1770194660000000000,"seq":494,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c27d3-11b0-7c6d-8338-363ddcae4676","at":1770194670000000000,"seq":495,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

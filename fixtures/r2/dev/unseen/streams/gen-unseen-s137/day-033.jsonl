@@ -1,8 +1,0 @@
-{"v":1,"id":"019c1d6e-cd23-77fa-a53c-f45f9bb353cb","at":1770020326691000000,"seq":529,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c1d6e-cd23-7367-89a4-56f90c3272f1","at":1770020326691000000,"seq":530,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident login - Pennant Residential","cut":false,"why":"app_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
-{"v":1,"id":"019c1d6e-f568-797d-b124-cc662df1392b","at":1770020337000000000,"seq":531,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
-{"v":1,"id":"019c1d6f-3a94-79af-bc05-0ce788cf5cf6","at":1770020354708000000,"seq":532,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"title_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
-{"v":1,"id":"019c1d6f-e3b0-772a-99b5-20336352dd00","at":1770020398000000000,"seq":533,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
-{"v":1,"id":"019c1d70-0f52-7236-8315-97af3f1d6aeb","at":1770020409170000000,"seq":534,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Move-out guide - Pennant Residential","cut":false,"why":"title_change","site":{"domain":"pennant-residential.test","source":"address_field"}}}
-{"v":1,"id":"019c1d70-5110-7ac7-b858-3eb4c23a308b","at":1770020426000000000,"seq":535,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
-{"v":1,"id":"019c1d70-6c68-76c5-b6ee-6371c1eb2163","at":1770020433000000000,"seq":536,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

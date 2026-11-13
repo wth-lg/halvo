@@ -1,8 +1,0 @@
-{"v":1,"id":"019d523f-cfdb-79c9-bb11-7d4d26dd589f","at":1775201406939000000,"seq":1456,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019d523f-cfdb-7061-bd90-13def1456721","at":1775201406939000000,"seq":1457,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Leasing desk login - Drysdale Leasing Desk","cut":false,"why":"app_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
-{"v":1,"id":"019d523f-fb10-76bc-8c4f-339e95780496","at":1775201418000000000,"seq":1458,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d5240-9350-75f2-9f3d-0de2ec182fcb","at":1775201456976000000,"seq":1459,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Viewing calendar - Drysdale Leasing Desk","cut":false,"why":"title_change","site":{"domain":"drysdale-leasing-desk.test","source":"address_field"}}}
-{"v":1,"id":"019d5240-d9b8-759d-8554-e993339cb8bf","at":1775201475000000000,"seq":1460,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
-{"v":1,"id":"019d5240-f128-70da-b4b7-5063f3d3bd52","at":1775201481000000000,"seq":1461,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
-{"v":1,"id":"019d5240-f8f8-7964-834f-c2fbaa142fc8","at":1775201483000000000,"seq":1462,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
-{"v":1,"id":"019d5241-1c20-7d48-990d-b6e439fee6c8","at":1775201492000000000,"seq":1463,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

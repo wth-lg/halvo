@@ -1,9 +1,0 @@
-{"v":1,"id":"019bc5de-d15a-7999-adca-47fc82bce560","at":1768551272794000000,"seq":260,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019bc5de-d15a-737f-92da-5f6c45068538","at":1768551272794000000,"seq":261,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer sign in - Bramble Goods","cut":false,"why":"app_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
-{"v":1,"id":"019bc5df-d58f-78e7-90e3-488d89314471","at":1768551339407000000,"seq":262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Garden aisle bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
-{"v":1,"id":"019bc5e0-0e90-7645-948d-f2d8636e44cd","at":1768551354000000000,"seq":263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
-{"v":1,"id":"019bc5e0-4928-7481-80ff-1605f92e6ca2","at":1768551369000000000,"seq":264,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019bc5e0-b688-727e-ae08-3ad36986adad","at":1768551397000000000,"seq":265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
-{"v":1,"id":"019bc5e0-bd0d-72f9-9335-c4309725dab4","at":1768551398669000000,"seq":266,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Item bird seed - Bramble Goods","cut":false,"why":"title_change","site":{"domain":"bramble-goods.test","source":"address_field"}}}
-{"v":1,"id":"019bc5e0-d9b0-75e3-8861-5ea966ef4b8d","at":1768551406000000000,"seq":267,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
-{"v":1,"id":"019bc5e0-ed38-77a0-add6-6e09a7e1dbe4","at":1768551411000000000,"seq":268,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

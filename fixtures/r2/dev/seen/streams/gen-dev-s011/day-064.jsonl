@@ -1,9 +1,0 @@
-{"v":1,"id":"019cbcd1-be16-7d55-a718-7dfeeb4a97c9","at":1772694388246000000,"seq":857,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019cbcd1-be16-7775-b7be-29b54d326b0d","at":1772694388246000000,"seq":858,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
-{"v":1,"id":"019cbcd1-efe8-7462-96ff-0f734df33373","at":1772694401000000000,"seq":859,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
-{"v":1,"id":"019cbcd1-ff88-729a-8821-14f5a5ae26e3","at":1772694405000000000,"seq":860,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":10}}
-{"v":1,"id":"019cbcd2-1c6b-7b90-a6c7-e0856f125709","at":1772694412395000000,"seq":861,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"grocery-costs.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
-{"v":1,"id":"019cbcd2-74b8-7f30-98a6-b2ac0eeaa75d","at":1772694435000000000,"seq":862,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
-{"v":1,"id":"019cbcd2-9fb0-787e-bc5e-a011c68f55f6","at":1772694446000000000,"seq":863,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019cbcdd-592c-7a4b-80e6-ffa49c7bf957","at":1772695148844000000,"seq":864,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"title_change"}}
-{"v":1,"id":"019cbcde-05a8-7bc3-bf8f-255216b975ae","at":1772695193000000000,"seq":865,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

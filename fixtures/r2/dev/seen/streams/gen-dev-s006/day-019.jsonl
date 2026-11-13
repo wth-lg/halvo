@@ -1,6 +1,0 @@
-{"v":1,"id":"019bd561-b025-7373-b2f1-a0fde7f84ab8","at":1768811507749000000,"seq":208,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019bd561-b025-7822-ab2d-3b64ee1299d9","at":1768811507749000000,"seq":209,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"reading-list.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
-{"v":1,"id":"019bd561-bcd8-7ba6-b7e9-a09d88f980e4","at":1768811511000000000,"seq":210,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":8}}
-{"v":1,"id":"019bd570-b423-75d0-bbd1-f22a5529c6a8","at":1768812491811000000,"seq":211,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019bd570-b423-7ad3-a051-5e8eceaa70ac","at":1768812491811000000,"seq":212,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"app_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
-{"v":1,"id":"019bd570-eb90-7a25-9152-bef69ab50a71","at":1768812506000000000,"seq":213,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

@@ -1,8 +1,0 @@
-{"v":1,"id":"019bc12f-e07b-7151-9505-4611503d8e12","at":1768472699003000000,"seq":191,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019bc12f-e07b-7bc2-8d27-3f5ab8d158d8","at":1768472699003000000,"seq":192,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
-{"v":1,"id":"019bc12f-f7e8-76ff-b0b2-7f59efca593d","at":1768472705000000000,"seq":193,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019bc130-03a0-7d09-985b-4a7aefdc8c14","at":1768472708000000000,"seq":194,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":9}}
-{"v":1,"id":"019bc130-479f-74ba-a6f6-d9f2bba52b04","at":1768472725407000000,"seq":195,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Annual statements - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
-{"v":1,"id":"019bc130-74e8-7170-ad44-7caafe079baa","at":1768472737000000000,"seq":196,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019bc130-af80-7965-9796-eb87803df9b0","at":1768472752000000000,"seq":197,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
-{"v":1,"id":"019bc130-d690-7c6b-84bf-ce261cf5b57e","at":1768472762000000000,"seq":198,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}

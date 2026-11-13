@@ -1,9 +1,0 @@
-{"v":1,"id":"019b8882-7be0-794c-b2fc-77a7f76858b1","at":1767521811424000000,"seq":44,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019b8882-7be0-74d2-b22a-727c07c9e469","at":1767521811424000000,"seq":45,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Schedule sign in - Orrery Schedule","cut":false,"why":"app_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
-{"v":1,"id":"019b8882-d410-7194-a6ae-ad44971cbcbd","at":1767521834000000000,"seq":46,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019b8883-02cd-711b-a3c1-4ff82ee5a1e7","at":1767521845965000000,"seq":47,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pending invites - Orrery Schedule","cut":false,"why":"title_change","site":{"domain":"orrery-schedule.test","source":"address_field"}}}
-{"v":1,"id":"019b8883-6c68-7132-9e6e-4924c3d1179e","at":1767521873000000000,"seq":48,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019b8883-7820-7f91-a666-1b226e9fa168","at":1767521876000000000,"seq":49,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
-{"v":1,"id":"019b8896-ed96-7692-88e6-43365a192fac","at":1767523151254000000,"seq":50,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Top stories - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
-{"v":1,"id":"019b8897-7550-7f9b-a666-7ee7eade2b55","at":1767523186000000000,"seq":51,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019b8897-9490-7cae-8d38-62a81c7a11eb","at":1767523194000000000,"seq":52,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

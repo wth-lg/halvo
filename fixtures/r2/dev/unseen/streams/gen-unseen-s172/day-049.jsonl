@@ -1,8 +1,0 @@
-{"v":1,"id":"019c6fb5-9f24-7abc-bd46-a2915e301435","at":1771400699684000000,"seq":508,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c6fb5-9f24-7a64-81eb-f8f2dd782b39","at":1771400699684000000,"seq":509,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account login - Hearthmarket","cut":false,"why":"app_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
-{"v":1,"id":"019c6fb6-15d4-74d8-bda1-d34126da1167","at":1771400730068000000,"seq":510,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Search dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
-{"v":1,"id":"019c6fb6-1d60-7869-af18-6329c1ede88e","at":1771400732000000000,"seq":511,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
-{"v":1,"id":"019c6fb6-4470-714d-9fe9-a5455ff20333","at":1771400742000000000,"seq":512,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c6fb6-5b10-795f-93de-3642ffe1f224","at":1771400747792000000,"seq":513,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Product details dish rack - Hearthmarket","cut":false,"why":"title_change","site":{"domain":"hearthmarket.test","source":"address_field"}}}
-{"v":1,"id":"019c6fb6-c170-7183-b22c-168dd14aa727","at":1771400774000000000,"seq":514,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
-{"v":1,"id":"019c6fb7-1f30-7679-8ee5-f5033c29749f","at":1771400798000000000,"seq":515,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

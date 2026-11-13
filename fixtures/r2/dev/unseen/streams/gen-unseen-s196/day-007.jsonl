@@ -1,8 +1,0 @@
-{"v":1,"id":"019b97d6-ec46-71e5-be63-0575d1db1941","at":1767779003462000000,"seq":38,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019b97d6-ec46-740d-bc47-c3a2e7d83e8b","at":1767779003462000000,"seq":39,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Welcome back - Driftletter","cut":false,"why":"app_change","site":{"domain":"driftletter.test","source":"address_field"}}}
-{"v":1,"id":"019b97d7-30c8-752d-9c5f-4c4b48778794","at":1767779021000000000,"seq":40,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019b97d7-9d2d-71dd-9f70-0a4845a0bb1b","at":1767779048749000000,"seq":41,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Junk mail - Driftletter","cut":false,"why":"title_change","site":{"domain":"driftletter.test","source":"address_field"}}}
-{"v":1,"id":"019b97d8-4620-7fc7-8870-d5ac7ab8df43","at":1767779092000000000,"seq":42,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
-{"v":1,"id":"019b97f0-4b54-76c0-9d88-ee7e748aa702","at":1767780666196000000,"seq":43,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019b97f0-4b54-7ee3-aa42-cf90bdea5820","at":1767780666196000000,"seq":44,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
-{"v":1,"id":"019b97f0-5260-7270-bcce-0103fdfcb06a","at":1767780668000000000,"seq":45,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

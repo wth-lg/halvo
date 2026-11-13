@@ -1,9 +1,0 @@
-{"v":1,"id":"019d3354-055c-7c69-b06c-f0c8e25b4236","at":1774682637660000000,"seq":1035,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019d3354-055c-7888-b457-b657ee021ff0","at":1774682637660000000,"seq":1036,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Swiftfare Rides","cut":false,"why":"app_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
-{"v":1,"id":"019d3354-0e80-7a81-9e00-d91a3e3e300f","at":1774682640000000000,"seq":1037,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":8}}
-{"v":1,"id":"019d3354-408c-75df-9b13-c02148310b03","at":1774682652812000000,"seq":1038,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Where to - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
-{"v":1,"id":"019d3354-cde8-7927-b449-6a04035df5af","at":1774682689000000000,"seq":1039,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
-{"v":1,"id":"019d3354-ed95-70cd-8414-c84d14acac6e","at":1774682697109000000,"seq":1040,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Fare estimate to the station - Swiftfare Rides","cut":false,"why":"title_change","site":{"domain":"swiftfare-rides.test","source":"address_field"}}}
-{"v":1,"id":"019d3354-f8e0-7178-8738-e7a669d1cc8e","at":1774682700000000000,"seq":1041,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
-{"v":1,"id":"019d3354-fcc8-707b-8c90-4bce1d0ec720","at":1774682701000000000,"seq":1042,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
-{"v":1,"id":"019d3355-4ae8-742c-b270-f49a8cd1a8ec","at":1774682721000000000,"seq":1043,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

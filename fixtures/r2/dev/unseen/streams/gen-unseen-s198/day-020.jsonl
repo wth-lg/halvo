@@ -1,8 +1,0 @@
-{"v":1,"id":"019bdad5-8597-7046-8fea-5a5065ba70f0","at":1768902985111000000,"seq":256,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019bdad5-8597-77f8-b2be-9c9b103ebeaa","at":1768902985111000000,"seq":257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Account sign in - Kerbside Cabs","cut":false,"why":"app_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
-{"v":1,"id":"019bdad5-e6d0-773b-bb36-ad25829fa2a3","at":1768903010000000000,"seq":258,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019bdad6-1998-7b35-9378-b4ba0162b1d3","at":1768903023000000000,"seq":259,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019bdad6-3565-75e0-9761-2648021cdf14","at":1768903030117000000,"seq":260,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved places - Kerbside Cabs","cut":false,"why":"title_change","site":{"domain":"kerbside-cabs.test","source":"address_field"}}}
-{"v":1,"id":"019bdad6-5fe8-77f5-9bc0-8c5c86f0b276","at":1768903041000000000,"seq":261,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019bdad6-63d0-7583-97c0-4fd1e139bfb4","at":1768903042000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
-{"v":1,"id":"019bdad6-6ba0-72cf-a5b2-06aa14e8838e","at":1768903044000000000,"seq":263,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}

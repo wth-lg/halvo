@@ -1,9 +1,0 @@
-{"v":1,"id":"019c5101-8d6b-7dfc-9a6b-014f993ccc4b","at":1770885582187000000,"seq":599,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019c5101-8d6b-70f1-8d6f-6e9b7b198598","at":1770885582187000000,"seq":600,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
-{"v":1,"id":"019c5101-afd8-75cb-a249-0dba6c70e808","at":1770885591000000000,"seq":601,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
-{"v":1,"id":"019c5101-b3c0-7259-8c9a-af9d1b9a2162","at":1770885592000000000,"seq":602,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"scroll","count":6}}
-{"v":1,"id":"019c5101-deb8-79e9-a616-f3755c8bebe1","at":1770885603000000000,"seq":603,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c5101-f628-798a-8ef3-7c06047b83a7","at":1770885609000000000,"seq":604,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
-{"v":1,"id":"019c5101-f862-7297-96cf-9a43c5122957","at":1770885609570000000,"seq":605,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-11.pdf - Export as PDF","cut":false,"why":"title_change"}}
-{"v":1,"id":"019c5102-82c8-78b0-8c75-76af88d4653d","at":1770885645000000000,"seq":606,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c5102-86b0-7636-894b-b2d9e763bfce","at":1770885646000000000,"seq":607,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}

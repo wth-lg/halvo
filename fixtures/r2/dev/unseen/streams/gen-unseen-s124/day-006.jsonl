@@ -1,9 +1,0 @@
-{"v":1,"id":"019b928c-2f1d-74a0-b958-f8a1c3f53e86","at":1767690219293000000,"seq":67,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019b928c-2f1d-72cf-9e51-5c431c110c9f","at":1767690219293000000,"seq":68,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Landlord sign in - Keystone Screening","cut":false,"why":"app_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
-{"v":1,"id":"019b928c-d2a8-775b-8fd3-6e96c10db6ac","at":1767690261160000000,"seq":69,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Listing views - Keystone Screening","cut":false,"why":"title_change","site":{"domain":"keystone-screening.test","source":"address_field"}}}
-{"v":1,"id":"019b928c-d9d8-72a5-a5b8-c451de1dd8e6","at":1767690263000000000,"seq":70,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019b928d-52f0-7e9b-838f-ebc9efefb7c8","at":1767690294000000000,"seq":71,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":19}}
-{"v":1,"id":"019b9291-19fc-72c2-b8aa-a36f19d67dec","at":1767690541564000000,"seq":72,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
-{"v":1,"id":"019b9291-3ed8-74a8-aa43-493480afab44","at":1767690551000000000,"seq":73,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
-{"v":1,"id":"019b9291-a080-746f-b127-b52e61da8205","at":1767690576000000000,"seq":74,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":3}}
-{"v":1,"id":"019b9291-b020-7f46-9735-610ad3ba5d66","at":1767690580000000000,"seq":75,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

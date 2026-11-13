@@ -1,7 +1,0 @@
-{"v":1,"id":"019d42eb-b259-78fe-87f8-342b0a18563e","at":1774944236121000000,"seq":1166,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019d42eb-b259-7997-a99d-184900e6d2cf","at":1774944236121000000,"seq":1167,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Tidewell Property","cut":false,"why":"app_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
-{"v":1,"id":"019d42eb-f830-787f-8e90-dfa8603558e7","at":1774944254000000000,"seq":1168,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
-{"v":1,"id":"019d42ec-2845-7b1f-95e3-198a34cf8348","at":1774944266309000000,"seq":1169,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Building news - Tidewell Property","cut":false,"why":"title_change","site":{"domain":"tidewell-property.test","source":"address_field"}}}
-{"v":1,"id":"019d42ec-7148-7b38-b80e-2cca31a57338","at":1774944285000000000,"seq":1170,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d42fa-5600-7ee2-b2fe-ae9fdb19f454","at":1774945195520000000,"seq":1171,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Local news - Inkwell News","cut":false,"why":"title_change","site":{"domain":"inkwell-news.test","source":"address_field"}}}
-{"v":1,"id":"019d42fa-9a48-76cb-9aa2-9e28a04ace10","at":1774945213000000000,"seq":1172,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}

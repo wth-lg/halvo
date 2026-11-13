@@ -1,7 +1,0 @@
-{"v":1,"id":"019c0ddb-bf06-74a7-998c-aee7a99054a9","at":1769759031046000000,"seq":440,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c0ddb-bf06-70d8-956c-d0e02a86a409","at":1769759031046000000,"seq":441,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Customer login - Ferrowatt Energy","cut":false,"why":"app_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
-{"v":1,"id":"019c0ddc-4790-7b1d-92d9-673a7391a1e9","at":1769759066000000000,"seq":442,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c0ddc-a39b-7b35-9670-a997d0de0d53","at":1769759089563000000,"seq":443,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Meter readings - Ferrowatt Energy","cut":false,"why":"title_change","site":{"domain":"ferrowatt-energy.test","source":"address_field"}}}
-{"v":1,"id":"019c0ddc-a550-7aee-8782-dd8fb1118068","at":1769759090000000000,"seq":444,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c0ddc-cc60-78e7-84b8-8291703dc4f5","at":1769759100000000000,"seq":445,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
-{"v":1,"id":"019c0ddd-2250-7b81-a51f-a6a9fd01bea7","at":1769759122000000000,"seq":446,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

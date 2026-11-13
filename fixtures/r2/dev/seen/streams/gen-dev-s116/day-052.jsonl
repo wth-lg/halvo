@@ -1,6 +1,0 @@
-{"v":1,"id":"019c7f16-46c1-72bd-ae7c-1ddfeffecdb9","at":1771658692289000000,"seq":621,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c7f16-46c1-7c6f-beac-3543d42ecf9e","at":1771658692289000000,"seq":622,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
-{"v":1,"id":"019c7f16-4d70-7a01-945c-054d393d34ad","at":1771658694000000000,"seq":623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
-{"v":1,"id":"019c7f16-95b6-74e5-86f1-6402b93cc2a3","at":1771658712502000000,"seq":624,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
-{"v":1,"id":"019c7f16-ddf8-781d-9ed8-f5db98a89d74","at":1771658731000000000,"seq":625,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c7f17-24d1-7683-a7f4-ba59cff7018e","at":1771658749137000000,"seq":626,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"index fund price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}

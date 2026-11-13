@@ -1,8 +1,0 @@
-{"v":1,"id":"019c186a-c340-75fe-9ce2-397bec7a395e","at":1769936175936000000,"seq":669,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c186a-c340-7499-972b-438db741498c","at":1769936175936000000,"seq":670,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Lentil soup recipe - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
-{"v":1,"id":"019c186b-57f0-7b8d-be60-d5b5a0a74d0a","at":1769936214000000000,"seq":671,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
-{"v":1,"id":"019c1875-a1ef-7a1b-96fa-95425fcf6c94","at":1769936888303000000,"seq":672,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
-{"v":1,"id":"019c1876-7f05-7d35-939e-ca600167a44c","at":1769936944901000000,"seq":673,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Birthdays - Wicket Agenda","cut":false,"why":"title_change","site":{"domain":"wicket-agenda.test","source":"address_field"}}}
-{"v":1,"id":"019c1876-96d8-79ee-99a1-2b529ed03463","at":1769936951000000000,"seq":674,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
-{"v":1,"id":"019c1876-d170-7a2a-a4e9-256549c0e4f4","at":1769936966000000000,"seq":675,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}
-{"v":1,"id":"019c1876-d940-7d2d-ae2b-1f230233a136","at":1769936968000000000,"seq":676,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}

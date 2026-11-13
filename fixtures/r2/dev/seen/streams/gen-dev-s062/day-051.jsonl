@@ -1,9 +1,0 @@
-{"v":1,"id":"019c7a2c-8492-79fa-9f36-1536bb278b77","at":1771576263826000000,"seq":714,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c7a2c-8492-795f-af11-3d3df8dd21f8","at":1771576263826000000,"seq":715,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
-{"v":1,"id":"019c7a2c-e6e8-7c77-b92d-cba5168ae034","at":1771576289000000000,"seq":716,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c7a2d-4d86-7e34-95c0-a7b4e3732c55","at":1771576315270000000,"seq":717,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
-{"v":1,"id":"019c7a2d-7b58-7f35-8bea-bd7d64bc5cb5","at":1771576327000000000,"seq":718,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
-{"v":1,"id":"019c7a2e-0fc8-741e-9fb2-fb189fab98e4","at":1771576365000000000,"seq":719,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
-{"v":1,"id":"019c7a41-3022-7a97-be76-bcd97078242b","at":1771577618466000000,"seq":720,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
-{"v":1,"id":"019c7a41-70b8-7c83-a0c9-f0f53cde9c1e","at":1771577635000000000,"seq":721,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
-{"v":1,"id":"019c7a41-8440-7967-a52b-5bd7fbbfff55","at":1771577640000000000,"seq":722,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}

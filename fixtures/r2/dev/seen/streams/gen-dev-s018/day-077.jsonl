@@ -1,8 +1,0 @@
-{"v":1,"id":"019cffe1-0727-7935-b872-914374aeca7a","at":1773819463463000000,"seq":950,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019cffe1-0727-7afb-a258-96f59273448d","at":1773819463463000000,"seq":951,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Login - Corvid Post","cut":false,"why":"app_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
-{"v":1,"id":"019cffe1-18e0-7e37-bdbd-d2a093daa036","at":1773819468000000000,"seq":952,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
-{"v":1,"id":"019cffe1-5ebd-7778-b85c-a27e8d1c03a7","at":1773819485885000000,"seq":953,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Contacts - Corvid Post","cut":false,"why":"title_change","site":{"domain":"corvid-post.test","source":"address_field"}}}
-{"v":1,"id":"019cffe1-5f30-7204-a139-0472f1a65e5e","at":1773819486000000000,"seq":954,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
-{"v":1,"id":"019cffe1-6700-7d05-83a6-262c755dbfa0","at":1773819488000000000,"seq":955,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
-{"v":1,"id":"019cffe1-6ae8-7593-9d0d-b944f47b6843","at":1773819489000000000,"seq":956,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":5}}
-{"v":1,"id":"019cffe1-a198-74be-b87b-1c7394f2be5c","at":1773819503000000000,"seq":957,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,9 +1,0 @@
-{"v":1,"id":"019be026-fb40-7fe7-8d42-942bd9d2b2c4","at":1768992209728000000,"seq":237,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019be026-fb40-7fee-bfa1-c6d481ac8875","at":1768992209728000000,"seq":238,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
-{"v":1,"id":"019be027-0808-7cea-875f-f43f9c5a829b","at":1768992213000000000,"seq":239,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019be027-17a8-79fb-85ef-a697ecd73c7d","at":1768992217000000000,"seq":240,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019be027-5628-75e9-b8c7-6dc509ec59d3","at":1768992233000000000,"seq":241,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":20}}
-{"v":1,"id":"019be027-58e1-732a-9ea8-b88883c07991","at":1768992233697000000,"seq":242,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
-{"v":1,"id":"019be027-8cd8-7402-9c9b-ca7d50b64ad1","at":1768992247000000000,"seq":243,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019be027-bbb8-7e94-a548-8bc397e76ada","at":1768992259000000000,"seq":244,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
-{"v":1,"id":"019be027-dee0-74d4-b402-e921ef1b8663","at":1768992268000000000,"seq":245,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}

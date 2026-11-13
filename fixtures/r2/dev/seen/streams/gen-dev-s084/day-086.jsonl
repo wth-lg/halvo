@@ -1,8 +1,0 @@
-{"v":1,"id":"019d2edb-5db0-767d-bba0-e9bfaf93408f","at":1774607621552000000,"seq":1331,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019d2edb-5db0-72a6-bc14-6cd6381a84ae","at":1774607621552000000,"seq":1332,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Log in - Hailcomet","cut":false,"why":"app_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
-{"v":1,"id":"019d2edb-6f10-7ced-b82a-75962455b32a","at":1774607626000000000,"seq":1333,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":7}}
-{"v":1,"id":"019d2edb-d888-7621-a00e-d883d1aa3793","at":1774607653000000000,"seq":1334,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d2edb-e8a7-7a14-9d4f-cc27253d5f23","at":1774607657127000000,"seq":1335,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Past trips - Hailcomet","cut":false,"why":"title_change","site":{"domain":"hailcomet.test","source":"address_field"}}}
-{"v":1,"id":"019d2edc-22c0-7119-99ac-9b00234eeb1a","at":1774607672000000000,"seq":1336,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d2edc-2a90-7afe-8dde-e12b432e72ac","at":1774607674000000000,"seq":1337,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d2edc-49d0-7110-b666-721c7f6c3b20","at":1774607682000000000,"seq":1338,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}

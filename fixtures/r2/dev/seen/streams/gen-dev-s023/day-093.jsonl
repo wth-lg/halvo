@@ -1,4 +1,0 @@
-{"v":1,"id":"019d52da-6fa7-7286-948f-12c868c6de8a","at":1775211540391000000,"seq":1222,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019d52da-6fa7-7439-a2ca-d9dfe025c9cc","at":1775211540391000000,"seq":1223,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Patient login - Steadypulse Health","cut":false,"why":"app_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
-{"v":1,"id":"019d52da-e68f-7d0e-8ab3-3910bccac140","at":1775211570831000000,"seq":1224,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Connected devices - Steadypulse Health","cut":false,"why":"title_change","site":{"domain":"steadypulse-health.test","source":"address_field"}}}
-{"v":1,"id":"019d52db-25b8-713f-aabd-43e2471c488b","at":1775211587000000000,"seq":1225,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

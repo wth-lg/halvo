@@ -1,7 +1,0 @@
-{"v":1,"id":"019cf0b8-c723-71d1-b189-06501bb1b5eb","at":1773565167395000000,"seq":1027,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019cf0b8-c723-720e-ba6a-247c2c08b467","at":1773565167395000000,"seq":1028,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Weeknight recipes - Saffron Recipes","cut":false,"why":"app_change","site":{"domain":"saffron-recipes.test","source":"address_field"}}}
-{"v":1,"id":"019cf0cd-c1e1-7eb0-9fcc-d2fc9a7403b1","at":1773566542305000000,"seq":1029,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019cf0cd-c1e1-71d3-8c28-6b441c99fa35","at":1773566542305000000,"seq":1030,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
-{"v":1,"id":"019cf0ce-4968-7157-994e-87cbd3b7a130","at":1773566577000000000,"seq":1031,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
-{"v":1,"id":"019cf0e6-ac72-71c5-908b-eab643efb703","at":1773568175218000000,"seq":1032,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"notes.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
-{"v":1,"id":"019cf0e6-bf20-797c-8db1-0c856698fd9a","at":1773568180000000000,"seq":1033,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

@@ -1,9 +1,0 @@
-{"v":1,"id":"019c7504-35e0-7ea4-a66c-6725ed6d7723","at":1771489736160000000,"seq":712,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c7504-35e0-792d-8548-a420b5d9ef4e","at":1771489736160000000,"seq":713,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Ledgerline Calendar","cut":false,"why":"app_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
-{"v":1,"id":"019c7505-11e9-7b69-ae1d-de458f70e9f0","at":1771489792489000000,"seq":714,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agenda for next week - Ledgerline Calendar","cut":false,"why":"title_change","site":{"domain":"ledgerline-calendar.test","source":"address_field"}}}
-{"v":1,"id":"019c7505-2770-7046-8345-5a689706c837","at":1771489798000000000,"seq":715,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
-{"v":1,"id":"019c7517-caa8-730f-9a05-9f542a427a9d","at":1771491019432000000,"seq":716,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Forum home - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}
-{"v":1,"id":"019c7517-ec20-773a-a068-5e37f459fd23","at":1771491028000000000,"seq":717,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
-{"v":1,"id":"019c7517-ffa8-767a-944d-3e6c3d64f559","at":1771491033000000000,"seq":718,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
-{"v":1,"id":"019c7518-0f48-7fb5-80ef-7bc809ac78ad","at":1771491037000000000,"seq":719,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c7518-4210-79ff-8546-f73b77e6c77f","at":1771491050000000000,"seq":720,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,4 +1,0 @@
-{"v":1,"id":"019d2483-5ac9-78a5-93fc-cf4a40d17e5c","at":1774434081481000000,"seq":1179,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019d2483-5ac9-7869-8257-7535439f364c","at":1774434081481000000,"seq":1180,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"rent-roll-north.xlsx - LibreOffice Calc","cut":false,"why":"app_change"}}
-{"v":1,"id":"019d2483-a708-7c09-825e-447611dd23f6","at":1774434101000000000,"seq":1181,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
-{"v":1,"id":"019d2483-be78-7e1d-99c0-84d8df9b4b48","at":1774434107000000000,"seq":1182,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}

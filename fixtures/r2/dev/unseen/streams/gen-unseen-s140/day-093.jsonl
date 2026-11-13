@@ -1,9 +1,0 @@
-{"v":1,"id":"019d52ae-6751-771b-810a-ee520641fe3f","at":1775208654673000000,"seq":1616,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019d52ae-6751-79b8-bb5d-7e997579387e","at":1775208654673000000,"seq":1617,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Quillwater Utility","cut":false,"why":"app_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
-{"v":1,"id":"019d52ae-e598-740d-9c9f-f36cc8b1962a","at":1775208687000000000,"seq":1618,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d52af-4f10-7196-a753-8302a12f8bb2","at":1775208714000000000,"seq":1619,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d52af-5f57-7b60-ae13-79a900c8ed2c","at":1775208718167000000,"seq":1620,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Water use by day - Quillwater Utility","cut":false,"why":"title_change","site":{"domain":"quillwater-utility.test","source":"address_field"}}}
-{"v":1,"id":"019d52af-89a8-7c28-ae51-55f38c2870a0","at":1775208729000000000,"seq":1621,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
-{"v":1,"id":"019d52af-b0b8-715c-ab43-a6aa5293b74f","at":1775208739000000000,"seq":1622,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d52af-bc70-7d75-ab4c-e8f5263570f2","at":1775208742000000000,"seq":1623,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d52af-c828-79f3-9ea7-4b782b16371b","at":1775208745000000000,"seq":1624,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":14}}

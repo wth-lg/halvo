@@ -1,7 +1,0 @@
-{"v":1,"id":"019bf420-2a5b-7c2e-b8c5-928816044a40","at":1769327307355000000,"seq":284,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019bf420-2a5b-74e3-a014-74f067876be7","at":1769327307355000000,"seq":285,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
-{"v":1,"id":"019bf420-3898-79c0-97fa-21784bf9c9ca","at":1769327311000000000,"seq":286,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}
-{"v":1,"id":"019bf420-8e88-7c6f-ab87-3979a12dda3c","at":1769327333000000000,"seq":287,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"shortcut"}}
-{"v":1,"id":"019bf421-1bec-759c-a383-43dd71ca8fbf","at":1769327369196000000,"seq":288,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"Print renewal-letter-apartment-3.odt - LibreOffice Writer","cut":false,"why":"title_change"}}
-{"v":1,"id":"019bf421-2eb0-706a-b1ae-f4835e458262","at":1769327374000000000,"seq":289,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}
-{"v":1,"id":"019bf421-6948-7aa7-aa0f-f3d2755f945c","at":1769327389000000000,"seq":290,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"enter"}}

@@ -1,6 +1,0 @@
-{"v":1,"id":"019d2e9b-5237-7948-9385-b42004d89a7a","at":1774603424311000000,"seq":1107,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019d2e9b-5237-79ec-a999-3174730fa2aa","at":1774603424311000000,"seq":1108,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Owner sign in - Fernvale Applicants","cut":false,"why":"app_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
-{"v":1,"id":"019d2e9b-54e8-7cc6-a4a9-b7210acdf089","at":1774603425000000000,"seq":1109,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d2e9b-d8ed-7e80-bd26-a8d195f6fc19","at":1774603458797000000,"seq":1110,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Saved searches - Fernvale Applicants","cut":false,"why":"title_change","site":{"domain":"fernvale-applicants.test","source":"address_field"}}}
-{"v":1,"id":"019d2e9c-1068-714f-8eda-1b076baad8f8","at":1774603473000000000,"seq":1111,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d2e9c-9d08-7acc-a223-eccf4a1437d6","at":1774603509000000000,"seq":1112,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":6}}

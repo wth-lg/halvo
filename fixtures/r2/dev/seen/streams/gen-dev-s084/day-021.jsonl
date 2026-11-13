@@ -1,9 +1,0 @@
-{"v":1,"id":"019bdff1-e7b8-7d6e-b018-040c0ac4864b","at":1768988731320000000,"seq":254,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019bdff1-e7b8-74d1-8385-2cba5d0332c0","at":1768988731320000000,"seq":255,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Agent sign in - Holloway Tenant Check","cut":false,"why":"app_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
-{"v":1,"id":"019bdff1-ee48-74bc-9bd3-23904df96870","at":1768988733000000000,"seq":256,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":15}}
-{"v":1,"id":"019bdff2-2269-73ad-a8a3-9d0d73664086","at":1768988746345000000,"seq":257,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Rain radar - Mossbank Weather","cut":false,"why":"title_change","site":{"domain":"mossbank-weather.test","source":"address_field"}}}
-{"v":1,"id":"019bdff2-9a28-71a6-8235-03f2dc33e564","at":1768988777000000000,"seq":258,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"editing"}}
-{"v":1,"id":"019bdff2-9d41-76de-a886-04e021ecf3c8","at":1768988777793000000,"seq":259,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Screening prices - Holloway Tenant Check","cut":false,"why":"title_change","site":{"domain":"holloway-tenant-check.test","source":"address_field"}}}
-{"v":1,"id":"019bdff2-9e10-7e64-a8d9-e3888add82f0","at":1768988778000000000,"seq":260,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
-{"v":1,"id":"019bdff2-d4c0-778c-95ff-5468b5831138","at":1768988792000000000,"seq":261,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"tab"}}
-{"v":1,"id":"019bdff2-d8a8-7246-8adb-ed9f7ca2596b","at":1768988793000000000,"seq":262,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":13}}

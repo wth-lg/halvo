@@ -1,4 +1,0 @@
-{"v":1,"id":"019c5177-1c9a-7772-97b9-6d9611cce569","at":1770893286554000000,"seq":741,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019c5177-1c9a-790c-94aa-e61e2be8e3a2","at":1770893286554000000,"seq":742,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"receipts-to-enter.ods - LibreOffice Calc","cut":false,"why":"app_change"}}
-{"v":1,"id":"019c5177-5508-7a49-8577-010b75c71d9f","at":1770893301000000000,"seq":743,"kind":"pointer","app":"org.libreoffice.script","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c5177-f929-71f7-9031-a6511b2fd780","at":1770893343017000000,"seq":744,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"household-budget.ods - LibreOffice Calc","cut":false,"why":"title_change"}}

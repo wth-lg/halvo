@@ -1,4 +1,0 @@
-{"v":1,"id":"019cb7ba-0676-75ff-a634-25658afb4381","at":1772608947830000000,"seq":879,"kind":"foreground_app","app":"org.libreoffice.script","p":{}}
-{"v":1,"id":"019cb7ba-0676-73e3-87fa-5c69e5425cc4","at":1772608947830000000,"seq":880,"kind":"window_title","app":"org.libreoffice.script","p":{"text":"lease-addendum-flat-7.odt - LibreOffice Writer","cut":false,"why":"app_change"}}
-{"v":1,"id":"019cb7ba-16c0-74f6-8377-817a5e453a6f","at":1772608952000000000,"seq":881,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"navigation"}}
-{"v":1,"id":"019cb7ba-3dd0-71d1-83fb-f5e75620ee19","at":1772608962000000000,"seq":882,"kind":"keystroke","app":"org.libreoffice.script","p":{"class":"printable"}}

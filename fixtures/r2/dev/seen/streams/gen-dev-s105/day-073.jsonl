@@ -1,8 +1,0 @@
-{"v":1,"id":"019ceb7a-4ec7-7d5d-9f1b-e8961364e51d","at":1773477187271000000,"seq":995,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019ceb7a-4ec7-70cd-b88a-ca50bed692d8","at":1773477187271000000,"seq":996,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Resident portal login - Cobblestone Rentals","cut":false,"why":"app_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
-{"v":1,"id":"019ceb7a-6cf8-74f4-a073-4795146fa06a","at":1773477195000000000,"seq":997,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019ceb7a-7c98-7e2d-853d-71b7ed27f6c0","at":1773477199000000000,"seq":998,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019ceb7b-5e19-7c1c-bc58-f820db93c568","at":1773477256729000000,"seq":999,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Maintenance requests - Cobblestone Rentals","cut":false,"why":"title_change","site":{"domain":"cobblestone-rentals.test","source":"address_field"}}}
-{"v":1,"id":"019ceb7b-91f0-7bf3-83ea-3b3acd017236","at":1773477270000000000,"seq":1000,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019ceb7b-95d8-7d30-a83b-fad9056a3fc3","at":1773477271000000000,"seq":1001,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019ceb7b-a578-7a82-b5f0-2f1931fe52ef","at":1773477275000000000,"seq":1002,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":4}}

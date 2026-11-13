@@ -1,9 +1,0 @@
-{"v":1,"id":"019b92e2-b7fd-72ce-9bab-f16f903697d9","at":1767695890429000000,"seq":82,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019b92e2-b7fd-7b05-b724-a9cbd82d47a7","at":1767695890429000000,"seq":83,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Investor sign in - Cinder Markets","cut":false,"why":"app_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
-{"v":1,"id":"019b92e2-d978-7b91-971e-ed9ecaa042ce","at":1767695899000000000,"seq":84,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019b92e3-1be0-7d95-bc5b-0c0329ce90cd","at":1767695916000000000,"seq":85,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019b92e3-41e1-771f-89df-ac34547c0384","at":1767695925729000000,"seq":86,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Portfolio - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
-{"v":1,"id":"019b92e3-9cc8-7ce2-b6bd-0d508d91ce20","at":1767695949000000000,"seq":87,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"shortcut"}}
-{"v":1,"id":"019b92e4-35e0-7b66-982a-4210a79e19a3","at":1767695988192000000,"seq":88,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"savings pot price graph - Cinder Markets","cut":false,"why":"title_change","site":{"domain":"cinder-markets.test","source":"address_field"}}}
-{"v":1,"id":"019b92e4-4c90-7d1d-84e8-8db3b4be056f","at":1767695994000000000,"seq":89,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019b92e4-5c30-734e-af6e-940af098901d","at":1767695998000000000,"seq":90,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}

@@ -1,8 +1,0 @@
-{"v":1,"id":"019d336b-14f0-7839-bef2-f4bb57f25ebb","at":1774684148976000000,"seq":1261,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019d336b-14f0-71e7-bb24-ff8d02168fe5","at":1774684148976000000,"seq":1262,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Oakhollow Leasing","cut":false,"why":"app_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
-{"v":1,"id":"019d336b-3448-7208-bc7a-3d4f98bef241","at":1774684157000000000,"seq":1263,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d336b-7cd4-7e44-87eb-dfbe49d2adab","at":1774684175572000000,"seq":1264,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Current lease summary - Oakhollow Leasing","cut":false,"why":"title_change","site":{"domain":"oakhollow-leasing.test","source":"address_field"}}}
-{"v":1,"id":"019d336b-95f0-749c-bbdc-ebc4b1c566f3","at":1774684182000000000,"seq":1265,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"enter"}}
-{"v":1,"id":"019d336b-a978-7425-8dc7-514365e0c771","at":1774684187000000000,"seq":1266,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019d336b-d470-7422-b841-eb7476aead4c","at":1774684198000000000,"seq":1267,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
-{"v":1,"id":"019d336f-1983-7957-baf4-7da1092cef93","at":1774684412291000000,"seq":1268,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Gardening board - Gullwing Forum","cut":false,"why":"title_change","site":{"domain":"gullwing-forum.test","source":"address_field"}}}

@@ -1,9 +1,0 @@
-{"v":1,"id":"019c9e69-1665-7788-861d-b6f94add6b30","at":1772184213093000000,"seq":810,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
-{"v":1,"id":"019c9e69-1665-7204-ab7a-96429fd62aa6","at":1772184213093000000,"seq":811,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in to your tenancy - Harrowgate Homes","cut":false,"why":"app_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
-{"v":1,"id":"019c9e69-3930-732c-b658-be2f0e744c43","at":1772184222000000000,"seq":812,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c9e69-4cb8-7395-a5b8-6e1eb8da6638","at":1772184227000000000,"seq":813,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c9e69-55f7-7b50-8b1f-8237d463ff71","at":1772184229367000000,"seq":814,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Notices for residents - Harrowgate Homes","cut":false,"why":"title_change","site":{"domain":"harrowgate-homes.test","source":"address_field"}}}
-{"v":1,"id":"019c9e69-5870-7901-935e-e12be3c5d2b3","at":1772184230000000000,"seq":815,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":1}}
-{"v":1,"id":"019c9e69-5c58-7b85-a6d6-ad9f1167a0bf","at":1772184231000000000,"seq":816,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
-{"v":1,"id":"019c9e69-6fe0-74c2-9235-6e44488b827d","at":1772184236000000000,"seq":817,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"navigation"}}
-{"v":1,"id":"019c9e69-8b38-7137-a53d-7650a6b631e8","at":1772184243000000000,"seq":818,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
