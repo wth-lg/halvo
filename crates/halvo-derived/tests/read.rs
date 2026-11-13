@@ -433,18 +433,17 @@ fn a_handler_reads_one_stored_workflow_and_the_pages_of_its_evidence() {
     assert_eq!(*found.borrow(), vec!["2 true 2".to_owned()]);
 }
 
-/// Pins the store as built (DS-3, G4): the interface read reads no expiry, so the evidence of a window row whose
-/// `expires` has passed is handed out until an expiry runs, at an open or at the host's call of `Store::expire`. What
-/// such a read may still hand out is with the draft evidence/eng-manager/draft-ruling-u51-read-past-bound.md of this
-/// run; its ruling turns this test with its change.
+/// DS-4: the evidence read hands out a window row while its `expires` lies after the clock's instant, and from that
+/// instant leaves it out with no expiry run; the expiry at that clock still removes it.
 #[test]
-fn the_evidence_read_hands_out_a_window_row_past_its_expiry_until_an_expiry_runs_as_built() {
+fn the_evidence_read_leaves_out_a_window_row_from_its_expiry_instant() {
     let scratch = Scratch::new("evidence-past-expiry");
     let clock = TestClock::at_day(DAY);
     let host = Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 }));
     let mut store = open_host(&scratch, host).unwrap();
+    let expires = clock.now() + 5_000;
     let mut soon = episode(1, DAY, None);
-    soon.expires = Instant(clock.now() + 5_000);
+    soon.expires = Instant(expires);
     store
         .commit_batch(&store_id(1), &[soon], position(1, 0), &mut Seq(1))
         .unwrap();
@@ -454,15 +453,17 @@ fn the_evidence_read_hands_out_a_window_row_past_its_expiry_until_an_expiry_runs
         other => panic!("the read answered {other:?}"),
     };
     let before = handed_out(&store);
-    clock.set(clock.now() + 5_000);
-    let past = handed_out(&store);
+    clock.set(expires - 1);
+    let edge = handed_out(&store);
+    clock.set(expires);
+    let at = handed_out(&store);
     let removed = store.expire().unwrap();
     let after = handed_out(&store);
     drop(store);
     assert_eq!(
-        (before, past, removed, after),
-        (1, 1, 1, 0),
-        "(evidence handed out before its expiry, at its expiry with no expiry run, rows that the expiry removes, \
-         evidence handed out after it)"
+        (before, edge, at, removed, after),
+        (1, 1, 0, 1, 0),
+        "(evidence handed out before its expiry, one nanosecond before it, at it with no expiry run, rows that the \
+         expiry removes, evidence handed out after it)"
     );
 }

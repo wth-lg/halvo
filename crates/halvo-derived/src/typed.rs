@@ -6,7 +6,7 @@ use halvo_schema_core::kinds::{self, KindEntry, Origin, RetentionClass, KINDS};
 use halvo_schema_core::record::{RowRead, TypedRecord};
 use serde_json::value::RawValue;
 
-use crate::db::{one, Db, NewRow};
+use crate::db::{one, reading, Db, NewRow, Now};
 use crate::error::{db_fault, Fault};
 use crate::handler::{Cause, Committed, Refusal};
 use crate::sql;
@@ -187,12 +187,17 @@ impl From<Fault> for Refusal {
     }
 }
 
-/// The read of the rows of one family, as they stand at its call. A fault of the database is kept in `fault`, and
-/// the call that handed out the read answers it.
+/// The read of the rows of one family, as they stand: of them it hands out exactly those that an expiry at `now`
+/// would leave (DS-4), a bounded row while its day of going lies after the clock's day and its day at most two days
+/// after it, a window row while its expiry lies after the clock's instant, a kept row always. `now` is the one
+/// reading of the host's clock that the call of the host took at its start, `commit_batch` for a step and
+/// `Store::handle` for a handler; no read takes a day or an instant from its caller. A fault of the database is
+/// kept in `fault`, and the call that handed out the read answers it.
 pub(crate) struct Rows<'a> {
     pub(crate) db: &'a Db,
     pub(crate) family: &'a str,
     pub(crate) fault: &'a Cell<Option<Fault>>,
+    pub(crate) now: Now,
 }
 
 impl Rows<'_> {
@@ -208,7 +213,9 @@ impl Rows<'_> {
             .conn
             .prepare_cached(sql::ROWS_READ.text())
             .map_err(db_fault)?;
-        let mut found = statement.query([kind]).map_err(db_fault)?;
+        let mut found = statement
+            .query(reading!(self.now, ":kind" => kind))
+            .map_err(db_fault)?;
         while let Some(row) = found.next().map_err(db_fault)? {
             let body: String = row.get(0).map_err(db_fault)?;
             visit(&body);

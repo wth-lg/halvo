@@ -1231,12 +1231,10 @@ fn a_window_record_whose_expiry_has_passed_is_dropped_and_counted_by_a_handler_a
     );
 }
 
-/// Pins the store as built (DS-3, G4): a handler's row read reads no day, so a bounded row past its day of going is
-/// visited until an expiry runs, at an open or at the host's call of `Store::expire`. What such a read may still
-/// hand out is with the draft evidence/eng-manager/draft-ruling-u51-read-past-bound.md of this run; its ruling turns
-/// this test with its change.
+/// DS-4: a handler's row read hands out a bounded row while its day of going lies after the clock's day, and from
+/// the first instant of that day leaves it out with no expiry run; the expiry at that clock still removes it.
 #[test]
-fn a_handler_s_row_read_visits_a_bounded_row_past_its_day_of_going_until_an_expiry_runs_as_built() {
+fn a_handler_s_row_read_leaves_out_a_bounded_row_from_the_first_instant_of_its_day_of_going() {
     let scratch = Scratch::new("row-read-past-bound");
     let clock = TestClock::at_day(DAY);
     let w = workflow(&scratch, &clock, &[&NOTE]);
@@ -1258,15 +1256,18 @@ fn a_handler_s_row_read_visits_a_bounded_row_past_its_day_of_going_until_an_expi
         .unwrap();
     let read = |store: &mut Store| store.handle(&raw_request("runner", "{}")).unwrap();
     read(&mut store);
-    clock.set_day(DAY + 93);
+    let going = i64::from(DAY + 93) * common::DAY_NS;
+    clock.set(going - 1);
+    read(&mut store);
+    clock.set(going);
     read(&mut store);
     let removed = store.expire().unwrap();
     read(&mut store);
     drop(store);
     assert_eq!(
         (seen.borrow().clone(), removed > 0),
-        (vec![1, 1, 0], true),
-        "(rows visited on the row's day, on its day of going with no expiry run, after the expiry; the expiry removed \
-         rows)"
+        (vec![1, 1, 0, 0], true),
+        "(rows visited on the row's day, one nanosecond before its day of going, at its first instant with no \
+         expiry run, after the expiry; the expiry removed rows)"
     );
 }

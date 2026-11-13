@@ -35,6 +35,73 @@ impl Sql {
     }
 }
 
+// When a stored row is due: an expiry at the clock removes it and no read hands it out (DS-4). Each of the four
+// conditions is written once, here, for the table name or alias that it is given, and the expiry's statements and the
+// reads' condition are both made from it, so that a change of one condition changes what the expiry removes and what
+// each read hands out alike. The named parameters are one reading of the host's clock: `:today` its day, `:ahead` the
+// last day on which a stored row may lie (two days after `:today`, `Now::ahead_limit`), `:now` its instant. The class
+// code 1 is the bounded class (`db::class_code`).
+
+/// A bounded row whose day of going has come.
+macro_rules! gone_has_come {
+    ($r:literal) => {
+        concat!($r, ".gone <= :today")
+    };
+}
+
+/// A row whose day lies more than two days after the clock's day.
+macro_rules! too_far_ahead {
+    ($r:literal) => {
+        concat!($r, ".day > :ahead")
+    };
+}
+
+/// A bounded row with no day.
+macro_rules! bounded_without_day {
+    ($r:literal) => {
+        concat!("(", $r, ".class = 1 AND ", $r, ".day IS NULL)")
+    };
+}
+
+/// A window row whose expiry instant has come.
+macro_rules! expiry_has_come {
+    ($r:literal) => {
+        concat!($r, ".expires <= :now")
+    };
+}
+
+/// A row that the expiry at the clock would leave: none of the four conditions holds. A condition on an empty
+/// column is not true, so a kept row, which has no `gone`, no `day` and no `expires`, is always handed out.
+macro_rules! handed_out {
+    ($r:literal) => {
+        concat!(
+            "(",
+            gone_has_come!($r),
+            " OR ",
+            too_far_ahead!($r),
+            " OR ",
+            bounded_without_day!($r),
+            " OR ",
+            expiry_has_come!($r),
+            ") IS NOT TRUE"
+        )
+    };
+}
+
+/// An evidence or a support row whose summary is a row that the expiry would leave: the expiry's sweep, as the
+/// reads hold it.
+macro_rules! its_summary_handed_out {
+    ($r:literal) => {
+        concat!(
+            "EXISTS (SELECT 1 FROM rows AS m WHERE m.summary = ",
+            $r,
+            ".summary AND m.kind = 'summary' AND ",
+            handed_out!("m"),
+            ")"
+        )
+    };
+}
+
 macro_rules! catalogue {
     ($($name:ident = $text:expr;)+) => {
         $(pub(crate) const $name: Sql = Sql($text);)+
@@ -69,7 +136,11 @@ catalogue! {
         WHERE sources.ordinal = ?1";
     PURGE_BELOW_ROWS = "SELECT sources.row, rows.family FROM sources JOIN rows ON rows.id = sources.row \
         WHERE sources.ordinal < ?1";
-    SUMMARY_READ = "SELECT body FROM rows WHERE kind = 'summary' AND day BETWEEN ?1 AND ?2 ORDER BY day, summary";
+    SUMMARY_READ = concat!(
+        "SELECT body FROM rows WHERE kind = 'summary' AND day <= :last AND ",
+        handed_out!("rows"),
+        " ORDER BY day, summary"
+    );
     SUMMARY_DAY_KEY = "SELECT day, wkey FROM rows WHERE summary = ?1 AND kind = 'summary'";
     WORKFLOW_ROW = "SELECT id FROM rows WHERE workflow = ?1 AND kind = 'workflow'";
     WORKFLOW_BY_KEY = "SELECT id, body FROM rows WHERE wkey = ?1 AND kind = 'workflow'";
@@ -81,11 +152,15 @@ catalogue! {
     REMOVE_NAMING = "SELECT id, family FROM rows WHERE workflow = ?1";
     KEY_SUMMARIES = "SELECT summary FROM rows WHERE wkey = ?1 AND kind = 'summary'";
     REMOVE_OF_SUMMARY = "SELECT id, family FROM rows WHERE summary = ?1";
-    ROWS_READ = "SELECT body FROM rows WHERE kind = ?1 AND family <> 'workflow' ORDER BY body";
-    EXPIRE_GONE = "SELECT id, family FROM rows WHERE gone <= ?1";
-    EXPIRE_AHEAD = "SELECT id, family FROM rows WHERE day > ?1";
-    EXPIRE_NO_DAY = "SELECT id, family FROM rows WHERE class = ?1 AND day IS NULL";
-    EXPIRE_WINDOW = "SELECT id, family FROM rows WHERE expires <= ?1";
+    ROWS_READ = concat!(
+        "SELECT body FROM rows WHERE kind = :kind AND family <> 'workflow' AND ",
+        handed_out!("rows"),
+        " ORDER BY body"
+    );
+    EXPIRE_GONE = concat!("SELECT id, family FROM rows WHERE ", gone_has_come!("rows"));
+    EXPIRE_AHEAD = concat!("SELECT id, family FROM rows WHERE ", too_far_ahead!("rows"));
+    EXPIRE_NO_DAY = concat!("SELECT id, family FROM rows WHERE ", bounded_without_day!("rows"));
+    EXPIRE_WINDOW = concat!("SELECT id, family FROM rows WHERE ", expiry_has_come!("rows"));
     BOUND_GONE = "UPDATE rows SET gone = day + ?2 WHERE kind = ?1 AND gone > day + ?2";
     STORED_OTHER_CLASS = "SELECT id FROM rows WHERE kind = ?1 AND class <> ?2 LIMIT 1";
     STORED_OTHER_WORKFLOW = "SELECT id FROM rows WHERE kind = ?1 AND workflow IS NOT NULL \
@@ -96,9 +171,27 @@ catalogue! {
     MIN_EXPIRES = "SELECT min(expires) FROM rows";
     MIN_GONE = "SELECT min(gone) FROM rows";
     WORKFLOW_BODY = "SELECT body FROM rows WHERE workflow = ?1 AND kind = 'workflow'";
-    EVIDENCE_OF = "SELECT body FROM rows WHERE summary = ?1 AND kind = 'evidence'";
+    EVIDENCE_OF = concat!(
+        "SELECT e.body FROM rows AS e WHERE e.summary = :summary AND e.kind = 'evidence' AND ",
+        handed_out!("e"),
+        " AND ",
+        its_summary_handed_out!("e")
+    );
+    SUPPORT_HANDED_OUT = concat!(
+        "SELECT s.summary FROM rows AS s WHERE s.kind = 'support' AND s.workflow = :workflow AND ",
+        handed_out!("s"),
+        " AND ",
+        its_summary_handed_out!("s"),
+        " ORDER BY s.summary"
+    );
     WORKFLOWS_AFTER = "SELECT workflow FROM rows WHERE kind = 'workflow' AND workflow > ?1 ORDER BY workflow";
-    SUPPORT_WITH_EVIDENCE = "SELECT s.summary FROM rows AS s WHERE s.kind = 'support' AND s.workflow = ?1 \
-        AND s.summary > ?2 AND EXISTS (SELECT 1 FROM rows AS e WHERE e.summary = s.summary AND e.kind = 'evidence') \
-        ORDER BY s.summary";
+    SUPPORT_WITH_EVIDENCE = concat!(
+        "SELECT s.summary FROM rows AS s WHERE s.kind = 'support' AND s.workflow = :workflow AND s.summary > :after AND ",
+        handed_out!("s"),
+        " AND ",
+        its_summary_handed_out!("s"),
+        " AND EXISTS (SELECT 1 FROM rows AS e WHERE e.summary = s.summary AND e.kind = 'evidence' AND ",
+        handed_out!("e"),
+        ") ORDER BY s.summary"
+    );
 }

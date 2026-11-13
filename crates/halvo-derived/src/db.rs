@@ -219,10 +219,17 @@ impl Tx<'_> {
     /// rows removed. `gone` is the one fact of when a bounded row goes, which the report's deadline reads too, and the
     /// report reads a row too far ahead by the same statement and the same limit.
     pub(crate) fn expire(&self, now: Now) -> Result<u64, Fault> {
-        let removed = self.remove(sql::EXPIRE_GONE, [now.today])?
-            + self.remove(sql::EXPIRE_AHEAD, [now.ahead_limit()])?
-            + self.remove(sql::EXPIRE_NO_DAY, [bounded_code()])?
-            + self.remove(sql::EXPIRE_WINDOW, [now.now])?;
+        let removed = self.remove(
+            sql::EXPIRE_GONE,
+            rusqlite::named_params! {":today": now.today},
+        )? + self.remove(
+            sql::EXPIRE_AHEAD,
+            rusqlite::named_params! {":ahead": now.ahead_limit()},
+        )? + self.remove(sql::EXPIRE_NO_DAY, [])?
+            + self.remove(
+                sql::EXPIRE_WINDOW,
+                rusqlite::named_params! {":now": now.now},
+            )?;
         Ok(removed + self.sweep()?)
     }
 
@@ -287,6 +294,21 @@ pub(crate) fn class_code(class: RetentionClass) -> i64 {
         RetentionClass::Kept => 2,
     }
 }
+
+/// The named parameters of a read under the rule of DS-4, the rows that an expiry at the clock would leave: one
+/// reading of the host's clock (`:today`, `:ahead`, `:now`, as the conditions of `sql` read them), and the read's
+/// own parameters after it.
+macro_rules! reading {
+    ($now:expr $(, $key:literal => $value:expr)* $(,)?) => {
+        halvo_sqlcipher::rusqlite::named_params! {
+            ":today": $now.today,
+            ":ahead": $now.ahead_limit(),
+            ":now": $now.now
+            $(, $key: $value)*
+        }
+    };
+}
+pub(crate) use reading;
 
 /// The instant and the local day of the clock when a call starts.
 #[derive(Clone, Copy)]
@@ -355,18 +377,14 @@ pub(crate) fn rows<T, P: Params>(
 /// day lies more than two days after the clock's day, or a bounded row with no day. The expiry removes these rows by
 /// the same statements, and the report gives the clock's instant as its deadline while one is stored.
 pub(crate) fn due_now(conn: &Connection, now: Now) -> Result<bool, Fault> {
-    let ahead = one(conn, sql::EXPIRE_AHEAD, [now.ahead_limit()], |r| {
-        r.get::<_, i64>(0)
-    })?;
-    let no_day = one(conn, sql::EXPIRE_NO_DAY, [bounded_code()], |r| {
-        r.get::<_, i64>(0)
-    })?;
+    let ahead = one(
+        conn,
+        sql::EXPIRE_AHEAD,
+        rusqlite::named_params! {":ahead": now.ahead_limit()},
+        |r| r.get::<_, i64>(0),
+    )?;
+    let no_day = one(conn, sql::EXPIRE_NO_DAY, [], |r| r.get::<_, i64>(0))?;
     Ok(ahead.is_some() || no_day.is_some())
-}
-
-/// The class code of a bounded row.
-fn bounded_code() -> i64 {
-    class_code(RetentionClass::Bounded { days: 0 })
 }
 
 pub(crate) fn one<T, P: Params>(

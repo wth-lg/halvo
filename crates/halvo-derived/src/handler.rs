@@ -6,7 +6,7 @@ use halvo_schema_core::request::{ErrorName, RawRequest};
 use serde::de::{self, Deserializer, IgnoredAny, MapAccess, Visitor};
 use serde_json::value::RawValue;
 
-use crate::db::Db;
+use crate::db::{Db, Now};
 use crate::error::{Error, Fault};
 use crate::typed::{typed_commit, Rows, Writer};
 use crate::Store;
@@ -160,6 +160,9 @@ pub struct HandlerCx<'a> {
     chain: &'a [&'a HandlerEntry],
     at: usize,
     fault: &'a Cell<Option<Fault>>,
+    /// The one reading of the host's clock that `Store::handle` took at its start, by which every read of this
+    /// request reads, for the handler in front and for the handlers behind it.
+    pub(crate) now: Now,
 }
 
 impl HandlerCx<'_> {
@@ -176,12 +179,15 @@ impl HandlerCx<'_> {
         Ok(committed)
     }
 
-    /// The read of the rows of the handler's own family, as they stand when it is called.
+    /// The read of the rows of the handler's own family, as they stand: it hands out exactly the rows that an expiry
+    /// at the clock would leave (DS-4), by the one reading of the host's clock that `Store::handle` took at the
+    /// start of this request, so that every read of one request reads by one clock. No read writes.
     pub fn rows(&self) -> impl RowRead + '_ {
         Rows {
             db: self.db,
             family: self.family(),
             fault: self.fault,
+            now: self.now,
         }
     }
 
@@ -200,6 +206,7 @@ impl HandlerCx<'_> {
             chain: self.chain,
             at: next,
             fault: self.fault,
+            now: self.now,
         };
         entry.handler.handle(self.request, &mut behind)
     }
@@ -251,6 +258,7 @@ impl Store {
     /// while it reads rows is answered as the fault.
     pub fn handle(&mut self, request: &RawRequest) -> Result<Box<RawValue>, Error> {
         self.db.arm();
+        let now = self.db.now();
         let handlers = &self.handlers;
         let (writer, chain): (Writer, Vec<&HandlerEntry>) = match request.name() {
             "runner" => (
@@ -295,6 +303,7 @@ impl Store {
             chain: &chain,
             at: 0,
             fault: &fault,
+            now,
         };
         let answer = first.handler.handle(request, &mut cx);
         if let Some(fault) = fault.get() {

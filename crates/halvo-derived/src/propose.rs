@@ -9,14 +9,17 @@ use halvo_schema_core::record::{
 use halvo_sqlcipher::rusqlite::Connection;
 
 use crate::batch::{bound_days, key_of, this_run, ProposalOutcome};
-use crate::db::{one, rows, NewRow, Now, Tx};
+use crate::db::{one, reading, rows, NewRow, Now, Tx};
 use crate::error::{db_fault, Fault};
 use crate::host::IdSource;
 use crate::sql;
 
-/// The read of the bounded summaries over the store's rows: every stored summary inside its bound once, in
-/// ascending order of `day` and then of summary id. A stored row that its reader refuses is visited not and kept as
-/// the fault of the read.
+/// The read of the bounded summaries over the store's rows, in ascending order of `day` and then of summary id: of
+/// the stored summaries it hands out those that an expiry at `now` would leave (DS-4; its lower side is the stored
+/// day of going, whatever the entry's days say now) and of these, by a sentence of its own, none of a day after the
+/// clock's day. `now` is the one reading of the host's clock that `commit_batch` took at its start, for the
+/// recurrence step and every later step. A stored row that its reader refuses is visited not and kept as the fault of
+/// the read.
 pub(crate) struct SummaryReader<'c> {
     conn: &'c Connection,
     now: Now,
@@ -37,14 +40,12 @@ impl<'c> SummaryReader<'c> {
     }
 
     fn read(&self, visit: &mut dyn FnMut(&Summary)) -> Result<(), Fault> {
-        let days = bound_days(this_run("summary")?).ok_or(Fault::Row)?;
-        let lowest = (self.now.today - i64::from(days) + 1).max(0);
         let mut statement = self
             .conn
             .prepare_cached(sql::SUMMARY_READ.text())
             .map_err(db_fault)?;
         let mut found = statement
-            .query([lowest, self.now.today])
+            .query(reading!(self.now, ":last" => self.now.today))
             .map_err(db_fault)?;
         while let Some(row) = found.next().map_err(db_fault)? {
             let body: String = row.get(0).map_err(db_fault)?;

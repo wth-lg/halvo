@@ -6,7 +6,7 @@ use halvo_schema_core::request::{
 use halvo_schema_core::site::SiteValue;
 use serde::Serialize;
 
-use crate::db::{one, rows, Db};
+use crate::db::{one, reading, rows, Db, Now};
 use crate::error::{Error, Fault};
 use crate::handler::HandlerCx;
 use crate::sql;
@@ -55,7 +55,7 @@ fn fill<K, T: Serialize>(
     Ok((items, false))
 }
 
-fn workflow_item(db: &Db, id: &WorkflowId) -> Result<Option<WorkflowItem>, Fault> {
+fn workflow_item(db: &Db, now: Now, id: &WorkflowId) -> Result<Option<WorkflowItem>, Fault> {
     let Some(body) = one(&db.conn, sql::WORKFLOW_BODY, [id.as_str()], |r| {
         r.get::<_, String>(0)
     })?
@@ -63,9 +63,12 @@ fn workflow_item(db: &Db, id: &WorkflowId) -> Result<Option<WorkflowItem>, Fault
         return Ok(None);
     };
     let workflow: Workflow = serde_json::from_str(&body).map_err(|_| Fault::Row)?;
-    let summaries: Vec<SummaryId> = rows(&db.conn, sql::SUPPORT_OF, [id.as_str()], |r| {
-        r.get::<_, String>(1)
-    })?
+    let summaries: Vec<SummaryId> = rows(
+        &db.conn,
+        sql::SUPPORT_HANDED_OUT,
+        reading!(now, ":workflow" => id.as_str()),
+        |r| r.get::<_, String>(0),
+    )?
     .iter()
     .map(|s| SummaryId::parse(s).map_err(|_| Fault::Row))
     .collect::<Result<_, _>>()?;
@@ -77,7 +80,7 @@ fn workflow_item(db: &Db, id: &WorkflowId) -> Result<Option<WorkflowItem>, Fault
     if titled {
         let mut latest = None;
         for summary in &summaries {
-            if let Some(evidence) = evidence_of(db, summary)? {
+            if let Some(evidence) = evidence_of(db, now, summary)? {
                 if evidence.hint.is_some() && latest.is_none_or(|end| evidence.end >= end) {
                     latest = Some(evidence.end);
                     hint = evidence.hint;
@@ -92,16 +95,20 @@ fn workflow_item(db: &Db, id: &WorkflowId) -> Result<Option<WorkflowItem>, Fault
     }))
 }
 
-fn evidence_of(db: &Db, summary: &SummaryId) -> Result<Option<Evidence>, Fault> {
-    let body = one(&db.conn, sql::EVIDENCE_OF, [summary.as_str()], |r| {
-        r.get::<_, String>(0)
-    })?;
+fn evidence_of(db: &Db, now: Now, summary: &SummaryId) -> Result<Option<Evidence>, Fault> {
+    let body = one(
+        &db.conn,
+        sql::EVIDENCE_OF,
+        reading!(now, ":summary" => summary.as_str()),
+        |r| r.get::<_, String>(0),
+    )?;
     body.map(|b| serde_json::from_str(&b).map_err(|_| Fault::Row))
         .transpose()
 }
 
 fn workflows_page(
     db: &Db,
+    now: Now,
     id: Option<&RequestId>,
     after: Option<&WorkflowId>,
 ) -> Result<WorkflowsPage, Error> {
@@ -119,7 +126,7 @@ fn workflows_page(
             next: None,
         }),
     )?;
-    let (workflows, more) = fill(&candidates, empty, |w| workflow_item(db, w))?;
+    let (workflows, more) = fill(&candidates, empty, |w| workflow_item(db, now, w))?;
     let next = if more {
         workflows.last().map(|item| item.workflow.id().clone())
     } else {
@@ -130,6 +137,7 @@ fn workflows_page(
 
 fn evidence_page(
     db: &Db,
+    now: Now,
     id: Option<&RequestId>,
     workflow: &WorkflowId,
     after: Option<&SummaryId>,
@@ -145,7 +153,7 @@ fn evidence_page(
     let candidates: Vec<SummaryId> = rows(
         &db.conn,
         sql::SUPPORT_WITH_EVIDENCE,
-        [workflow.as_str(), after],
+        reading!(now, ":workflow" => workflow.as_str(), ":after" => after),
         |r| r.get::<_, String>(0),
     )?
     .iter()
@@ -158,7 +166,7 @@ fn evidence_page(
             next: None,
         }),
     )?;
-    let (evidence, more) = fill(&candidates, empty, |s| evidence_of(db, s))?;
+    let (evidence, more) = fill(&candidates, empty, |s| evidence_of(db, now, s))?;
     let next = if more {
         evidence.last().map(|e| e.summary.clone())
     } else {
@@ -194,15 +202,22 @@ impl Store {
     /// workflow that is not stored. A page holds whole items while the reply that holds it, its envelope with the
     /// request's id included, stays inside 261,120 bytes, and its `next` is the key of its last item when more
     /// remain; an item that passes the bound alone is refused with `too_large`.
+    ///
+    /// Of the rows it hands out exactly those that an expiry at the clock would leave (DS-4): an item's `summaries`
+    /// are the ids of its support rows that are handed out, its hint is that of the latest evidence row handed out
+    /// inside its window, and an evidence row or a support row is handed out only while its summary is. The read
+    /// takes one reading of the host's clock at its start, so the statements of one page agree; it takes no day or
+    /// instant from its caller, and it writes nothing.
     pub fn interface_read(&self, request: &InterfaceRead) -> Result<ReplyResult, Error> {
         self.db.arm();
+        let now = self.db.now();
         let id = Some(request.id());
         let page = match request.read() {
             Read::Workflows { after } => {
-                ReplyResult::Workflows(workflows_page(&self.db, id, after.as_ref())?)
+                ReplyResult::Workflows(workflows_page(&self.db, now, id, after.as_ref())?)
             }
             Read::Evidence { workflow, after } => {
-                ReplyResult::Evidence(evidence_page(&self.db, id, workflow, after.as_ref())?)
+                ReplyResult::Evidence(evidence_page(&self.db, now, id, workflow, after.as_ref())?)
             }
         };
         if reply_len(id, &page)? > REPLY_MAX {
@@ -218,20 +233,22 @@ impl Store {
 }
 
 impl HandlerCx<'_> {
-    /// The item of one stored workflow as the read `workflows` gives it, or none where the workflow is not stored.
+    /// The item of one stored workflow as the read `workflows` gives it, or none where the workflow is not stored,
+    /// by the one reading of the host's clock that `Store::handle` took at the start of this request.
     pub fn workflow(&self, id: &WorkflowId) -> Result<Option<WorkflowItem>, Fault> {
         self.db.arm();
-        workflow_item(self.db, id)
+        workflow_item(self.db, self.now, id)
     }
 
     /// A page of the read `evidence` of one stored workflow, counted against the bound of a reply with the id of
-    /// the request that the handler answers.
+    /// the request that the handler answers, by the one reading of the host's clock that `Store::handle` took at the
+    /// start of this request.
     pub fn evidence(
         &self,
         id: &WorkflowId,
         after: Option<&SummaryId>,
     ) -> Result<EvidencePage, Error> {
         self.db.arm();
-        evidence_page(self.db, Some(self.request.id()), id, after)
+        evidence_page(self.db, self.now, Some(self.request.id()), id, after)
     }
 }

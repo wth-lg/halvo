@@ -272,6 +272,7 @@ impl Store {
                 db,
                 family: step.family,
                 fault: &fault,
+                now,
             };
             let records = step.step.after_commit(&summaries, &rows);
             let result = match summaries.fault().or(fault.get()) {
