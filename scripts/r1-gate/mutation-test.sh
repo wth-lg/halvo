@@ -8,6 +8,7 @@ stop_printed=no
 stop_on() {
   [ -z "$stop_signal" ] || return 0
   stop_signal=$1; stop_status=$2
+  trap '' TERM INT HUP
 }
 
 stop_traps() {
@@ -79,7 +80,9 @@ From the first signal on the runner starts no new step of the run (it still
 waits for the running test as below, and it removes its scratch), prints
 exactly one STOPPED line, prints no FAIL, PASS, OPEN, NOT-RUN or count line for
 a step that the signal ended, and exits with 143, 130 or 129 for that first
-signal. A later signal changes nothing. The line by phase:
+signal. From the first signal on the runner ignores TERM, INT and HUP, and so
+does every process that it starts after it, so a later signal changes nothing.
+The line by phase:
 
   phase                                         STOPPED line
   before the flags are read                     STOPPED mutation (signal S; no row had started)
@@ -114,7 +117,12 @@ shield: a verify child past its deadline ends by the check's KILL 5 s later.
 Limits: a signal that comes after a test or a shielded step has started and
 before the runner waits for it is acted on when the step ends by itself, with
 its own limit (900 s for a cargo test, 300 s for a gate case, the check's own
-deadlines for a gate check, none for a build) as its bound. A
+deadlines for a gate check, none for a build) as its bound; a signal that
+comes after the process of a shielded step has started and before that process
+has read that no signal was recorded lets the step start, and the runner waits
+for it as for a running step. The helper for timed runs sends KILL 5 s after
+its TERM, and at once when the runner has ended: under it a shielded step that
+needs longer than that is killed and what it made may be left. A
 step whose own exit status says that a signal ended it (129, 130, 137 or 143)
 is never read as an answer: with a signal of the runner's own within 2 s the
 run ends as a stop, and without one it ends with exit 2 and the line
