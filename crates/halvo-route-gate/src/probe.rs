@@ -612,6 +612,27 @@ mod tests {
     }
 
     #[test]
+    fn the_same_count_reads_the_other_threads_alone() {
+        let window = |first, others| Window { first, others };
+        assert!(the_same_count(
+            &window((0, 0), (5, 40)),
+            &window((3, 208), (5, 40))
+        ));
+        assert!(!the_same_count(
+            &window((0, 0), (5, 40)),
+            &window((0, 0), (6, 40))
+        ));
+        assert!(!the_same_count(
+            &window((0, 0), (5, 40)),
+            &window((0, 0), (5, 48))
+        ));
+        assert!(!the_same_count(
+            &window((1, 8), (5, 40)),
+            &window((0, 0), (6, 48))
+        ));
+    }
+
+    #[test]
     fn probe_holds_on_the_release_data() {
         assert!(run(&Data::release(), 44 * 3 * 2).ok);
         assert!(run(&Data::release(), 1).ok);
