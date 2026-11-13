@@ -177,19 +177,123 @@ pnpm_platform() {
 }
 
 pnpm_lock_integrity() {
-  awk -v entry="  '$1':" -v name="$1:" -v quote="'" '
-    { sub(/\r$/, "") }
-    /\r/ { carriage_return = 1; exit }
-    NR == 1 && /^---([ \t]|$)/ { next }
-    /^(---|\.\.\.)([ \t]|$)/ { exit }
-    /^[^ #]/ { top = $0 }
-    inside && /^(  [^ ]| [^ ]|[^ ])/ { inside = 0 }
-    inside && /^ +resolution:/ { resolutions++ }
-    inside && !read_first { first = $0; read_first = 1 }
-    top == "packages:" { key = $0; gsub(quote, "", key); gsub(/[" ]/, "", key); if (key == name) names++ }
-    top == "packages:" && $0 == entry { inside = 1 }
-    END { if (!carriage_return && names == 1 && resolutions == 1) print first }
-  ' backend/pnpm-lock.yaml 2>/dev/null | sed -n 's/^    resolution: {integrity: sha512-\([A-Za-z0-9+/]\{86\}==\)}$/\1/p'
+  if [ ! -f "$1" ]; then
+    echo no-file
+    return 1
+  fi
+  LC_ALL=C tr '\000' '\001' <"$1" | LC_ALL=C awk -v want="$2" -v q="'" '
+    function refuse(why) { answer = why " " NR; exit }
+    function starts(s, head) { return substr(s, 1, length(head)) == head }
+    function framed(s, head, tail) { return length(s) > length(head) + length(tail) && starts(s, head) && substr(s, length(s) - length(tail) + 1) == tail }
+    function inner(s, head, tail) { return substr(s, length(head) + 1, length(s) - length(head) - length(tail)) }
+    function version(s) { return s ~ "^[0-9]+[.][0-9]+[.][0-9]+$" }
+    function scoped(s) { return s ~ "^@[a-z0-9-]+/[a-z0-9._-]+$" }
+    function plain(s) { return s ~ "^[a-z0-9][a-z0-9._-]*$" }
+    function named(k, quoted,   at) {
+      at = match(k, "@[^@]*$")
+      if (at < 2 || !version(substr(k, at + 1))) return 0
+      return quoted ? scoped(substr(k, 1, at - 1)) : plain(substr(k, 1, at - 1))
+    }
+    function entry_key(s,   k) {
+      if (framed(s, "  " q, q ":")) { k = inner(s, "  " q, q ":"); return named(k, 1) ? k : "" }
+      if (framed(s, "  ", ":")) { k = inner(s, "  ", ":"); return named(k, 0) ? k : "" }
+      return ""
+    }
+    function resolution(s,   v) {
+      if (!framed(s, "    resolution: {integrity: sha512-", "==}")) return ""
+      v = inner(s, "    resolution: {integrity: sha512-", "==}")
+      return length(v) == 86 && v ~ "^[A-Za-z0-9+/]+$" ? v "==" : ""
+    }
+    function listed(s, key) { return framed(s, "    " key ": [", "]") && inner(s, "    " key ": [", "]") ~ "^[a-z0-9]+$" }
+    {
+      sub(/\r$/, "")
+      line = $0
+      if (NR == 1) { if (line != "---") refuse("form"); next }
+      if (line == "---") exit
+      if (expect) {
+        expect = 0
+        if (top != "packages" || resolution(line) == "") { answer = "no-resolution " entry; exit }
+        value = resolution(line)
+      }
+      if (line == "") next
+      match(line, "^ *")
+      indent = RLENGTH
+      if (indent == 0) {
+        if (line == "importers:" || line == "packages:" || line == "snapshots:") k = substr(line, 1, length(line) - 1)
+        else if (framed(line, "lockfileVersion: " q, q) && inner(line, "lockfileVersion: " q, q) ~ "^[0-9]+[.][0-9]+$") k = "lockfileVersion"
+        else refuse("form")
+        if (k in top_seen) refuse("repeat")
+        top_seen[k] = 1
+        top = k
+        l2 = ""
+        l4 = ""
+        l6 = ""
+        next
+      }
+      if (indent == 2) {
+        if (top == "importers" && line == "  .:") k = "."
+        else if (top == "packages" || top == "snapshots") k = entry_key(line)
+        else k = ""
+        if (k == "") refuse("form")
+        if ((top, k) in seen) {
+          if (top == "packages" && k == want) refuse("twice")
+          refuse("repeat")
+        }
+        seen[top, k] = 1
+        l2 = k
+        l4 = ""
+        l6 = ""
+        if (top == "packages" && k == want) { entries++; expect = 1; entry = NR }
+        next
+      }
+      if (indent == 4 && l2 != "") {
+        k = ""
+        l4 = ""
+        if (top == "importers" && line == "    configDependencies: {}") k = "configDependencies"
+        if (top == "importers" && line == "    packageManagerDependencies:") { k = "packageManagerDependencies"; l4 = "managers" }
+        if (top == "packages" && resolution(line) != "") k = "resolution"
+        if (top == "packages" && listed(line, "cpu")) k = "cpu"
+        if (top == "packages" && listed(line, "os")) k = "os"
+        if (top == "packages" && listed(line, "libc")) k = "libc"
+        if (top == "packages" && framed(line, "    engines: {node: " q, q "}") && inner(line, "    engines: {node: " q, q "}") ~ "^[0-9A-Za-z.*<>=^~| -]+$") k = "engines"
+        if (top == "packages" && line == "    hasBin: true") k = "hasBin"
+        if (top == "snapshots" && line == "    optional: true") k = "optional"
+        if (top == "snapshots" && line == "    optionalDependencies:") { k = "optionalDependencies"; l4 = "optional" }
+        if (k == "") refuse("form")
+        if ((top, l2, k) in seen) refuse("repeat")
+        seen[top, l2, k] = 1
+        l6 = ""
+        next
+      }
+      if (indent == 6 && l4 == "managers" && line == "      pnpm:") {
+        if ((top, l2, l4, "pnpm") in seen) refuse("repeat")
+        seen[top, l2, l4, "pnpm"] = 1
+        l6 = "pnpm"
+        next
+      }
+      if (indent == 6 && l4 == "optional" && framed(line, "      " q, "") && index(line, q ": ") > 7) {
+        k = substr(line, 8, index(line, q ": ") - 8)
+        if (!scoped(k) || !version(substr(line, index(line, q ": ") + 3))) refuse("form")
+        if ((top, l2, l4, k) in seen) refuse("repeat")
+        seen[top, l2, l4, k] = 1
+        next
+      }
+      if (indent == 8 && l6 == "pnpm" && (starts(line, "        specifier: ") || starts(line, "        version: "))) {
+        k = substr(line, 9, index(line, ":") - 9)
+        if (!version(substr(line, index(line, ":") + 2))) refuse("form")
+        if ((top, l2, l4, l6, k) in seen) refuse("repeat")
+        seen[top, l2, l4, l6, k] = 1
+        next
+      }
+      refuse("form")
+    }
+    END {
+      if (answer == "" && expect) answer = "no-resolution " entry
+      if (answer == "" && entries == 0) answer = "no-entry"
+      if (answer != "") { print answer; exit 1 }
+      print "value " value
+    }
+  '
 }
 
 hex_of_base64() {
@@ -232,11 +336,11 @@ ensure_pnpm() {
       return 1
     fi
     package=@pnpm/exe.$platform@$pinned
-    integrity=$(pnpm_lock_integrity "$package")
-    if [ -z "$integrity" ]; then
+    if ! answer=$(pnpm_lock_integrity backend/pnpm-lock.yaml "$package"); then
       echo "prerequisites: error: the first document of backend/pnpm-lock.yaml holds no sha512 integrity value for $package, so the platform package cannot be checked; that lock does not belong to the pnpm $pinned that backend/package.json pins" >&2
       return 1
     fi
+    integrity=${answer#value }
     downloads=$(pwd -P)/backend/.tools/downloads
     archive=$downloads/pnpm-$pinned.tgz
     platform_archive=$downloads/pnpm-exe.$platform-$pinned.tgz
@@ -743,6 +847,22 @@ EOF
   [ "$(count "the first document of backend/pnpm-lock.yaml holds no sha512 integrity value for @pnpm/exe.$case_platform@12.14.0" "$case_dir/output")" = 1 ] || problems="$problems; no line named the missing value"
   verdict "$name"
 
+  name='a lock that names the served bytes in a scalar above its quoted packages key is refused before any download: npm installs nothing'
+  new_backend_case backend-lock-scalar-names-served
+  printf -- "---\nlockfileVersion: '9.0'\n\nnotes: \"\npackages:\n\n  '@pnpm/exe.%s@12.14.0':\n    resolution: {integrity: sha512-%s}\n\nend\"\n'packages':\n\n  '@pnpm/exe.%s@12.14.0':\n    resolution: {integrity: sha512-%s}\n\n---\n" "$case_platform" "$(integrity_of "$platform_asset")" "$case_platform" "$(integrity_of "$case_dir/assets/pnpm-12.14.0.tgz")" >"$case_dir/repo/backend/pnpm-lock.yaml"
+  run_ensure_backend fails
+  expect_nothing_installed
+  [ "$(count 'curl ' "$case_dir/calls")" = 0 ] || problems="$problems; a download ran"
+  verdict "$name"
+
+  name='a lock whose quoted packages key names the served bytes below a scalar that names others is refused before any download'
+  new_backend_case backend-lock-quoted-key-names-served
+  printf -- "---\nlockfileVersion: '9.0'\n\nnotes: \"\npackages:\n\n  '@pnpm/exe.%s@12.14.0':\n    resolution: {integrity: sha512-%s}\n\nend\"\n'packages':\n\n  '@pnpm/exe.%s@12.14.0':\n    resolution: {integrity: sha512-%s}\n\n---\n" "$case_platform" "$(integrity_of "$case_dir/assets/pnpm-12.14.0.tgz")" "$case_platform" "$(integrity_of "$platform_asset")" >"$case_dir/repo/backend/pnpm-lock.yaml"
+  run_ensure_backend fails
+  expect_nothing_installed
+  [ "$(count 'curl ' "$case_dir/calls")" = 0 ] || problems="$problems; a download ran"
+  verdict "$name"
+
   name='a host for which this script names no platform package of pnpm stops the step before any download'
   new_backend_case backend-no-platform
   cat >"$case_dir/stubs/uname" <<'EOF'
@@ -795,8 +915,15 @@ EOF
   other=$(integrity_of "$case_dir/two")
   lock_file=$case_dir/repo/backend/pnpm-lock.yaml
   lock_reads() {
-    got=$(cd "$case_dir/repo" && pnpm_lock_integrity '@pnpm/exe.p@1.0.0') || got="exit $?"
-    [ "$got" = "$1" ] || problems="$problems; $2 gave '$got'"
+    if got=$(pnpm_lock_integrity "$lock_file" '@pnpm/exe.p@1.0.0'); then
+      got=${got#value }
+    else
+      got="no value ($got)"
+    fi
+    case "$1:$got" in
+      ":no value ("*) ;;
+      *) [ "$got" = "$1" ] || problems="$problems; $2 gave '$got'" ;;
+    esac
   }
   write_lock '@pnpm/exe.p@1.0.0' "$good"
   lock_reads "$good" 'the entry of the first document'
@@ -833,7 +960,7 @@ EOF
   printf -- "---\npackages:\n\n  \"@pnpm/exe.p@1.0.0\":\n    resolution: {integrity: sha512-%s}\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$other" "$good" >"$lock_file"
   lock_reads '' 'two entries of the package, one of them in double quotes'
   printf -- "---\nnotes: |\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$other" "$good" >"$lock_file"
-  lock_reads "$good" 'the entry under packages: after the text of an entry in a block scalar'
+  lock_reads '' 'the entry under packages: after the text of an entry in a block scalar'
   printf -- "---\nnotes: |\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n\npackages:\n" "$good" >"$lock_file"
   lock_reads '' 'the text of an entry in a block scalar alone'
   printf -- "---\nimporters:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n\npackages:\n" "$good" >"$lock_file"
@@ -859,13 +986,195 @@ EOF
   printf -- "---\r\npackages:\r\n\r\n---\r\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$good" >"$lock_file"
   lock_reads '' 'an entry after a first document with CRLF lines'
   printf -- "--- \npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$good" >"$lock_file"
-  lock_reads "$good" 'the entry of a first document whose marker has a trailing space'
+  lock_reads '' 'the entry of a first document whose marker has a trailing space'
   printf -- "---\npackages:\n# a comment\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$good" >"$lock_file"
-  lock_reads "$good" 'the entry after a comment under packages:'
+  lock_reads '' 'the entry after a comment under packages:'
   printf -- "---\nimporters:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n\npackages:\n\n  \"@pnpm/exe.p@1.0.0\":\n    resolution: {integrity: sha512-%s}\n" "$good" "$other" >"$lock_file"
   lock_reads '' 'an entry under importers: with the package in double quotes under packages:'
   mv "$lock_file" "$lock_file.absent"
   lock_reads '' 'no lock file'
+  verdict "$name"
+
+  name='a lock gives a value only when every line of its first document is in a form that pnpm writes there'
+  new_case pnpm-lock-forms
+  mkdir -p "$case_dir/repo/backend"
+  printf 'one\n' >"$case_dir/one"
+  printf 'two\n' >"$case_dir/two"
+  good=$(integrity_of "$case_dir/one")
+  other=$(integrity_of "$case_dir/two")
+  lock_file=$case_dir/repo/backend/pnpm-lock.yaml
+  base_lock() {
+    printf -- "---\nlockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    configDependencies: {}\n    packageManagerDependencies:\n      pnpm:\n        specifier: 1.0.0\n        version: 1.0.0\n\n"
+    printf "packages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n    cpu: [arm64]\n    os: [darwin]\n    libc: [glibc]\n\n" "$good"
+    printf "  pnpm@1.0.0:\n    resolution: {integrity: sha512-%s}\n    engines: {node: '>=18.*'}\n    hasBin: true\n\n" "$other"
+    printf "snapshots:\n\n  '@pnpm/exe.p@1.0.0':\n    optional: true\n\n  pnpm@1.0.0:\n    optionalDependencies:\n      '@pnpm/exe.p': 1.0.0\n\n---\nlockfileVersion: '9.0'\n"
+  }
+  lock_variant() {
+    base_lock >"$case_dir/base"
+    at=$(grep -n -x -F -- "$2" "$case_dir/base" | sed -n '1s/:.*//p')
+    if [ -z "$at" ]; then
+      problems="$problems; no line '$2' in the base lock"
+      return
+    fi
+    keep=$at
+    [ "$1" = replace ] && keep=$((at - 1))
+    {
+      awk -v last="$keep" 'NR <= last' "$case_dir/base"
+      cat "$case_dir/insert"
+      awk -v first="$at" 'NR > first' "$case_dir/base"
+    } >"$lock_file"
+  }
+  key_line="  '@pnpm/exe.p@1.0.0':"
+  resolution_line="    resolution: {integrity: sha512-$good}"
+  base_lock >"$lock_file"
+  lock_reads "$good" 'the base lock, which holds every form'
+  printf '    os: ["darwin"]\n' >"$case_dir/insert"
+  lock_variant replace '    os: [darwin]'
+  lock_reads '' 'a double quote'
+  printf "notes: 'a\n  b'\n" >"$case_dir/insert"
+  lock_variant after "lockfileVersion: '9.0'"
+  lock_reads '' 'a single-quoted text that does not close on its line'
+  printf '# a note\n' >"$case_dir/insert"
+  lock_variant after "$resolution_line"
+  lock_reads '' 'a comment at the start of a line'
+  printf '    # a note\n' >"$case_dir/insert"
+  lock_variant after "$resolution_line"
+  lock_reads '' 'an indented comment'
+  printf "  '@pnpm/exe.p@1.0.0': # a note\n" >"$case_dir/insert"
+  lock_variant replace "$key_line"
+  lock_reads '' 'a comment after the entry key'
+  printf '  "@pnpm/exe.p@1.0.0":\n' >"$case_dir/insert"
+  lock_variant replace "$key_line"
+  lock_reads '' 'the entry key in double quotes'
+  printf '  "\\x40pnpm/exe.p@1.0.0":\n    resolution: {integrity: sha512-%s}\n\n' "$other" >"$case_dir/insert"
+  lock_variant after '    libc: [glibc]'
+  lock_reads '' 'a second entry whose key holds an escape'
+  printf "  '@pnpm/exe.p@1.0.0' :\n" >"$case_dir/insert"
+  lock_variant replace "$key_line"
+  lock_reads '' 'a blank before the colon of the entry key'
+  printf "  '@pnpm/exe.p@1.0.0'\t:\n" >"$case_dir/insert"
+  lock_variant replace "$key_line"
+  lock_reads '' 'a tab before the colon of the entry key'
+  printf "  '@pnpm/exe.p@1.0.0':\t\n" >"$case_dir/insert"
+  lock_variant replace "$key_line"
+  lock_reads '' 'a tab after the colon of the entry key'
+  printf '  @pnpm/exe.p@1.0.0:\n' >"$case_dir/insert"
+  lock_variant replace "$key_line"
+  lock_reads '' 'the entry key plain where pnpm quotes it'
+  printf "  'pnpm@1.0.0':\n" >"$case_dir/insert"
+  lock_variant replace '  pnpm@1.0.0:'
+  lock_reads '' 'a key quoted where pnpm writes it plain'
+  printf "    'resolution': {integrity: sha512-%s}\n" "$other" >"$case_dir/insert"
+  lock_variant after "$resolution_line"
+  lock_reads '' 'a quoted resolution key'
+  printf '    resolution : {integrity: sha512-%s}\n' "$other" >"$case_dir/insert"
+  lock_variant after "$resolution_line"
+  lock_reads '' 'a blank before the colon of the resolution key'
+  printf 'packages: # a note\n' >"$case_dir/insert"
+  lock_variant replace 'packages:'
+  lock_reads '' 'a comment after packages:'
+  printf 'packages: \n' >"$case_dir/insert"
+  lock_variant replace 'packages:'
+  lock_reads '' 'a blank after packages:'
+  printf "'packages':\n" >"$case_dir/insert"
+  lock_variant replace 'packages:'
+  lock_reads '' 'packages: in quotes'
+  printf "  ? '@pnpm/exe.p@1.0.0'\n  : resolution: {integrity: sha512-%s}\n\n" "$other" >"$case_dir/insert"
+  lock_variant after '    libc: [glibc]'
+  lock_reads '' 'an explicit key'
+  printf "  &k '@pnpm/exe.p@1.0.0':\n" >"$case_dir/insert"
+  lock_variant replace "$key_line"
+  lock_reads '' 'an anchor'
+  printf '    hasBin: *k\n' >"$case_dir/insert"
+  lock_variant replace '    hasBin: true'
+  lock_reads '' 'an alias'
+  printf '    hasBin: !!bool true\n' >"$case_dir/insert"
+  lock_variant replace '    hasBin: true'
+  lock_reads '' 'a tag'
+  printf '  <<: *k\n' >"$case_dir/insert"
+  lock_variant after '    libc: [glibc]'
+  lock_reads '' 'a merge key'
+  printf 'notes: |\n  text\n' >"$case_dir/insert"
+  lock_variant after "lockfileVersion: '9.0'"
+  lock_reads '' 'a block scalar'
+  printf '    cpu: [arm64,\n      x64]\n' >"$case_dir/insert"
+  lock_variant replace '    cpu: [arm64]'
+  lock_reads '' 'a flow list that does not close on its line'
+  printf '    cpu: [{a: b}]\n' >"$case_dir/insert"
+  lock_variant replace '    cpu: [arm64]'
+  lock_reads '' 'a flow list that holds a mapping'
+  printf "  '@pnpm/exe.p@1.0.0': {resolution: {integrity: sha512-%s}}\n\n" "$other" >"$case_dir/insert"
+  lock_variant after '    libc: [glibc]'
+  lock_reads '' 'an entry written as one flow mapping'
+  printf "notes: \"\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n\nend\"\n'packages':\n" "$other" >"$case_dir/insert"
+  lock_variant replace 'packages:'
+  lock_reads '' 'a scalar over several lines that holds packages:, with the key quoted below it'
+  printf "notes: \"\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n\nend\"\n\"packages\":\n" "$other" >"$case_dir/insert"
+  lock_variant replace 'packages:'
+  lock_reads '' 'a scalar over several lines that holds packages:, with the key in double quotes below it'
+  printf "notes: \"\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n\nend\"\npackages:\n" "$other" >"$case_dir/insert"
+  lock_variant replace 'packages:'
+  lock_reads '' 'a scalar over several lines that holds packages:, with the plain key below it'
+  printf "    notes: \"\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n\n    end\"\n" "$other" >"$case_dir/insert"
+  lock_variant after '    configDependencies: {}'
+  lock_reads '' 'a scalar over several lines under importers:'
+  printf "  pnpm@1.0.0:\n    deprecated: \"a\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n    b\"\n" "$other" >"$case_dir/insert"
+  lock_variant replace '  pnpm@1.0.0:'
+  lock_reads '' 'the text of the entry inside a scalar of another entry'
+  printf '    cpu:\t[arm64]\n' >"$case_dir/insert"
+  lock_variant replace '    cpu: [arm64]'
+  lock_reads '' 'a tab'
+  printf '    os: [darwin]\r    cpu: [x64]\n' >"$case_dir/insert"
+  lock_variant replace '    os: [darwin]'
+  lock_reads '' 'a carriage return inside a line'
+  printf '\302\205\n' >"$case_dir/insert"
+  lock_variant after "lockfileVersion: '9.0'"
+  lock_reads '' 'a NEL line'
+  printf '\342\200\250\n' >"$case_dir/insert"
+  lock_variant after "lockfileVersion: '9.0'"
+  lock_reads '' 'a line separator'
+  printf '    hasBin:\302\240true\n' >"$case_dir/insert"
+  lock_variant replace '    hasBin: true'
+  lock_reads '' 'a no-break space'
+  printf "  '@pnpm/exe.p@1.0.0':\000\n" >"$case_dir/insert"
+  lock_variant replace "$key_line"
+  lock_reads '' 'a NUL after the entry key'
+  printf '\357\273\277---\n' >"$case_dir/insert"
+  lock_variant replace '---'
+  lock_reads '' 'a byte-order mark'
+  printf "   '@pnpm/exe.p@1.0.0':\n" >"$case_dir/insert"
+  lock_variant replace "$key_line"
+  lock_reads '' 'the entry key at three spaces'
+  printf "  pnpm@2.0.0:\n      resolution: {integrity: sha512-%s}\n\n" "$other" >"$case_dir/insert"
+  lock_variant after '    hasBin: true'
+  lock_reads '' 'an entry whose lines stand at another indentation'
+  printf -- '---\t\n' >"$case_dir/insert"
+  lock_variant replace '---'
+  lock_reads '' 'a first marker with a tab after it'
+  printf -- '--- \n' >"$case_dir/insert"
+  lock_variant replace '---'
+  lock_reads '' 'a first marker with a blank after it'
+  printf -- '--- |\n' >"$case_dir/insert"
+  lock_variant replace '---'
+  lock_reads '' 'a first document that is one scalar'
+  printf -- '%%YAML 1.2\n---\n' >"$case_dir/insert"
+  lock_variant replace '---'
+  lock_reads '' 'a directive before the first marker'
+  printf '...\n' >"$case_dir/insert"
+  lock_variant after '    libc: [glibc]'
+  lock_reads '' 'an end marker inside the first document'
+  printf 'packages:\n\n' >"$case_dir/insert"
+  lock_variant replace 'snapshots:'
+  lock_reads '' 'a second packages: without the entry'
+  printf 'packages: {}\n' >"$case_dir/insert"
+  lock_variant after '    hasBin: true'
+  lock_reads '' 'a second packages key written as an empty flow mapping'
+  printf "  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n\n" "$other" >"$case_dir/insert"
+  lock_variant after '    hasBin: true'
+  lock_reads '' 'the entry twice'
+  printf '  bad: [\n' >"$case_dir/insert"
+  lock_variant after '    optional: true'
+  lock_reads '' 'a line that no YAML reader reads'
   verdict "$name"
 
   name='a failed fetch of the pinned tools fails the step, and one line says what to do'
