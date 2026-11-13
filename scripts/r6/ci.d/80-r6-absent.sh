@@ -8,6 +8,7 @@ case $0 in
   *) self=$(pwd)/$0 ;;
 esac
 tab=$(printf '\t')
+entry_path=$PATH
 policy_header="category${tab}kind${tab}pick${tab}level${tab}basis${tab}k${tab}n"
 recorded_header="task${tab}category${tab}kind${tab}tier${tab}model${tab}machine${tab}seed${tab}split${tab}attempt${tab}pass${tab}steps${tab}wall_s${tab}tokens_in${tab}tokens_out${tab}level${tab}source"
 net_packages='reqwest hyper ureq rustls ring aws-lc-rs native-tls openssl-sys tokio socket2 mio'
@@ -78,22 +79,6 @@ read_commit() {
       exit bad
     }
   ' || setup_fail
-  committed=$scratch/commit
-  egress=$committed/scripts/r6/egress
-  mkdir -p "$egress" || setup_fail
-  for path in crates/halvo-route/data/ruling.txt crates/halvo-route/data/policy.tsv docs/r6/outcomes/recorded.tsv; do
-    read_blob "$path"
-  done
-  git ls-tree -r --full-tree "$commit" -- scripts/r6/egress >"$scratch/egress-tree.txt" 2>/dev/null || commit_unreadable
-  listed=0
-  while read -r mode object_type object _; do
-    listed=$((listed + 1))
-    if [ "$object_type" = blob ]; then
-      git cat-file blob "$object" >"$egress/$listed" 2>/dev/null || commit_unreadable
-    else
-      printf '%s\n' "$mode" >"$egress/$listed" || setup_fail
-    fi
-  done <"$scratch/egress-tree.txt"
 }
 
 commit_unreadable() {
@@ -101,16 +86,116 @@ commit_unreadable() {
   setup_fail
 }
 
-read_blob() {
-  object_type=$(git cat-file -t "$commit:$1" 2>/dev/null) || object_type=
-  case $object_type in
-    '') ;;
-    blob)
-      mkdir -p "$committed/${1%/*}" || setup_fail
-      git cat-file blob "$commit:$1" >"$committed/$1" 2>/dev/null || commit_unreadable
-      ;;
-    *) mkdir -p "$committed/$1" || setup_fail ;;
-  esac
+data_plan() {
+  awk -F "$tab" '
+    BEGIN {
+      subject["crates/halvo-route/data/ruling.txt"] = "ruling"
+      subject["crates/halvo-route/data/policy.tsv"] = "picks"
+      subject["docs/r6/outcomes/recorded.tsv"] = "rows"
+      step["crates"] = step["crates/halvo-route"] = step["crates/halvo-route/data"] = "ruling picks"
+      step["docs"] = step["docs/r6"] = step["docs/r6/outcomes"] = "rows"
+      step["scripts"] = step["scripts/r6"] = step["scripts/r6/egress"] = "entries"
+      watched[""] = "ruling picks rows entries"
+      for (place in step) watched[place] = step[place]
+      egress = "scripts/r6/egress/"
+    }
+    function odd(subjects,    n, i, word) {
+      n = split(subjects, word, " ")
+      for (i = 1; i <= n; i++) print word[i], "odd", "-"
+    }
+    function quoted(name,    plain, place, rest, part) {
+      plain = name
+      gsub(/\\\\|\\"/, "", plain)
+      if (index(plain, "\\") == 0) return
+      for (place in watched) {
+        if (place == "") rest = name
+        else if (index(name, place "/") == 1) rest = substr(name, length(place) + 2)
+        else continue
+        part = rest
+        if (place != "scripts/r6/egress") sub(/\/.*/, "", part)
+        plain = part
+        gsub(/\\\\|\\"/, "", plain)
+        if (index(plain, "\\") > 0) odd(watched[place])
+      }
+    }
+    {
+      split($1, field, " ")
+      regular = (field[1] == "100644" || field[1] == "100755") && field[2] == "blob"
+      path = $2
+      if (path ~ /^"/) {
+        quoted(substr(path, 2, length(path) - 2))
+        next
+      }
+      if (path in subject) {
+        if (regular) print subject[path], "blob", field[3]
+        else odd(subject[path])
+        next
+      }
+      if (path in step) {
+        odd(step[path])
+        next
+      }
+      if (index(path, egress) == 1) {
+        if (regular) print "entries", "blob", field[3]
+        else odd("entries")
+        next
+      }
+      for (data in subject) if (index(path, data "/") == 1) odd(subject[data])
+      folded = tolower(path)
+      if (folded in subject) odd(subject[folded])
+      if (folded in step) odd(step[folded])
+      if (index(folded, egress) == 1) odd("entries")
+    }
+  ' "$1"
+}
+
+count_data() {
+  committed=$scratch/commit
+  mkdir -p "$committed/egress" || setup_fail
+  git -c core.quotepath=on ls-tree -r "$commit" >"$scratch/listing.txt" 2>/dev/null || commit_unreadable
+  data_plan "$scratch/listing.txt" >"$scratch/plan.txt" || setup_fail
+  ruling_odd=0
+  picks_odd=0
+  rows_odd=0
+  entries_odd=0
+  ruling_blob=
+  picks_blob=
+  rows_blob=
+  listed=0
+  while read -r data_subject data_state data_object; do
+    case $data_subject:$data_state in
+      entries:blob)
+        listed=$((listed + 1))
+        git cat-file blob "$data_object" >"$committed/egress/$listed" 2>/dev/null || commit_unreadable
+        ;;
+      ruling:blob) ruling_blob=$data_object ;;
+      picks:blob) picks_blob=$data_object ;;
+      rows:blob) rows_blob=$data_object ;;
+      ruling:*) ruling_odd=1 ;;
+      picks:*) picks_odd=1 ;;
+      rows:*) rows_odd=1 ;;
+      entries:*) entries_odd=$((entries_odd + 1)) ;;
+    esac
+  done <"$scratch/plan.txt"
+  ruling=other
+  if [ -n "$ruling_blob" ]; then
+    git cat-file blob "$ruling_blob" >"$committed/ruling.txt" 2>/dev/null || commit_unreadable
+    [ "$ruling_odd" = 1 ] || ruling=$(ruling_of "$committed/ruling.txt")
+  fi
+  picks=1
+  if [ -n "$picks_blob" ]; then
+    git cat-file blob "$picks_blob" >"$committed/policy.tsv" 2>/dev/null || commit_unreadable
+    picks=$(hosted_rows "$committed/policy.tsv" "$policy_header" 3 'none hand_back on_device' 1)
+  fi
+  [ "$picks_odd" = 0 ] || [ "$picks" != 0 ] || picks=1
+  rows=0
+  if [ -n "$rows_blob" ]; then
+    git cat-file blob "$rows_blob" >"$committed/recorded.tsv" 2>/dev/null || commit_unreadable
+    rows=$(hosted_rows "$committed/recorded.tsv" "$recorded_header" 4 on_device 0)
+  fi
+  [ "$rows_odd" = 0 ] || [ "$rows" != 0 ] || rows=1
+  entries=$(egress_entries "$committed/egress")
+  entries=$((entries + entries_odd))
 }
 
 holds_nul() {
@@ -364,10 +449,7 @@ measure() {
   export CARGO_TERM_QUIET CARGO_TERM_VERBOSE CARGO_TERM_COLOR
 
   read_commit
-  ruling=$(ruling_of "$committed/crates/halvo-route/data/ruling.txt")
-  picks=$(hosted_rows "$committed/crates/halvo-route/data/policy.tsv" "$policy_header" 3 'none hand_back on_device' 1)
-  rows=$(hosted_rows "$committed/docs/r6/outcomes/recorded.tsv" "$recorded_header" 4 on_device 0)
-  entries=$(egress_entries "$committed/scripts/r6/egress")
+  count_data
 
   cargo tree --locked -e normal --target all --all-features -p halvo-route -p halvo-route-gate -p halvo-route-wire \
     >"$artifacts/tree.txt" 2>"$artifacts/tree.err" </dev/null
@@ -498,30 +580,15 @@ write_stubs() {
 #!/bin/sh
 head=1111111111111111111111111111111111111111
 case $1:${2:-} in
-  cat-file:-t)
-    path=${3#"$head:"}
-    if [ -f "$STUB_COMMIT/$path" ]; then
-      printf 'blob\n'
-    elif [ -d "$STUB_COMMIT/$path" ]; then
-      printf 'tree\n'
-    else
-      exit 128
-    fi
-    exit 0
-    ;;
   cat-file:blob)
-    case $3 in
-      "$head:"*) cat "$STUB_COMMIT/${3#"$head:"}" ;;
-      *) cat "$STUB_COMMIT/${3#obj:}" ;;
-    esac
+    cat "$STUB_COMMIT/${3#obj:}"
     exit
     ;;
-  ls-tree:-r)
-    [ "$*" = "ls-tree -r --full-tree $head -- scripts/r6/egress" ] || exit 97
+  -c:core.quotepath=on)
+    [ "$*" = "-c core.quotepath=on ls-tree -r $head" ] || exit 97
     [ -z "$STUB_GITLINK" ] || printf '160000 commit 2222222222222222222222222222222222222222\tscripts/r6/egress/lists\n'
-    [ -e "$STUB_COMMIT/scripts/r6/egress" ] || exit 0
     cd "$STUB_COMMIT" || exit 2
-    find scripts/r6/egress -type f | while IFS= read -r path; do
+    find crates docs scripts -type f | while IFS= read -r path; do
       printf '100644 blob obj:%s\t%s\n' "$path" "$path"
     done
     exit 0
@@ -669,6 +736,117 @@ make_commit() {
   mkdir -p "$1/crates/halvo-route/data" "$1/scripts/r6" "$1/docs/r6" || exit 2
   printf 'ruling=none\n' >"$1/crates/halvo-route/data/ruling.txt" || exit 2
   cp crates/halvo-route/data/policy.tsv "$1/crates/halvo-route/data/policy.tsv" || exit 2
+}
+
+fixture_fail() {
+  printf 'FAIL self-test:%s (cannot build a fixture)\n' "$name"
+  exit 1
+}
+
+data_case() {
+  label=$1
+  want=$2
+  printf '%b\n' "$3" >"$work/d/lines-$label" || fixture_fail
+  GIT_INDEX_FILE=$work/d/index-$label git -C "$data" update-index --add --index-info <"$work/d/lines-$label" || fixture_fail
+  tree=$(GIT_INDEX_FILE=$work/d/index-$label git -C "$data" write-tree) || fixture_fail
+  out=$(
+    cd "$data" || exit 2
+    commit=$tree
+    scratch=$work/d/scan-$label
+    mkdir "$scratch" || exit 2
+    if [ -n "${4:-}" ]; then
+      R6_FAIL_ON=$4
+      PATH=$work/failgit:$entry_path
+      export R6_FAIL_ON PATH
+    fi
+    count_data
+    cause=
+    [ "$ruling" = none ] || cause=ruling
+    [ "$picks" = 0 ] || cause=${cause:-picks}
+    [ "$rows" = 0 ] || cause=${cause:-rows}
+    [ "$entries" = 0 ] || cause=${cause:-entries}
+    printf 'data ruling=%s hosted_picks=%s hosted_rows=%s entries=%s\n' "$ruling" "$picks" "$rows" "$entries"
+    printf '%s\n' "${cause:-PASS}"
+  )
+  got=${out##*"$newline"}
+  case $got in
+    "FAIL $name (setup)") got=setup ;;
+  esac
+  if [ "$want" = PASS ]; then
+    verdict "data-$label" "$want" "$got" passing
+  else
+    verdict "data-$label" "$want" "$got" failing
+  fi
+}
+
+data_units() {
+  data=$work/d/repo
+  mkdir -p "$data" "$work/failgit" || fixture_fail
+  git -C "$data" init -q || fixture_fail
+  R6_REAL_GIT=$(command -v git) || fixture_fail
+  export R6_REAL_GIT
+  cat >"$work/failgit/git" <<'EOF' || fixture_fail
+#!/bin/sh
+case " $* " in
+  *" $R6_FAIL_ON"*) exit 128 ;;
+esac
+exec "$R6_REAL_GIT" "$@"
+EOF
+  chmod +x "$work/failgit/git" || fixture_fail
+  d=$work/d
+  printf 'ruling=none\n' >"$d/ruling" || fixture_fail
+  cp crates/halvo-route/data/policy.tsv "$d/policy" || fixture_fail
+  printf '%s\n' "$recorded_header" >"$d/header" || fixture_fail
+  row="bill${tab}utility_bill_payment${tab}compile${tab}TIER${tab}m1${tab}mac${tab}1${tab}dev${tab}1${tab}yes${tab}3${tab}10${tab}5${tab}5${tab}low${tab}s1"
+  printf '%s\n%s\n' "$recorded_header" "$row" | sed 's/TIER/frontier/' >"$d/frontier" || fixture_fail
+  printf '%s\n%s\n' "$recorded_header" "$row" | sed 's/TIER/on_device/' >"$d/device" || fixture_fail
+  printf '[fixed]\n127.0.0.1:1\n[agent]\n' >"$d/entry" || fixture_fail
+  printf '[fixed]\n[agent]\n' >"$d/headings" || fixture_fail
+  printf '%s' "$recorded_header" >"$d/header-link" || fixture_fail
+  printf '[fixed]' >"$d/fixed-link" || fixture_fail
+  printf '../elsewhere' >"$d/elsewhere-link" || fixture_fail
+  printf '../other' >"$d/other-link" || fixture_fail
+  printf 'ruling=none' >"$d/ruling-link" || fixture_fail
+  printf 'policy-target.tsv' >"$d/policy-link" || fixture_fail
+  git -C "$data" hash-object -w "$d/ruling" "$d/policy" "$d/header" "$d/frontier" "$d/device" "$d/entry" "$d/headings" \
+    "$d/header-link" "$d/fixed-link" "$d/elsewhere-link" "$d/other-link" "$d/ruling-link" "$d/policy-link" >"$d/objects" || fixture_fail
+  {
+    read -r o_ruling && read -r o_policy && read -r o_header && read -r o_frontier && read -r o_device && read -r o_entry &&
+      read -r o_headings && read -r o_header_link && read -r o_fixed_link && read -r o_elsewhere_link && read -r o_other_link &&
+      read -r o_ruling_link && read -r o_policy_link
+  } <"$d/objects" || fixture_fail
+  t='\t'
+  ruling_line="100644 $o_ruling${t}crates/halvo-route/data/ruling.txt"
+  policy_line="100644 $o_policy${t}crates/halvo-route/data/policy.tsv"
+  base="$ruling_line\n$policy_line"
+  outcomes=docs/r6/outcomes
+  egress_dir=scripts/r6/egress
+  data_case base PASS "$base"
+  data_case c1-recorded-row-at-its-path rows "$base\n100644 $o_frontier${t}$outcomes/recorded.tsv"
+  data_case c2-egress-entry-at-its-path entries "$base\n100644 $o_entry${t}$egress_dir/gate.txt"
+  data_case d1-recorded-as-a-link rows "$base\n120000 $o_header_link${t}$outcomes/recorded.tsv"
+  data_case c-outcomes-as-a-link rows "$base\n120000 $o_elsewhere_link${t}$outcomes\n100644 $o_frontier${t}docs/r6/elsewhere/recorded.tsv"
+  data_case d4-recorded-in-another-letter-case rows "$base\n100644 $o_frontier${t}$outcomes/Recorded.tsv"
+  data_case h43-header-in-another-letter-case rows "$base\n100644 $o_header${t}$outcomes/Recorded.tsv"
+  data_case c2-egress-as-a-link entries "$base\n120000 $o_fixed_link${t}$egress_dir\n100644 $o_entry${t}scripts/r6/[fixed]/gate.txt"
+  data_case h13-egress-as-a-link-alone entries "$base\n120000 $o_fixed_link${t}$egress_dir"
+  data_case c3-scripts-r6-as-a-link entries "$base\n120000 $o_other_link${t}scripts/r6\n100644 $o_entry${t}scripts/other/egress/gate.txt"
+  data_case d5-egress-in-another-letter-case entries "$base\n100644 $o_entry${t}scripts/r6/Egress/gate.txt"
+  data_case h41-headings-in-another-letter-case entries "$base\n100644 $o_headings${t}scripts/r6/Egress/extra.txt"
+  data_case name-outside-ascii-in-outcomes rows "$base\n100644 $o_header${t}$outcomes/record\0303\0251d.tsv"
+  data_case name-outside-ascii-beside-docs ruling "$base\n100644 $o_header${t}d\0303\0266cs/r6/outcomes/recorded.tsv"
+  data_case ruling-as-a-link ruling "120000 $o_ruling_link${t}crates/halvo-route/data/ruling.txt\n$policy_line"
+  data_case ruling-twin-in-another-letter-case ruling "$base\n100644 $o_ruling${t}crates/halvo-route/data/Ruling.txt"
+  data_case policy-as-a-link picks "$ruling_line\n120000 $o_policy_link${t}crates/halvo-route/data/policy.tsv\n100644 $o_policy${t}crates/halvo-route/data/policy-target.tsv"
+  data_case no-policy picks "$ruling_line"
+  data_case outcomes-as-a-submodule rows "$base\n160000 2222222222222222222222222222222222222222${t}$outcomes"
+  data_case egress-as-a-file entries "$base\n100644 $o_headings${t}$egress_dir"
+  data_case recorded-path-as-a-tree rows "$base\n100644 $o_device${t}$outcomes/recorded.tsv/rows.tsv"
+  data_case recorded-executable-on-the-device PASS "$base\n100755 $o_device${t}$outcomes/recorded.tsv"
+  data_case listing-fails setup "$base" ls-tree
+  data_case policy-read-fails setup "$base" "$o_policy"
+  data_case egress-read-fails setup "$base\n100644 $o_entry${t}$egress_dir/gate.txt" "$o_entry"
+  data_case recorded-read-fails setup "$base\n100644 $o_device${t}$outcomes/recorded.tsv" "$o_device"
 }
 
 ruling_units() {
@@ -848,6 +1026,7 @@ full_cases() {
   mkdir "$work/commit-recorded-directory" || exit 2
   make_commit "$work/commit-recorded-directory"
   mkdir -p "$work/commit-recorded-directory/docs/r6/outcomes/recorded.tsv" || exit 2
+  printf 'x\n' >"$work/commit-recorded-directory/docs/r6/outcomes/recorded.tsv/x" || exit 2
   STUB_COMMIT=$work/commit-recorded-directory
   check recorded-path-is-a-directory FAIL ' hosted_rows=1 net_crates=0 ' "FAIL $name (rows)"
   STUB_GITLINK=1
@@ -933,13 +1112,14 @@ self_test() {
   scratch=$work/u
   mkdir -p "$work/bin" "$work/repo" "$work/artifacts" "$work/stub" "$work/tree" "$work/u" "$work/commit" || setup_fail
   make_commit "$work/commit"
+  rejected=0
+  wrong=
+  data_units
   write_stubs
-  PATH=$work/bin:$PATH
+  PATH=$work/bin:$entry_path
   export PATH
   write_outputs
   reset_stubs
-  rejected=0
-  wrong=
   ruling_units
   row_units
   entry_units
