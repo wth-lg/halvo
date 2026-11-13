@@ -1,5 +1,6 @@
 use halvo_schema::executable::body::{
-    CoordinatorCall, CoordinatorReply, RunnerCall, RunnerReply, CHECKPOINTS_REPLY_MAX,
+    Accepted, CheckpointsReply, CoordinatorCall, CoordinatorReply, RevReply, RunnerCall,
+    RunnerReply, StateReply, Stored, CHECKPOINTS_REPLY_MAX,
 };
 use halvo_schema::executable::names::{CheckpointState, LeftReason, ListedState, MarkState};
 use halvo_schema::executable::record::AgentCheckpoint;
@@ -870,5 +871,240 @@ fn the_writer_of_a_list_reply_counts_the_compact_text_that_it_writes() {
     assert_eq!(
         (refusal.cause(), refusal.type_name(), refusal.rule()),
         (RefusalCause::Length, "CheckpointsReply", "json_length")
+    );
+}
+
+fn refused_by_its_own_bound<T: std::fmt::Debug>(
+    result: Result<T, Refusal>,
+    type_name: &str,
+    len: usize,
+) {
+    let refusal = result.expect_err("refused");
+    assert_eq!(
+        (refusal.cause(), refusal.type_name(), refusal.rule()),
+        (RefusalCause::Length, type_name, "reply_bytes"),
+        "{len} bytes"
+    );
+}
+
+fn compact_page(len: usize) -> String {
+    let mut copy = len - (plain(1).len() - 1);
+    while plain(copy).len() > len {
+        copy -= 1;
+    }
+    let page = plain(copy);
+    assert_eq!(page.len(), len);
+    page
+}
+
+fn reviewers_page(workbook: &str) -> String {
+    checkpoints(
+        &[format!(
+            r#"{{"workflow":"{W}","agent":"{A}","run":"{R}","folder":["/d"],"workbook":[{workbook}],"copy":["c.xlsx"],"state":"made","sha256":"{SHA}","bytes":1,"at":1794339000000000001,"ended":"no","effect":null,"superseded":"no"}}"#
+        )],
+        "null",
+    )
+}
+
+#[test]
+fn the_reviewers_padded_and_escaped_pages_are_refused_by_the_list_reply_s_own_parse() {
+    let small = reviewers_page(r#""/d/a.xlsx""#);
+    assert_eq!(
+        CheckpointsReply::parse(small.as_bytes())
+            .unwrap()
+            .to_json()
+            .unwrap(),
+        small
+    );
+    let padded = small.replacen(',', &format!(",{}", " ".repeat(CHECKPOINTS_REPLY_MAX)), 1);
+    let piece = format!("\"{}\"", format!("{}u0061", '\\').repeat(1024));
+    let escaped_page = |n: usize| reviewers_page(&vec![piece.as_str(); n].join(","));
+    let escaped = escaped_page(60);
+    assert_eq!((padded.len(), escaped.len()), (261_458, 369_199));
+    let half = escaped_page(30);
+    assert!(half.len() < CHECKPOINTS_REPLY_MAX);
+    assert!(CheckpointsReply::parse(half.as_bytes()).is_ok());
+    for input in [&padded, &escaped] {
+        refused_by_its_own_bound(
+            CheckpointsReply::parse(input.as_bytes()),
+            "CheckpointsReply",
+            input.len(),
+        );
+        refused_by_the_bound(input.as_bytes());
+    }
+}
+
+#[test]
+fn the_verifiers_five_pages_padded_past_the_bound_are_refused_by_the_list_reply_s_own_parse() {
+    let page = compact_page(60_000);
+    let room = CHECKPOINTS_REPLY_MAX - page.len();
+    let inside =
+        |pad: String| page.replacen("{\"checkpoints\":", &format!("{{\"checkpoints\":{pad}"), 1);
+    for input in [
+        format!("{}{page}", " ".repeat(room)),
+        format!("{page}{}", " ".repeat(room)),
+        inside(" ".repeat(room)),
+    ] {
+        assert_eq!(input.len(), CHECKPOINTS_REPLY_MAX);
+        assert!(CheckpointsReply::parse(input.as_bytes()).is_ok());
+        assert!(CoordinatorReply::parse(input.as_bytes()).is_ok());
+    }
+    let cases = [
+        ("c1141", format!("{}{page}", " ".repeat(room + 1))),
+        ("c1143", format!("{page}{}", " ".repeat(room + 1))),
+        ("c1145", inside(" ".repeat(room + 1))),
+        ("c1146", format!("{page}{}", "\n".repeat(room + 1))),
+        ("c1147", format!("{}{page}", "\t".repeat(room + 400))),
+    ];
+    let lens: Vec<usize> = cases.iter().map(|(_, input)| input.len()).collect();
+    assert_eq!(lens, [261_068, 261_068, 261_068, 261_068, 261_467]);
+    for (case, input) in &cases {
+        let refusal = CheckpointsReply::parse(input.as_bytes()).expect_err(case);
+        assert_eq!(
+            (refusal.cause(), refusal.type_name(), refusal.rule()),
+            (RefusalCause::Length, "CheckpointsReply", "reply_bytes"),
+            "{case}"
+        );
+        refused_by_the_bound(input.as_bytes());
+    }
+}
+
+#[test]
+fn a_compact_list_reply_at_the_bound_is_taken_by_its_own_parse_and_one_byte_more_is_refused_unread()
+{
+    let exact = plain(copy_at_the_bound());
+    assert_eq!(exact.len(), CHECKPOINTS_REPLY_MAX);
+    assert_eq!(
+        CheckpointsReply::parse(exact.as_bytes())
+            .unwrap()
+            .to_json()
+            .unwrap(),
+        exact
+    );
+    let over = plain(copy_at_the_bound() + 1);
+    let not_json = format!("x{exact}");
+    let broken = format!("{}x", &over[..over.len() - 1]);
+    for input in [over, not_json, broken] {
+        assert_eq!(input.len(), CHECKPOINTS_REPLY_MAX + 1);
+        refused_by_its_own_bound(
+            CheckpointsReply::parse(input.as_bytes()),
+            "CheckpointsReply",
+            input.len(),
+        );
+    }
+}
+
+fn counted_on_the_bytes_given<T: std::fmt::Debug>(
+    text: &str,
+    type_name: &str,
+    parse: fn(&[u8]) -> Result<T, Refusal>,
+) {
+    let room = CHECKPOINTS_REPLY_MAX - text.len();
+    let at = format!("{{{}{}", " ".repeat(room), &text[1..]);
+    assert_eq!(at.len(), CHECKPOINTS_REPLY_MAX);
+    assert!(parse(at.as_bytes()).is_ok(), "{type_name}");
+    assert!(
+        CoordinatorReply::parse(at.as_bytes()).is_ok(),
+        "{type_name}"
+    );
+    for over in [
+        format!("{}{text}", " ".repeat(room + 1)),
+        format!("{text}{}", "\n".repeat(room + 1)),
+        format!("{{{}{}", "\t".repeat(room + 1), &text[1..]),
+    ] {
+        refused_by_its_own_bound(parse(over.as_bytes()), type_name, over.len());
+        refused_by_the_bound(over.as_bytes());
+    }
+}
+
+#[test]
+fn every_other_reply_of_a_coordinator_body_is_counted_on_the_bytes_given_by_its_own_parse() {
+    counted_on_the_bytes_given(r#"{"rev":1}"#, "RevReply", RevReply::parse);
+    counted_on_the_bytes_given(r#"{"state":"active"}"#, "StateReply", StateReply::parse);
+    counted_on_the_bytes_given(r#"{"ok":"yes"}"#, "Accepted", Accepted::parse);
+    counted_on_the_bytes_given(r#"{"stored":1}"#, "Stored", Stored::parse);
+}
+
+#[test]
+fn the_serde_reader_of_a_reply_counts_the_text_of_the_value_and_is_given_no_byte_outside_it() {
+    let page = compact_page(260_966);
+    for outside in [
+        format!("{}{page}", " ".repeat(102)),
+        format!("{page}{}", " ".repeat(102)),
+    ] {
+        assert_eq!(outside.len(), CHECKPOINTS_REPLY_MAX + 1);
+        refused_by_the_bound(outside.as_bytes());
+        assert!(serde_json::from_str::<CoordinatorReply>(&outside).is_ok());
+    }
+    let inside = page.replacen(
+        "{\"checkpoints\":",
+        &format!("{{\"checkpoints\":{}", " ".repeat(102)),
+        1,
+    );
+    assert_eq!(inside.len(), CHECKPOINTS_REPLY_MAX + 1);
+    let refusal = serde_json::from_str::<CoordinatorReply>(&inside)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        refusal.contains("length: CoordinatorReply: -: reply_bytes"),
+        "{refusal}"
+    );
+    let stored = format!("{}{{\"stored\":1}}", " ".repeat(CHECKPOINTS_REPLY_MAX));
+    refused_by_its_own_bound(
+        RunnerReply::parse(stored.as_bytes()),
+        "RunnerReply",
+        stored.len(),
+    );
+    assert!(serde_json::from_str::<RunnerReply>(&stored).is_ok());
+}
+
+#[test]
+fn a_reply_is_counted_in_bytes_and_every_carriage_return_counts() {
+    let wide = |len: usize| {
+        with_copy(len, |n| {
+            format!("{}{}", "c".repeat(n % 2), "\u{e9}".repeat(n / 2))
+        })
+    };
+    let at = wide(copy_at_the_bound());
+    assert_eq!(at.len(), CHECKPOINTS_REPLY_MAX);
+    assert!(CheckpointsReply::parse(at.as_bytes()).is_ok());
+    let over = wide(copy_at_the_bound() + 1);
+    assert_eq!(over.len(), CHECKPOINTS_REPLY_MAX + 1);
+    assert!(over.chars().count() < CHECKPOINTS_REPLY_MAX / 2 + 1_000);
+    refused_by_its_own_bound(
+        CheckpointsReply::parse(over.as_bytes()),
+        "CheckpointsReply",
+        over.len(),
+    );
+    refused_by_the_bound(over.as_bytes());
+    let stored = r#"{"stored":1}"#;
+    let returns = |len: usize| format!("{stored}{}", "\r".repeat(len - stored.len()));
+    let at = returns(CHECKPOINTS_REPLY_MAX);
+    assert!(Stored::parse(at.as_bytes()).is_ok());
+    assert!(CoordinatorReply::parse(at.as_bytes()).is_ok());
+    assert!(RunnerReply::parse(at.as_bytes()).is_ok());
+    let over = returns(CHECKPOINTS_REPLY_MAX + 1);
+    assert_eq!(over.len(), CHECKPOINTS_REPLY_MAX + 1);
+    refused_by_its_own_bound(Stored::parse(over.as_bytes()), "Stored", over.len());
+    refused_by_the_bound(over.as_bytes());
+    refused_by_its_own_bound(
+        RunnerReply::parse(over.as_bytes()),
+        "RunnerReply",
+        over.len(),
+    );
+    let wide_tail = format!(
+        "{stored}{}",
+        "\u{e9}".repeat((CHECKPOINTS_REPLY_MAX + 1 - stored.len()) / 2)
+    );
+    let wide_tail = format!(
+        "{wide_tail}{}",
+        " ".repeat(CHECKPOINTS_REPLY_MAX + 1 - wide_tail.len())
+    );
+    assert_eq!(wide_tail.len(), CHECKPOINTS_REPLY_MAX + 1);
+    refused_by_the_bound(wide_tail.as_bytes());
+    refused_by_its_own_bound(
+        RunnerReply::parse(wide_tail.as_bytes()),
+        "RunnerReply",
+        wide_tail.len(),
     );
 }

@@ -3,7 +3,9 @@ use crate::types::{Cause, Live, Outcome, RunEnd, RunItem};
 
 /// The cause of a stop (I5.6, I5.7): the person's stop and the switch-off control give
 /// `cancelled`, a lapse with `wait_limit` gives `lapsed`, and a workflow that is gone gives
-/// `deleted`. A stopped run ends with the cause of its stop.
+/// `deleted`; a request that the coordinator answers with the end of its run gives `kind` (I3.1,
+/// ruling IG-32), and one beyond `items_per_run` gives `budget` (I3.3). A stopped run ends with
+/// the cause of its stop.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StopCause {
     /// `cancelled`.
@@ -12,6 +14,10 @@ pub enum StopCause {
     Lapsed,
     /// `deleted`.
     Deleted,
+    /// `kind`.
+    Kind,
+    /// `budget`.
+    Budget,
 }
 
 impl StopCause {
@@ -21,6 +27,19 @@ impl StopCause {
             StopCause::Cancelled => RunEnd::Cancelled,
             StopCause::Lapsed => RunEnd::Lapsed,
             StopCause::Deleted => RunEnd::Deleted,
+            StopCause::Kind => RunEnd::Kind,
+            StopCause::Budget => RunEnd::Budget,
+        }
+    }
+
+    /// The stop that the stored cause `end` of a stop names, the coordinator's own ends `kind`
+    /// and `budget` among them, or none for an end that no stop has; `Phase::of` reads it, so
+    /// that `run_step`'s end and the stored cause are one (ruling RD-9).
+    pub const fn of_stop(end: RunEnd) -> Option<StopCause> {
+        match end {
+            RunEnd::Kind => Some(StopCause::Kind),
+            RunEnd::Budget => Some(StopCause::Budget),
+            _ => StopCause::of(end),
         }
     }
 
@@ -58,7 +77,7 @@ impl Phase {
             Live::Working => Phase::Working,
             Live::Waiting(item) => Phase::Waiting(item.clone()),
             Live::Stopping => Phase::Stopping(
-                stop.and_then(|s| StopCause::of(s.cause))
+                stop.and_then(|s| StopCause::of_stop(s.cause))
                     .unwrap_or(StopCause::Cancelled),
             ),
         }

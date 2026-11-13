@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use halvo_control::paths::DataDir;
 use halvo_policy::{admit, decide, digest, Checkpoint, EffectMove, Facts};
 use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::names::{Autonomy, FieldName, Permission, Source};
@@ -8,7 +9,7 @@ use halvo_schema::executable::text::{Name, OwnValue};
 use halvo_schema::executable::{
     ActionClass, Bound, BoundField, Cause, EffectState, ExecutableStep, Outcome,
 };
-use halvo_sheet::{Folder, Range, Value};
+use halvo_sheet::{Folder, Locks, Range, Value};
 
 use crate::run::{Failure, Runner, Stop};
 
@@ -41,8 +42,14 @@ fn slot_path(loaded: &LoadReply, name: &Name) -> Result<PathBuf, Failure> {
     Ok(path)
 }
 
-/// The folder of the permission `user_files`: the directory that holds the workbook of the slot `workbook`.
-fn folder(loaded: &LoadReply) -> Result<Folder, Failure> {
+/// How long a file step waits for the lock of the workbook's directory.
+const LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// The folder of the permission `user_files`: the directory that holds the workbook of the slot `workbook`,
+/// with the locks of `agents/locks/` under the data directory of `--data-dir`, or without the argument the app's
+/// default (`DataDir::for_current_user`). When the data directory cannot be found or its `agents/locks/` cannot be
+/// opened, the file step answers `step_failed` and touches no file of the folder.
+fn folder(loaded: &LoadReply, data_dir: Option<&DataDir>) -> Result<Folder, Failure> {
     if !loaded.config.permissions.contains(&Permission::UserFiles) {
         return Err(Failure::Step(Cause::StepFailed));
     }
@@ -51,7 +58,13 @@ fn folder(loaded: &LoadReply) -> Result<Folder, Failure> {
         &Name::parse("workbook").map_err(|_| Failure::Step(Cause::StepFailed))?,
     )?;
     let dir = workbook.parent().unwrap_or(Path::new(""));
-    Folder::new(dir).map_err(|e| Failure::Step(sheet_cause(&e)))
+    let data = match data_dir {
+        Some(data) => data.clone(),
+        None => DataDir::for_current_user().map_err(|_| Failure::Step(Cause::StepFailed))?,
+    };
+    let locks =
+        Locks::open(data.path(), LOCK_WAIT).map_err(|_| Failure::Step(Cause::StepFailed))?;
+    Folder::new(dir, locks).map_err(|e| Failure::Step(sheet_cause(&e)))
 }
 
 fn slot_field(name: FieldName, value: &str) -> BoundField {
@@ -76,7 +89,7 @@ impl Runner {
             .first()
             .and_then(|a| a.value.as_ref())
             .ok_or(Failure::Step(Cause::StepFailed))?;
-        let folder = folder(loaded)?;
+        let folder = folder(loaded, self.args.data_dir.as_ref())?;
         let source = slot_path(loaded, &target.file)?;
         let rows = folder
             .read_source(&source)
@@ -115,9 +128,9 @@ impl Runner {
         let sheet = slot_text(loaded, target.sheet.as_ref())?;
         let range_text = slot_text(loaded, target.range.as_ref())?;
         let range = Range::parse(&range_text).map_err(|e| Failure::Step(sheet_cause(&e)))?;
-        let folder = folder(loaded)?;
+        let folder = folder(loaded, self.args.data_dir.as_ref())?;
         let run = halvo_sheet::RunId::parse(self.args.run.as_str())
-            .map_err(|e| Failure::Step(sheet_cause(&e)))?;
+            .ok_or(Failure::Step(Cause::StepFailed))?;
         let prepared = folder
             .prepare(&workbook, &run, &sheet, range, &rows)
             .map_err(|e| Failure::Step(sheet_cause(&e)))?;
