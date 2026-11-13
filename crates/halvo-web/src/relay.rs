@@ -400,7 +400,8 @@ async fn look_up(names: Names, host: &str, port: u16, bound: bool) -> Dial {
 /// The guard's arguments after `guard`'s prefix (`guard::GUARD_FLAG`): the browser's first
 /// process `root` and the executor `me`, each by number and creation time, the record, the
 /// profile and the program. Refuses an executor with no creation time (CP-176 A4 (b)), which would
-/// name no executor to the guard.
+/// name no executor to the guard, and a start without the run's profile or the browser's program,
+/// from which the guard builds the mark that every ask and forced end needs (CP-185 (2)).
 fn guard_args(
     guard: &crate::guard::GuardProgram,
     root: &Proc,
@@ -411,6 +412,9 @@ fn guard_args(
 ) -> Result<Vec<std::ffi::OsString>, &'static str> {
     if me.started_us == 0 {
         return Err("own_row");
+    }
+    if profile.as_os_str().is_empty() || program.as_os_str().is_empty() {
+        return Err("guard_mark");
     }
     let mut args = guard.prefix.clone();
     args.extend([
@@ -1021,6 +1025,42 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert_eq!(accepted.load(Ordering::SeqCst), 1);
         assert_eq!(h.class_refusals().len(), 1);
+    }
+
+    /// CP-185 (2): `start_guard` starts no guard without the run's profile or the browser's
+    /// program, from which the guard builds the run's mark; with both, both stand last in its
+    /// arguments.
+    #[test]
+    fn cp185_no_guard_is_started_without_the_profile_or_the_program() {
+        let guard = crate::guard::GuardProgram {
+            program: "/g".into(),
+            prefix: Vec::new(),
+        };
+        let proc = |pid, started_us| Proc {
+            pid,
+            ppid: 1,
+            started_us,
+            pgid: pid,
+            exe: None,
+        };
+        let (r, p, b) = (
+            std::path::Path::new("/r"),
+            std::path::Path::new("/p"),
+            std::path::Path::new("/B.app/Contents/MacOS/b"),
+        );
+        let none = std::path::Path::new("");
+        let (root, me) = (proc(9, 7), proc(5, 50));
+        assert_eq!(
+            guard_args(&guard, &root, &me, r, none, b),
+            Err("guard_mark")
+        );
+        assert_eq!(
+            guard_args(&guard, &root, &me, r, p, none),
+            Err("guard_mark")
+        );
+        let args = guard_args(&guard, &root, &me, r, p, b).unwrap();
+        assert_eq!(args[6], "/p");
+        assert_eq!(args[7], "/B.app/Contents/MacOS/b");
     }
 
     /// CP-176 A4 (b): `start_guard` starts no guard for an executor with no creation time; with

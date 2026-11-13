@@ -274,6 +274,74 @@ fn check_line(machine: &str, kind: &str, read: &str, s: &halvo_web::checks::Subj
     holds
 }
 
+/// The members of a run as its guard reads them (`guard::members`, with the members known from
+/// earlier reads), kept across the reads of the row `checks`.
+struct MemberWatch {
+    known: Vec<procs::Proc>,
+    group_held: bool,
+}
+
+/// One line of the row `checks` at its read `read` (CP-185 (4)): the run's members as the guard
+/// would read them now, those that do not bear the run's `mark` at this read, and the file names
+/// of their programs; `members=notrun` when the table could not be read, which a reader takes as
+/// not run and never as 0. Gives whether the line holds counts.
+fn member_line(
+    machine: &str,
+    kind: &str,
+    read: &str,
+    root: &procs::Proc,
+    mark: &halvo_web::checks::Mark,
+    watch: &mut MemberWatch,
+) -> bool {
+    let head = format!("row checks machine={machine} browser={kind} read={read}");
+    let Ok(table) = procs::table() else {
+        println!("{head} members=notrun cause=table_unread");
+        return false;
+    };
+    if let Some(r) = table.iter().find(|t| procs::same(t, root)) {
+        if !watch.known.iter().any(|k| procs::same(k, r)) {
+            watch.known.push(r.clone());
+        }
+    }
+    let args = halvo_web::checks::command_args;
+    let running = halvo_web::guard::members(
+        &mut watch.known,
+        &table,
+        root,
+        std::process::id(),
+        watch.group_held,
+        Some(mark),
+        &args,
+    );
+    watch.group_held = root.pgid == root.pid
+        && table
+            .iter()
+            .any(|t| t.pgid == root.pgid && t.started_us >= root.started_us);
+    let unmarked: Vec<&procs::Proc> = running.iter().filter(|p| !mark.owns(p, &args)).collect();
+    let mut names: Vec<String> = unmarked
+        .iter()
+        .map(|p| {
+            p.exe
+                .as_ref()
+                .and_then(|e| e.file_name())
+                .map_or("-".to_string(), |n| n.to_string_lossy().replace(' ', "_"))
+        })
+        .collect();
+    names.sort();
+    names.dedup();
+    println!(
+        "{head} members={} unmarked={} unmarked_programs={}",
+        running.len(),
+        unmarked.len(),
+        if names.is_empty() {
+            "-".to_string()
+        } else {
+            names.join(",")
+        }
+    );
+    true
+}
+
 /// The six rules of the start-to-stop check (A11.1, CP-89 (c)) with the product's flags, its means
 /// against a crash's dump among them (CP-167 E6): read after the start, during a session on a
 /// fixture page, and after the stop with the pipe kept.
@@ -317,6 +385,14 @@ async fn checks_row(argv: &[String]) -> (usize, usize) {
         relay_port: Some(relay.port),
     };
     let start = check_line(machine, &kind, "start", &subject);
+    let mark = halvo_web::checks::Mark::new(&profile, &browser, root.started_us);
+    let mut watch = MemberWatch {
+        known: Vec::new(),
+        group_held: false,
+    };
+    let mut member_reads = usize::from(member_line(
+        machine, &kind, "start", &root, &mark, &mut watch,
+    ));
     let _ = ex
         .arm_rule(
             vec![format!("http://utility.agent.test:{port}")],
@@ -327,6 +403,9 @@ async fn checks_row(argv: &[String]) -> (usize, usize) {
         .open(&format!("http://utility.agent.test:{port}/signin"))
         .await;
     let session = check_line(machine, &kind, "session", &subject);
+    member_reads += usize::from(member_line(
+        machine, &kind, "session", &root, &mark, &mut watch,
+    ));
     let second = {
         let _held = halvo_web::start::lock();
         std::net::TcpListener::bind(("127.0.0.1", 0))
@@ -341,9 +420,11 @@ async fn checks_row(argv: &[String]) -> (usize, usize) {
     let kept = ex.keep_pipe();
     let stopped = ex.stop_and_remove().await;
     let end = check_line(machine, &kind, "end", &subject);
+    member_reads += usize::from(member_line(machine, &kind, "end", &root, &mark, &mut watch));
     drop(kept);
     relay.stop();
     let fine = start && session && end && control && stopped.removed;
+    println!("row checks machine={machine} browser={kind} member_reads={member_reads} of=3");
     println!(
         "row checks machine={machine} browser={kind} removed={} result={}",
         if stopped.removed { "yes" } else { "no" },

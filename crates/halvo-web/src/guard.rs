@@ -29,6 +29,11 @@ pub const PORT_MARGIN: Duration = Duration::from_millis(1_000);
 /// with exit 3 and `guard_end cause=table_unread` (CP-145, its addition of 07:54Z).
 pub const UNREAD_CAP: Duration = Duration::from_secs(300);
 
+/// How long the guard keeps the port for members that do not bear the run's mark once no member
+/// that bears it runs, before it writes its last line with the cause `left_unmarked` and exits
+/// with 4 (CP-185 (3)). The cap of the unread table, as CP-185 names it by default.
+pub const LEFT_CAP: Duration = UNREAD_CAP;
+
 /// How often the guard reads the process table, and how long it waits after a read that failed.
 pub const POLL: Duration = Duration::from_millis(20);
 pub const UNREAD_PAUSE: Duration = Duration::from_millis(2);
@@ -94,24 +99,43 @@ pub struct GuardAct {
     /// The reads, up to the act's record, in which the executor's row had its number and no
     /// creation time (CP-176 A4 (c)).
     pub untimed: usize,
+    /// The members that the loop left because they did not bear the run's mark at the read of an
+    /// ask or a forced end, each once (CP-185 (1), (4)).
+    pub left: usize,
+    /// The file names of the programs of those members.
+    pub left_programs: Vec<String>,
+    /// Why the record was written: `act` at the ask, `tree_gone` once no member ran,
+    /// `left_unmarked` at `LEFT_CAP`.
+    pub cause: &'static str,
 }
 
 impl GuardAct {
     /// The record's line: `ended_by=guard ms=.. asked=.. forced=.. first=yes|no programs=..
-    /// executor_untimed=..`.
+    /// executor_untimed=.. left=.. left_programs=.. cause=..`.
     pub fn line(&self) -> String {
+        let names = |v: &[String]| {
+            if v.is_empty() {
+                "-".to_string()
+            } else {
+                v.join(",")
+            }
+        };
         format!(
-            "ended_by=guard ms={} asked={} forced={} first={} programs={} executor_untimed={}",
+            "ended_by=guard ms={} asked={} forced={} first={} programs={} executor_untimed={} \
+             left={} left_programs={} cause={}",
             self.ms,
             self.asked,
             self.forced,
             if self.first { "yes" } else { "no" },
-            if self.programs.is_empty() {
-                "-".to_string()
+            names(&self.programs),
+            self.untimed,
+            self.left,
+            names(&self.left_programs),
+            if self.cause.is_empty() {
+                "-"
             } else {
-                self.programs.join(",")
-            },
-            self.untimed
+                self.cause
+            }
         )
     }
 }
@@ -153,10 +177,25 @@ fn numbers(argv: &[String]) -> Option<(u64, u64, u64, u64)> {
     (estart != 0).then_some((pid, started_us, epid, estart))
 }
 
+/// The run's mark from the guard's arguments 5 and 6, the run's profile and the browser's program,
+/// with the first process's creation time; `None` when either is missing or empty, which the guard
+/// refuses (CP-185 (2)).
+fn mark_of(argv: &[String], started_us: u64) -> Option<crate::checks::Mark> {
+    let given = |i: usize| argv.get(i).filter(|v| !v.is_empty());
+    let (profile, program) = (given(5)?, given(6)?);
+    Some(crate::checks::Mark::new(
+        std::path::Path::new(profile),
+        std::path::Path::new(program),
+        started_us,
+    ))
+}
+
 /// The guard's program: `argv` after `GUARD_FLAG`. It runs `guard_loop` with the system's table,
 /// the ask and the forced end of `procs`, and writes the act into the record file. Exit 2 for
-/// arguments that it cannot read and for an executor creation time of 0, which names no executor
-/// (CP-176 A4 (b)).
+/// arguments that it cannot read, for an executor creation time of 0, which names no executor
+/// (CP-176 A4 (b)), and for a start without the run's profile or the browser's program, from which
+/// it builds the mark that every ask and forced end needs (CP-185 (2)). Exit 4 after `LEFT_CAP`
+/// with members that do not bear the mark.
 pub fn guard_main(argv: &[String]) -> i32 {
     let Some((pid, started_us, epid, estart)) = numbers(argv) else {
         return 2;
@@ -168,14 +207,10 @@ pub fn guard_main(argv: &[String]) -> i32 {
         None
     };
     let record = argv.get(4).map(std::path::PathBuf::from);
-    let mark = match (argv.get(5), argv.get(6)) {
-        (Some(profile), Some(program)) => Some(crate::checks::Mark::new(
-            std::path::Path::new(profile),
-            std::path::Path::new(program),
-            started_us,
-        )),
-        _ => None,
+    let Some(mark) = mark_of(argv, started_us) else {
+        return 2;
     };
+    let mark = Some(mark);
     let start = std::time::Instant::now();
     guard_loop(
         pid as u32,
@@ -314,6 +349,11 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
     let mut act = GuardAct::default();
     let mut gone_at: Option<u128> = None;
     let mut group_held = false;
+    // CP-185 (1): the run's mark, read for a process at the read of each ask and forced end; a
+    // process that does not bear it, or whose program or arguments cannot be read, is left.
+    let bears = |p: &Proc| mark.is_some_and(|m| m.owns(p, args));
+    let mut left_ids: Vec<(u32, u64)> = Vec::new();
+    let mut unmarked_since: Option<u128> = None;
     let (grace, margin) = match trigger {
         Trigger::ExecutorGone { .. } => (GRACE.as_millis(), PORT_MARGIN.as_millis()),
         Trigger::Now => (0, 0),
@@ -347,6 +387,7 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
                 act.ms = now.saturating_sub(trigger_at.unwrap_or(now));
                 act.asked = asked;
                 act.forced = forced;
+                act.cause = "tree_gone";
                 record(&act);
                 recorded = true;
             }
@@ -358,6 +399,30 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
             continue;
         }
         gone_at = None;
+        // CP-185 (3): every member keeps the port while one that bears the mark runs; members
+        // without it keep it for `LEFT_CAP` after the last marked one is gone, then the guard
+        // writes its last line and exits, which closes its copy of the listener.
+        if running.iter().any(&bears) {
+            unmarked_since = None;
+        } else {
+            let since = *unmarked_since.get_or_insert(now);
+            if now.saturating_sub(since) >= LEFT_CAP.as_millis() {
+                for p in &running {
+                    leave(&mut act, &mut left_ids, p);
+                }
+                act.ms = now.saturating_sub(trigger_at.unwrap_or(now));
+                act.asked = asked;
+                act.forced = forced;
+                act.cause = "left_unmarked";
+                record(&act);
+                eprintln!(
+                    "guard_end cause=left_unmarked running={} programs={}",
+                    running.len(),
+                    act.left_programs.join(",")
+                );
+                return 4;
+            }
+        }
         let fire = match trigger {
             Trigger::ExecutorGone {
                 pid: epid,
@@ -378,6 +443,10 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
                 match asked_at {
                     None => {
                         for p in &running {
+                            if !bears(p) {
+                                leave(&mut act, &mut left_ids, p);
+                                continue;
+                            }
                             if end(p, false) {
                                 asked += 1;
                             }
@@ -385,9 +454,16 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
                         }
                         acted = true;
                         asked_at = Some(now);
+                        act.asked = asked;
+                        act.cause = "act";
+                        record(&act);
                     }
                     Some(at) if now.saturating_sub(at) >= TERM_WAIT.as_millis() => {
                         for p in &running {
+                            if !bears(p) {
+                                leave(&mut act, &mut left_ids, p);
+                                continue;
+                            }
                             if end(p, true) {
                                 forced += 1;
                             }
@@ -451,6 +527,24 @@ fn executor_in(
         Executor::Untimed
     } else {
         Executor::Gone
+    }
+}
+
+/// Notes in the record a member that the loop left because it did not bear the run's mark: each
+/// process once, by number and creation time, with its program's file name (CP-185 (4)).
+fn leave(act: &mut GuardAct, left_ids: &mut Vec<(u32, u64)>, p: &Proc) {
+    if left_ids.contains(&(p.pid, p.started_us)) {
+        return;
+    }
+    left_ids.push((p.pid, p.started_us));
+    act.left = left_ids.len();
+    let name = p
+        .exe
+        .as_ref()
+        .and_then(|e| e.file_name())
+        .map_or("-".to_string(), |n| n.to_string_lossy().replace(' ', "_"));
+    if !act.left_programs.contains(&name) {
+        act.left_programs.push(name);
     }
 }
 
@@ -519,7 +613,13 @@ mod tests {
         step: u128,
         table: &dyn Fn(u128, &Ends) -> Option<Vec<Proc>>,
     ) -> (i32, u128, Ends, Option<GuardAct>) {
-        run_with(trigger, step, table, &|_| None)
+        run_with(trigger, step, table, &every_marked)
+    }
+
+    /// The arguments of every process: the run's profile `/p` as a whole path, so that a row of a
+    /// program inside the bundle bears the run's mark.
+    fn every_marked(_pid: u32) -> Option<Vec<String>> {
+        Some(vec!["--user-data-dir=/p".to_string()])
     }
 
     /// `run` with the arguments of a process given, from which the loop takes the run's mark.
@@ -545,7 +645,7 @@ mod tests {
             trigger,
             step,
             table,
-            &|_| None,
+            &every_marked,
             Some(std::ffi::OsStr::new(OWN)),
         )
     }
@@ -557,10 +657,22 @@ mod tests {
         args: &dyn Fn(u32) -> Option<Vec<String>>,
         own_name: Option<&std::ffi::OsStr>,
     ) -> (i32, u128, Ends, Option<GuardAct>) {
+        let (code, at, ends, mut records) = run_records(trigger, step, table, args, own_name);
+        (code, at, ends, records.pop())
+    }
+
+    /// `run_full` that gives every record that the loop wrote, in order (CP-185 (4)).
+    fn run_records(
+        trigger: Trigger,
+        step: u128,
+        table: &dyn Fn(u128, &Ends) -> Option<Vec<Proc>>,
+        args: &dyn Fn(u32) -> Option<Vec<String>>,
+        own_name: Option<&std::ffi::OsStr>,
+    ) -> (i32, u128, Ends, Vec<GuardAct>) {
         let mark = run_mark();
         let clock = Cell::new(0u128);
         let ends = RefCell::new(Vec::new());
-        let mut record = None;
+        let mut records = Vec::new();
         let mut reads = 0u64;
         let code = guard_loop(
             ROOT,
@@ -581,19 +693,30 @@ mod tests {
                     ends.borrow_mut().push((p.pid, force, clock.get()));
                     true
                 },
-                record: &mut |act| record = Some(act.clone()),
+                record: &mut |act| records.push(act.clone()),
             },
         );
-        (code, clock.get(), ends.into_inner(), record)
+        (code, clock.get(), ends.into_inner(), records)
     }
 
+    /// A row of a program inside the browser's bundle `/B.app`.
     fn row(pid: u32, ppid: u32, started_us: u64, pgid: u32) -> Proc {
         Proc {
             pid,
             ppid,
             started_us,
             pgid,
-            exe: None,
+            exe: Some(std::path::PathBuf::from(BUNDLE_EXE)),
+        }
+    }
+
+    /// A row of a program outside the browser's bundle, which never bears the run's mark.
+    fn stranger(pid: u32, ppid: u32, started_us: u64, pgid: u32) -> Proc {
+        Proc {
+            exe: Some(std::path::PathBuf::from(
+                "/Applications/Mail.app/Contents/MacOS/Mail",
+            )),
+            ..row(pid, ppid, started_us, pgid)
         }
     }
 
@@ -642,8 +765,8 @@ mod tests {
     fn a_table_that_could_not_be_read_once_is_no_empty_table_for_the_guard() {
         let (code, _, ends, _) = run(executor(50), 20, &|t, _| match t {
             0 => None,
-            1..=100 => Some(vec![row(ROOT, 1, 7, ROOT), row(5, 1, 50, 5)]),
-            _ => Some(vec![row(5, 1, 50, 5)]),
+            1..=100 => Some(vec![row(ROOT, 1, 7, ROOT), stranger(5, 1, 50, 5)]),
+            _ => Some(vec![stranger(5, 1, 50, 5)]),
         });
         assert_eq!(code, 0);
         assert!(ends.is_empty(), "{ends:?}");
@@ -656,8 +779,8 @@ mod tests {
     fn a_table_unread_for_longer_than_the_margin_keeps_the_port_while_the_browser_runs() {
         let (code, at, ends, _) = run(executor(50), 20, &|t, _| match t {
             1_000..=2_500 => None,
-            _ if t < 4_000 => Some(vec![row(ROOT, 1, 7, ROOT), row(5, 1, 50, 5)]),
-            _ => Some(vec![row(5, 1, 50, 5)]),
+            _ if t < 4_000 => Some(vec![row(ROOT, 1, 7, ROOT), stranger(5, 1, 50, 5)]),
+            _ => Some(vec![stranger(5, 1, 50, 5)]),
         });
         assert_eq!(code, 0);
         assert!(ends.is_empty(), "{ends:?}");
@@ -684,7 +807,7 @@ mod tests {
                 v.push(row(ROOT, 1, 7, ROOT));
             }
             if t < 1_000 {
-                v.push(row(5, 1, 50, 5));
+                v.push(stranger(5, 1, 50, 5));
             }
             Some(v)
         });
@@ -719,7 +842,7 @@ mod tests {
                 v.push(row(ROOT, 1, 7, ROOT));
             }
             if t < 1_000 {
-                v.push(row(5, 1, 50, 5));
+                v.push(stranger(5, 1, 50, 5));
             }
             Some(v)
         });
@@ -732,7 +855,7 @@ mod tests {
     #[test]
     fn the_guard_ends_nothing_while_its_executor_runs() {
         let (code, _, ends, _) = run(executor(50), 10, &|t, _| {
-            let mut v = vec![row(5, 1, 50, 5)];
+            let mut v = vec![stranger(5, 1, 50, 5)];
             if t < 60_000 {
                 v.push(row(ROOT, 1, 7, ROOT));
             }
@@ -753,7 +876,7 @@ mod tests {
                 v.push(row(ROOT, 1, 8, ROOT));
             }
             if t < 1_000 {
-                v.push(row(5, 1, 50, 5));
+                v.push(stranger(5, 1, 50, 5));
             }
             Some(v)
         });
@@ -767,7 +890,7 @@ mod tests {
     #[test]
     fn a_process_that_took_the_executor_s_number_is_not_the_executor() {
         let (code, _, ends, _) = run(executor(50), 10, &|_, ends| {
-            let mut v = vec![row(5, 1, 51, 5)];
+            let mut v = vec![stranger(5, 1, 51, 5)];
             if forced(ends, ROOT).is_none() {
                 v.push(row(ROOT, 1, 7, ROOT));
             }
@@ -815,7 +938,7 @@ mod tests {
     #[test]
     fn the_port_is_kept_while_a_member_runs_after_the_first_process_is_gone() {
         let (code, at, _, _) = run(executor(50), 10, &|t, _| {
-            let mut v = vec![row(5, 1, 50, 5)];
+            let mut v = vec![stranger(5, 1, 50, 5)];
             if t < 500 {
                 v.push(row(ROOT, 1, 7, ROOT));
             }
@@ -982,7 +1105,7 @@ mod tests {
             &|t, _| {
                 let mut v = Vec::new();
                 if t < 30_000 {
-                    v.push(row(5, 1, 50, 5));
+                    v.push(stranger(5, 1, 50, 5));
                 }
                 if t < 1_000 {
                     v.push(in_bundle(ROOT, 1, 7, 0));
@@ -1010,12 +1133,12 @@ mod tests {
         let (code, _, ends, _) = run(executor(50), 20, &|t, _| {
             let mut v = Vec::new();
             if t != 1_000 && t != 5_000 {
-                v.push(row(5, 1, 50, 5));
+                v.push(stranger(5, 1, 50, 5));
             }
             if t < 10_000 {
                 v.push(row(ROOT, 1, 7, ROOT));
             } else if t < 20_000 {
-                return Some(vec![row(5, 1, 50, 5)]);
+                return Some(vec![stranger(5, 1, 50, 5)]);
             }
             Some(v)
         });
@@ -1030,7 +1153,7 @@ mod tests {
         let (code, _, ends, _) = run(executor(50), 20, &|t, ends| {
             let mut v = Vec::new();
             if t != 1_000 && t < 20_000 {
-                v.push(row(5, 1, 50, 5));
+                v.push(stranger(5, 1, 50, 5));
             }
             if forced(ends, ROOT).is_none() {
                 v.push(row(ROOT, 1, 7, ROOT));
@@ -1047,7 +1170,7 @@ mod tests {
     fn untimed(name: Option<&str>) -> Proc {
         Proc {
             exe: name.map(std::path::PathBuf::from),
-            ..row(5, 1, 0, 5)
+            ..stranger(5, 1, 0, 5)
         }
     }
 
@@ -1112,7 +1235,7 @@ mod tests {
     fn a4_a_row_with_another_known_time_is_not_the_executor_on_windows() {
         let other = Proc {
             exe: Some(OWN.into()),
-            ..row(5, 1, 51, 5)
+            ..stranger(5, 1, 51, 5)
         };
         let (code, _, ends, _) = run_windows(executor(50), 20, &beside_until_10s(other));
         assert_eq!(code, 0);
@@ -1151,11 +1274,141 @@ mod tests {
         assert_eq!(numbers(&argv("50")), Some((9, 7, 5, 50)));
     }
 
+    /// CP-185 (9), first case: a child of the browser's first process whose program lies outside
+    /// the browser's directory (a mail program that the system starts for a link) is neither asked
+    /// nor ended. The port is kept while the marked first process runs, and for `LEFT_CAP` after it
+    /// is gone. The record is written at the act with the member that was left, and again at the
+    /// cap with the cause `left_unmarked`.
+    #[test]
+    fn cp185_a_child_outside_the_browser_s_directory_is_neither_asked_nor_ended() {
+        let (code, at, ends, records) = run_records(
+            executor(50),
+            100,
+            &|t, ends| {
+                let mut v = vec![stranger(70, ROOT, 20, 70)];
+                if t < 1_000 {
+                    v.push(stranger(5, 1, 50, 5));
+                }
+                if forced(ends, ROOT).is_none() {
+                    v.push(row(ROOT, 1, 7, ROOT));
+                }
+                Some(v)
+            },
+            &every_marked,
+            None,
+        );
+        assert!(ends.iter().all(|e| e.0 == ROOT), "{ends:?}");
+        let gone = forced(&ends, ROOT).expect("the first process was ended");
+        assert_eq!(code, 4);
+        assert!(at >= gone + LEFT_CAP.as_millis(), "returned at {at} ms");
+        let first = records.first().expect("a record at the act");
+        assert_eq!(
+            (first.cause, first.left, first.left_programs.clone()),
+            ("act", 1, vec!["Mail".to_string()])
+        );
+        let last = records.last().unwrap();
+        assert_eq!((last.cause, last.left), ("left_unmarked", 1));
+    }
+
+    /// CP-185 (9), second case: a process of the first process's group (macOS) without the mark is
+    /// neither asked nor ended, and keeps the port for `LEFT_CAP` once the marked members are gone.
+    #[test]
+    fn cp185_a_process_of_the_group_without_the_mark_is_neither_asked_nor_ended() {
+        let (code, at, ends, last) = run(executor(50), 100, &|t, ends| {
+            let mut v = vec![stranger(71, 1, 20, ROOT)];
+            if t < 1_000 {
+                v.push(stranger(5, 1, 50, 5));
+            }
+            if forced(ends, ROOT).is_none() {
+                v.push(row(ROOT, 1, 7, ROOT));
+            }
+            Some(v)
+        });
+        assert!(ends.iter().all(|e| e.0 == ROOT), "{ends:?}");
+        let gone = forced(&ends, ROOT).expect("the first process was ended");
+        assert_eq!(code, 4);
+        assert!(at >= gone + LEFT_CAP.as_millis(), "returned at {at} ms");
+        let last = last.expect("recorded");
+        assert_eq!((last.cause, last.left), ("left_unmarked", 1));
+    }
+
+    /// CP-185 (9), third case: the browser's first process with its mark is asked at the grace and
+    /// ended by force `TERM_WAIT` later, as before, and the record names no member that was left.
+    #[test]
+    fn cp185_the_first_process_with_its_mark_is_asked_and_then_ended_as_today() {
+        let (code, _, ends, last) = run(executor(50), 10, &|t, ends| {
+            let mut v = Vec::new();
+            if t < 1_000 {
+                v.push(stranger(5, 1, 50, 5));
+            }
+            if forced(ends, ROOT).is_none() {
+                v.push(row(ROOT, 1, 7, ROOT));
+            }
+            Some(v)
+        });
+        assert_eq!(code, 0);
+        let asked = ends.iter().find(|e| !e.1).expect("asked");
+        assert_eq!(asked.0, ROOT);
+        assert!(asked.2 >= 1_000 + 3_000, "asked at {} ms", asked.2);
+        let forced_at = forced(&ends, ROOT).expect("forced");
+        assert!(forced_at >= asked.2 + 2_000, "forced at {forced_at} ms");
+        let last = last.expect("recorded");
+        assert!(last.first);
+        assert_eq!((last.cause, last.left), ("tree_gone", 0));
+    }
+
+    /// CP-185 (9), fourth case: a guard whose one member left does not bear the mark returns 4
+    /// after `LEFT_CAP` with its last line, where before it never returned.
+    #[test]
+    fn cp185_a_guard_with_one_member_without_the_mark_returns_after_the_cap() {
+        let (code, at, ends, last) = run(executor(50), 100, &|t, _| {
+            let mut v = vec![stranger(72, ROOT, 20, 72)];
+            if t < 1_000 {
+                v.push(row(ROOT, 1, 7, ROOT));
+            }
+            Some(v)
+        });
+        assert!(ends.is_empty(), "{ends:?}");
+        assert_eq!(code, 4);
+        assert!(at >= 1_000 + LEFT_CAP.as_millis(), "returned at {at} ms");
+        assert!(
+            at < 1_000 + LEFT_CAP.as_millis() + 1_000,
+            "returned at {at} ms"
+        );
+        let last = last.expect("its last line");
+        assert_eq!(
+            (last.cause, last.left, last.left_programs.clone()),
+            ("left_unmarked", 1, vec!["Mail".to_string()])
+        );
+        assert!(last
+            .line()
+            .ends_with("left=1 left_programs=Mail cause=left_unmarked"));
+    }
+
+    /// CP-185 (9), fifth case: the guard's entry refuses a start without the run's profile or the
+    /// browser's program, and builds the mark from both.
+    #[test]
+    fn cp185_a_start_without_the_two_arguments_is_refused() {
+        let argv = |rest: &[&str]| -> Vec<String> {
+            ["9", "7", "5", "50", "/r"]
+                .iter()
+                .chain(rest.iter())
+                .map(|s| s.to_string())
+                .collect()
+        };
+        assert!(mark_of(&argv(&[]), 7).is_none());
+        assert!(mark_of(&argv(&["/p"]), 7).is_none());
+        assert!(mark_of(&argv(&["", "/B.app/Contents/MacOS/b"]), 7).is_none());
+        assert!(mark_of(&argv(&["/p", ""]), 7).is_none());
+        let mark = mark_of(&argv(&["/p", "/B.app/Contents/MacOS/b"]), 7).expect("a mark");
+        assert_eq!((mark.profile.as_str(), mark.since_us), ("/p", 7));
+    }
+
     /// The verifier's m36: the margin begins again when a member is seen again after an empty read.
     #[test]
     fn m36_the_margin_begins_again_after_a_member_is_seen_again() {
         let (code, at, _, _) = run(executor(50), 10, &|t, _| {
-            let mut v = vec![row(5, 1, 50, 5)];
+            let mut v = vec![stranger(5, 1, 50, 5)];
             if t < 1_000 || (1_010..3_000).contains(&t) {
                 v.push(row(ROOT, 1, 7, ROOT));
             }
@@ -1182,10 +1435,10 @@ mod tests {
     fn m42_two_unread_spells_with_a_read_between_do_not_end_the_guard() {
         let (code, at, _, _) = run(executor(50), 1_000, &|t, _| match t {
             0..=199_000 => None,
-            200_000 => Some(vec![row(5, 1, 50, 5), row(ROOT, 1, 7, ROOT)]),
+            200_000 => Some(vec![stranger(5, 1, 50, 5), row(ROOT, 1, 7, ROOT)]),
             201_000..=399_000 => None,
-            _ if t < 500_000 => Some(vec![row(5, 1, 50, 5), row(ROOT, 1, 7, ROOT)]),
-            _ => Some(vec![row(5, 1, 50, 5)]),
+            _ if t < 500_000 => Some(vec![stranger(5, 1, 50, 5), row(ROOT, 1, 7, ROOT)]),
+            _ => Some(vec![stranger(5, 1, 50, 5)]),
         });
         assert_eq!(code, 0, "ended at {at} ms");
     }
@@ -1200,7 +1453,7 @@ mod tests {
             row(20, 1, 9, 20),
             row(30, 20, 10, 20),
             row(31, 1, 10, 77),
-            row(5, 1, 50, 5),
+            stranger(5, 1, 50, 5),
         ];
         let none = |_: u32| None;
         assert!(members(&mut known, &table, &root, 4, false, None, &none).is_empty());
@@ -1211,7 +1464,7 @@ mod tests {
             root: std::path::PathBuf::from("/B.app"),
         };
         let mut known = vec![root.clone(), row(20, ROOT, 8, ROOT)];
-        let table = vec![in_bundle(30, 20, 10, 0), row(5, 1, 50, 5)];
+        let table = vec![in_bundle(30, 20, 10, 0), stranger(5, 1, 50, 5)];
         assert_eq!(
             members(&mut known, &table, &root, 4, false, Some(&mark), &args).len(),
             1
@@ -1310,14 +1563,18 @@ mod tests {
             executor(50),
             GuardIo {
                 read: &mut || {
-                    let mut v = vec![row(61, 1, 3, 61), row(62, 61, 4, 61), row(63, 1, 9, 63)];
+                    let mut v = vec![
+                        stranger(61, 1, 3, 61),
+                        stranger(62, 61, 4, 61),
+                        stranger(63, 1, 9, 63),
+                    ];
                     if !asked.borrow().iter().any(|a| a.1) {
                         v.push(row(ROOT, 1, 7, ROOT));
                     }
                     Some(v)
                 },
-                args: &|_| None,
-                mark: None,
+                args: &every_marked,
+                mark: Some(&run_mark()),
                 own_name: None,
                 now_ms: &mut || clock.get(),
                 pause: &mut |_| clock.set(clock.get() + 10),
@@ -1347,14 +1604,20 @@ mod tests {
     /// never ends by itself and a stand-in executor; the executor is killed; the guard asks the
     /// browser to end after its grace, and returns only after the browser is gone. Its ask and
     /// forced end pass the fence alone, and the test has a bound of 20 s inside its read and pause.
+    /// The stand-in browser bears the run's mark (CP-185 (1)): `/bin/sh` waiting on a pipe of the
+    /// test, with an argument that names the run's profile, and the mark's program `/bin/sh`.
     #[cfg(target_os = "macos")]
     #[test]
     fn the_guard_ends_a_real_stand_in_after_its_executor_is_killed() {
         use crate::start::Start;
+        let profile =
+            std::env::temp_dir().join(format!("halvo-guard-fence-profile-{}", std::process::id()));
         let mut own = Own(Vec::new());
         own.0.push(
-            std::process::Command::new("/bin/sleep")
-                .arg("60")
+            std::process::Command::new("/bin/sh")
+                .args(["-c", "read x", "stand-in"])
+                .arg(&profile)
+                .stdin(std::process::Stdio::piped())
                 .start()
                 .unwrap(),
         );
@@ -1369,6 +1632,8 @@ mod tests {
         let table = procs::table().unwrap();
         let b = table.iter().find(|p| p.pid == bpid).unwrap().clone();
         let e = table.iter().find(|p| p.pid == epid).unwrap().clone();
+        let mark =
+            crate::checks::Mark::new(&profile, std::path::Path::new("/bin/sh"), b.started_us);
         let fence = Fence {
             admit: (b.pid, b.started_us),
             refused: RefCell::new(Vec::new()),
@@ -1399,7 +1664,7 @@ mod tests {
                     procs::table().ok()
                 },
                 args: &crate::checks::command_args,
-                mark: None,
+                mark: Some(&mark),
                 own_name: None,
                 now_ms: &mut || start.elapsed().as_millis(),
                 pause: &mut |_| {
@@ -1429,7 +1694,15 @@ mod tests {
         assert!(!status.success(), "{status:?}");
         let act = record.expect("the guard recorded its act");
         assert!(act.first, "{act:?}");
-        assert_eq!(act.programs, ["sleep"]);
+        let name = b
+            .exe
+            .as_ref()
+            .and_then(|e| e.file_name())
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        assert_eq!(act.programs, [name]);
+        assert_eq!(act.left, 0, "{act:?}");
         assert!(fence.refused.borrow().is_empty());
     }
 }
