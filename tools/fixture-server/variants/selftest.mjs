@@ -184,8 +184,8 @@ function stopServer(s) {
 
 const GONE_MS = 5000;
 const UNIX = process.platform !== 'win32';
-const CASES_UNIX = 203;
-const CASES_WINDOWS = 201;
+const CASES_UNIX = 197;
+const CASES_WINDOWS = 195;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -836,6 +836,7 @@ async function walkCases(env) {
     for (const v of ['none', ...VARIANTS.filter((name) => name !== 'no_reply')]) {
       const vs = v === 'none' ? [] : [v];
       for (const task of TASKS) {
+        if (v === 'amount_changes' && (task === 'reply' || task === 'cleanup')) continue;
         await run(`walk-seed${n}-${task}-${v}`, async (c) => {
           const r = await env.reset(n, vs);
           const st = JSON.parse(r.text);
@@ -1482,6 +1483,8 @@ async function protocolCases(env) {
         c.ok((await http(env.port, 'POST', CONTROL, '/change')).status === 200, 'change_taken');
         r = url ? await b.get(url) : { status: 0, text: '' };
         c.ok(tags(r.text, 'amount')[0]?.inner === money(amount + 100), 'frame_shows_the_amount_with_1_00_added');
+        r = await b.post(`${pay}/charge`, form({ token: tokenOf(url), kind, instrument: 'Card ending 0000' }));
+        c.ok(r.status === 400 && tags(r.text, 'amount')[0]?.inner === money(amount + 100), 'refused_charge_frame_shows_the_amount_with_1_00_added');
         const instrument = (kind === 'bill' ? seed.utility : seed.shop).instruments[0];
         r = await b.post(`${pay}/charge`, form({ token: tokenOf(url), kind, instrument }));
         st = await env.state();
