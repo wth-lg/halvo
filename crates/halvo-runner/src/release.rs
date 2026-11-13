@@ -147,7 +147,9 @@ impl Runner {
     /// The confirm path of A5.2 and A6.3 for the paused requests of one step: the adapter effects of a run
     /// together, or a browser effect alone. The load before the `propose` gives `decide`, the origins of `admit` and
     /// the limits; each effect is proposed after `admit`, and the effects that are `held` stand in one confirmation
-    /// request, whose answers are applied before any later load is acted on. For each effect in turn a load precedes
+    /// request, whose answers are applied before any later load is acted on. At the first request that fails `bound`
+    /// or `admit` it returns, and the earlier effects of the call stay open until the store's handler of the run's end
+    /// ends them. For each effect in turn a load precedes
     /// the `begin`: a `decide` on it that gives `refuse` ends the effect; one that gives `confirm` for a `cleared`
     /// effect ends it and every other effect that is still `cleared`, proposes them again from that load and asks
     /// for them in one confirmation request (CP-143 (4) (iv)); one that gives `run` changes nothing for an
@@ -251,7 +253,8 @@ impl Runner {
     /// Lets the request of one `cleared` or `approved` effect leave, or ends the effect, or gives the effect back
     /// with the later load when that load gives `confirm` for a `cleared` effect. Before each `begin`, and before the
     /// digests are compared, the origin of the paused request must be an origin of the later load's bindings or the
-    /// allowed `new_origin` (none: the runner's confirmations name none in the mode `replay`), else the effect is
+    /// `new_origin` of the confirmation whose `allow_once` approved the effect, the runner's own fact and never the
+    /// maker's (none: the runner's confirmations name none in the mode `replay`), else the effect is
     /// ended and the run ends `refused` with `origin` (A9.2); then `admit` is asked with that load's origins, and its
     /// refusal ends the run `failed` with `provenance` (CP-159 G1). A `cleared` effect whose values
     /// changed is ended and a new effect is proposed from the load's values; `renewed` counts the times that the

@@ -157,7 +157,9 @@ impl Runner {
     /// `user_files` holds, `decide` gives `run` and that digest is the row's. Otherwise the prepared copy goes and
     /// the effect is ended: without the permission the step fails as at the first load; on `refuse` the run ends
     /// `refused`; on another digest a new effect is proposed from that load with its own `prepare`, at most
-    /// `LIMITS.rebinds` times for the step, and then the run ends `failed` with `changed`. The load before the
+    /// `LIMITS.rebinds` times for the step, and then the run ends `failed` with `changed`; after such an end the
+    /// prepared copy is gone and the run's checkpoint stays as `prepare` made it, until the library removes it for the
+    /// stored end (A11.3). The load before the
     /// `begin` is also held against the sheet of the `prepare`, a changed sheet being met as another digest is
     /// (CP-159 G2), and against the source of the read step, held as a text, so that another spelling of the same
     /// file ends the run too: another source ends the effect and then the run `failed` with `changed`, after the
