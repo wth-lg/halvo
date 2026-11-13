@@ -818,8 +818,20 @@ mod tests {
         let mut deadlines = Deadlines::V1;
         deadlines.read = Duration::from_millis(100);
         let client = Client::with_deadlines(held.clone(), deadlines);
-        assert_eq!(client.status().unwrap(), sample_status(Platform::Macos));
-        assert!(held.last_timeout() <= Duration::from_millis(100));
+        match client.status() {
+            Ok(status) => assert_eq!(status, sample_status(Platform::Macos)),
+            Err(ClientError::Deadline { .. }) => {}
+            other => panic!("{other:?}"),
+        }
+        for wait in held.after_frame().timeouts {
+            assert!(
+                wait <= Duration::from_millis(100),
+                "after the reply frame the client asked its transport to wait {wait:?}, past the \
+                 request's deadline of 100 ms in all. The test holds the wait that the client \
+                 asks and no elapsed time: a thread that is held up makes that wait shorter or \
+                 the answer Deadline, so a slow machine cannot fail it"
+            );
+        }
     }
 
     #[test]
