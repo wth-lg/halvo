@@ -344,9 +344,11 @@ fn main() -> ExitCode {
         return driver::org_control(&argv[1..]);
     }
     if argv.first().map(String::as_str) == Some("--policy-named") {
-        // `--policy-named NAME FILE`: whether the text of a policy page in FILE names the policy NAME
-        // (r3_web::policy, CP-126 E3); the hosted jobs call it on the text that they read from the
-        // page's PDF. Prints one line of closed words; exit 0 when named, 1 when not, 2 on bad use.
+        // `--policy-named NAME FILE [VALUE_READ]`: whether the text of a policy page in FILE names the
+        // policy NAME (r3_web::policy, CP-126 E3); the hosted jobs call it on the text that they read
+        // from the page's PDF, with the value that the job wrote and read back, which the joined form
+        // of CP-145 (6) needs. Prints one line of closed words; exit 0 when named, 1 when not, 2 on
+        // bad use.
         let (Some(name), Some(file)) = (argv.get(1), argv.get(2)) else {
             eprintln!("REFUSED usage: --policy-named NAME FILE");
             return ExitCode::from(2);
@@ -355,7 +357,10 @@ fn main() -> ExitCode {
             out("policy_named named=no how=unread");
             return ExitCode::from(1);
         };
-        let n = r3_web::policy::named(&text, name);
+        let printed = argv
+            .get(3)
+            .and_then(|v| r3_web::policy::printed_value(name, v));
+        let n = r3_web::policy::named_with(&text, name, printed);
         out(&format!(
             "policy_named named={} how={}",
             if n.named() { "yes" } else { "no" },
