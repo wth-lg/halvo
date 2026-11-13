@@ -941,6 +941,9 @@ fn widened_labels_reach_no_command_of_the_unit() {
 
 /// The source files of the app that a build compiles outside the tests: every
 /// file under src-tauri/src but tests.rs, and build.rs.
+/// The sources of the app as the text tests read them, each with its line ends
+/// as LF: a Windows checkout writes CRLF, and a needle that ends a line ends in
+/// `\n` alone.
 fn sources_of_the_app() -> Vec<(PathBuf, String)> {
     fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
         for entry in std::fs::read_dir(dir).expect("a source directory") {
@@ -961,7 +964,7 @@ fn sources_of_the_app() -> Vec<(PathBuf, String)> {
         .into_iter()
         .map(|file| {
             let text = std::fs::read_to_string(&file).expect("a source file reads");
-            (file, text)
+            (file, text.replace("\r\n", "\n"))
         })
         .collect()
 }
