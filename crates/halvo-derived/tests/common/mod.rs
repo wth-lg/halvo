@@ -108,6 +108,18 @@ pub fn registry() -> Vec<&'static KindEntry> {
     kinds::registry().collect()
 }
 
+/// The distinct families of `entries`, in the order of their first entry: the families to which an open with these
+/// entries gives a revision, in the report's order.
+pub fn families(entries: &[&'static KindEntry]) -> Vec<&'static str> {
+    let mut found: Vec<&'static str> = Vec::new();
+    for entry in entries {
+        if !found.contains(&entry.family) {
+            found.push(entry.family);
+        }
+    }
+    found
+}
+
 pub fn open(scratch: &Scratch, clock: &TestClock) -> Result<Store, OpenError> {
     open_with(scratch, clock, &registry())
 }

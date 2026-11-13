@@ -188,12 +188,14 @@ fn open_removes_rows_that_name_a_summary_or_a_workflow_that_is_not_stored() {
         .unwrap()
         .collect::<Result<_, _>>()
         .unwrap();
+    let mut expected: Vec<(String, i64)> = common::families(&registry())
+        .into_iter()
+        .map(|f| (f.to_owned(), i64::from(f == "agent" || f == "workflow")))
+        .collect();
+    expected.sort();
     assert_eq!(
-        families,
-        vec![
-            ("agent".to_owned(), 1),
-            ("learn".to_owned(), 0),
-            ("workflow".to_owned(), 1)
-        ]
+        families, expected,
+        "the open raises the revision of each family that lost a row, the agent row's and the evidence row's, by \
+         one, and moves no other family of its entries; the table holds the entries' families and no more"
     );
 }

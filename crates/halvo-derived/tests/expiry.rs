@@ -4,11 +4,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use common::{
-    bodies, episode, open_entries, open_host, position, raw, store_id, summary_id, Grouping,
-    NoProposals, Scratch, Seq, TestClock, DAY_NS, NOTE, OWN, TRACE,
+    bodies, episode, families, open_entries, open_host, position, raw, registry, store_id,
+    summary_id, Grouping, NoProposals, Scratch, Seq, TestClock, DAY_NS, NOTE, OWN, TRACE,
 };
-use halvo_derived::{Counts, Host, Report};
-use halvo_schema_core::kinds::{FieldType, KindEntry, Origin, RetentionClass};
+use halvo_derived::{Committed, Counts, Host, Report};
+use halvo_schema_core::kinds::{self, FieldType, KindEntry, Origin, RetentionClass};
 use halvo_schema_core::record::{Instant, RowRead, Summary, SummaryRead, TypedRecord, WriterStep};
 
 const DAY: u32 = 20_767;
@@ -167,10 +167,14 @@ fn the_store_gives_its_host_the_report_after_each_committed_transaction() {
     let mut store = open_host(&scratch, host).unwrap();
     assert_eq!(reports.borrow().len(), 1);
     let first = reports.borrow()[0].clone();
+    let expected: Vec<(&str, u64)> = families(&registry()).into_iter().map(|f| (f, 0)).collect();
     assert_eq!(
-        first.revisions,
-        vec![("workflow", 0), ("agent", 0), ("learn", 0)]
+        first.revisions, expected,
+        "one revision per family of the registry, in the order of its first entry, each 0"
     );
+    assert_eq!(first.revisions[0].0, "workflow");
+    let distinct: std::collections::BTreeSet<&str> = kinds::registry().map(|e| e.family).collect();
+    assert_eq!(first.revisions.len(), distinct.len());
     assert_eq!(
         first.counts,
         Counts {
@@ -579,4 +583,74 @@ fn a_bounded_row_with_no_day_goes_at_the_next_expiry_and_a_kept_or_window_row_wi
     clock.set_day(DAY + 400);
     drop(open_entries(&scratch, plain(&clock), entries).unwrap());
     assert_eq!(kinds_stored(&scratch), ["test_own", "test_w"]);
+}
+
+/// A kind of a family that no file of this crate names, as a later run's crate registers one beside the registry.
+static LATER: KindEntry = KindEntry {
+    name: "zq_later_note",
+    class: RetentionClass::Bounded { days: 93 },
+    origin: Origin::Capture,
+    family: "zq_later",
+    workflow_key: None,
+    fields: &[("v", FieldType::Version), ("day", FieldType::Day)],
+    example: r#"{"v":1,"day":20767}"#,
+};
+
+#[test]
+fn a_kind_of_a_new_family_beside_the_registry_gets_its_revision_its_place_in_the_report_and_its_count(
+) {
+    let scratch = Scratch::new("later-family");
+    let clock = TestClock::at_day(DAY);
+    let emitted = Rc::new(RefCell::new(vec![TypedRecord {
+        kind: "zq_later_note",
+        json: format!(r#"{{"v":1,"day":{DAY}}}"#),
+    }]));
+    let reports: Rc<RefCell<Vec<Report>>> = Rc::new(RefCell::new(Vec::new()));
+    let sink = Rc::clone(&reports);
+    let host = Host::new(Box::new(clock.clone()), Box::new(NoProposals))
+        .step("zq_later", Box::new(Emit(Rc::clone(&emitted))))
+        .on_report(Box::new(move |report: &Report| {
+            sink.borrow_mut().push(report.clone())
+        }));
+    let mut store = open_entries(&scratch, host, &[&LATER]).unwrap();
+    let mut want: Vec<(&str, u64)> = families(&registry()).into_iter().map(|f| (f, 0)).collect();
+    want.push(("zq_later", 0));
+    assert_eq!(
+        reports.borrow()[0].revisions,
+        want,
+        "the new family stands after the registry's families, with 0"
+    );
+    let outcome = store
+        .commit_batch(&store_id(1), &[], position(1, 0), &mut Seq(1))
+        .unwrap();
+    assert_eq!(
+        outcome.steps,
+        vec![Ok(Committed {
+            stored: 1,
+            dropped: 0
+        })]
+    );
+    let last = store.report().unwrap();
+    drop(store);
+    let names = |revisions: &[(&'static str, u64)]| -> Vec<&'static str> {
+        revisions.iter().map(|(family, _)| *family).collect()
+    };
+    assert_eq!(names(&last.revisions), names(&want));
+    assert_eq!(last.revisions.last(), Some(&("zq_later", 1)));
+    assert_eq!(
+        last.counts,
+        Counts {
+            window: 0,
+            bounded: 1,
+            kept: 0
+        }
+    );
+    let stored: i64 = raw(&scratch)
+        .query_row(
+            "SELECT n FROM revisions WHERE family = 'zq_later'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(stored, 1);
 }

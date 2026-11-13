@@ -40,7 +40,7 @@ impl Handler for SetState {
 
 fn host(clock: &TestClock, takes: Takes) -> Host {
     Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 })).handler(
-        "agent",
+        "test",
         takes,
         Box::new(SetState),
     )

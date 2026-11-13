@@ -524,7 +524,7 @@ fn sweep_case(state: StateAt, before: Before) {
         )
         .step("test", Box::new(Emit(Rc::clone(&emitted))))
         .handler(
-            "agent",
+            "test",
             Takes::Coordinator(&["set_state"]),
             Box::new(SetState),
         )
