@@ -4,6 +4,7 @@ mod edges;
 mod finish;
 mod host;
 mod pass;
+mod pins;
 mod propose;
 mod rules;
 mod serve;
