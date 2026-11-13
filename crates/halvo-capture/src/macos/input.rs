@@ -2065,6 +2065,89 @@ mod tests {
         assert_eq!(bytes, LEDGER_BYTES);
     }
 
+    thread_local! {
+        static READ_TIMES: RefCell<Vec<u64>> = const { RefCell::new(Vec::new()) };
+    }
+
+    fn timed_reader(session: Session) -> Reading {
+        let reading = secure_input_reading(session);
+        READ_TIMES.with(|times| times.borrow_mut().push(monotonic_raw().0));
+        reading
+    }
+
+    fn per_call_ns(calls: u32, call: impl Fn()) -> u128 {
+        let started = Instant::now();
+        for _ in 0..calls {
+            call();
+        }
+        started.elapsed().as_nanos() / u128::from(calls)
+    }
+
+    #[test]
+    #[ignore = "a measurement of MA-12 F3: run it through the timed helper"]
+    fn measure_the_readings_of_the_hold() {
+        let read_ns = per_call_ns(10_000, || {
+            let _ = secure_input_reading(Session::AtConsole);
+        });
+        let session_ns = per_call_ns(1_000, || {
+            let _ = read_session();
+        });
+        let (handle, writer) = sink::channel(64);
+        let (_fg_writer, reader) = foreground_state_for_test();
+        let settings = TapSettings {
+            secure: timed_reader,
+            ..tap_settings()
+        };
+        let ctx = tap_context(
+            handle,
+            reader,
+            InputCounters::new(),
+            &settings,
+            Bounds {
+                hold: Duration::from_secs(60),
+                ..Bounds::PRODUCT
+            },
+            Arc::new(AtomicBool::new(false)),
+        );
+        ctx.read_session(&mut lock(&ctx.hold));
+        let ctx = Box::new(ctx);
+        let callback_event = TapEvent {
+            etype: CGEventType::KeyDown,
+            flags: 0,
+            timing: Timing::InTime {
+                lag: Duration::ZERO,
+            },
+        };
+        on_tap_event(&ctx, callback_event);
+        READ_TIMES.with(|times| times.borrow_mut().clear());
+        let window = Duration::from_secs(5);
+        // SAFETY: `kCFRunLoopDefaultMode` is a constant CFString that
+        // CoreFoundation exports and never writes.
+        CFRunLoop::run_in_mode(unsafe { kCFRunLoopDefaultMode }, window, false);
+        let held = held_now(&ctx);
+        drop(ctx);
+        drop(writer);
+        let times = READ_TIMES.with(|times| times.borrow().clone());
+        let mut spacing: Vec<u64> = times.windows(2).map(|two| two[1] - two[0]).collect();
+        spacing.sort_unstable();
+        let at = |share: f64| {
+            spacing
+                .get(((spacing.len() as f64 - 1.0) * share).round() as usize)
+                .map_or(0, |ns| ns / 1_000)
+        };
+        let over_gap = spacing.iter().filter(|&&ns| ns > 30 * MS).count();
+        println!(
+            "measure read_ns={read_ns} session_ns={session_ns} readings={} \
+             wakeups_per_s={:.1} spacing_p50_us={} spacing_p99_us={} spacing_max_us={} \
+             gaps_over_30ms={over_gap} key_still_held={held}",
+            times.len(),
+            times.len() as f64 / window.as_secs_f64(),
+            at(0.5),
+            at(0.99),
+            spacing.last().map_or(0, |ns| ns / 1_000)
+        );
+    }
+
     #[test]
     fn the_reading_timer_exists_only_while_keys_are_held() {
         let held = held(1_000);
