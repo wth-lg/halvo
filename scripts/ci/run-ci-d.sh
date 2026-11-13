@@ -281,7 +281,7 @@ judge() {
 
 tree_state() {
   tree_head=$(git rev-parse -q --verify HEAD 2>/dev/null) || tree_head=none
-  {
+  (
     printf 'HEAD %s\n' "$tree_head"
     git status --porcelain --untracked-files=no 2>/dev/null || printf 'status failed\n'
     git ls-files -v >"$tmp/ls-files" 2>/dev/null || printf 'status failed\n'
@@ -293,7 +293,7 @@ tree_state() {
       printf 'GIT %s %s\n' "$tree_f" "$tree_h"
     done
     git for-each-ref --format='GIT %(refname) %(objectname)' refs/replace/ 2>/dev/null || printf 'status failed\n'
-  } >"$1"
+  ) >"$1"
 }
 
 tree_report() {
@@ -1396,10 +1396,10 @@ own_self_test() {
   case_path=$tmp/no-getconf
   case_procs=none
   own_case default-check-jobs-of-one-without-number-of-processors 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
-  new_repo && track_file && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; w changed; $check_passes" &&
-    add_script r1 20-b.sh "$free" "$prelude_any; meet || $check_alone; printf 'x\\n' >>\"\$CI_D_REPO/tracked.txt\"; : >\"\$CI_D_REPO/changed\"; $check_passes"
-  case_first='PASS 10-a'
-  case_then='FAIL run-ci-d (one of 10-a, 20-b changed a tracked file: tracked.txt)'
+  new_repo && track_file && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; w changed || exit 1; printf '%s\\n' \"\$TMPDIR\" >\"\$CI_D_REPO/tmpdir.10-a\"; $check_passes" &&
+    add_script r1 20-b.sh "$free" "$prelude_any; meet || $check_alone; printf 'x\\n' >>\"\$CI_D_REPO/tracked.txt\"; : >\"\$CI_D_REPO/changed\"; w tmpdir.10-a || exit 1; read -r t <\"\$CI_D_REPO/tmpdir.10-a\"; n=0; while [ -e \"\$t\" ] && [ \"\$n\" -lt 100 ]; do sleep 0.1; n=\$((n + 1)); done; sleep 1; $check_passes"
+  case_first="PASS 10-a${nl}FAIL run-ci-d (one of 10-a, 20-b changed a tracked file: tracked.txt)"
+  case_then='PASS 20-b'
   own_case tracked-file-changed-beside-another-check-names-both 1 'FAIL run-ci-d (one of 10-a, 20-b changed a tracked file: tracked.txt)' macos
   new_repo && track_file && add_script r1 10-a.sh "$good" "$pass_a" &&
     add_script r1 20-b.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; printf "PASS 20-b\n"'
@@ -1516,6 +1516,17 @@ own_self_test() {
   case_first='line of 10-a'
   case_then='line of 20-b'
   own_case output-of-started-checks-printed-when-the-step-is-interrupted 130 'FAIL run-ci-d (the step was interrupted by INT; every script that it started is ended)' macos
+  real_git=$(command -v git) || real_git=git
+  mkdir -p "$tmp/slow-status" &&
+    printf '#!/bin/sh\ncase "$*" in *"status --porcelain"*) : >in-status; %s 3 ;; esac\nexec %s "$@"\n' "$real_sleep" "$real_git" >"$tmp/slow-status/git" &&
+    chmod +x "$tmp/slow-status/git"
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a"
+  case_path=$tmp/slow-status
+  case_signal=INT
+  case_wait='in-status'
+  case_max_s=30
+  case_signal_min=0
+  own_case interrupt-while-the-driver-reads-the-tracked-files 130 'FAIL run-ci-d (the step was interrupted by INT; every script that it started is ended)' macos
   ignores_term='( trap "" TERM; sleep 60 ) >/dev/null 2>&1 & printf "%s\n" "$!" >>"$CI_D_REPO/pids"'
   new_repo && add_script r1 05-x.sh "$free" "$prelude_any; $ignores_term; w started.10-a && w started.20-b || exit 1; : >\"\$CI_D_REPO/x-ended\"; $check_passes" &&
     add_script r1 10-a.sh "$good" "$prelude_any; : >\"\$CI_D_REPO/started.10-a\"; ( trap '' TERM; w x-ended; sleep 6; : >\"\$CI_D_REPO/signal-now\"; sleep 60 ) >/dev/null 2>&1 & printf '%s\\n' \"\$!\" >>\"\$CI_D_REPO/pids\"; w x-ended || exit 1; sleep 1; $check_passes" &&
