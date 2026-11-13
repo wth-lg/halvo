@@ -337,7 +337,20 @@ ensure_pnpm() {
     fi
     package=@pnpm/exe.$platform@$pinned
     if ! answer=$(pnpm_lock_integrity backend/pnpm-lock.yaml "$package"); then
-      echo "prerequisites: error: the first document of backend/pnpm-lock.yaml holds no sha512 integrity value for $package, so the platform package cannot be checked; that lock does not belong to the pnpm $pinned that backend/package.json pins" >&2
+      fix="take backend/pnpm-lock.yaml as main holds it"
+      case $answer in
+        no-file) cause="there is no backend/pnpm-lock.yaml" ;;
+        "form "*) cause="line ${answer#form } of backend/pnpm-lock.yaml is in no form that this script reads in the lock's first document" ;;
+        "repeat "*) cause="line ${answer#repeat } of backend/pnpm-lock.yaml repeats a key of the lock's first document" ;;
+        no-entry)
+          cause="the first document of backend/pnpm-lock.yaml holds no entry for $package, so that lock does not belong to the pnpm $pinned that backend/package.json pins"
+          fix="take backend/package.json and backend/pnpm-lock.yaml as main holds them"
+          ;;
+        "twice "*) cause="the first document of backend/pnpm-lock.yaml holds the entry for $package more than once, again at line ${answer#twice }" ;;
+        "no-resolution "*) cause="the entry for $package at line ${answer#no-resolution } of backend/pnpm-lock.yaml is not followed by its line    resolution: {integrity: sha512-<86 base64 characters>==}" ;;
+        *) cause="the reader of backend/pnpm-lock.yaml gave no answer" ;;
+      esac
+      echo "prerequisites: error: $cause, so the platform package cannot be checked; $fix, then run sh scripts/prerequisites.sh again" >&2
       return 1
     fi
     integrity=${answer#value }
@@ -844,7 +857,53 @@ EOF
   run_ensure_backend fails
   expect_nothing_installed
   [ "$(count 'curl ' "$case_dir/calls")" = 0 ] || problems="$problems; a download ran"
-  [ "$(count "the first document of backend/pnpm-lock.yaml holds no sha512 integrity value for @pnpm/exe.$case_platform@12.14.0" "$case_dir/output")" = 1 ] || problems="$problems; no line named the missing value"
+  [ "$(count "the first document of backend/pnpm-lock.yaml holds no entry for @pnpm/exe.$case_platform@12.14.0, so that lock does not belong to the pnpm 12.14.0 that backend/package.json pins, so the platform package cannot be checked; take backend/package.json and backend/pnpm-lock.yaml as main holds them, then run sh scripts/prerequisites.sh again" "$case_dir/output")" = 1 ] || problems="$problems; no line named the missing entry and what to do"
+  verdict "$name"
+
+  name='with no lock file the step names that cause and what to do, before any download'
+  new_backend_case backend-lock-absent
+  mv "$case_dir/repo/backend/pnpm-lock.yaml" "$case_dir/repo/backend/pnpm-lock.yaml.absent"
+  run_ensure_backend fails
+  expect_nothing_installed
+  [ "$(count 'prerequisites: error: there is no backend/pnpm-lock.yaml, so the platform package cannot be checked; take backend/pnpm-lock.yaml as main holds it, then run sh scripts/prerequisites.sh again' "$case_dir/output")" = 1 ] || problems="$problems; no line named the missing lock and what to do"
+  verdict "$name"
+
+  name='a line of the lock in no form that the script reads is named by its number, before any download'
+  new_backend_case backend-lock-line-in-no-form
+  write_lock "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$platform_asset")"
+  sed '3s/^$/# a note/' "$case_dir/repo/backend/pnpm-lock.yaml" >"$case_dir/lock"
+  mv "$case_dir/lock" "$case_dir/repo/backend/pnpm-lock.yaml"
+  run_ensure_backend fails
+  expect_nothing_installed
+  [ "$(count "prerequisites: error: line 3 of backend/pnpm-lock.yaml is in no form that this script reads in the lock's first document, so the platform package cannot be checked; take backend/pnpm-lock.yaml as main holds it, then run sh scripts/prerequisites.sh again" "$case_dir/output")" = 1 ] || problems="$problems; no line named line 3 and what to do"
+  verdict "$name"
+
+  name='a key that the first document of the lock repeats is named by its line, before any download'
+  new_backend_case backend-lock-repeated-key
+  write_lock "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$platform_asset")"
+  sed "3s/^\$/lockfileVersion: '9.0'/" "$case_dir/repo/backend/pnpm-lock.yaml" >"$case_dir/lock"
+  mv "$case_dir/lock" "$case_dir/repo/backend/pnpm-lock.yaml"
+  run_ensure_backend fails
+  expect_nothing_installed
+  [ "$(count "prerequisites: error: line 3 of backend/pnpm-lock.yaml repeats a key of the lock's first document, so the platform package cannot be checked; take backend/pnpm-lock.yaml as main holds it, then run sh scripts/prerequisites.sh again" "$case_dir/output")" = 1 ] || problems="$problems; no line named the repeated key and what to do"
+  verdict "$name"
+
+  name='an entry of the package that stands twice is named by the line of its second one, before any download'
+  new_backend_case backend-lock-entry-twice
+  write_lock "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$platform_asset")" "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$platform_asset")"
+  run_ensure_backend fails
+  expect_nothing_installed
+  [ "$(count "prerequisites: error: the first document of backend/pnpm-lock.yaml holds the entry for @pnpm/exe.$case_platform@12.14.0 more than once, again at line 18, so the platform package cannot be checked; take backend/pnpm-lock.yaml as main holds it, then run sh scripts/prerequisites.sh again" "$case_dir/output")" = 1 ] || problems="$problems; no line named the second entry and what to do"
+  verdict "$name"
+
+  name='an entry whose next line is not its resolution line is named by its line, before any download'
+  new_backend_case backend-lock-entry-without-resolution
+  write_lock "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$platform_asset")"
+  awk '/^    resolution: /{ print "    cpu: [arm64]"; next } { print }' "$case_dir/repo/backend/pnpm-lock.yaml" >"$case_dir/lock"
+  mv "$case_dir/lock" "$case_dir/repo/backend/pnpm-lock.yaml"
+  run_ensure_backend fails
+  expect_nothing_installed
+  [ "$(count "prerequisites: error: the entry for @pnpm/exe.$case_platform@12.14.0 at line 14 of backend/pnpm-lock.yaml is not followed by its line    resolution: {integrity: sha512-<86 base64 characters>==}, so the platform package cannot be checked; take backend/pnpm-lock.yaml as main holds it, then run sh scripts/prerequisites.sh again" "$case_dir/output")" = 1 ] || problems="$problems; no line named the entry without its resolution and what to do"
   verdict "$name"
 
   name='a lock that names the served bytes in a scalar above its quoted packages key is refused before any download: npm installs nothing'
