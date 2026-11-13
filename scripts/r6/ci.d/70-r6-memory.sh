@@ -59,7 +59,6 @@ built_route_gate() {
     END {
       if (stale) print "stale"
       else if (n != 1) print "lines " n + 0
-      else if (binary == "") print "no executable"
       else print "binary " binary
     }
   ' "$1"
@@ -387,13 +386,15 @@ EOF
   sed 's/^\(run n=1 .*\) end=\([0-9]*\)$/\1 end=\2 more/' "$work/good.out" >"$work/end-word.out"
   cp "$work/good.out" "$work/extra.out" && printf 'checks exit=ok cap=ok median=ok\n' >>"$work/extra.out"
   sed 's/n=4 exit=0 peak_bytes=1302528 capped=no/n=4 exit=0 peak_bytes=1302528 capped=yes/' "$work/good.out" >"$work/capped.out"
+  sed 's/n=4 exit=0 peak_bytes=1302528 capped=no/n=4 exit=0 peak_bytes=1302528 capped=maybe/' "$work/good.out" >"$work/capped-word.out"
+  sed 's/^median peak_bytes=1318912$/median peak_bytes=-1318912/' "$work/good.out" >"$work/median-count.out"
   sed '/^checks /d' "$work/good.out" >"$work/short.out"
   sed 's/^median peak_bytes=1318912$/median bytes=1318912/' "$work/good.out" >"$work/median-form.out"
   sed 's/^median peak_bytes=1318912$/1318912/' "$work/good.out" >"$work/median-key.out"
   sed -e 's/^run n=1 /run n=X /' -e 's/^run n=2 /run n=1 /' -e 's/^run n=X /run n=2 /' "$work/good.out" >"$work/order.out"
   sed 's/n=1 exit=0 peak_bytes=1310720 capped=no/n=1 exit=0 peak_bytes=1310720 rss=1 capped=no/' "$work/good.out" >"$work/key.out"
   for each in breach long-breach four median checks checks-form limit no-suffix no-prefix taskpolicy windows job-commit \
-    exit empty-exit zero empty-peak empty-start empty-end end-word extra capped short median-form median-key order key; do
+    exit empty-exit zero empty-peak empty-start empty-end end-word extra capped capped-word median-count short median-form median-key order key; do
     if cmp -s "$work/good.out" "$work/$each.out"; then
       setup_failed
     fi
@@ -551,6 +552,10 @@ FAIL $name (run)"
   check run-lines-out-of-order FAIL "FAIL $name (run)"
   STUB_OUT=$work/capped.out
   check capped-with-checks-ok FAIL "FAIL $name (run)"
+  STUB_OUT=$work/capped-word.out
+  check capped-of-another-word FAIL "FAIL $name (run)"
+  STUB_OUT=$work/median-count.out
+  check median-not-a-count FAIL "FAIL $name (run)" 'bound part='
   STUB_CODE=1
   check measure-peak-exits-1-alone FAIL "bound_bytes=8388608
 FAIL $name (run)"
