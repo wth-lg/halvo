@@ -40,8 +40,18 @@ impl Verb {
 /// `halvo-capture ctl [--data-dir DIR] VERB`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ctl {
-    pub data_dir: Option<DataDir>,
+    data_dir: Option<DataDir>,
     pub verb: Verb,
+}
+
+impl Ctl {
+    /// The directory of `--data-dir`, or without the flag `DataDir::for_current_user()`.
+    pub fn data_dir(&self) -> Result<DataDir, crate::paths::PathError> {
+        match &self.data_dir {
+            Some(dir) => Ok(dir.clone()),
+            None => DataDir::for_current_user(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1120,12 +1130,12 @@ mod tests {
         for (words, verb) in cases {
             let parsed = parse(&args(&words)).unwrap();
             assert_eq!(parsed.verb, verb, "{words:?}");
-            assert!(parsed.data_dir.is_none());
+            assert_eq!(parsed.data_dir(), DataDir::for_current_user());
             let mut with_dir = vec!["--data-dir", dir];
             with_dir.extend(&words);
             let parsed = parse(&args(&with_dir)).unwrap();
             assert_eq!(parsed.verb, verb, "{with_dir:?}");
-            assert_eq!(parsed.data_dir.unwrap().path(), std::path::Path::new(dir));
+            assert_eq!(parsed.data_dir().unwrap().path(), std::path::Path::new(dir));
         }
     }
 
