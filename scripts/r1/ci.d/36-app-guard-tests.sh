@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The job's own run of src-tauri/tests/page_guard.rs passes each of its five tests by name, with no test ignored, failed or missing and no build of the file to zero tests, and tauri's resolved features in a normal build of halvo on any target name neither unstable nor test, nor does a tauri configuration of the app at HEAD hold build.features.
+# rule: The job's own run of src-tauri/tests/page_guard.rs passes the five tests on the check's list by name, with no test ignored, failed, missing or outside that list and the app's four modules, with one number in its running line, its ok lines and its result line, and with no build of the file to zero tests, and tauri's resolved features in a normal build of halvo on any target name neither unstable nor test, nor does a tauri configuration of the app at HEAD hold build.features.
 set -u
 name=36-app-guard-tests
 guard_tests='a_child_web_view_of_the_window_main_gets_no_command_of_the_unit_and_deletes_nothing
