@@ -90,14 +90,21 @@ object_type! {
     rules(_s) { Ok(()) }
 }
 
+pub(in crate::executable) fn slot_names_once(
+    type_name: &'static str,
+    slots: &[Slot],
+) -> Result<(), Refusal> {
+    let names: Vec<&Name> = slots.iter().map(|s| &s.name).collect();
+    each_once(type_name, &names).map_err(|r| r.at("slots"))
+}
+
 pub(in crate::executable) fn origins_and_slots(
     type_name: &'static str,
     origins: &[WebOrigin],
     slots: &[Slot],
 ) -> Result<(), Refusal> {
     each_once(type_name, origins).map_err(|r| r.at("origins"))?;
-    let names: Vec<&Name> = slots.iter().map(|s| &s.name).collect();
-    each_once(type_name, &names).map_err(|r| r.at("slots"))
+    slot_names_once(type_name, slots)
 }
 
 object_type! {

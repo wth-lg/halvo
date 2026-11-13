@@ -93,7 +93,8 @@ fn every_closed_list_holds_the_names_of_the_contract_in_its_order() {
             "adapter",
             "effect",
             "ended",
-            "changed"
+            "changed",
+            "secret"
         ]
     );
     assert_eq!(

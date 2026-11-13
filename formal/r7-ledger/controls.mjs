@@ -24,6 +24,8 @@ const REACH = [
   "OpenHoldPastItsExpiryAfterARestart",
   "RefusedReserveAdmittedWhenSentAgain",
   "LateOverrunInNoTotal",
+  "VoidAtExpiry",
+  "CallAfterAVoidAtExpiry",
 ];
 const BREAKS = [
   {
@@ -92,13 +94,43 @@ const BREAKS = [
     find: 'ob.holds[r].state = "open" /\\ ob.holds[r].expiresAt <= now}',
     replace: 'ob.holds[r].state = "open" /\\ ob.holds[r].expiresAt <= now + 1}',
   },
+  {
+    property: "PropBReceipt",
+    what: "the stored expiry is one tick before the expiry of the receipt (the reader's n7, ruling BM-11)",
+    find: "interval |-> IntervalOf(now), expiresAt |-> now + Life,",
+    replace: "interval |-> IntervalOf(now), expiresAt |-> now + Life - 1,",
+  },
+  {
+    property: "PropFMark",
+    what: "a hold without the dispatch mark expires at its full amount, as before unit 4.5",
+    find: "marked == {r \\in due : ob.holds[r].mark}",
+    replace: "marked == due",
+  },
+  {
+    property: "PropFAmount",
+    what: "a hold voided at its expiry adds its amount to unreported",
+    find: "moved == SumOver(amount, {r \\in marked : ob.holds[r].period = p})",
+    replace: "moved == ended",
+  },
+  {
+    property: "PropDVoidAnswer",
+    what: "a void of a hold voided at its expiry answers voided, as a repeat (the same change in model and ledger passed TLC and the replay in the review of unit 4.5)",
+    find: '[] h.state = "voided" /\\ ~h.voidAtExpiry -> Unchanged(p, [NoAnswer EXCEPT !.res = "voided"])\n         [] h.state \\in {"settled", "expired"} \\/ h.voidAtExpiry -> Unchanged(p, Refused("already-ended"))',
+    replace: '[] h.state = "voided" -> Unchanged(p, [NoAnswer EXCEPT !.res = "voided"])\n         [] h.state \\in {"settled", "expired"} -> Unchanged(p, Refused("already-ended"))',
+  },
+  {
+    property: "PropGExpiry",
+    what: "the expiry voids a hold with the dispatch mark too",
+    find: "marked == {r \\in due : ob.holds[r].mark}",
+    replace: "marked == {}",
+  },
 ];
 const countedSteps = (steps) => [
   "VARIABLE steps",
   "CountedInit == Init /\\ steps = 0",
   "CountedNext == Next /\\ steps' = steps + 1",
   `WithinTheSteps == steps <= ${steps}`,
-  'WeakerSlot(r) == LET h == o.holds[r] IN <<h.state, h.amount, h.mark, h.cost, h.late, h.overrun, IF gw.r = r THEN gw.pc ELSE "idle", o.goes[r]>>',
+  'WeakerSlot(r) == LET h == o.holds[r] IN <<h.state, h.amount, h.mark, h.cost, h.late, h.overrun, h.voidAtExpiry, IF gw.r = r THEN gw.pc ELSE "idle", o.goes[r]>>',
   "WeakerView == <<TimeOfTheNextStep - clock, CapInView, RowInView, [slot \\in {WeakerSlot(r) : r \\in Ids} |-> Cardinality({r \\in Ids : WeakerSlot(r) = slot})], hist>>",
   "KeptView == <<View, steps>>",
   "KeptWeakerView == <<WeakerView, steps>>",

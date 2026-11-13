@@ -199,6 +199,10 @@ const COMPILES: &[(&str, &[&str])] = &[
         &[SHADOW, "pub mod user {\n    use crate::learning::*;\n    pub fn by_value(app: crate::site::AppId) -> Shadowed {\n        app.as_str()\n    }\n    pub fn through_a_reference(app: &crate::site::AppId) -> &str {\n        app.as_str()\n    }\n}\npub mod plain {\n    pub fn by_value(app: crate::site::AppId) -> String {\n        app.as_str().to_owned()\n    }\n}\n"],
     ),
     ("the-line-beside-a-module-of-the-crate-name", &[CRATE_NAME_MODULE]),
+    (
+        "an-ext-body-of-a-later-role-for-a-core-record",
+        &["pub struct LaterRole {\n    _private: (),\n}\nimpl crate::request::ExtRole for LaterRole {\n    const NAME: &'static str = \"later_role\";\n}\nimpl crate::request::ExtBody<LaterRole> for crate::record::Episode {\n    type Reply = crate::record::Summary;\n}\n"],
+    ),
 ];
 
 const CORE_CASES: &[Case] = &[
