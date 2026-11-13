@@ -988,6 +988,7 @@ fn confirm_request() -> ConfirmRequest {
         v: V1,
         run: run(),
         agent: agent(),
+        cut: None,
         effects: vec![ConfirmEffect {
             effect: effect_id(0x60),
             class: ActionClass::Payment,

@@ -2,8 +2,10 @@ use halvo_schema::executable::body::{
     LoadReplies, LoadRepliesReply, LoadReply, PutReplyRow, RunnerCall, RunnerReply,
     CHECKPOINTS_REPLY_MAX, RUNNER_REPLY_VALUE_MAX,
 };
-use halvo_schema::executable::frame::{StoreReply, StoreReplyFrame, ToRunner, FRAME_JSON_MAX};
-use halvo_schema::executable::names::{Cause, LogEvent, ReplyState};
+use halvo_schema::executable::frame::{
+    ConfirmRequest, FromRunner, StoreReply, StoreReplyFrame, ToRunner, FRAME_JSON_MAX,
+};
+use halvo_schema::executable::names::{Cause, LogEvent, ReplyState, YesNo};
 use halvo_schema::executable::record::{
     AgentEffect, AgentLog, AgentReply, AgentRun, AgentStart, RUN_LIST_KEYS,
 };
@@ -1258,4 +1260,55 @@ fn a_run_row_with_every_key_at_its_largest_is_measured_in_bytes() {
     let read = AgentRun::parse(largest.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(read.to_json().unwrap(), largest);
     assert_eq!(largest.len(), 745);
+}
+
+const SEND_BOUND: &str = r#"{"class":"send","fields":[{"name":"to","from":"extract","origin":null,"value":["a@mail.test"]},{"name":"subject","from":"extract","origin":null,"value":["Re: rent"]},{"name":"body","from":"model","origin":null,"value":["Thanks, noted."]}]}"#;
+
+fn confirm_with(cut: &str) -> String {
+    format!(
+        r#"{{"v":1,"run":"{R}","agent":"{A}","cut":{cut},"effects":[{{"effect":"{E}","class":"send","digest":"{}","bound":{SEND_BOUND},"new_origin":null}}]}}"#,
+        "a".repeat(64)
+    )
+}
+
+#[test]
+fn a_confirmation_request_holds_cut_after_agent_as_yes_no_or_null() {
+    for (cut, value) in [
+        ("null", None),
+        ("\"yes\"", Some(YesNo::Yes)),
+        ("\"no\"", Some(YesNo::No)),
+    ] {
+        let text = confirm_with(cut);
+        let read = ConfirmRequest::parse(text.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(read.cut, value);
+        assert_eq!(read.to_json().unwrap(), text);
+        let frame = format!(r#"{{"t":"confirm","request":{text}}}"#);
+        assert_eq!(
+            FromRunner::parse(frame.as_bytes())
+                .unwrap()
+                .to_json()
+                .unwrap(),
+            frame
+        );
+    }
+    let good = confirm_with("null");
+    expect(
+        ConfirmRequest::parse(swap(&good, r#""cut":null,"#, "").as_bytes()),
+        "ConfirmRequest",
+        "missing_key",
+        "cut",
+    );
+    for (cut, type_name, rule) in [
+        ("\"maybe\"", "YesNo", "unknown_name"),
+        ("0", "YesNo", "not_a_string"),
+        ("true", "YesNo", "not_a_string"),
+        ("3", "YesNo", "not_a_string"),
+    ] {
+        expect(
+            ConfirmRequest::parse(confirm_with(cut).as_bytes()),
+            type_name,
+            rule,
+            "cut",
+        );
+    }
 }
