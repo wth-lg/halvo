@@ -1354,9 +1354,7 @@ struct SourceLineWire {
 pub struct SourceLine {
     pub name: SourceName,
     pub state: SourceState,
-    /// The mark of a source that a stop did not end.
-    /// The text of C2.3 does not
-    /// print it.
+    /// The mark of a source that a stop did not end. The text of C2.3 does not print it.
     pub unstopped: bool,
 }
 
@@ -1794,9 +1792,8 @@ fn may_yet_show_an_id(store: StoreState) -> bool {
 /// is busy, before any id is read. An armed id that is the shown id is accepted; two ids that
 /// differ are already deleted, with the shown id; an armed id with no shown id, or no armed id
 /// with a shown id, is refused. With neither, an open store or one with no release custody is
-/// refused, an opening store is busy, and any
-/// other store is accepted. The rule reads the store's state, its cause and the two ids, and no
-/// other field of a status.
+/// refused, an opening store is busy, and any other store is accepted. The rule reads the
+/// store's state, its cause and the two ids, and no other field of a status.
 pub fn delete_decision(
     store: StoreState,
     cause: Option<StoreErrorKind>,

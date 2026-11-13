@@ -12,12 +12,12 @@ pub const SCREEN_ACTIVITY_NOT_RECORDED: &str = "Screen activity is not recorded.
 pub const TYPING_NOT_OBSERVED_ON_WINDOWS: &str =
     "Typing is not observed on Windows in this version.";
 
-/// In place of [`TYPING_NOT_OBSERVED_ON_WINDOWS`] while the Windows keyboard source line is not
-/// off; the words are the owner's to change (owner's list, entry I-73).
+/// In place of [`TYPING_NOT_OBSERVED_ON_WINDOWS`] while the Windows keyboard source line runs
+/// (reads running or impaired).
 pub const TYPING_BEING_OBSERVED: &str = "Typing is being observed. Pause capture to stop it.";
 
-/// In place of [`SCREEN_ACTIVITY_NOT_RECORDED`] while the screen source line is not off and the
-/// switch is off; the words are the owner's to change (owner's list, entry I-73).
+/// In place of [`SCREEN_ACTIVITY_NOT_RECORDED`] while the screen source line runs (reads running
+/// or impaired) and the switch screen_activity is off.
 pub const SCREEN_ACTIVITY_RECORDED_WITH_THE_SETTING_OFF: &str =
     "Screen activity is being recorded although the setting is off. Pause capture to stop it.";
 
