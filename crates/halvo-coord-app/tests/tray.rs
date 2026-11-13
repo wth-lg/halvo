@@ -48,6 +48,12 @@ fn the_tray_shows_the_count_as_i10_3_asks_on_each_system() {
             title: None,
         }
     );
+    let one = Attention::of(1);
+    assert!(
+        one.variant,
+        "one agent that needs the person shows the variant"
+    );
+    assert_eq!(one.tooltip.as_deref(), Some("Agents that need you: 1"));
     let three = Attention::of(3);
     assert!(three.variant);
     assert_eq!(three.tooltip.as_deref(), Some("Agents that need you: 3"));
