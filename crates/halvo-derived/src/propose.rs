@@ -183,9 +183,12 @@ pub(crate) fn set_support(
 /// holds is dropped; one whose key a workflow in another state holds changes that row, which keeps its id, its state
 /// and its agent and takes the proposal's app, trigger, recurrence and confidence, and its support rows become those
 /// of the proposal's summaries. A proposal that names a summary stored under another key than its own is refused, so
-/// every summary that supports a workflow, or once did, holds the workflow's key. Of the proposals with one key that
-/// are not refused, the last stands. The ids of the new workflows are drawn from `ids` in the order of their category
-/// and then of their lowest supporting summary id.
+/// every summary that supports a workflow, or once did, holds the workflow's key. A step returns at most one proposal
+/// for a key in one call: where it returns more, the first that passes its checks is the call's proposal for that key,
+/// and each later one with that key is refused whole and counted in `refused`, with no workflow row, support row or
+/// revision of it; a proposal that another cause refuses holds no key. The five counts sum to the proposals. The ids
+/// of the new workflows are drawn from `ids` in the order of their category and then of their lowest supporting
+/// summary id.
 pub(crate) fn apply(
     tx: &Tx<'_>,
     now: Now,
@@ -198,10 +201,10 @@ pub(crate) fn apply(
     for proposal in proposals {
         match check(tx, now, proposal)? {
             None => out.refused += 1,
-            Some(checked) => {
-                by_key.retain(|earlier| earlier.key != checked.key);
-                by_key.push(checked);
+            Some(checked) if by_key.iter().any(|earlier| earlier.key == checked.key) => {
+                out.refused += 1;
             }
+            Some(checked) => by_key.push(checked),
         }
     }
     let mut new: Vec<Checked> = Vec::new();

@@ -53,7 +53,8 @@ pub struct ProposalOutcome {
     /// Proposals dropped because a dismissed workflow holds their key.
     pub dismissed: u64,
     /// Proposals that a reader would refuse, that name no summary, or that name a summary that is not stored inside
-    /// its bound or that is stored under another key than the proposal's.
+    /// its bound or that is stored under another key than the proposal's; and each proposal of a key that an earlier
+    /// proposal of the same call holds, which passed its checks. The five counts sum to the proposals of the call.
     pub refused: u64,
 }
 

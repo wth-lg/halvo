@@ -606,3 +606,75 @@ fn the_summary_read_leaves_out_a_summary_whose_stored_day_of_going_has_come() {
         "the proposer's summary read on the day of going of summary 1, with no expiry run"
     );
 }
+
+/// S-57 (a): a step returns at most one proposal for a key in one call. Where it returns more, the first that passes
+/// its checks is the call's proposal for that key, and each later one with that key is refused whole and counted in
+/// `refused`; a proposal that another cause refuses holds no key. The five counts sum to the proposals returned.
+#[test]
+fn of_proposals_of_one_key_in_one_call_the_first_that_passes_stands_and_each_later_one_is_refused()
+{
+    let run = |name: &str, proposals: Vec<Proposal>| {
+        let scratch = Scratch::new(name);
+        let clock = TestClock::at_day(DAY);
+        let fixed = Rc::new(RefCell::new(proposals));
+        let host = Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(&fixed))));
+        let mut store = open_host(&scratch, host).unwrap();
+        let outcome = store
+            .commit_batch(
+                &store_id(1),
+                &[
+                    episode(1, DAY, None),
+                    episode(2, DAY, None),
+                    episode(3, DAY, domain("x-power.test")),
+                ],
+                position(1, 0),
+                &mut Seq(100),
+            )
+            .unwrap()
+            .proposals;
+        drop(store);
+        let sum = outcome.stored
+            + outcome.updated
+            + outcome.unchanged
+            + outcome.dismissed
+            + outcome.refused;
+        let mut ids: Vec<String> = supports(&scratch)
+            .iter()
+            .map(|s| s.summary.as_str().to_owned())
+            .collect();
+        ids.sort();
+        (
+            outcome.stored,
+            outcome.refused,
+            sum,
+            ids,
+            revision(&scratch),
+        )
+    };
+    let id = |n: u64| summary_id(n).as_str().to_owned();
+    assert_eq!(
+        run("one-key-three", vec![over(&[1]), over(&[2]), over(&[1, 2])]),
+        (1, 2, 3, vec![id(1)], 2),
+        "(stored, refused, the five counts summed, support ids, revision after the batch and the proposals): the \
+         first stands"
+    );
+    assert_eq!(
+        run(
+            "one-key-first-refused",
+            vec![over(&[9]), over(&[2]), over(&[1])]
+        ),
+        (1, 2, 3, vec![id(2)], 2),
+        "where another cause refuses the first, the next one of the key stands"
+    );
+    let other = keyed(
+        SeedCategory::UtilityBillPayment,
+        address("x-power.test"),
+        "com.example.browser",
+        &[3],
+    );
+    assert_eq!(
+        run("two-keys", vec![over(&[1]), other]),
+        (2, 0, 2, vec![id(1), id(3)], 2),
+        "two proposals of two keys are both stored"
+    );
+}

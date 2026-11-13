@@ -186,7 +186,8 @@ catalogue! {
     );
     WORKFLOWS_AFTER = "SELECT workflow FROM rows WHERE kind = 'workflow' AND workflow > ?1 ORDER BY workflow";
     SUPPORT_WITH_EVIDENCE = concat!(
-        "SELECT s.summary FROM rows AS s WHERE s.kind = 'support' AND s.workflow = :workflow AND s.summary > :after AND ",
+        "SELECT s.summary FROM rows AS s WHERE s.kind = 'support' AND s.workflow = :workflow ",
+        "AND s.summary > :after AND ",
         handed_out!("s"),
         " AND ",
         its_summary_handed_out!("s"),

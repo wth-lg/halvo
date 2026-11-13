@@ -210,14 +210,14 @@ impl Tx<'_> {
         Ok(id)
     }
 
-    /// The expiry by class, from the store's own rows: every bounded row whose day of `gone` has come on the local
-    /// day of the clock, or whose day lies more than two days after the clock's day, or that has no day, every window
-    /// row whose expiry instant has passed, and then every row that names a summary or a workflow that is not stored.
-    /// A row whose day lies one or two days after the clock's day stays and goes on its own day of `gone`. A bounded
-    /// row with no day comes only from a fault or another build, since the store gives each bounded row its day; it
-    /// was promised to go, so it goes. A window row and a kept row with no day are left to their own rules. It returns the number of
-    /// rows removed. `gone` is the one fact of when a bounded row goes, which the report's deadline reads too, and the
-    /// report reads a row too far ahead by the same statement and the same limit.
+    /// The expiry by class, from the store's own rows: every bounded row whose day of `gone` has come on the local day
+    /// of the clock, or whose day lies more than two days after the clock's day, or that has no day, every window row
+    /// whose expiry instant has passed, and then every row that names a summary or a workflow that is not stored. A
+    /// row whose day lies one or two days after the clock's day stays and goes on its own day of `gone`. A bounded row
+    /// with no day comes only from a fault or another build, since the store gives each bounded row its day; it was
+    /// promised to go, so it goes. A window row and a kept row with no day are left to their own rules. It returns the
+    /// number of rows removed. `gone` is the one fact of when a bounded row goes, which the report's deadline reads
+    /// too, and the report reads a row too far ahead by the same statement and the same limit.
     pub(crate) fn expire(&self, now: Now) -> Result<u64, Fault> {
         let removed = self.remove(
             sql::EXPIRE_GONE,
