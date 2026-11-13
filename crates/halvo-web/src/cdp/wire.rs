@@ -370,19 +370,35 @@ pub(crate) enum PolicyWay {
     Fulfil,
     /// A script, a worker's script among them: goes on with the line added to its headers.
     AddLine,
-    /// A response that carries no document or script (a redirect, 204, 304): goes on as it is.
+    /// A response that carries no document or script (a redirect with a Location line, 204,
+    /// 304): goes on as it is.
     PassOn,
 }
 
-/// The way of a response of `status`, a document when `document`.
-pub(crate) fn policy_way(document: bool, status: i64) -> PolicyWay {
-    if matches!(status, 204 | 304) || (300..400).contains(&status) {
+/// The way of a response of `status`, a document when `document`, whose headers hold a Location
+/// line when `location` (CP-186 T1). Only a response that carries no document passes on with no
+/// line: 301, 302, 303, 307 or 308 with a Location line, and 204 and 304. Every other document is
+/// fulfilled with the line (300, 305, 306, 399 and a 302 with no Location among them, which a
+/// browser shows from their bodies), and every other script gets the line added. The function
+/// decides by the status and the header alone; no run shows what a browser does with each such
+/// status.
+pub(crate) fn policy_way(document: bool, status: i64, location: bool) -> PolicyWay {
+    let redirect = matches!(status, 301 | 302 | 303 | 307 | 308) && location;
+    if redirect || matches!(status, 204 | 304) {
         PolicyWay::PassOn
     } else if document {
         PolicyWay::Fulfil
     } else {
         PolicyWay::AddLine
     }
+}
+
+/// Whether `headers` hold a Location line, its name read without regard to the case of its
+/// letters.
+pub(crate) fn has_location(headers: &[HeaderEntry]) -> bool {
+    headers
+        .iter()
+        .any(|h| h.name.eq_ignore_ascii_case("location"))
 }
 
 /// What becomes of a response once its way was tried: sent when the browser took it, failed and
@@ -766,7 +782,11 @@ impl Wire {
             crate::WS_POLICY.to_string(),
         ));
         let id = ev.request_id.clone();
-        let way = policy_way(matches!(ev.resource_type, ResourceType::Document), code);
+        let way = policy_way(
+            matches!(ev.resource_type, ResourceType::Document),
+            code,
+            has_location(ev.response_headers.as_deref().unwrap_or_default()),
+        );
         let taken = match way {
             PolicyWay::Fulfil => {
                 match self
@@ -1078,12 +1098,26 @@ mod tests {
     /// take with the line is failed and never sent on.
     #[test]
     fn a2_a_response_that_cannot_be_given_the_line_is_failed() {
-        assert_eq!(policy_way(true, 200), PolicyWay::Fulfil);
-        assert_eq!(policy_way(true, 404), PolicyWay::Fulfil);
-        assert_eq!(policy_way(false, 200), PolicyWay::AddLine);
-        for status in [204, 301, 302, 303, 304, 307, 308] {
-            assert_eq!(policy_way(true, status), PolicyWay::PassOn, "{status}");
-            assert_eq!(policy_way(false, status), PolicyWay::PassOn, "{status}");
+        assert_eq!(policy_way(true, 200, false), PolicyWay::Fulfil);
+        assert_eq!(policy_way(true, 404, false), PolicyWay::Fulfil);
+        assert_eq!(policy_way(false, 200, false), PolicyWay::AddLine);
+        for status in [301, 302, 303, 307, 308] {
+            assert_eq!(
+                policy_way(true, status, true),
+                PolicyWay::PassOn,
+                "{status}"
+            );
+            assert_eq!(
+                policy_way(false, status, true),
+                PolicyWay::PassOn,
+                "{status}"
+            );
+        }
+        for status in [204, 304] {
+            for location in [false, true] {
+                assert_eq!(policy_way(true, status, location), PolicyWay::PassOn);
+                assert_eq!(policy_way(false, status, location), PolicyWay::PassOn);
+            }
         }
         assert_eq!(
             policy_end(PolicyWay::Fulfil, false),
@@ -1105,6 +1139,39 @@ mod tests {
             policy_end(PolicyWay::AddLine, true),
             PolicyEnd::Sent("line_added")
         );
+    }
+
+    /// CP-186 T1, with the review's case rule/01: a 3xx response that a browser shows from its body
+    /// (300, 305, 306, 399, and a 302 with no Location line) carries a document and gets the line;
+    /// a 302 and a 307 with a Location line pass on; the Location line is found in any case.
+    #[test]
+    fn t1_a_document_of_a_status_that_the_browser_shows_gets_the_line() {
+        for status in [300, 305, 306, 399] {
+            for location in [false, true] {
+                assert_eq!(
+                    policy_way(true, status, location),
+                    PolicyWay::Fulfil,
+                    "{status}"
+                );
+                assert_eq!(
+                    policy_way(false, status, location),
+                    PolicyWay::AddLine,
+                    "{status}"
+                );
+            }
+        }
+        assert_eq!(policy_way(true, 302, false), PolicyWay::Fulfil);
+        assert_eq!(policy_way(false, 302, false), PolicyWay::AddLine);
+        assert_eq!(policy_way(true, 302, true), PolicyWay::PassOn);
+        assert_eq!(policy_way(true, 307, true), PolicyWay::PassOn);
+        assert_eq!(policy_way(true, 307, false), PolicyWay::Fulfil);
+        assert_eq!(policy_way(true, 204, false), PolicyWay::PassOn);
+        assert_eq!(policy_way(true, 304, false), PolicyWay::PassOn);
+        let h = |n: &str| HeaderEntry::new(n, "/next");
+        assert!(has_location(&[h("Location")]));
+        assert!(has_location(&[h("content-type"), h("LOCATION")]));
+        assert!(!has_location(&[h("Content-Location")]));
+        assert!(!has_location(&[]));
     }
 
     /// CP-176 A2 (a): every arm intercepts every document and script at the response stage, so
