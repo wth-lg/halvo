@@ -47,18 +47,39 @@ impl fmt::Debug for SegmentId {
     }
 }
 
-/// The key of one per-kind entry of a segment write.
+/// The key of one per-kind entry of a segment write: the kind text of the
+/// record codec, and the [`Modality`] when the kind is one. A key whose kind is
+/// no `Modality` is the kind of a run-mark record, which only the feature `r2`
+/// makes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum EntryKind {
-    Kind(Modality),
+pub struct EntryKind {
+    text: &'static str,
+    modality: Option<Modality>,
 }
 
 impl EntryKind {
+    #[cfg(feature = "r2")]
+    pub const RUN_MARK: EntryKind = EntryKind {
+        text: crate::floor::record::RUN_MARK_KIND,
+        modality: None,
+    };
+
+    /// The key of the records of `kind`.
+    pub const fn of(kind: Modality) -> EntryKind {
+        EntryKind {
+            text: kind.as_str(),
+            modality: Some(kind),
+        }
+    }
+
     /// The kind text of the record codec.
     pub const fn as_str(self) -> &'static str {
-        match self {
-            EntryKind::Kind(kind) => kind.as_str(),
-        }
+        self.text
+    }
+
+    /// The `Modality` of the key, or `None` for a kind that is no `Modality`.
+    pub const fn modality(self) -> Option<Modality> {
+        self.modality
     }
 }
 

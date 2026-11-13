@@ -310,7 +310,7 @@ fn segment_write_filled_outside_the_daemon_twin(
 #[cfg(halvo_proof = "batch_filled_outside_the_daemon")]
 fn batch_filled_outside_the_daemon(batch: &mut crate::daemon::batch::Batch) {
     batch.push(
-        crate::daemon::port::EntryKind::Kind(crate::event::Modality::Keystroke),
+        crate::daemon::port::EntryKind::of(crate::event::Modality::Keystroke),
         0,
         b"{}",
         std::time::Duration::ZERO,
