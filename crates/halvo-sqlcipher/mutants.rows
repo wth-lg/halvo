@@ -1,0 +1,1 @@
+os-entropy-hook-missing	build.rs	s/\("SQLITE_EXTRA_INIT", Some\("halvo_sqlcipher_extra_init"\)\)/("SQLITE_EXTRA_INIT", Some("sqlcipher_extra_init"))/	test tests::the_os_entropy_hook_is_installed_once_sqlite_has_initialized	required	RR-store-14
