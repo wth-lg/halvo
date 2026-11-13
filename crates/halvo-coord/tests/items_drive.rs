@@ -1687,3 +1687,50 @@ fn the_longest_record_of_every_form_fits_a_body_alone() {
         "{longest} bytes"
     );
 }
+
+/// Pinned as it stands until RD-59 CD-2 is ruled (ruling RD-62 (b)): a body that the owner
+/// refuses with a name other than `seq` or `no_workflow` stays first in the ledger with every
+/// row behind it, nothing behind it is sent in that flush, and the next flush sends the same
+/// body first again.
+#[test]
+fn until_cd2_is_ruled_a_body_refused_with_another_name_stays_first_and_nothing_behind_it_goes() {
+    for name in ["malformed", "binding", "internal", "role", "store", "busy"] {
+        let p = ports();
+        let mut l = ledger();
+        p.refuse(Method::Log, PortError::NoService);
+        for n in 1..=10 {
+            let _ = store(&p, &mut l, &LIMITS, vec![long_link(n)]);
+        }
+        let waiting: Vec<Event> = l.waiting().to_vec();
+        assert_eq!(waiting.len(), 10);
+        p.clear_refusals();
+        let refusal = PortError::Refused(Name::parse(name).unwrap());
+        p.refuse(Method::Log, refusal.clone());
+        let tried_before = p.tried.borrow().len();
+        assert_eq!(flush(&p, &mut l, &LIMITS), Err(refusal), "{name}");
+        assert_eq!(l.waiting(), &waiting[..], "{name}: the rows stay, in order");
+        assert_eq!(l.last(), 0);
+        let tried: Vec<Vec<Event>> = p.tried.borrow()[tried_before..]
+            .iter()
+            .filter_map(|t| match &t.call {
+                Call::Log(rows) => Some(rows.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(tried.len(), 1, "{name}: one body tried");
+        assert_eq!(
+            tried[0][..],
+            waiting[..tried[0].len()],
+            "{name}: the first body"
+        );
+        assert!(p.events.borrow().is_empty());
+        p.clear_refusals();
+        flush(&p, &mut l, &LIMITS).unwrap();
+        assert_eq!(
+            logged_bodies(&p)[0],
+            tried[0],
+            "{name}: the same body goes first"
+        );
+        assert_eq!(p.events.borrow().len(), 10);
+    }
+}
