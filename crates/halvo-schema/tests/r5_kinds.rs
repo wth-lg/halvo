@@ -264,16 +264,16 @@ fn the_generic_check_and_the_typed_parser_both_refuse_a_row_outside_the_entry() 
             ),
         ),
     ];
+    let taken = |kind: &str, line: &str| match kind {
+        "learn_run" => LearnRun::parse(line.as_bytes()).is_ok(),
+        "learn_routine" => LearnRoutine::parse(line.as_bytes()).is_ok(),
+        "learn_edit" => LearnEdit::parse(line.as_bytes()).is_ok(),
+        other => panic!("{other} is no kind of the learning run"),
+    };
     for (kind, line) in cases {
-        assert_ne!(line, entry(kind).example);
+        assert!(taken(kind, entry(kind).example), "{kind}");
         assert!(check_record(entry(kind), &line).is_err(), "{line}");
-        let typed = match kind {
-            "learn_run" => LearnRun::parse(line.as_bytes()).is_err(),
-            "learn_routine" => LearnRoutine::parse(line.as_bytes()).is_err(),
-            "learn_edit" => LearnEdit::parse(line.as_bytes()).is_err(),
-            other => panic!("{other} is no kind of the learning run"),
-        };
-        assert!(typed, "{line}");
+        assert!(!taken(kind, &line), "{line}");
     }
 }
 
