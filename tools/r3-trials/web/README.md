@@ -472,6 +472,11 @@ I/O while a read of it is pending). Every run of `--round 3` reads them after th
 the row and after the stop, and each cell prints one `check` line with the sum of each rule over its
 runs and the number of runs in which all were 0. For the read after the stop the executor keeps
 copies of its two ends open: on macOS a freed pipe's handle can name a new pipe of another process.
+For each process that a read counts in `port_flag` or `pipe_holder`, the run prints a
+`check_counted` line on standard error (CP-140): the rule, its number, its parent, its program where
+that can be read, and `again`, what a second read of the same process 0.5 s later finds (`yes` it
+still counts, `no` it runs and no longer counts, `gone`). The print changes nothing that the check
+counts; a read that counts nothing does not wait.
 
 ### Rows of the third round
 

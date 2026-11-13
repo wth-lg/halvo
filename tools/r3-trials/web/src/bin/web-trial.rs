@@ -2703,12 +2703,26 @@ mod driver {
         let read =
             |at: &str, subject: &Option<(r3_web::procs::Proc, Option<r3_web::start::PipeIds>)>| {
                 subject.as_ref().map(|(root, pipe)| {
-                    let counts = checks::check(&checks::Subject {
+                    let (counts, counted) = checks::check_counted(&checks::Subject {
                         root,
                         profile: &opts.profile,
                         pipe: pipe.as_ref(),
                         relay_port: ctx.relay.as_ref().map(|_| ctx.relay_port),
                     });
+                    // CP-140 (2): each process counted in port_flag or pipe_holder, by name
+                    for c in &counted {
+                        eprintln!(
+                            "check_counted step={name} i={i} at={at} rule={} pid={} ppid={} program={} again={}",
+                            c.rule,
+                            c.pid,
+                            c.ppid,
+                            c.exe
+                                .as_deref()
+                                .map(|e| e.to_string_lossy().replace(' ', "_"))
+                                .unwrap_or_else(|| "-".into()),
+                            c.again
+                        );
+                    }
                     eprintln!(
                         "check step={name} i={i} at={at} {}",
                         counts

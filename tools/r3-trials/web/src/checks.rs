@@ -244,22 +244,59 @@ pub fn names_a_port(command_line: &str) -> bool {
     command_line.contains("--remote-debugging-port")
 }
 
+/// A process that a check counted in `port_flag` or `pipe_holder` (the coordinator's ruling CP-140
+/// (2)): its number, its parent, its program where that can be read, and what a second read of the
+/// same process `AGAIN_AFTER` later finds: `yes` it still counts, `no` it runs and no longer
+/// counts, `gone` it no longer runs. The print changes nothing that the check counts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Counted {
+    pub rule: &'static str,
+    pub pid: u32,
+    pub ppid: u32,
+    pub exe: Option<std::path::PathBuf>,
+    pub again: &'static str,
+}
+
+/// The pause before the second read of a process that a check counted; a check that counts
+/// nothing does not wait.
+pub const AGAIN_AFTER: std::time::Duration = std::time::Duration::from_millis(500);
+
 /// Reads every rule once. A rule whose read the system refused counts each unread process as one.
 pub fn check(s: &Subject<'_>) -> Vec<Count> {
     check_with(s, &command_line)
 }
 
+/// `check`, with each process that it counted in `port_flag` or `pipe_holder` (`Counted`).
+pub fn check_counted(s: &Subject<'_>) -> (Vec<Count>, Vec<Counted>) {
+    check_detail(s, &command_line)
+}
+
 /// `check` with the reading of a process's command line given, for tests.
 pub fn check_with(s: &Subject<'_>, line_of: &dyn Fn(u32) -> Option<String>) -> Vec<Count> {
+    check_detail(s, line_of).0
+}
+
+/// `check_counted` with the reading of a process's command line given, for tests.
+pub fn check_detail(
+    s: &Subject<'_>,
+    line_of: &dyn Fn(u32) -> Option<String>,
+) -> (Vec<Count>, Vec<Counted>) {
     let table = procs::table().unwrap_or_default();
     let tree = tree_of(&table, s.root);
     let pids: Vec<u32> = tree.iter().map(|p| p.pid).collect();
     let mut port_flag = 0;
+    let mut flagged: Vec<&Proc> = Vec::new();
     for p in &tree {
         match line_of(p.pid) {
-            Some(line) if names_a_port(&line) => port_flag += 1,
+            Some(line) if names_a_port(&line) => {
+                port_flag += 1;
+                flagged.push(p);
+            }
             Some(_) => {}
-            None if procs::running(p) => port_flag += 1,
+            None if procs::running(p) => {
+                port_flag += 1;
+                flagged.push(p);
+            }
             None => {}
         }
     }
@@ -276,11 +313,47 @@ pub fn check_with(s: &Subject<'_>, line_of: &dyn Fn(u32) -> Option<String>) -> V
     let active_port_file = usize::from(s.profile.join("DevToolsActivePort").exists());
     let me = std::process::id();
     let executor_listener = listeners_beside(&peer::sockets(&[me]), me, s.relay_port);
-    let pipe_holder = s
+    let holders: Vec<Proc> = s
         .pipe
-        .map(|ids| pipe_holders(&table, s.root, ids))
-        .unwrap_or(0);
-    vec![
+        .map(|ids| pipe_holder_procs(&table, s.root, ids))
+        .unwrap_or_default();
+    let pipe_holder = holders.len();
+    let mut counted = Vec::new();
+    if !flagged.is_empty() || !holders.is_empty() {
+        std::thread::sleep(AGAIN_AFTER);
+        let again = |p: &Proc, still: &dyn Fn(&Proc) -> bool| {
+            if !procs::running(p) {
+                "gone"
+            } else if still(p) {
+                "yes"
+            } else {
+                "no"
+            }
+        };
+        for p in flagged {
+            let still = |p: &Proc| line_of(p.pid).is_none_or(|l| names_a_port(&l));
+            counted.push(Counted {
+                rule: "port_flag",
+                pid: p.pid,
+                ppid: p.ppid,
+                exe: p.exe.clone(),
+                again: again(p, &still),
+            });
+        }
+        if let Some(ids) = s.pipe {
+            for p in &holders {
+                let still = |p: &Proc| holds_an_end(p.pid, ids);
+                counted.push(Counted {
+                    rule: "pipe_holder",
+                    pid: p.pid,
+                    ppid: p.ppid,
+                    exe: p.exe.clone(),
+                    again: again(p, &still),
+                });
+            }
+        }
+    }
+    let counts = vec![
         Count {
             rule: "port_flag",
             count: port_flag,
@@ -305,7 +378,8 @@ pub fn check_with(s: &Subject<'_>, line_of: &dyn Fn(u32) -> Option<String>) -> V
             rule: "pipe_holder",
             count: pipe_holder,
         },
-    ]
+    ];
+    (counts, counted)
 }
 
 /// The TCP listeners of process `pid` among `sockets` but the one on `relay_port`.
@@ -323,6 +397,11 @@ pub fn listeners_beside(sockets: &[peer::Socket], pid: u32, relay_port: Option<u
 /// browser's first process, which alone can have inherited an end (a handle that a holder copies
 /// into an older process with `DuplicateHandle` is not read there).
 pub fn pipe_holders(table: &[Proc], root: &Proc, ids: &PipeIds) -> usize {
+    pipe_holder_procs(table, root, ids).len()
+}
+
+/// The processes that `pipe_holders` counts.
+pub fn pipe_holder_procs(table: &[Proc], root: &Proc, ids: &PipeIds) -> Vec<Proc> {
     let me = std::process::id();
     table
         .iter()
@@ -331,7 +410,8 @@ pub fn pipe_holders(table: &[Proc], root: &Proc, ids: &PipeIds) -> usize {
             cfg!(target_os = "macos") || p.started_us == 0 || p.started_us >= root.started_us
         })
         .filter(|p| holds_an_end(p.pid, ids))
-        .count()
+        .cloned()
+        .collect()
 }
 
 /// Whether process `pid` holds an end of the pipe `ids`.
@@ -663,6 +743,44 @@ mod tests {
             .unwrap()
             .count;
         assert!(holders >= 1, "pipe_holder={holders} with a second holder");
+    }
+
+    /// CP-140 (2): a check that counts a second holder of the pipe names it (number, parent,
+    /// program) and reads it again 0.5 s later, and counts as `check` does.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_counted_holder_is_named_and_read_again() {
+        let (mut on, mut root, row) = second_holder();
+        let subject = Subject {
+            root: &row,
+            profile: std::path::Path::new("/nonexistent-profile"),
+            pipe: Some(&on.ids),
+            relay_port: None,
+        };
+        let (counts, counted) = check_counted(&subject);
+        let plain = check(&subject);
+        let child = on.child.pid();
+        on.child.kill();
+        let _ = root.kill();
+        let _ = root.wait();
+        let holder = counted
+            .iter()
+            .find(|c| c.rule == "pipe_holder" && c.pid == child)
+            .cloned();
+        let n = |cs: &[Count]| cs.iter().map(|c| (c.rule, c.count)).collect::<Vec<_>>();
+        assert_eq!(
+            n(&counts),
+            n(&plain),
+            "the print changed what the check counts"
+        );
+        let holder =
+            holder.unwrap_or_else(|| panic!("the holder {child} is not named: {counted:?}"));
+        assert_eq!(holder.ppid, std::process::id(), "{holder:?}");
+        assert!(
+            holder.exe.as_deref() == Some(std::path::Path::new("/bin/sleep")),
+            "{holder:?}"
+        );
+        assert_eq!(holder.again, "yes", "{holder:?}");
     }
 
     /// CP-126 E5 T2: a process that holds the executor's read end alone (the third of the four
