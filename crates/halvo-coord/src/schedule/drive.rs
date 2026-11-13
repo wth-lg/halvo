@@ -1,7 +1,7 @@
 use super::{
-    current_slot, finished, gives_active, holds, slot_open, start_step, tick_plan, tick_step,
-    wants_active, Around, Ask, Board, Dying, Go, Hold, LiveRun, Member, Owed, Owing, Stop, Verdict,
-    Waiting,
+    active_state, current_slot, finished, gives_active, holds, slot_open, start_step, tick_plan,
+    tick_step, wants_active, Around, Ask, Board, Dying, Go, Hold, LiveRun, Member, Owed, Owing,
+    StartStep, Stop, Verdict, Waiting,
 };
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs};
 use crate::types::{
@@ -248,17 +248,28 @@ fn store_at<P: Owner, C: ConfigView>(
     day: u32,
     at: i64,
 ) -> Result<(), PortError> {
-    store_read(cx, board, i, whats, day, at).map(|_| ())
+    store_read(cx, board, i, whats, day, at, None).map(|_| ())
 }
 
-/// What a store did: it logged the events or found them in the read after a refusal `seq`, or
-/// the read brought a lost start, which it closed, and it logged nothing of a `run_started`.
+/// What a store did: it logged the events or found them in the read after a refusal `seq`; or
+/// the read brought a lost start, which it closed, and it logged nothing of a `run_started`; or
+/// a start decided its steps 0 to 4 again from the facts as read and they fail with this cause,
+/// so that it logged nothing more (ruling RD-52 (a)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Stored {
     Logged,
     LostStart,
+    Decided(Cause),
 }
 
+/// A start's decision of its steps 0 to 4 again, from the agent's facts as a read left them: the
+/// cause of the step that now fails, or none where the start goes on (ruling RD-52 (a)).
+type Decide<'a, C> = &'a dyn Fn(&Facts<C>) -> Option<Cause>;
+
+/// Logs the events; after a refusal `seq` it reads the owner's events once, keeps the events
+/// that the read does not cover, closes the lost starts that it brought, and, for a start that
+/// gives `decide`, decides that start's steps 0 to 4 again from the facts as read before it logs
+/// the rest once more (I7.2, rulings XB-31, RD-34 (b) and RD-52 (a)).
 fn store_read<P: Owner, C: ConfigView>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -266,6 +277,7 @@ fn store_read<P: Owner, C: ConfigView>(
     whats: Vec<What>,
     day: u32,
     at: i64,
+    decide: Option<Decide<'_, C>>,
 ) -> Result<Stored, PortError> {
     let refusal = match log_at(cx, board, i, &whats, day, at) {
         Err(e) if seq_refusal(&e) => e,
@@ -284,6 +296,9 @@ fn store_read<P: Owner, C: ConfigView>(
     let starts = rest.iter().any(|w| matches!(w, What::RunStarted { .. }));
     if close_lost_starts(cx, board, i, before, day, at) && starts {
         return Ok(Stored::LostStart);
+    }
+    if let Some(cause) = decide.and_then(|d| d(&board.members[i].facts)) {
+        return Ok(Stored::Decided(cause));
     }
     if rest.is_empty() {
         return Ok(Stored::Logged);
@@ -551,7 +566,21 @@ where
     Ok(())
 }
 
-fn launch<P, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize, trigger: Trigger, go: Go) -> Served
+/// Steps 5 to 8 of a start that passed steps 0 to 4 (I5.5): the request to defer, the store of
+/// the open `ready` item's answer `start` and of `run_started`, the body `start_run` and
+/// `Runs::start`. Where the log meets `seq`, the start decides its steps 0 to 4 again from the
+/// facts as read (`decide`, ruling RD-52 (a)); where one fails it answers that step's cause and
+/// writes nothing of the body, so that no slot and no start of the day is counted and no runner
+/// starts. Such a start has sent the request to defer of step 5, as I5.5 says of a start that
+/// fails at step 6.
+fn launch<P, C>(
+    cx: &Cx<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+    trigger: Trigger,
+    go: Go,
+    decide: Decide<'_, C>,
+) -> Served
 where
     P: Owner + Runs + Analysis + Rng,
     C: ConfigView,
@@ -581,9 +610,10 @@ where
         slot: go.slot,
     });
     let day = board.day;
-    match store_read(cx, board, i, whats, day, instant(cx.now)) {
+    match store_read(cx, board, i, whats, day, instant(cx.now), Some(decide)) {
         Ok(Stored::Logged) => {}
         Ok(Stored::LostStart) => return served(Err(Cause::State), None),
+        Ok(Stored::Decided(cause)) => return served(Err(cause), None),
         Err(e) => return served(Err(port_cause(&e)), None),
     }
     board.members[i].facts.store_ended = false;
@@ -628,7 +658,34 @@ where
     served(Ok(Answer::Ok), Some(run))
 }
 
+/// A start of the agent `i` (I5.5). A start acts on no verdict that is older than its newest
+/// read of the owner's events (ruling RD-52 (a)): after the store of `hold_cleared` that ends the
+/// hold `failures`, and after a store of its path whose refusal `seq` caused a read, it decides
+/// steps 0 to 4 again. Where its read brought a `hold_set` with the cause `person` that the
+/// board's events did not hold, it sends `set_state` `paused` once, after its answer is decided;
+/// a send that fails is not made again.
 fn start<P, C>(
+    cx: &Cx<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+    trigger: Trigger,
+    listed: &[WorkflowId],
+    from_queue: bool,
+    unread: Option<Cause>,
+) -> Served
+where
+    P: Owner + Runs + Analysis + Rng,
+    C: ConfigView,
+{
+    let off = holds(&board.members[i].facts).contains(&Hold::Off);
+    let served = start_steps(cx, board, i, trigger, listed, from_queue, unread);
+    if !off && holds(&board.members[i].facts).contains(&Hold::Off) {
+        send_state(cx, &board.members[i].facts, AgentState::Paused);
+    }
+    served
+}
+
+fn start_steps<P, C>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
     i: usize,
@@ -644,10 +701,6 @@ where
     let agent = board.members[i].facts.agent.clone();
     let day = board.day;
     close_lost_starts(cx, board, i, 0, day, instant(cx.now));
-    let kept = board.members[i].facts.store_ended;
-    if unread.is_some() {
-        board.members[i].facts.store_ended = true;
-    }
     let around = Around {
         listed: listed.contains(&board.members[i].facts.workflow.id),
         live: u32::try_from(board.runs.len()).unwrap_or(u32::MAX),
@@ -660,22 +713,40 @@ where
             .iter()
             .any(|o| o.agent == agent && matches!(o.what, Owing::RunEnded { .. })),
     };
-    let step = start_step(&board.members[i].facts, trigger, cx.limits, &around);
-    board.members[i].facts.store_ended = kept;
+    let steps = |facts: &mut Facts<C>| {
+        let kept = facts.store_ended;
+        if unread.is_some() {
+            facts.store_ended = true;
+        }
+        let step = start_step(facts, trigger, cx.limits, &around);
+        facts.store_ended = kept;
+        step
+    };
+    let decide = |facts: &Facts<C>| match start_step(facts, trigger, cx.limits, &around) {
+        StartStep {
+            verdict: Verdict::Refused(cause),
+            ..
+        } => Some(cause),
+        StartStep { clear: Some(_), .. } => Some(Cause::Hold),
+        StartStep { .. } => None,
+    };
+    let mut step = steps(&mut board.members[i].facts);
     let served = |answer| Served {
         agent: agent.clone(),
         answer,
         run: None,
     };
-    if let Some(clear) = step.clear {
+    if step.clear.is_some() {
         let cleared = What::HoldCleared {
             cause: Cleared::Failures,
         };
         if let Err(e) = store(cx, board, i, vec![cleared]) {
             return served(Err(port_cause(&e)));
         }
-        if let Some(state) = clear.set_state {
-            send_state(cx, &board.members[i].facts, state);
+        step = steps(&mut board.members[i].facts);
+        let facts = &board.members[i].facts;
+        if !holds(facts).contains(&Hold::Off) {
+            send_state(cx, facts, active_state(&facts.config));
         }
     }
     if let Some(cause) = unread {
@@ -692,10 +763,6 @@ where
         Verdict::Refused(cause) => served(Err(cause)),
         Verdict::Queued if from_queue => served(Ok(Answer::Queued)),
         Verdict::Queued => {
-            board.queue.push(Waiting {
-                agent: agent.clone(),
-                trigger,
-            });
             let mut item = match &board.members[i].facts.doing {
                 Doing::Idle(item) => item.clone(),
                 Doing::Queued(_) | Doing::Live(_) => None,
@@ -705,14 +772,21 @@ where
                     item: ready,
                     answer: Answered::Ready(ReadyAnswer::Start),
                 };
-                if store(cx, board, i, vec![answered]).is_ok() {
-                    item = None;
+                let at = instant(cx.now);
+                match store_read(cx, board, i, vec![answered], day, at, Some(&decide)) {
+                    Ok(Stored::Decided(cause)) => return served(Err(cause)),
+                    Ok(_) => item = None,
+                    Err(_) => {}
                 }
             }
+            board.queue.push(Waiting {
+                agent: agent.clone(),
+                trigger,
+            });
             board.members[i].facts.doing = Doing::Queued(item);
             served(Ok(Answer::Queued))
         }
-        Verdict::Go(go) => launch(cx, board, i, trigger, go),
+        Verdict::Go(go) => launch(cx, board, i, trigger, go, &decide),
     }
 }
 

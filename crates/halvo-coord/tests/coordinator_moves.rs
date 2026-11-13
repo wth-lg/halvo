@@ -2481,6 +2481,7 @@ struct Lossy {
     second_steps: usize,
     allows: usize,
     broken: Vec<String>,
+    c4_seeds: Vec<u64>,
 }
 
 impl Lossy {
@@ -2495,7 +2496,43 @@ impl Lossy {
         self.second_steps += o.second_steps;
         self.allows += o.allows;
         self.broken.extend(o.broken);
+        self.c4_seeds.extend(o.c4_seeds);
     }
+}
+
+/// C4 of I5.12 for the two stored holds (ruling RD-52 (a)): by the owner's events of each agent in
+/// the order of `seq`, no `run_started` follows a `hold_set` with the cause `person` or
+/// `failures` unless a `hold_cleared` with the same cause stands between them.
+fn c4_holds(owners: &[halvo_coord::types::Event]) -> bool {
+    use halvo_coord::types::{Cleared, HoldSetCause};
+    let mut agents: Vec<&AgentId> = owners.iter().map(|e| &e.agent).collect();
+    agents.sort();
+    agents.dedup();
+    agents.into_iter().all(|a| {
+        let mut mine: Vec<&halvo_coord::types::Event> =
+            owners.iter().filter(|e| &e.agent == a).collect();
+        mine.sort_by_key(|e| e.seq);
+        let (mut person, mut failures) = (false, false);
+        mine.into_iter().all(|e| {
+            match &e.what {
+                What::HoldSet {
+                    cause: HoldSetCause::Person,
+                } => person = true,
+                What::HoldSet {
+                    cause: HoldSetCause::Failures,
+                } => failures = true,
+                What::HoldCleared {
+                    cause: Cleared::Person,
+                } => person = false,
+                What::HoldCleared {
+                    cause: Cleared::Failures,
+                } => failures = false,
+                What::RunStarted { .. } => return !(person || failures),
+                _ => {}
+            }
+            true
+        })
+    })
 }
 
 /// The answer rows of the item among `rows`, in their order.
@@ -2755,6 +2792,10 @@ fn lossy_sequence(seed: u64, form: support::Loss) -> Lossy {
         c.quit_kill();
         check(&c, from, None, &stopped, &declined, &before, &mut out);
     }
+    let owners: Vec<Event> = c.ports().ports.events.borrow().clone();
+    if !c4_holds(&owners) {
+        out.c4_seeds.push(seed);
+    }
     let stored = events(&c);
     for w in &stored {
         let What::ItemRaised { item, raised } = w else {
@@ -2821,6 +2862,7 @@ fn lossy_sequences_leave_no_item_with_two_closing_rows_and_send_allow_only_by_th
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(1_280);
+    let mut c4 = Vec::new();
     for form in ORDERS {
         let mut all = Lossy::default();
         for seed in 0..count {
@@ -2846,7 +2888,13 @@ fn lossy_sequences_leave_no_item_with_two_closing_rows_and_send_allow_only_by_th
             all.allows,
             all.broken.len()
         );
+        println!(
+            "lossy form={form:?} c4_broken={} seeds={:?}",
+            all.c4_seeds.len(),
+            all.c4_seeds
+        );
         assert!(all.twice.is_empty(), "{form:?}: {by_kind:?}");
+        c4.push((form, all.c4_seeds.clone()));
         assert!(
             all.broken.is_empty(),
             "{form:?}: {:?}",
@@ -2857,6 +2905,10 @@ fn lossy_sequences_leave_no_item_with_two_closing_rows_and_send_allow_only_by_th
             "{form:?}: {all:?}"
         );
     }
+    assert!(
+        c4.iter().all(|(_, seeds)| seeds.is_empty()),
+        "C4 broken: {c4:?}"
+    );
 }
 
 #[test]
