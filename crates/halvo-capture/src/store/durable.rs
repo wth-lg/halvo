@@ -714,7 +714,7 @@ pub(crate) fn create_private_dir_all(dir: &Path) -> io::Result<()> {
     builder.create(dir)
 }
 
-#[cfg(any(windows, test))]
+#[cfg(test)]
 pub(crate) fn make_private(dir: &Path) -> io::Result<()> {
     #[cfg(unix)]
     {

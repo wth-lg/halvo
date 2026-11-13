@@ -1,4 +1,4 @@
-use std::io::{ErrorKind, Write};
+use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 
 use zeroize::Zeroizing;
@@ -20,6 +20,14 @@ pub(crate) struct FileRoots<P> {
     protector: P,
 }
 
+fn read_error(e: std::io::Error) -> CustodyError {
+    match e.kind() {
+        ErrorKind::NotFound => CustodyError::RootMissing,
+        _ if durable::refusal(&e).is_some() => CustodyError::RootCorrupt,
+        _ => root_io(e),
+    }
+}
+
 fn root_io(e: std::io::Error) -> CustodyError {
     match e.kind() {
         ErrorKind::PermissionDenied => CustodyError::RootDenied,
@@ -27,16 +35,13 @@ fn root_io(e: std::io::Error) -> CustodyError {
     }
 }
 
-fn write_complete(partial: &Path, path: &Path, blob: &[u8]) -> Result<(), CustodyError> {
-    let (Some(dir), Some(partial_name), Some(name)) =
-        (path.parent(), partial.file_name(), path.file_name())
-    else {
+fn write_complete(dir: &Dir, partial: &Path, path: &Path, blob: &[u8]) -> Result<(), CustodyError> {
+    let (Some(partial_name), Some(name)) = (partial.file_name(), path.file_name()) else {
         return Err(CustodyError::Os(None));
     };
-    let dir = Dir::open(dir).map_err(root_io)?;
     durable::write_durably(
         &OsFs,
-        &dir,
+        dir,
         partial_name,
         name,
         root_io,
@@ -92,12 +97,35 @@ impl<P: Protector> FileRoots<P> {
         self.dir.join(format!("{root_id}.{ROOT_EXT}"))
     }
 
+    /// The roots directory, made when it is missing and taken by one handle
+    /// that refuses a link at its name; it is narrowed to its owner on that
+    /// handle.
+    fn roots_dir(&self) -> Result<Dir, CustodyError> {
+        durable::create_private_dir_all(&self.dir).map_err(root_io)?;
+        let dir = Dir::open(&self.dir).map_err(root_io)?;
+        dir.make_private().map_err(root_io)?;
+        Ok(dir)
+    }
+
     fn existing_root(&self, root_id: RootId) -> Result<Option<Zeroizing<[u8; 32]>>, CustodyError> {
-        let blob = match std::fs::read(self.path(root_id)) {
-            Ok(blob) => blob,
+        let dir = match Dir::open(&self.dir) {
+            Ok(dir) => dir,
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
+            Err(e) if durable::refusal(&e).is_some() => return Err(CustodyError::RootCorrupt),
             Err(e) => return Err(root_io(e)),
         };
+        let mut blob = Vec::new();
+        let read = self
+            .path(root_id)
+            .file_name()
+            .ok_or(CustodyError::Os(None))
+            .and_then(|name| dir.open_file(name).map_err(read_error))
+            .and_then(|mut file| file.read_to_end(&mut blob).map_err(read_error));
+        match read {
+            Ok(_) => {}
+            Err(CustodyError::RootMissing) => return Ok(None),
+            Err(e) => return Err(e),
+        }
         if blob.iter().all(|&b| b == 0) {
             return Ok(None);
         }
@@ -130,11 +158,9 @@ impl<P: Protector> FileRoots<P> {
         let blob = self
             .protector
             .protect(root.as_slice(), root_id.as_bytes())?;
-        durable::create_private_dir_all(&self.dir)
-            .and_then(|()| durable::make_private(&self.dir))
-            .map_err(root_io)?;
+        let dir = self.roots_dir()?;
         let path = self.path(root_id);
-        write_complete(&path.with_extension(PARTIAL_EXT), &path, &blob)?;
+        write_complete(&dir, &path.with_extension(PARTIAL_EXT), &path, &blob)?;
         Ok(root)
     }
 
@@ -187,11 +213,9 @@ impl<P: Protector> FileRoots<P> {
         root: &[u8; 32],
     ) -> Result<(), CustodyError> {
         let blob = self.protector.protect(root, root_id.as_bytes())?;
-        durable::create_private_dir_all(&self.dir)
-            .and_then(|()| durable::make_private(&self.dir))
-            .map_err(root_io)?;
+        let dir = self.roots_dir()?;
         let path = self.path(root_id);
-        write_complete(&path.with_extension(PARTIAL_EXT), &path, &blob)
+        write_complete(&dir, &path.with_extension(PARTIAL_EXT), &path, &blob)
     }
 }
 
@@ -452,5 +476,92 @@ mod tests {
         ));
         let other = FileRoots::new(dir.path().join("roots"), XorProtector(0x00));
         assert!(other.unwrap(a, &wrapped).is_err());
+    }
+
+    #[cfg(unix)]
+    fn within<T: Send + 'static>(
+        bound: std::time::Duration,
+        call: impl FnOnce() -> T + Send + 'static,
+    ) -> Option<T> {
+        let (sender, answers) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = sender.send(call());
+        });
+        answers.recv_timeout(bound).ok()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_root_made_under_a_roots_directory_that_is_a_link_narrows_nothing_outside() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let target = outside.path().join("a-directory-at-0755");
+        std::fs::create_dir(&target).unwrap();
+        std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::os::unix::fs::symlink(&target, dir.path().join("roots")).unwrap();
+
+        let made = roots(dir.path()).create_root(RootId::fresh());
+
+        let mode = std::fs::metadata(&target).unwrap().permissions().mode() & 0o777;
+        assert!(
+            made.is_err(),
+            "a root was made through a link at the roots directory"
+        );
+        assert_eq!(
+            mode, 0o755,
+            "the target of the link was narrowed ({made:?})"
+        );
+        assert_eq!(std::fs::read_dir(&target).unwrap().count(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_root_file_that_is_a_link_is_refused_and_its_target_not_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let roots = roots(dir.path());
+        let root_id = RootId::fresh();
+        roots.create_root(root_id).unwrap();
+        let wrapped = roots
+            .wrap(root_id, &StoreKey::from_bytes([0x42; 32]))
+            .unwrap();
+        let path = roots.root_path(root_id);
+        let target = outside.path().join("a-copy-of-the-root");
+        std::fs::rename(&path, &target).unwrap();
+        std::os::unix::fs::symlink(&target, &path).unwrap();
+
+        let unwrapped = roots.unwrap(root_id, &wrapped).map(drop);
+
+        assert!(
+            matches!(unwrapped, Err(CustodyError::RootCorrupt)),
+            "an unwrap through a root file that is a link answered {unwrapped:?}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_root_file_that_is_a_fifo_answers_within_a_bound() {
+        let dir = tempfile::tempdir().unwrap();
+        let roots = roots(dir.path());
+        let root_id = RootId::fresh();
+        roots.create_root(root_id).unwrap();
+        let wrapped = roots
+            .wrap(root_id, &StoreKey::from_bytes([0x42; 32]))
+            .unwrap();
+        let path = roots.root_path(root_id);
+        std::fs::remove_file(&path).unwrap();
+        let name = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).unwrap();
+        // SAFETY: the name is a NUL-terminated copy that lives across the call.
+        assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0);
+
+        let unwrapped = within(std::time::Duration::from_secs(5), move || {
+            roots.unwrap(root_id, &wrapped).map(drop)
+        });
+
+        assert!(
+            matches!(unwrapped, Some(Err(CustodyError::RootCorrupt))),
+            "an unwrap with a FIFO at the root file answered {unwrapped:?} within 5 s"
+        );
     }
 }
