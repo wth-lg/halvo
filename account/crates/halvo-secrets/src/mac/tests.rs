@@ -1419,4 +1419,35 @@ mod real_files {
         assert_eq!(found(file_item(label).read()), y);
         assert_eq!(store.keychain.keychain.items(), [X.to_vec()]);
     }
+
+    #[test]
+    fn a_signed_delete_beside_a_claim_that_cannot_be_read_never_answers_deleted() {
+        use std::os::unix::fs::PermissionsExt;
+        let label = "unreadable-claim-delete";
+        stopped_after_the_claim(label, X, 4241);
+        let claim = parent(label).join("store").join(".account.4241.0.claim");
+        std::fs::set_permissions(&claim, std::fs::Permissions::from_mode(0o644))
+            .expect("the mode of the claim");
+        let store = signed(label, Keys::holding(&[X]));
+        assert_eq!(store.delete(), Delete::Fault(Fault { code: -1 }));
+        assert!(store.keychain.keychain.items().is_empty());
+        assert_eq!(names_in(label), [".account.4241.0.claim"]);
+
+        let label = "readable-claim-same-delete";
+        stopped_after_the_claim(label, X, 4241);
+        let store = signed(label, Keys::holding(&[X]));
+        assert_eq!(store.delete(), Delete::Deleted);
+        assert!(store.keychain.keychain.items().is_empty());
+        assert!(names_in(label).is_empty(), "{:?}", names_in(label));
+
+        let label = "readable-claim-other-delete";
+        let mut other = X.to_vec();
+        other[0] ^= 1;
+        stopped_after_the_claim(label, X, 4241);
+        let store = signed(label, Keys::holding(&[&other]));
+        assert_eq!(store.delete(), Delete::Locked(Locked::OtherStore));
+        assert_eq!(store.keychain.keychain.items(), [other]);
+        assert_eq!(names_in(label), ["account"]);
+        assert_eq!(found(file_item(label).read()), X);
+    }
 }

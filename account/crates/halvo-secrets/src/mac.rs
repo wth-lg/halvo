@@ -178,7 +178,7 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
                 Err(Ok(locked)) => Other::Locked(locked),
                 Err(Err(fault)) => Other::Fault(fault),
             },
-            Keeps::Keychain => match self.file.read() {
+            Keeps::Keychain => match self.settled_file(None) {
                 Read::NotStored => Other::Empty,
                 Read::Found(_) => Other::Holds,
                 Read::Locked(locked) => Other::Locked(locked),
