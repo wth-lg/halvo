@@ -197,3 +197,25 @@ test('the macOS reader prints unread where an attribute read fails, and reads ea
     assert.ok(ps.includes(text), `windows.ps1: ${text}`);
   }
 });
+
+test('D4: each rule of parseRead refuses a reader line that is whole but for that rule', () => {
+  const whole = 'dialog found=yes trusted=yes text=same default=reject cancel=none close=no owner=app';
+  assert.equal(parseRead(whole).owner, 'app');
+  for (const bad of [
+    whole.replace('default=reject', 'default=pay'),
+    whole.replace('found=yes', 'found=maybe'),
+    whole.replace('owner=app', 'owner=system'),
+    whole.replace('close=no', 'close=maybe'),
+    `${whole} extra=1`,
+    whole.replace('text=same', 'text=-'),
+    'dialog found=no trusted=yes text=same default=- cancel=- close=- owner=-',
+  ]) {
+    assert.throws(() => parseRead(bad), bad);
+  }
+});
+
+test('D4: an element reference whose id is no string is refused', () => {
+  for (const bad of [{ [ELEMENT]: 5 }, { [ELEMENT]: null }, { [ELEMENT]: ['e1'] }, {}]) {
+    assert.throws(() => elementId(bad), JSON.stringify(bad));
+  }
+});
