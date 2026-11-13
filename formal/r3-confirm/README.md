@@ -164,7 +164,9 @@ control of P5 on a copy in which P5 is `TRUE`, which must not report. Then it re
 other guard of the check with a fixture of its own, written from text inside the script: in
 a small repository of its own under the check's temporary directory, with a stand-in for java
 where a guard reads TLC's output, and with a listener on the loopback address that accepts a
-connection and sends nothing for the bound of the fetch. Its last line counts the fixtures
+connection and sends nothing. That listener never answers the handshake, so the connect
+bound of the fetch (`--connect-timeout`) ends each try; the committed script also passes
+`--max-time 25`, and no fixture holds that total bound today. Its last line counts the fixtures
 that it rejected.
 
 What the check does not see:
@@ -180,12 +182,22 @@ What the check does not see:
   that runs without the checkout cannot read it, and a step that runs before the test can
   change it; the check reads the file of the commit.
 - Each job fetches the jar twice, once for the check and once for its self-test.
+- An input that the commit does not hold. The test of `same-as-commit=yes` is `git diff
+  --quiet HEAD`, which sees tracked files alone: a commit that drops a configuration file
+  while the file stays in the work tree, untracked, passes a local run with
+  `same-as-commit=yes`. A fresh checkout, as in the hosted jobs, does not hold the file, and
+  the check ends `missing` there.
+- A tracked file marked assume-unchanged or skip-worktree: `git diff` does not see its
+  change. A commit cannot carry the mark, so a fresh checkout has none.
+- The total bound of the fetch: no fixture holds `--max-time`, which needs a server that
+  completes the handshake and then sends nothing.
 
 One trap of the two systems, which the check avoids: in the windows job's shell a failed
-redirection of the special built-in `:` (as in `: >file`) ends the shell itself, while on
-macOS it returns an error. The check truncates and creates files with `printf ''` and no
-special built-in of it takes a redirection, so a file that cannot be written ends it with a
-cause on both systems.
+redirection of the special built-in `:` ends the shell even when its status is tested
+(`: >file || fail ...`); on macOS that form returns an error, and the plain `: >file` ends
+the shell on both. The check truncates and creates files with `printf ''` and no special
+built-in of it takes a redirection, so a file that cannot be written ends it with a cause on
+both systems.
 
 ## The decision
 
@@ -294,7 +306,7 @@ of the trace's earlier accepted rebinds. The test `formal_traces` compares no ca
 for equality, and the count only in `x.reb >= Limit`; it reads the effect's class only for
 membership in the classes that need an approval and those that make no effect, and the
 directed traces try every class at every place. So `formal_traces` gives `d1`, `d2`, `e1`
-and `e2` 134 sets of values: two that differ in every digit, in the first digit and in the
+and `e2` 134 sets of values: three that differ in every digit, in the first digit and in the
 last digit, and for each of the 64 digits of a digest one pair that differs there alone,
 with a pair of effect ids that differs in one of their 32 digits alone, each set in both
 orders (`d1` and `e1` below `d2` and `e2`, and above). It tries each `rebind` whose class
