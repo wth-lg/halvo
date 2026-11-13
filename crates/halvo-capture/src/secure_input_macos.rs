@@ -9,14 +9,18 @@ extern "C" {
     fn DisableSecureEventInput() -> i32;
 }
 
+fn one_carbon_call_at_a_time<T>(call: impl FnOnce() -> T) -> T {
+    call()
+}
+
 pub fn secure_input_active() -> bool {
-    // SAFETY: a parameterless C predicate with no side effects. CarbonEventsCore.h
-    // marks it "Not thread safe" (line 3056 of the SDK on this Mac), so no other
-    // thread may call it or the hold and release below at the same time. In the
-    // product the input source's tap thread is the one thread that calls the
-    // three.
-    //  Tests read it from their own threads, as the hold tests below do.
-    secure_input_on(unsafe { IsSecureEventInputEnabled() })
+    secure_input_on(one_carbon_call_at_a_time(|| {
+        // SAFETY: a parameterless C predicate with no side effects.
+        // CarbonEventsCore.h marks it "Not thread safe" (line 3056 of the SDK on
+        // this Mac), so no other thread may call it or the hold and release
+        // below at the same time.
+        unsafe { IsSecureEventInputEnabled() }
+    }))
 }
 
 #[must_use = "dropping the hold releases secure input immediately"]
@@ -36,12 +40,13 @@ pub fn hold_secure_input() -> Result<SecureInputHold, SecureInputRefused> {
 }
 
 fn enable_secure_event_input() -> i32 {
-    // SAFETY: parameterless Carbon call that returns an OSStatus, as
-    // CarbonEventsCore.h declares it (line 3004). The header marks it "Not
-    // thread safe" (line 2996 of the SDK on this Mac), so no other thread may
-    // call it or the release and the predicate at the same time. In the product
-    // only the input source's tap thread calls it, by the plan of its hold.
-    unsafe { EnableSecureEventInput() }
+    one_carbon_call_at_a_time(|| {
+        // SAFETY: parameterless Carbon call that returns an OSStatus, as
+        // CarbonEventsCore.h declares it (line 3004). The header marks it "Not
+        // thread safe" (line 2996 of the SDK on this Mac), so no other thread
+        // may call it or the release and the predicate at the same time.
+        unsafe { EnableSecureEventInput() }
+    })
 }
 
 pub(crate) fn hold_with(
@@ -58,12 +63,13 @@ pub(crate) fn hold_with(
 }
 
 pub(crate) fn disable_secure_event_input() -> i32 {
-    // SAFETY: parameterless Carbon call that returns an OSStatus, as
-    // CarbonEventsCore.h declares it (line 3040). The header marks it "Not
-    // thread safe" (line 3032 of the SDK on this Mac), so no other thread may
-    // call it or the hold and the predicate at the same time. In the product
-    // only the input source's tap thread calls it, when its hold drops.
-    unsafe { DisableSecureEventInput() }
+    one_carbon_call_at_a_time(|| {
+        // SAFETY: parameterless Carbon call that returns an OSStatus, as
+        // CarbonEventsCore.h declares it (line 3040). The header marks it "Not
+        // thread safe" (line 3032 of the SDK on this Mac), so no other thread
+        // may call it or the hold and the predicate at the same time.
+        unsafe { DisableSecureEventInput() }
+    })
 }
 
 impl Drop for SecureInputHold {
@@ -76,7 +82,7 @@ impl Drop for SecureInputHold {
 pub(crate) mod test_support {
     use super::{
         disable_secure_event_input, enable_secure_event_input, hold_secure_input, hold_with,
-        DisableSecureEventInput, EnableSecureEventInput, SecureInputHold, SecureInputRefused,
+        SecureInputHold, SecureInputRefused,
     };
     use std::sync::atomic::{AtomicIsize, Ordering};
     use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -168,14 +174,9 @@ pub(crate) mod test_support {
                 Ok(hold) => return Some(hold),
                 Err(refused) => refused,
             };
-            // SAFETY: parameterless Carbon call that returns an OSStatus. `self`
-            // holds the lock that every test that holds or releases takes;
-            // another test may read the predicate meanwhile, which the header
-            // does not allow; tests alone call the three from several threads.
-            let system = unsafe { EnableSecureEventInput() };
+            let system = enable_secure_event_input();
             if system == 0 {
-                // SAFETY: as above.
-                unsafe { DisableSecureEventInput() };
+                disable_secure_event_input();
                 panic!(
                     "{test}: {maker} reported the status {} although the system accepts a hold",
                     refused.0
@@ -228,6 +229,31 @@ pub(crate) mod test_support {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn no_two_carbon_calls_run_at_the_same_time() {
+        let inside = AtomicUsize::new(0);
+        let most = AtomicUsize::new(0);
+        std::thread::scope(|scope| {
+            for _ in 0..8 {
+                scope.spawn(|| {
+                    for _ in 0..5 {
+                        super::one_carbon_call_at_a_time(|| {
+                            let now = inside.fetch_add(1, Ordering::SeqCst) + 1;
+                            most.fetch_max(now, Ordering::SeqCst);
+                            std::thread::sleep(Duration::from_millis(2));
+                            inside.fetch_sub(1, Ordering::SeqCst);
+                        });
+                    }
+                });
+            }
+        });
+        assert_eq!(
+            most.load(Ordering::SeqCst),
+            1,
+            "calls that were inside at the same time"
+        );
+    }
+
     use super::test_support::{agreed_reading, one_hold_at_a_time};
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
