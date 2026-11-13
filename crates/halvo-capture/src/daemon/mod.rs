@@ -184,8 +184,6 @@ mod gate {
     }
 
     impl Flags {
-        /// Reads the flags in `args`; a flag outside `allowed`, a flag given
-        /// twice, a flag without its value or a switch named twice is refused.
         pub(super) fn read(args: &[String], allowed: &[&str]) -> Result<Flags, Usage> {
             let mut flags = Flags::default();
             let mut args = args.iter();
@@ -275,8 +273,6 @@ mod gate {
         }
     }
 
-    /// The store directory: given, absolute, existing, clear of the data
-    /// directory by `ScratchDir`'s rules, and holding no store.key.
     pub(super) fn store_dir(
         dir: Option<String>,
         account: &dyn AccountLookup,
@@ -379,7 +375,8 @@ pub trait RunSources {
 /// settle finds the drain failing, events lost since the last acknowledged
 /// write or more events lost than before the first settle, or gives no answer
 /// inside `settle_bound`; else 2 when `stop` ended the window, 3 when a source
-/// failed, and 0.
+/// failed, and 0. The pause and the shutdown each wait at most `settle_bound`
+/// for the owner's answer, and an owner that gives none is not joined.
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub fn run_timed<P, S, C>(
     run: &TimedRun,
@@ -433,31 +430,32 @@ where
     while owner.snapshot().events_received() < emitted && std::time::Instant::now() < drained_by {
         std::thread::sleep(Duration::from_millis(5));
     }
-    let paused = owner.handle.call(Command::OpenPause);
+    let paused = answer_within(&owner.handle, Command::OpenPause, settle_bound);
     failed.extend(sources.stop());
     let sink_counts = handle.counts();
     drop(handle);
     let before = owner.snapshot();
     let last = match paused {
-        Ok(_) => settle_within(&owner.handle, settle_bound),
-        Err(_) => None,
+        Some(Answer::Paused(_)) => settle_within(&owner.handle, settle_bound),
+        _ => None,
     };
     let reports: Vec<owner::Report> = owner.reports.try_iter().collect();
     let figures = sources.figures();
     if let Some(refusal) = sources.hold_refusal() {
         return Err(refusal);
     }
-    let settled = match last {
-        Some(snapshot) => {
-            match owner.handle.call(Command::Shutdown) {
-                Ok(Answer::ShutDown(_)) => {}
-                _ => return Err(DaemonError::DrainPanicked),
+    let published = owner.snapshot();
+    let last = match last {
+        Some(snapshot) => match answer_within(&owner.handle, Command::Shutdown, settle_bound) {
+            Some(Answer::ShutDown(_)) => {
+                owner.join().map_err(|_| DaemonError::DrainPanicked)?;
+                Some(snapshot)
             }
-            owner.join().map_err(|_| DaemonError::DrainPanicked)?;
-            snapshot
-        }
-        None => owner.snapshot(),
+            _ => None,
+        },
+        None => None,
     };
+    let settled = last.unwrap_or(published);
     let loss = (last.is_none()
         || settled.events_pending > 0
         || settled.lost_since_acknowledged > 0
@@ -479,8 +477,15 @@ where
     })
 }
 
-/// Settles until the drain holds nothing or `bound` has passed; the last
-/// answer, or `None` when a settle gave none inside the bound.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+fn answer_within(
+    handle: &owner::OwnerHandle,
+    command: owner::Command,
+    bound: Duration,
+) -> Option<owner::Answer> {
+    handle.ask(command).ok()?.wait_for(bound)
+}
+
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 fn settle_within(handle: &owner::OwnerHandle, bound: Duration) -> Option<counters::Snapshot> {
     let started = std::time::Instant::now();
@@ -498,9 +503,6 @@ fn settle_within(handle: &owner::OwnerHandle, bound: Duration) -> Option<counter
     }
 }
 
-/// The loss line of contracts.md C3.2: the events that the run received and
-/// did not store, their first and last capture instant, and the kind of the
-/// last fault when the final flush failed.
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 fn loss_line(settled: &counters::Snapshot, answered: bool, reports: &[owner::Report]) -> String {
     let instant = |at: Option<i64>| {
@@ -527,8 +529,6 @@ fn loss_line(settled: &counters::Snapshot, answered: bool, reports: &[owner::Rep
     )
 }
 
-/// The report of a run from the owner's last snapshot, the sink's counts read
-/// after the sources stopped, and the sources' own counters.
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 fn report_of(
     snapshot: &counters::Snapshot,
@@ -1382,6 +1382,72 @@ mod tests {
         assert!(
             loss.starts_with("halvo-capture: lost events=512 "),
             "{loss}"
+        );
+    }
+
+    struct ParkedStore;
+
+    impl MaintainStore for ParkedStore {
+        fn expire_due(
+            &mut self,
+            _now: std::time::SystemTime,
+            _max: usize,
+        ) -> Result<Pass, MaintFault> {
+            Ok(Pass::default())
+        }
+
+        fn evict_to(
+            &mut self,
+            _bound: super::port::ByteBound,
+            _max: usize,
+        ) -> Result<Pass, MaintFault> {
+            Ok(Pass::default())
+        }
+
+        fn usage(&mut self) -> Result<StoreUsage, MaintFault> {
+            Ok(StoreUsage::default())
+        }
+    }
+
+    impl CaptureStore for ParkedStore {
+        fn write_batch(&mut self, _write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+            std::thread::sleep(Duration::from_secs(8));
+            Err(WriteFault::Io(std::io::ErrorKind::TimedOut))
+        }
+
+        fn volume_free_bytes(&self) -> std::io::Result<u64> {
+            Ok(u64::MAX)
+        }
+    }
+
+    #[test]
+    fn a_store_write_that_parks_the_owner_in_the_window_ends_the_run_inside_its_bounds() {
+        let old = super::model_store::foreground(
+            &super::model_store::AT_NOON,
+            Duration::from_secs(2 * 86_400),
+        );
+        let mut scripted = ScriptedRun::new(vec![(
+            SourceName::Foreground,
+            ScriptedSource::emitting(vec![old, foreground_now(), foreground_now()]),
+        )]);
+        let stop = AtomicBool::new(false);
+        let settle_bound = Duration::from_millis(200);
+        let started = std::time::Instant::now();
+        let outcome = run_timed(
+            &run_of(5, SecureInput::DoNotHold, &[]),
+            &mut scripted,
+            ParkedStore,
+            ManualClocks::at(noon()),
+            &stop,
+            settle_bound,
+        )
+        .unwrap();
+        let took = started.elapsed();
+        assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
+        assert!(
+            took < DRAIN_BOUND + settle_bound + Duration::from_secs(1),
+            "the run took {took:?}, more than DRAIN_BOUND {DRAIN_BOUND:?} + settle bound \
+             {settle_bound:?} + 1s: the OpenPause call waited for the parked write"
         );
     }
 }
