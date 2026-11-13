@@ -166,13 +166,16 @@ fn the_client_of_the_product_waits_10_s_to_connect_and_30_s_for_the_whole_call()
     );
 }
 
+/// The call ends after its own limit and before the connect value, which is longer: a builder
+/// that hands the call limit to the connect setting and the connect limit to the whole call
+/// would end this call after 6 s, and fails here.
 #[test]
 fn a_call_whose_answer_is_held_fails_after_the_call_limit() {
     let short = Limits {
-        connect: Duration::from_secs(5),
+        connect: Duration::from_secs(6),
         call: Duration::from_secs(1),
     };
-    let stand_in = silent_stand_in(Duration::from_secs(8));
+    let stand_in = silent_stand_in(Duration::from_secs(10));
     let ran = status_through(&stand_in.origin, short).expect("the call ended within the ceiling");
     let closed = stand_in.closed.load(Ordering::SeqCst);
     let request = stand_in
@@ -196,6 +199,11 @@ fn a_call_whose_answer_is_held_fails_after_the_call_limit() {
     assert!(
         ran.took >= short.call,
         "the call ended before its limit, after {:?}",
+        ran.took
+    );
+    assert!(
+        ran.took < short.connect,
+        "the call ended at the connect value and not at its own limit, after {:?}",
         ran.took
     );
 }
