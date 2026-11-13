@@ -193,7 +193,7 @@ pinned_holds() {
     "100644 blob $pinned_blob$tab$pinned_path" | "100755 blob $pinned_blob$tab$pinned_path") ;;
     *) return 1 ;;
   esac
-  if [ ! -f "$pinned_path" ] || [ -h "$pinned_path" ]; then
+  if [ ! -f "$pinned_path" ]; then
     return 1
   fi
   work_blob=$(git hash-object --no-filters -- "$pinned_path" 2>/dev/null) || return 1
@@ -421,6 +421,8 @@ pinned_case() {
   case $label in
     pinned-path-with-one-byte-more | pinned-bytes-in-the-work-tree-alone) printf '\n' >>"$dir/$pinned_path" || exit 2 ;;
     pinned-beside-a-second-script) printf 'export %s%s=x\n' RUST FLAGS >"$dir/scripts/x.sh" || exit 2 ;;
+    pinned-beside-an-escaped-second-script) printf 'export %s\\x46%s=x\n' RUST LAGS >"$dir/scripts/x.sh" || exit 2 ;;
+    pinned-beside-a-second-script-with-a-nul) printf 'x\000 export %s%s=x\n' RUST FLAGS >"$dir/scripts/x.sh" || exit 2 ;;
   esac
   git -C "$dir" add -A || exit 2
   case $label in
@@ -437,16 +439,13 @@ pinned_case() {
     pinned-bytes-in-the-work-tree-alone) cp "$pinned_path" "$dir/$pinned_path" || exit 2 ;;
     pinned-bytes-in-the-commit-alone) printf '\n' >>"$dir/$pinned_path" || exit 2 ;;
   esac
-  if [ "$want" = PASS ]; then
-    check "$label" "$dir" PASS "PASS $name"
-    return
-  fi
   (cd "$dir" && scratch=$work/flags/$label.scan && mkdir "$scratch" && scan_flags >"$scratch.out" 2>&1)
   code=$?
   got=exit-$code
   [ "$code" -eq 1 ] && got=FAIL
+  [ "$code" -eq 0 ] && got=PASS
   case $label in
-    pinned-beside-a-second-script)
+    pinned-beside-*)
       grep -qx 'sets scripts/x.sh' "$work/flags/$label.scan.out" || got=$got-without-the-second-script
       grep -q "^sets $pinned_path\$" "$work/flags/$label.scan.out" && got=$got-naming-the-pinned-script
       ;;
@@ -454,7 +453,7 @@ pinned_case() {
   printf 'case %s/%s want=%s got=%s\n' "$name" "$label" "$want" "$got"
   if [ "$got" != "$want" ]; then
     wrong="$wrong $label"
-  else
+  elif [ "$want" = FAIL ]; then
     rejected=$((rejected + 1))
   fi
 }
@@ -693,7 +692,8 @@ build = 'gen/make.rs'" crates/x/gen/make.rs "fn main() { println!(\"cargo:$build
   flags_case other-words PASS scripts/z.sh "cargo rustc -- --${word_cfg} testing" crates/z/build.rs "fn main() { println!(\"cargo:rustc-${word_cfg}=test_hosted\"); }"
   for label in pinned-bytes-at-another-path pinned-name-in-another-directory pinned-path-with-one-byte-more \
     pinned-bytes-in-the-work-tree-alone pinned-bytes-in-the-commit-alone pinned-path-as-a-symbolic-link \
-    pinned-blob-under-the-mode-of-a-link pinned-path-in-another-letter-case pinned-beside-a-second-script; do
+    pinned-blob-under-the-mode-of-a-link pinned-path-in-another-letter-case pinned-beside-a-second-script \
+    pinned-beside-an-escaped-second-script pinned-beside-a-second-script-with-a-nul; do
     pinned_case "$label" FAIL
   done
   pinned_case pinned-bytes-at-the-path PASS
