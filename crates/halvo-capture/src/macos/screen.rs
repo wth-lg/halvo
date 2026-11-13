@@ -985,6 +985,46 @@ mod tests {
         );
     }
 
+    struct SlowAskStream(RefCell<Vec<Sender<StopReply>>>);
+
+    impl StopStream for SlowAskStream {
+        fn ask_stop(&self, reply: Sender<StopReply>) {
+            std::thread::sleep(Duration::from_millis(1500));
+            self.0.borrow_mut().push(reply);
+        }
+    }
+
+    #[test]
+    fn a_stop_whose_ask_takes_1500_ms_still_answers_inside_the_deadline() {
+        let (handle, _writer) = sink::channel(8);
+        let (_fg_writer, reader) = foreground_state_for_test();
+        let mut source = ScreenSource::new(SCREEN_FRAME_CAP, reader);
+        source
+            .begin_with(handle, |sink, foreground, _cap| {
+                Ok((
+                    Box::new(SlowAskStream(RefCell::new(Vec::new()))),
+                    ScreenOutput::new(sink, foreground),
+                    DispatchQueue::new("slow-ask", None),
+                ))
+            })
+            .expect("the source starts with a stream whose ask is slow");
+        let called = Instant::now();
+        let shut = source.shutdown();
+        let took = called.elapsed();
+        source.stream = None;
+        assert_eq!(
+            shut,
+            Err(CaptureError::Timeout {
+                stage: "stop_capture",
+                ms: 5000
+            })
+        );
+        assert!(
+            took < SCREEN_STOP_DEADLINE,
+            "the shutdown took {took:?}, past the deadline of {SCREEN_STOP_DEADLINE:?}"
+        );
+    }
+
     struct DroppingStream;
 
     impl StopStream for DroppingStream {
