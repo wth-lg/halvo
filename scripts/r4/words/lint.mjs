@@ -1213,6 +1213,22 @@ function selfTest(dir, repo) {
     fixture('allowed-with-a-second-pair', { files: (f) => (f[ALLOWED] = `${copies[ALLOWED]}control.stop\tpaused\n`) }),
     'FAIL:allowed',
   );
+  for (const [spec, state] of [
+    ['snapshot.items.*.say_new', 'needs_ready'],
+    ['snapshot.items.*.say_gone', 'needs_stuck'],
+    ['snapshot.items.*.params.*.full', 'setup_three'],
+  ]) {
+    const place = spec.replaceAll('*', '1');
+    expect(
+      fixture(`the-item-key-${place}-is-read`, {
+        state: (s, doc) => {
+          if (s === state) setAt(doc, spec, NEVER);
+        },
+      }),
+      'FAIL:never_read',
+      { findings: [`finding file=${FIXTURES}/state-${state}.json line=1 rule=never_read class=model key=${place}`], secret: [NEVER] },
+    );
+  }
 
   return { lines, wrong, rejected };
 }
