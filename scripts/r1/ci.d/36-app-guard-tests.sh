@@ -256,6 +256,37 @@ check_tests() {
   verdict "$1" "$2" "$got"
 }
 
+add_line() {
+  AT="$2" TEXT="$3" awk '
+    { print }
+    (ENVIRON["AT"] ~ /^[0-9]+$/ && NR == ENVIRON["AT"] + 0) || (ENVIRON["AT"] !~ /^[0-9]+$/ && $0 ~ ENVIRON["AT"]) { print ENVIRON["TEXT"] }
+  ' "$1"
+}
+
+check_tests_adding() {
+  passing_test_out >"$work/$1.base.out" || self_fail "the fixture cannot be written"
+  passing_test_err >"$work/$1.base.err" || self_fail "the fixture cannot be written"
+  if [ "$4" = out ]; then
+    made=$work/$1.out
+    sed "$5" "$work/$1.base.out" >"$work/$1.pre" || self_fail "the test output of $1 cannot be made"
+    cp "$work/$1.base.err" "$work/$1.err" || self_fail "the cargo output of $1 cannot be made"
+  else
+    made=$work/$1.err
+    sed "$5" "$work/$1.base.err" >"$work/$1.pre" || self_fail "the cargo output of $1 cannot be made"
+    cp "$work/$1.base.out" "$work/$1.out" || self_fail "the test output of $1 cannot be made"
+  fi
+  add_line "$work/$1.pre" "$6" "$7" >"$made" || self_fail "the fixture of $1 cannot be made"
+  whole=$(grep -c -x -F -e "$7" "$made")
+  lines=$(wc -l <"$made")
+  if [ "$whole" != 1 ] || [ "$((lines))" != "$8" ]; then
+    self_fail "the fixture of $1 was not made as written"
+  fi
+  broken=
+  tests_decide "$3" "$work/$1.out" "$work/$1.err" >"$work/$1.log" 2>"$work/$1.stderr"
+  judge "${2#FAIL }" "$1"
+  verdict "$1" "$2" "$got"
+}
+
 check_tree() {
   passing_tree >"$work/$1.base" || self_fail "the fixture cannot be written"
   sed "$4" "$work/$1.base" >"$work/$1.tree" || self_fail "the tree of $1 cannot be made"
@@ -370,12 +401,9 @@ self_test() {
 
   check_tests all-pass PASS 0 "$keep" "$keep"
   check_tests crlf-and-windows-paths PASS 0 "s/\$/$cr/" "s|Running tests/|Running tests\\\\|; s|target/debug/deps/|target\\\\debug\\\\deps\\\\|; s/\$/$cr/"
-  check_tests another-module-test-passes PASS 0 '/^test tray::/a\
-test commands::tests::a_new_test_of_a_module ... ok' "$keep"
-  check_tests m33-built-to-zero-tests "FAIL rule 3: tests/page_guard.rs was built to 0 tests in the job" 0 '/^running 12 tests$/,/^$/d; /^test /d; 1a\
-running 0 tests' "$keep"
-  check_tests m33-names-missing "FAIL rule 1: a_child_web_view_of_the_window_main_gets_no_command_of_the_unit_and_deletes_nothing is missing" 0 '/^running 12 tests$/,/^$/d; /^test /d; 1a\
-running 0 tests' "$keep"
+  check_tests_adding another-module-test-passes PASS 0 out "$keep" '^test tray::' 'test commands::tests::a_new_test_of_a_module ... ok' 18
+  check_tests_adding m33-built-to-zero-tests "FAIL rule 3: tests/page_guard.rs was built to 0 tests in the job" 0 out '/^running 12 tests$/,/^$/d; /^test /d' 1 'running 0 tests' 3
+  check_tests_adding m33-names-missing "FAIL rule 1: a_child_web_view_of_the_window_main_gets_no_command_of_the_unit_and_deletes_nothing is missing" 0 out '/^running 12 tests$/,/^$/d; /^test /d' 1 'running 0 tests' 3
   check_tests one-guard-test-ignored "FAIL rule 1: a_call_whose_origin_header_is_no_address_is_refused is ignored" 0 's/^test a_call_whose_origin_header_is_no_address_is_refused \.\.\. ok$/test a_call_whose_origin_header_is_no_address_is_refused ... ignored/' "$keep"
   check_tests one-guard-test-ignored-with-a-reason "FAIL rule 1: a_child_web_view_of_the_window_main_gets_no_command_of_the_unit_and_deletes_nothing is ignored" 0 's/^test a_child_web_view\(.*\) \.\.\. ok$/test a_child_web_view\1 ... ignored, needs a window/' "$keep"
   check_tests one-guard-test-failed "FAIL rule 1: an_address_of_the_app_host_with_a_password_and_no_user_name_is_refused does not pass" 101 's/^test an_address_of\(.*\) \.\.\. ok$/test an_address_of\1 ... FAILED/' "$keep"
@@ -383,16 +411,13 @@ running 0 tests' "$keep"
   check_tests one-guard-test-renamed "FAIL rule 1: a_capability_handed_to_the_context_macro_reaches_no_command_of_the_unit_from_another_window is missing" 0 's/^test a_capability_handed_to_the_context_macro_reaches/test a_capability_given_to_the_context_macro_reaches/' "$keep"
   check_tests guard-test-only-under-a-module-path "FAIL rule 1: a_call_whose_origin_header_is_no_address_is_refused is missing" 0 's/^test a_call_whose_origin/test tests::a_call_whose_origin/' "$keep"
   check_tests guard-test-ok-with-a-suffix "FAIL rule 1: a_call_whose_origin_header_is_no_address_is_refused does not pass" 0 's/^test a_call_whose_origin_header_is_no_address_is_refused \.\.\. ok$/& (61 s)/' "$keep"
-  check_tests a-test-of-the-file-not-in-the-list "FAIL rule 1: a_new_guard_test_of_the_file of tests/page_guard.rs is not in the list" 0 '/^test tray::/a\
-test a_new_guard_test_of_the_file ... ok' "$keep"
+  check_tests_adding a-test-of-the-file-not-in-the-list "FAIL rule 1: a_new_guard_test_of_the_file of tests/page_guard.rs is not in the list" 0 out "$keep" '^test tray::' 'test a_new_guard_test_of_the_file ... ok' 18
   check_tests a-module-test-ignored "FAIL rule 1: 1 tests of the run do not pass" 0 's/^test tray::tests::the_indicator_reflects_paused_and_running \.\.\. ok$/test tray::tests::the_indicator_reflects_paused_and_running ... ignored/' "$keep"
   check_tests cargo-exits-101 "FAIL rule 1: cargo test --workspace --locked --test page_guard exited 101" 101 "$keep" "$keep"
   check_tests no-output "FAIL rule 1: the run started 0 test binaries, 0 of them" 0 'd' 'd'
   check_tests another-file-ran "FAIL rule 1: the run started 1 test binaries, 0 of them" 0 "$keep" 's|tests/page_guard\.rs|tests/page_guard_old.rs|'
-  check_tests a-second-binary-ran "FAIL rule 1: the run started 2 test binaries, 1 of them" 0 "$keep" '/Running tests/a\
-     Running unittests src/main.rs (target/debug/deps/halvo-0123456789abcdef)'
-  check_tests two-running-lines "FAIL rule 1: the run printed no single line running N tests" 0 '/^running 12 tests$/a\
-running 3 tests' "$keep"
+  check_tests_adding a-second-binary-ran "FAIL rule 1: the run started 2 test binaries, 1 of them" 0 err "$keep" 'Running tests' '     Running unittests src/main.rs (target/debug/deps/halvo-0123456789abcdef)' 4
+  check_tests_adding two-running-lines "FAIL rule 1: the run printed no single line running N tests" 0 out "$keep" '^running 12 tests$' 'running 3 tests' 18
   check_tests cargo-colour-on-standard-error PASS 0 "$keep" "s/^\\( *\\)\\([A-Z][a-z]*\\) /\\1${esc}[1m${esc}[92m\\2${esc}[0m /"
   check_tests no-running-line "FAIL rule 1: the run started 0 test binaries, 0 of them" 0 "$keep" '/Running /d'
 
