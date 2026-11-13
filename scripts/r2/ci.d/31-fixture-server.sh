@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The tests that tools/fixture-server/tests.txt lists at HEAD for the job pass under node --test, which gets the listed test files by name, and the site data checker accepts every file of tools/fixture-server/sites/ that HEAD lists and counts at least 4 services for each seed category and 6 of the category other; the check fails when a listed test is renamed, removed, skipped or failing, when a test file of the list is not in HEAD, when a test passes that the list does not hold, when a line of the list stands twice, or when a tracked file differs from HEAD after node --test or after the checker, but it does not hold against code that runs in the job before its reads and writes what it reads (a test file, the list, node on the PATH), a test that keeps its name with another body, an untracked file, or the job's environment (ruling S-53).
+# rule: The tests that tools/fixture-server/tests.txt lists at HEAD for the job pass under node --test, which gets the listed test files by name, and the site data checker accepts every file of tools/fixture-server/sites/ that HEAD lists and counts at least 4 services for each seed category and 6 of the category other; the check fails when a listed test is renamed, removed, skipped or failing, when a test file of the list is not in HEAD, when a test file at HEAD under tools/fixture-server/ but variants/ is not in the list, when a test passes that the list does not hold, when a line of the list stands twice, or when a tracked file differs from HEAD after node --test or after the checker, but it does not hold against code that runs in the job before its reads and writes what it reads (a test file, the list, node on the PATH), a test that keeps its name with another body, an untracked file, or the job's environment (ruling S-53).
 set -u
 name=31-fixture-server
 list_path=tools/fixture-server/tests.txt
@@ -32,6 +32,7 @@ read_list() {
   done <"$3"
   : >"$4"
   test_files=
+  required_for_job=
   while IFS= read -r line || [ -n "$line" ]; do
     line=${line%"$cr"}
     jobs=${line%% *}
@@ -54,14 +55,15 @@ read_list() {
       *.test.mjs) ;;
       *) cause="a test file of the list is not a .test.mjs file"; return 1 ;;
     esac
-    [ "$jobs" = all ] || [ "$jobs" = "$2" ] || continue
-    printf '%s\n' "$test_name" >>"$4"
     case " $test_files " in
       *" $file "*) ;;
       *) test_files="$test_files $file" ;;
     esac
+    [ "$jobs" = all ] || [ "$jobs" = "$2" ] || continue
+    printf '%s\n' "$test_name" >>"$4"
+    required_for_job=yes
   done <"$1"
-  if [ -z "$test_files" ]; then
+  if [ -z "${required_for_job:-}" ]; then
     cause="the test list names no test for the job"
     return 1
   fi
@@ -74,7 +76,38 @@ read_list() {
         ;;
     esac
   done
+  while IFS= read -r path || [ -n "$path" ]; do
+    path=${path%"$cr"}
+    case $path in
+      tools/fixture-server/variants/*) continue ;;
+      tools/fixture-server/*) relative=${path#tools/fixture-server/} ;;
+      *) continue ;;
+    esac
+    is_test_file "$relative" || continue
+    case " $test_files " in
+      *" $relative "*) ;;
+      *)
+        cause="a test file at HEAD is not in the test list"
+        return 1
+        ;;
+    esac
+  done <"$3"
   return 0
+}
+
+is_test_file() {
+  case $1 in
+    *.js | *.mjs | *.cjs | *.ts | *.mts | *.cts) ;;
+    *) return 1 ;;
+  esac
+  case /$1 in
+    */test/*) return 0 ;;
+  esac
+  base=${1##*/}
+  case ${base%.*} in
+    *.test | *-test | *_test | test-* | test) return 0 ;;
+  esac
+  return 1
 }
 
 judge_list() {
@@ -230,7 +263,7 @@ measure() {
   fi
   art=$CI_D_ARTIFACTS
   git show "HEAD:$list_path" >"$art/tests.txt" 2>/dev/null || fail "the commit holds no list $list_path"
-  git ls-tree --name-only HEAD -- tools/fixture-server/ >"$art/tree.txt" || fail "git ls-tree of tools/fixture-server failed"
+  git ls-tree -r --name-only HEAD -- tools/fixture-server/ >"$art/tree.txt" || fail "git ls-tree of tools/fixture-server failed"
   git ls-tree -r --name-only HEAD -- tools/fixture-server/sites/ >"$art/sites.txt" || fail "git ls-tree of the committed site data failed"
   read_list "$art/tests.txt" "$job" "$art/tree.txt" "$art/required.txt" || fail "$cause"
   set --
@@ -322,6 +355,7 @@ make_repo() {
   printf 'all a.test.mjs first test\nall a.test.mjs second test\nall b.test.mjs third test\nwindows b.test.mjs windows test\n' >"$repo/$list_path"
   printf 'a\n' >"$repo/tools/fixture-server/a.test.mjs"
   printf 'b\n' >"$repo/tools/fixture-server/b.test.mjs"
+  printf 'h\n' >"$repo/tools/fixture-server/helper.mjs"
   i=0
   while [ "$i" -lt 46 ]; do
     i=$((i + 1))
@@ -334,6 +368,18 @@ make_repo() {
   printf 'all a.test.mjs first test\n' >>"$repo/$list_path"
   git -C "$repo" commit -q -a -m twice || exit 2
   git -C "$repo" checkout -q -b nolist main && git -C "$repo" rm -q "$list_path" && git -C "$repo" commit -q -m nolist || exit 2
+  git -C "$repo" checkout -q -b unlistedfile main || exit 2
+  printf 'all a.test.mjs first test\nall a.test.mjs second test\n' >"$repo/$list_path"
+  git -C "$repo" commit -q -a -m unlistedfile || exit 2
+  git -C "$repo" checkout -q -b droppedtest main || exit 2
+  printf 'all a.test.mjs second test\nall b.test.mjs third test\nwindows b.test.mjs windows test\n' >"$repo/$list_path"
+  git -C "$repo" commit -q -a -m droppedtest || exit 2
+  for branch in newfile:c.test.mjs testdir:test/helper.mjs variants:variants/x.test.mjs; do
+    mkdir -p "$repo/tools/fixture-server/test" "$repo/tools/fixture-server/variants" || exit 2
+    git -C "$repo" checkout -q -b "${branch%%:*}" main || exit 2
+    printf 'x\n' >"$repo/tools/fixture-server/${branch#*:}"
+    git -C "$repo" add -A && git -C "$repo" commit -q -m "${branch%%:*}" || exit 2
+  done
   cat >"$work/bin/node" <<'EOF'
 #!/bin/sh
 case $1 in
@@ -382,6 +428,16 @@ measure_cases() {
   verdict line-of-the-list-twice FAIL 'a line of the test list stands twice'
   run_measure no-list-in-the-commit nolist macos tap-list check-ok
   verdict no-list-in-the-commit FAIL 'the commit holds no list'
+  run_measure test-file-at-head-unlisted unlistedfile macos tap-list check-ok
+  verdict test-file-at-head-unlisted FAIL 'a test file at HEAD is not in the test list'
+  run_measure one-test-of-a-listed-file-unlisted droppedtest macos tap-list check-ok
+  verdict one-test-of-a-listed-file-unlisted FAIL 'a test passed that the list does not hold'
+  run_measure new-test-file-unlisted newfile macos tap-list check-ok
+  verdict new-test-file-unlisted FAIL 'a test file at HEAD is not in the test list'
+  run_measure file-in-a-test-directory-unlisted testdir macos tap-list check-ok
+  verdict file-in-a-test-directory-unlisted FAIL 'a test file at HEAD is not in the test list'
+  run_measure test-file-under-variants-is-another-runs variants macos tap-list check-ok
+  verdict test-file-under-variants-is-another-runs PASS ''
   run_measure services-count-not-the-file-count main macos tap-list check-services-count
   verdict services-count-not-the-file-count FAIL 'another number of files'
   run_measure tracked-file-changed-by-the-tests main macos tap-list check-ok "$touched"
