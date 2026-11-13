@@ -168,10 +168,10 @@ jar() {
   limits_ok || fail limits
   if [ -n "${TLA2TOOLS_JAR:-}" ]; then
     source=given
-    cp "$TLA2TOOLS_JAR" "$tmp/tla2tools.jar" 2>/dev/null || : >"$tmp/tla2tools.jar"
+    cp "$TLA2TOOLS_JAR" "$tmp/tla2tools.jar" 2>/dev/null || printf '' >"$tmp/tla2tools.jar"
   else
     source=fetch
-    fetch "${1:-$fetch_tries}" "${2:-$fetch_connect}" "${3:-$fetch_time}" "${4:-$fetch_pause}" || : >"$tmp/tla2tools.jar"
+    fetch "${1:-$fetch_tries}" "${2:-$fetch_connect}" "${3:-$fetch_time}" "${4:-$fetch_pause}" || printf '' >"$tmp/tla2tools.jar"
   fi
   size=$(wc -c <"$tmp/tla2tools.jar") || fail jar
   size=$((size))
@@ -330,8 +330,8 @@ checked() {
 
 exported() {
   mkdir -p "$art/export" || fail artifacts
-  : >"$art/export/policy-table.tsv" || fail artifacts
-  : >"$art/export/traces.jsonl" || fail artifacts
+  printf '' >"$art/export/policy-table.tsv" || fail artifacts
+  printf '' >"$art/export/traces.jsonl" || fail artifacts
   mkdir "$tmp/export-tmp" || fail scratch
   TLA2TOOLS_JAR=$tmp/tla2tools.jar TMPDIR=$tmp/export-tmp sh "$dir/export.sh" --out "$art/export" --seed "$seed_want" \
     --count "$count_want" >"$art/export.txt" 2>&1 </dev/null
