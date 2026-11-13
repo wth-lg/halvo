@@ -551,7 +551,8 @@ impl Lifecycle {
                 reason: HealthReason::Timeout,
                 error: timeout.clone(),
             },
-            (Some(pump), None) if pump.has_ended() || writer_gone => thread_ended(),
+            (Some(_), None) if writer_gone => failed_with(HealthReason::WriterGone),
+            (Some(pump), None) if pump.has_ended() => thread_ended(),
             (Some(_), None) => SourceState::Running,
             (None, _) if self.stopped => SourceState::Stopped(StopCause::Request),
             (None, _) => SourceState::NotReported,
@@ -573,8 +574,12 @@ impl Drop for Lifecycle {
 }
 
 pub(crate) fn thread_ended() -> SourceState {
+    failed_with(HealthReason::ThreadEnded)
+}
+
+pub(crate) fn failed_with(reason: HealthReason) -> SourceState {
     SourceState::Failed {
-        reason: HealthReason::ThreadEnded,
+        reason,
         error: CaptureError::ThreadEnded,
     }
 }

@@ -509,9 +509,9 @@ impl<S: Session> ScreenLife<S> {
             };
         }
         match &self.session {
-            Some(session) if session.finished() || item_closed || writer_gone => {
-                super::thread_ended()
-            }
+            Some(_) if writer_gone => super::failed_with(HealthReason::WriterGone),
+            Some(_) if item_closed => super::failed_with(HealthReason::ItemClosed),
+            Some(session) if session.finished() => super::thread_ended(),
             Some(_) => SourceState::Running,
             None if self.stopped => SourceState::Stopped(StopCause::Request),
             None => SourceState::NotReported,
