@@ -356,6 +356,15 @@ pub fn cap_set_text(set: &CapSet) -> String {
     format!("cap_bytes={cap} evicting={}\n", yes_no(set.evicting))
 }
 
+/// A peer's text as ctl prints it: every character outside ASCII 0x20 to 0x7e becomes `?`, and
+/// the text is cut to [`PEER_TEXT_MAX_BYTES`].
+pub fn peer_text(text: &str) -> String {
+    text.chars()
+        .map(|c| if (' '..='~').contains(&c) { c } else { '?' })
+        .take(PEER_TEXT_MAX_BYTES)
+        .collect()
+}
+
 fn failed(message: impl std::fmt::Display, status: i32) -> Printed {
     Printed {
         stdout: String::new(),
@@ -389,6 +398,12 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
                 crate::exit::ERROR,
             )
         }
+        Err(ClientError::Protocol(text)) => {
+            return failed(
+                peer_text(&format!("the reply could not be read: {text}")),
+                crate::exit::ERROR,
+            )
+        }
         Err(other) => return failed(other, crate::exit::ERROR),
     };
     match (verb, reply) {
@@ -398,7 +413,7 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
                 ErrorCode::InvalidArgument => crate::exit::USAGE,
                 _ => crate::exit::ERROR,
             };
-            failed(error.message, status)
+            failed(peer_text(&error.message), status)
         }
         (Verb::Status { .. }, Reply::Status(status)) => {
             printed(status_text(&status), crate::exit::CLEAN)
