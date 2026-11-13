@@ -861,6 +861,8 @@ self_test_pre_push() {
   git -C "$work/clone" update-ref -d refs/remotes/origin/main
   expect_push a-commit-with-a-trailer-to-a-path-in-a-clone-without-a-default-branch 1 'This clone names no default branch' "$work/remote.git" "$with_trailer:refs/heads/trailer-without-a-default-branch"
 
+  expect_push a-clean-commit-to-a-remote-without-fetched-refs-in-a-clone-without-a-default-branch 0 'commits checked 2,' proof-empty "$clean:refs/heads/clean-to-an-unfetched-remote"
+
   status=0
   (cd "$work/clone" && printf 'not a line that git writes\n' | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-line-that-git-does-not-write.txt" 2>&1 || status=$?
   judge a-line-that-git-does-not-write "$status" 2 'cannot read this line'
