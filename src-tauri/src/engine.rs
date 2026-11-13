@@ -10,7 +10,8 @@ pub fn engine_allows(address: &str) -> bool {
 }
 
 /// Puts `engine_allows` in front of every navigation of the window's engine: a handler of
-/// the start of a navigation on Windows, and on macOS a navigation delegate that decides first
+/// the start of a navigation and of a frame's navigation on Windows, and on macOS a navigation
+/// delegate, which WebKit asks for every frame, that decides first
 /// and hands every other call to the delegate of the runtime. A window whose engine cannot be
 /// reached is reported on stderr and keeps the runtime's rule.
 pub fn guard<R: Runtime>(window: &WebviewWindow<R>) {
@@ -51,7 +52,11 @@ mod platform {
         let mut token = 0i64;
         // SAFETY: the handler is a COM object that the engine holds for as long as it is
         // registered; the token is written once.
-        unsafe { core.add_NavigationStarting(&handler, &mut token) }
+        unsafe { core.add_NavigationStarting(&handler, &mut token) }?;
+        let mut frame_token = 0i64;
+        // SAFETY: the same handler for the navigations of the window's frames, which raise
+        // FrameNavigationStarting and not NavigationStarting; the token is written once.
+        unsafe { core.add_FrameNavigationStarting(&handler, &mut frame_token) }
     }
 }
 
@@ -196,5 +201,30 @@ mod tests {
         assert_eq!(app.matches(".on_download(|_, _| false)").count(), 1);
         assert_eq!(app.matches("crate::engine::guard(&window);").count(), 1);
         assert_eq!(app.matches("::from_config(app, &config)?").count(), 1);
+    }
+
+    #[test]
+    fn on_windows_the_handler_cancels_alone_for_the_window_and_for_its_frames() {
+        let source = include_str!("engine.rs");
+        let windows = &source[source
+            .find("#[cfg(windows)]\nmod platform")
+            .expect("the Windows module")..];
+        let windows = &windows[..windows
+            .find("#[cfg(target_os = \"macos\")]")
+            .expect("its end")];
+        assert_eq!(
+            windows
+                .matches("core.add_NavigationStarting(&handler,")
+                .count(),
+            1
+        );
+        assert_eq!(
+            windows
+                .matches("core.add_FrameNavigationStarting(&handler,")
+                .count(),
+            1
+        );
+        assert_eq!(windows.matches("SetCancel(").count(), 1);
+        assert_eq!(windows.matches("SetCancel(true)").count(), 1);
     }
 }
