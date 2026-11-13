@@ -40,10 +40,12 @@
 //!   reaches the listener from a document, a frame or a worker, each of which tried and was
 //!   refused; the row's own handshake outside the browser is counted (the control); and the
 //!   executor failed no document while it added the policy line.
-//! - `hold_release --browser PATH --kind chrome|edge --port N`: the row of CP-176 A1 (f) through
-//!   the product's executor: a state-changing request stays held while a snapshot of the page is
-//!   read, is let through once by its id, and a second one that the page sent meanwhile is failed,
-//!   with no byte of it at the fixture.
+//! - `hold_release --browser PATH --kind chrome|edge --port N [--hop-port M]`: the row of CP-176
+//!   A1 (f) through the product's executor: a state-changing request stays held while a snapshot
+//!   of the page is read, is let through once by its id, and a second one that the page sent
+//!   meanwhile is failed, with no byte of it at the fixture. With `--hop-port`, its hop case
+//!   (CP-186 T4 (b)) against `rows/hop-listener.mjs` on port M: the answer to the released request
+//!   is a 307 to the same address, and the hop is failed, so the listener counts one arrival.
 //!
 //! - `crash_one --browser PATH --port N --relay-port P`: one crash reading with the product's means
 //!   on a relay at port P, for the egress check of A13.3's third item to wrap (hosted runners
@@ -727,6 +729,80 @@ async fn hold_release_steps(ex: &mut Executor, port: u16) -> Result<HoldRead, &'
     })
 }
 
+/// What the hop case read: the listener's arrivals of the state-changing request, whether the
+/// record holds the released request as let through and the hop as a failed request of its own,
+/// and the arrivals that the row's own client made when it followed the 307 once (the control).
+struct HopRead {
+    arrivals: i64,
+    released: bool,
+    hop_failed: bool,
+    control: i64,
+}
+
+/// The row's own client, outside the browser: a POST of `path` to the listener on 127.0.0.1:`port`;
+/// gives the answer's status and Location line.
+fn plain_post(port: u16, path: &str) -> Option<(u16, Option<String>)> {
+    use std::io::{Read, Write};
+    let mut s = std::net::TcpStream::connect(("127.0.0.1", port)).ok()?;
+    s.set_read_timeout(Some(Duration::from_secs(10))).ok()?;
+    let req = format!(
+        "POST {path} HTTP/1.0\r\nHost: utility.agent.test:{port}\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 3\r\n\r\nn=1"
+    );
+    s.write_all(req.as_bytes()).ok()?;
+    let mut raw = String::new();
+    s.read_to_string(&mut raw).ok()?;
+    let status = raw.split_whitespace().nth(1)?.parse().ok()?;
+    let location = raw.lines().take_while(|l| !l.is_empty()).find_map(|l| {
+        let (k, v) = l.split_once(':')?;
+        k.trim()
+            .eq_ignore_ascii_case("location")
+            .then(|| v.trim().to_string())
+    });
+    Some((status, location))
+}
+
+/// The listener's count of arrivals of POST /act.
+fn hop_arrivals(port: u16) -> Option<i64> {
+    fixture_json(port, "GET", "/count")?["act"].as_i64()
+}
+
+async fn hop_case(ex: &mut Executor, port: u16) -> Result<HopRead, &'static str> {
+    use halvo_web::cdp::{Locator, Outcome};
+    fixture_json(port, "GET", "/reset").ok_or("listener")?;
+    let origin = format!("http://utility.agent.test:{port}");
+    ex.arm_rule(vec![origin.clone()], Mode::Hold)
+        .await
+        .map_err(|f| f.0)?;
+    ex.open(&format!("{origin}/page")).await.map_err(|f| f.0)?;
+    let send = ex
+        .resolve_one(&[Locator::Role("button", "Send".into())], &[])
+        .await
+        .map_err(|f| f.0)?;
+    ex.click(&send).await.map_err(|f| f.0)?;
+    let id = held(ex, "POST", "/act").await?;
+    ex.let_through(id).await.map_err(|f| f.0)?;
+    tokio::time::sleep(Duration::from_millis(3_000)).await;
+    let arrivals = hop_arrivals(port).ok_or("count")?;
+    let records = ex.requests();
+    let released = records
+        .iter()
+        .any(|r| r.id == Some(id) && r.outcome == Outcome::Continued);
+    let hop_failed = records.iter().any(|r| {
+        r.method == "POST" && r.path == "/act" && r.id != Some(id) && r.outcome == Outcome::Failed
+    });
+    fixture_json(port, "GET", "/reset").ok_or("listener")?;
+    if let Some((307, Some(next))) = plain_post(port, "/act") {
+        let _ = plain_post(port, &next);
+    }
+    let control = hop_arrivals(port).ok_or("count")?;
+    Ok(HopRead {
+        arrivals,
+        released,
+        hop_failed,
+        control,
+    })
+}
+
 /// The row of CP-176 A1 (f) through the product's executor, on the fixture's bill page with the
 /// variant `get_effect`, whose link `Pay bill` sends a state-changing `POST /track` by the page's
 /// own script: the first request stays held while a snapshot of the page is read; the page sends a
@@ -770,6 +846,16 @@ async fn hold_release(argv: &[String]) -> (usize, usize) {
         }
     };
     let steps = hold_release_steps(&mut ex, port).await;
+    let hop_port = arg(argv, "--hop-port").and_then(|p| p.parse::<u16>().ok());
+    let hop = match hop_port {
+        Some(hp) => {
+            relay
+                .handle()
+                .allow("utility.agent.test", hp, halvo_web::relay::Entry::Listed);
+            Some(hop_case(&mut ex, hp).await)
+        }
+        None => None,
+    };
     let stopped = ex.stop_and_remove().await;
     relay.stop();
     let _ = fixture_json(port, "POST", "/reset?seed=1");
@@ -808,7 +894,33 @@ async fn hold_release(argv: &[String]) -> (usize, usize) {
         "row hold_release machine={machine} browser={kind} {line} result={}",
         if fine { "ok" } else { "miss" }
     );
-    (usize::from(fine), 1)
+    let hop_fine = match hop {
+        None => true,
+        Some(Ok(h)) => {
+            let fine = h.arrivals == 1 && h.released && h.hop_failed && h.control == 2;
+            println!(
+                "row hold_release machine={machine} browser={kind} case=hop307 arrivals={} released={} hop_failed={} control_arrivals={} result={}{}",
+                h.arrivals,
+                if h.released { "yes" } else { "no" },
+                if h.hop_failed { "yes" } else { "no" },
+                h.control,
+                if fine { "ok" } else { "miss" },
+                if h.arrivals >= 2 {
+                    " cause=hop_let_through"
+                } else {
+                    ""
+                }
+            );
+            fine
+        }
+        Some(Err(cause)) => {
+            println!(
+                "row hold_release machine={machine} browser={kind} case=hop307 result=notrun cause={cause}"
+            );
+            false
+        }
+    };
+    (usize::from(fine && hop_fine), 1)
 }
 
 /// The contexts of the listener's page that the row requires: a document, a frame and a worker.
