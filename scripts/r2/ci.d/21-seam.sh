@@ -300,7 +300,6 @@ running 0 tests
 
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
-timed-trial: 2026-11-13T12:23:06Z	2026-11-13T12:25:56Z	[seamd] builder-36 cargo test halvo-seam	169.983	0	138.89	123.51	147.66	133.20	0.0	cargo test --locked -p halvo-seam --no-fail-fast
 EOF
 }
 
@@ -320,7 +319,7 @@ check() {
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
   case $code:$last in
-    "0:halvo-seam tests passed: "*) got=PASS ;;
+    "0:halvo-seam tests passed: $due, of them read by name: $named") got=PASS ;;
     "1:FAIL $name ("*")") got=FAIL ;;
     *) got=exit-$code ;;
   esac
@@ -367,6 +366,8 @@ self_test() {
   rejected=0
   wrong=
   cr=$(printf '\r')
+  named=$(printf '%s\n' "$tests" | wc -w | tr -d ' ')
+  due=$(passing_output | grep -c -x 'test .* \.\.\. ok')
   check all-passed PASS 0 's/^//'
   check crlf-lines PASS 0 "s/\$/$cr/"
   check windows-paths PASS 0 's|Running tests/|Running tests\\|; s|target/debug/deps/|target\\debug\\deps\\|'
