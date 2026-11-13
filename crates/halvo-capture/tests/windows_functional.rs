@@ -1919,30 +1919,43 @@ fn spawn_restricted(test_name: &str, env: &[(&str, String)]) -> Result<Restricte
     if restricted == 0 {
         return Err(format!("CreateRestrictedToken: {restricted_error}"));
     }
-    let mut medium = SID {
-        Revision: 1,
-        SubAuthorityCount: 1,
-        IdentifierAuthority: SID_IDENTIFIER_AUTHORITY {
-            Value: [0, 0, 0, 0, 0, 16],
+    #[repr(C)]
+    struct MediumLabel {
+        label: TOKEN_MANDATORY_LABEL,
+        sid: SID,
+    }
+    let mut medium = MediumLabel {
+        label: TOKEN_MANDATORY_LABEL {
+            Label: SID_AND_ATTRIBUTES {
+                Sid: std::ptr::null_mut(),
+                Attributes: SE_GROUP_INTEGRITY,
+            },
         },
-        SubAuthority: [MEDIUM_INTEGRITY_RID],
-    };
-    let label = TOKEN_MANDATORY_LABEL {
-        Label: SID_AND_ATTRIBUTES {
-            Sid: (&mut medium as *mut SID).cast(),
-            Attributes: SE_GROUP_INTEGRITY,
+        sid: SID {
+            Revision: 1,
+            SubAuthorityCount: 1,
+            IdentifierAuthority: SID_IDENTIFIER_AUTHORITY {
+                Value: [0, 0, 0, 0, 0, 16],
+            },
+            SubAuthority: [MEDIUM_INTEGRITY_RID],
         },
     };
-    // SAFETY: the pointer is to `label`, and Windows reads the SID through
-    // `label.Label.Sid`, which points at `medium`; both live for the call. The
-    // length is the label's size plus the SID's, the sum Microsoft's own sample
-    // passes, and Windows reads no byte past either value.
+    let value: *mut MediumLabel = &mut medium;
+    // SAFETY: `value` points at `medium`, a live MediumLabel; the label's SID
+    // pointer is set to the SID inside that same value, through `value`.
+    unsafe {
+        (*value).label.Label.Sid = std::ptr::addr_of_mut!((*value).sid).cast();
+    }
+    // SAFETY: the pointer is `value`, the start of `medium`, which holds the
+    // label and then the SID that `Label.Sid` points at; the length is the
+    // size of `medium`, so it covers both parts and no byte past them, and
+    // `medium` lives for the call.
     let labelled = unsafe {
         SetTokenInformation(
             limited,
             TokenIntegrityLevel,
-            (&label as *const TOKEN_MANDATORY_LABEL).cast(),
-            (core::mem::size_of::<TOKEN_MANDATORY_LABEL>() + core::mem::size_of::<SID>()) as u32,
+            value.cast_const().cast(),
+            core::mem::size_of::<MediumLabel>() as u32,
         )
     };
     if labelled == 0 {
