@@ -1,6 +1,7 @@
 //! The other end of the library in its tests. Started by the library with `--run ... --browser SCRIPT`, it plays a
 //! runner from the script file that `--browser` names and logs what it reads to `SCRIPT.log`; started as `browser`
-//! it plays a browser that sleeps, and as `child` a process that sleeps.
+//! it plays a browser that sleeps, as `child` a process that sleeps, and as `stderr-child MARKER` a process that
+//! prints MARKER on standard error and exits.
 
 use std::fs::OpenOptions;
 use std::io::{self, Write};
@@ -34,11 +35,89 @@ impl Log {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 enum OnEof {
     End,
     Hang,
     Send(u16),
+    Stderr(String),
+}
+
+const FLOOD_CHUNK: usize = 65_536;
+
+fn write_stderr(bytes: &[u8]) -> bool {
+    let mut err = io::stderr().lock();
+    err.write_all(bytes).is_ok() && err.flush().is_ok()
+}
+
+fn flood_stderr(total: usize) -> usize {
+    let chunk = [b'x'; FLOOD_CHUNK];
+    let mut wrote = 0;
+    while wrote < total {
+        let n = FLOOD_CHUNK.min(total - wrote);
+        if !write_stderr(&chunk[..n]) {
+            break;
+        }
+        wrote += n;
+    }
+    wrote
+}
+
+#[cfg(unix)]
+fn stderr_kind() -> &'static str {
+    use std::os::fd::AsFd;
+    use std::os::unix::fs::{FileTypeExt, MetadataExt};
+    let Ok(fd) = io::stderr().as_fd().try_clone_to_owned() else {
+        return "other";
+    };
+    let Ok(meta) = std::fs::File::from(fd).metadata() else {
+        return "other";
+    };
+    let kind = meta.file_type();
+    if kind.is_char_device() {
+        match std::fs::metadata("/dev/null") {
+            Ok(null) if null.rdev() == meta.rdev() => "null",
+            _ => "other",
+        }
+    } else if kind.is_fifo() {
+        "pipe"
+    } else if kind.is_file() {
+        "file"
+    } else {
+        "other"
+    }
+}
+
+#[cfg(windows)]
+fn stderr_kind() -> &'static str {
+    use std::os::windows::io::AsRawHandle;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetFileType(file: *mut std::ffi::c_void) -> u32;
+        fn GetConsoleMode(console: *mut std::ffi::c_void, mode: *mut u32) -> i32;
+    }
+    const FILE_TYPE_DISK: u32 = 1;
+    const FILE_TYPE_CHAR: u32 = 2;
+    const FILE_TYPE_PIPE: u32 = 3;
+    let handle = io::stderr().as_raw_handle();
+    let mut mode = 0u32;
+    match unsafe { GetFileType(handle) } {
+        FILE_TYPE_CHAR if unsafe { GetConsoleMode(handle, &mut mode) } == 0 => "null",
+        FILE_TYPE_PIPE => "pipe",
+        FILE_TYPE_DISK => "file",
+        _ => "other",
+    }
+}
+
+fn wait_for_file(path: &Path, within: Duration) -> bool {
+    let deadline = std::time::Instant::now() + within;
+    while !path.exists() {
+        if std::time::Instant::now() > deadline {
+            return false;
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+    true
 }
 
 struct Peer {
@@ -302,9 +381,26 @@ impl Peer {
                     self.log.line("no-reply");
                 }
             }
+            "stderr-marker" => self.stderr_marker(rest),
+            "stderr-kind" => self.log.line(&format!("stderr-kind {}", stderr_kind())),
+            "stderr-flood" => {
+                let (total, after) = rest.split_once(' ').unwrap_or((rest, ""));
+                if !after.is_empty() && !wait_for_file(Path::new(after), Duration::from_secs(30)) {
+                    self.log.line("stderr-flood no-start");
+                    return;
+                }
+                let ready = after.is_empty() || Path::new(after).exists();
+                self.log.line(&format!(
+                    "stderr-flood start after={}",
+                    if ready { "yes" } else { "no" }
+                ));
+                let wrote = flood_stderr(total.parse().unwrap_or(0));
+                self.log.line(&format!("stderr-flood wrote={wrote}"));
+            }
             "on-eof" => {
                 let v = match rest.split_once(' ') {
                     Some(("send", port)) => OnEof::Send(port.parse().unwrap_or(0)),
+                    Some(("stderr", marker)) => OnEof::Stderr(marker.to_owned()),
                     _ if rest == "hang" => OnEof::Hang,
                     _ => OnEof::End,
                 };
@@ -321,6 +417,43 @@ impl Peer {
             }
             _ => self.log.line(&format!("unknown-step {word}")),
         }
+    }
+
+    fn stderr_marker(&mut self, marker: &str) {
+        let line = write_stderr(format!("{marker}\n").as_bytes());
+        let mut mixed = vec![0xff, 0xfe, 0x80];
+        mixed.extend_from_slice(marker.as_bytes());
+        mixed.extend_from_slice(&[0xc3, 0x28, b'\n']);
+        let mixed = write_stderr(&mixed);
+        let made = std::env::current_exe().and_then(|exe| {
+            Command::new(exe)
+                .arg("stderr-child")
+                .arg(marker)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::inherit())
+                .spawn()
+        });
+        let child = match made {
+            Ok(mut c) => {
+                let created = process::creation_time(c.id())
+                    .map(|t| t.to_string())
+                    .unwrap_or_default();
+                self.log
+                    .line(&format!("child pid={} created={created}", c.id()));
+                c.wait().is_ok_and(|s| s.success())
+            }
+            Err(_) => false,
+        };
+        let last = write_stderr(marker.as_bytes());
+        let yes = |b: bool| if b { "yes" } else { "no" };
+        self.log.line(&format!(
+            "stderr-marker line={} mixed={} child={} last={}",
+            yes(line),
+            yes(mixed),
+            yes(child),
+            yes(last)
+        ));
     }
 
     fn browser(&mut self, rest: &str) {
@@ -415,9 +548,18 @@ impl Peer {
 
 fn on_link_end(log: &Log, on_eof: &Mutex<OnEof>, browsers: &Mutex<Vec<Child>>) {
     log.line("eof");
-    let what = on_eof.lock().map(|o| *o).unwrap_or(OnEof::End);
+    let what = on_eof.lock().map(|o| o.clone()).unwrap_or(OnEof::End);
     match what {
         OnEof::End => {
+            end_browsers(browsers);
+            std::process::exit(1);
+        }
+        OnEof::Stderr(marker) => {
+            let wrote = write_stderr(format!("{marker}\n").as_bytes());
+            log.line(&format!(
+                "stderr-after-eof wrote={}",
+                if wrote { "yes" } else { "no" }
+            ));
             end_browsers(browsers);
             std::process::exit(1);
         }
@@ -529,6 +671,11 @@ fn main() {
             sleep_forever();
         }
         Some("child") => sleep_forever(),
+        Some("stderr-child") => {
+            let marker = args.get(1).cloned().unwrap_or_default();
+            let wrote = write_stderr(format!("{marker}\n").as_bytes());
+            std::process::exit(if wrote { 0 } else { 1 });
+        }
         Some("host") => host::run(&args[1..]),
         _ if args.iter().any(|a| a == "--run") => runner(&args),
         _ => std::process::exit(64),
