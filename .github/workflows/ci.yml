@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the windows job alone (no macos job in this copy)
 
 on:
   push:
@@ -12,114 +14,13 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
   windows:
     runs-on: windows-2025
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -133,28 +34,44 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
+      - name: Scratch probe of the link of halvo.exe and of page_guard
+        if: ${{ !cancelled() }}
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        env:
+          BASE: d0122c43662b1d5dc0f397f0460863a2b39f262b
+        run: |
+          set +e -u
+          out=target/ci-artifacts/scratch-link-probe
+          mkdir -p "$out"
+          link() {
+            touch src-tauri/src/main.rs src-tauri/tests/page_guard.rs
+            cargo rustc -p halvo --locked --bin halvo -- --print link-args >"$out/bin-$1.txt" 2>"$out/bin-$1.err"
+            echo "probe: halvo.exe link at $1: cargo exit $?"
+            cargo rustc -p halvo --locked --test page_guard -- --print link-args >"$out/test-$1.txt" 2>"$out/test-$1.err"
+            echo "probe: page_guard link at $1: cargo exit $?"
+          }
+          words() { tr -d '\r' <"$1" | sed 's/" "/"\n"/g' | sed -E 's/rustc[A-Za-z0-9]{6}/rustcTMP/g'; }
+          manifest_args() { words "$1" | grep -c -i '/MANIFEST'; }
+          link head
+          cargo test -p halvo --locked --test page_guard >"$out/test-run-head.txt" 2>&1
+          echo "probe: page_guard tests at head: cargo exit $?, ok lines $(grep -c ' \.\.\. ok' "$out/test-run-head.txt"), 0xc0000139 lines $(grep -c 0xc0000139 "$out/test-run-head.txt")"
+          git show "$BASE:src-tauri/build.rs" >src-tauri/build.rs
+          echo "probe: build.rs of the base in place: $(git diff --quiet "$BASE" -- src-tauri/build.rs && echo true || echo false)"
+          link base
+          cargo test -p halvo --locked --test page_guard >"$out/test-run-base.txt" 2>&1
+          echo "probe: page_guard tests with the base's build.rs: cargo exit $?, ok lines $(grep -c ' \.\.\. ok' "$out/test-run-base.txt"), 0xc0000139 lines $(grep -c 0xc0000139 "$out/test-run-base.txt")"
+          git checkout -- src-tauri/build.rs
+          echo "probe: build.rs restored: $(git diff --quiet HEAD -- src-tauri/build.rs && echo true || echo false)"
+          for side in head base; do
+            echo "probe: $side: halvo.exe link words $(words "$out/bin-$side.txt" | grep -c ''), /MANIFEST words $(manifest_args "$out/bin-$side.txt"); page_guard link words $(words "$out/test-$side.txt" | grep -c ''), /MANIFEST words $(manifest_args "$out/test-$side.txt")"
+          done
+          words "$out/bin-head.txt" >"$out/bin-head.words"
+          words "$out/bin-base.txt" >"$out/bin-base.words"
+          echo "probe: halvo.exe link words at head equal those at the base, in order: $(cmp -s "$out/bin-head.words" "$out/bin-base.words" && echo true || echo false)"
+          echo "probe: halvo.exe link words only at head: $(sort "$out/bin-head.words" | comm -23 - <(sort "$out/bin-base.words") | grep -c ''), only at the base: $(sort "$out/bin-base.words" | comm -13 <(sort "$out/bin-head.words") - | grep -c '')"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
