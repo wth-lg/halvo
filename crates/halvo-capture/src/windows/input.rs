@@ -1722,9 +1722,13 @@ mod tests {
         register_raw_input_device(device)
     }
 
-    /// A visible window of the test's own, brought to the front so that the
-    /// keys that a test sends go to it.
-    struct OwnWindow(HWND);
+    /// A visible window of the test's own on a thread of its own that pumps
+    /// its messages, brought to the front so that the keys that a test sends
+    /// go to it; a window that nobody pumps would hold the detector's read.
+    struct OwnWindow {
+        stop: Arc<AtomicBool>,
+        thread: Option<std::thread::JoinHandle<()>>,
+    }
 
     impl OwnWindow {
         fn in_front() -> (OwnWindow, bool) {
@@ -1733,64 +1737,107 @@ mod tests {
                 KEYEVENTF_KEYUP, VK_MENU,
             };
             use windows::Win32::UI::WindowsAndMessaging::{
-                CreateWindowExW, GetForegroundWindow, SetForegroundWindow, ShowWindow, SW_SHOW,
-                WINDOW_EX_STYLE, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
+                CreateWindowExW, DestroyWindow, DispatchMessageW, GetForegroundWindow,
+                PeekMessageW, SetForegroundWindow, ShowWindow, TranslateMessage, MSG, PM_REMOVE,
+                SW_SHOW, WINDOW_EX_STYLE, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
             };
-            let class = windows::core::HSTRING::from("STATIC");
-            // SAFETY: the class name is a live HSTRING; the window belongs to
-            // this thread and is destroyed by the value's Drop.
-            let hwnd = unsafe {
-                CreateWindowExW(
-                    WINDOW_EX_STYLE(0),
-                    windows::core::PCWSTR(class.as_ptr()),
-                    windows::core::PCWSTR::null(),
-                    WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-                    80,
-                    80,
-                    240,
-                    120,
-                    None,
-                    None,
-                    None,
-                    None,
-                )
-            }
-            .expect("INCONCLUSIVE: the test's own window");
-            let alt = |released: bool| INPUT {
-                r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 {
-                    ki: KEYBDINPUT {
-                        wVk: VK_MENU,
-                        wScan: 0,
-                        dwFlags: if released {
-                            KEYEVENTF_KEYUP
-                        } else {
-                            KEYBD_EVENT_FLAGS(0)
+            let stop = Arc::new(AtomicBool::new(false));
+            let (tx, rx) = std::sync::mpsc::channel();
+            let thread_stop = Arc::clone(&stop);
+            let thread = std::thread::spawn(move || {
+                let class = windows::core::HSTRING::from("STATIC");
+                // SAFETY: the class name is a live HSTRING; the window belongs
+                // to this thread, which destroys it before it ends.
+                let Ok(hwnd) = (unsafe {
+                    CreateWindowExW(
+                        WINDOW_EX_STYLE(0),
+                        windows::core::PCWSTR(class.as_ptr()),
+                        windows::core::PCWSTR::null(),
+                        WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                        80,
+                        80,
+                        240,
+                        120,
+                        None,
+                        None,
+                        None,
+                        None,
+                    )
+                }) else {
+                    let _ = tx.send(false);
+                    return;
+                };
+                let alt = |released: bool| INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: VK_MENU,
+                            wScan: 0,
+                            dwFlags: if released {
+                                KEYEVENTF_KEYUP
+                            } else {
+                                KEYBD_EVENT_FLAGS(0)
+                            },
+                            time: 0,
+                            dwExtraInfo: 0,
                         },
-                        time: 0,
-                        dwExtraInfo: 0,
                     },
+                };
+                let pump = || {
+                    let mut msg = MSG::default();
+                    // SAFETY: `msg` is a live MSG that PeekMessageW fills, and
+                    // the same value goes to TranslateMessage and
+                    // DispatchMessageW.
+                    unsafe {
+                        while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                            let _ = TranslateMessage(&msg);
+                            DispatchMessageW(&msg);
+                        }
+                    }
+                };
+                // SAFETY: the calls take this thread's window handle and a
+                // slice of one live INPUT value with the size of one INPUT.
+                unsafe {
+                    let _ = ShowWindow(hwnd, SW_SHOW);
+                    let _ = SendInput(&[alt(false)], core::mem::size_of::<INPUT>() as i32);
+                    let _ = SetForegroundWindow(hwnd);
+                    let _ = SendInput(&[alt(true)], core::mem::size_of::<INPUT>() as i32);
+                }
+                for _ in 0..30 {
+                    pump();
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                // SAFETY: GetForegroundWindow takes no argument.
+                let _ = tx.send(unsafe { GetForegroundWindow() } == hwnd);
+                while !thread_stop.load(Ordering::SeqCst) {
+                    pump();
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                // SAFETY: the window belongs to this thread and is destroyed
+                // once.
+                unsafe {
+                    let _ = DestroyWindow(hwnd);
+                }
+                pump();
+            });
+            let in_front = rx
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap_or(false);
+            (
+                OwnWindow {
+                    stop,
+                    thread: Some(thread),
                 },
-            };
-            // SAFETY: the calls take this thread's window handle and a slice
-            // of two live INPUT values with the size of one INPUT.
-            let in_front = unsafe {
-                let _ = ShowWindow(hwnd, SW_SHOW);
-                let _ = SendInput(&[alt(false)], core::mem::size_of::<INPUT>() as i32);
-                let _ = SetForegroundWindow(hwnd);
-                let _ = SendInput(&[alt(true)], core::mem::size_of::<INPUT>() as i32);
-                std::thread::sleep(std::time::Duration::from_millis(300));
-                GetForegroundWindow() == hwnd
-            };
-            (OwnWindow(hwnd), in_front)
+                in_front,
+            )
         }
     }
 
     impl Drop for OwnWindow {
         fn drop(&mut self) {
-            // SAFETY: the window belongs to this value and this thread.
-            unsafe {
-                let _ = windows::Win32::UI::WindowsAndMessaging::DestroyWindow(self.0);
+            self.stop.store(true, Ordering::SeqCst);
+            if let Some(thread) = self.thread.take() {
+                let _ = thread.join();
             }
         }
     }

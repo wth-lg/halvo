@@ -1046,6 +1046,9 @@ impl Decisions {
 /// It answers how many of them the source recorded.
 fn control(test: &str, which: &str, fixture: &mut Fixture, events: &Events) -> u32 {
     let reset = fixture.ask(CMD_RESET, 0, "reset");
+    let _ = fixture.ask(CMD_FOCUS, FIELD_PASSWORD, "focused");
+    std::thread::sleep(Duration::from_millis(250));
+    let _ = fixture.ask(CMD_FOCUS, FIELD_PLAIN, "focused");
     let _ = events.drain_for(Duration::from_millis(400));
     let _ = seam::take();
     let mut accepted = 0;
@@ -1649,6 +1652,7 @@ fn tab_and_letters_while_a_window_of_another_thread_comes_to_the_front() {
     for wait in [Wait::ServesSent, Wait::Sleeps] {
         stall_test(Phase {
             other_front: true,
+            letters_through_the_wait: false,
             ..phase(
                 "stall-other-front",
                 "other_front_300ms",
@@ -1777,14 +1781,15 @@ pub(super) fn no_focus_key_and_the_program_moves_the_focus_itself() -> (u32, u64
     (recorded, late)
 }
 
-/// W3-5 C6: the program moves the focus to a plain element, waits 200 ms
-/// without taking messages, moves it to the password field and then takes the
-/// keys. It answers as the phase above.
-pub(super) fn the_program_moves_the_focus_in_two_steps() -> (u32, u64) {
-    let totals = stall_phase(Phase {
+/// W3-5 C6, closed by the form: the program moves the focus to a plain
+/// element, waits 200 ms without taking messages, moves it to the password
+/// field and then takes the keys. No letter is recorded.
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn the_program_moves_the_focus_in_two_steps_and_no_letter_is_recorded() {
+    stall_test(Phase {
         two_step: true,
         letters_through_the_wait: false,
         ..phase("stall-two-step", "two_step", Lead::Nothing, Wait::Sleeps, 0)
     });
-    (totals.letters_recorded, totals.late_moved)
 }
