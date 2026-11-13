@@ -151,7 +151,7 @@ fn a_step_after_the_recurrence_step_has_its_records_stored_by_the_typed_commit()
 fn the_typed_commit_refuses_the_whole_list_for_one_record_that_breaks_a_rule() {
     let scratch = Scratch::new("refusals");
     let clock = TestClock::at_day(DAY);
-    let w = workflow(&scratch, &clock, &[&NOTE]);
+    let w = workflow(&scratch, &clock, &[&NOTE, &FRONT]);
     let missing = "3".repeat(32);
     let cases: Vec<(TypedRecord, Cause)> = vec![
         (note(&missing, DAY, 1), Cause::NoWorkflow),
@@ -171,7 +171,7 @@ fn the_typed_commit_refuses_the_whole_list_for_one_record_that_breaks_a_rule() {
         ),
         (
             TypedRecord {
-                kind: "agent_run",
+                kind: "front_mark",
                 json: "{}".to_owned(),
             },
             Cause::OtherFamily,
@@ -186,8 +186,12 @@ fn the_typed_commit_refuses_the_whole_list_for_one_record_that_breaks_a_rule() {
     ];
     for (bad, cause) in cases {
         let records: Records = Rc::new(RefCell::new(vec![note(&w, DAY, 1), bad]));
-        let mut store =
-            open_entries(&scratch, with_step(&clock, &records, vec![]), &[&NOTE]).unwrap();
+        let mut store = open_entries(
+            &scratch,
+            with_step(&clock, &records, vec![]),
+            &[&NOTE, &FRONT],
+        )
+        .unwrap();
         let outcome = store
             .commit_batch(&store_id(1), &[], position(9, 0), &mut Seq(1))
             .unwrap();
@@ -352,9 +356,14 @@ fn a_window_record_that_names_a_purged_ordinal_is_dropped_and_the_rest_of_the_li
 fn row_read_visits_the_rows_of_its_own_family_alone_in_byte_order() {
     let scratch = Scratch::new("row-read");
     let clock = TestClock::at_day(DAY);
-    let w = workflow(&scratch, &clock, &[&NOTE]);
+    let w = workflow(&scratch, &clock, &[&NOTE, &FRONT]);
     let records: Records = Rc::new(RefCell::new(vec![note(&w, DAY, 7), note(&w, DAY, 3)]));
-    let mut store = open_entries(&scratch, with_step(&clock, &records, vec![]), &[&NOTE]).unwrap();
+    let mut store = open_entries(
+        &scratch,
+        with_step(&clock, &records, vec![]),
+        &[&NOTE, &FRONT],
+    )
+    .unwrap();
     store
         .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(1))
         .unwrap();
@@ -369,12 +378,12 @@ fn row_read_visits_the_rows_of_its_own_family_alone_in_byte_order() {
                 "test_note",
                 "workflow",
                 "summary",
-                "agent_run",
+                "front_mark",
                 "test_missing",
             ],
         }),
     );
-    let mut store = open_entries(&scratch, host, &[&NOTE]).unwrap();
+    let mut store = open_entries(&scratch, host, &[&NOTE, &FRONT]).unwrap();
     store
         .commit_batch(&store_id(1), &[], position(3, 0), &mut Seq(1))
         .unwrap();
