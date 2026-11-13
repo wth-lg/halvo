@@ -1,5 +1,5 @@
 page record: sh scripts/r4/ci.d/40-r4-page.sh --record
-stamp=da20875df97ba3ab6bc9a40d3048512ce754b97470cea5368c2c22a62b38f5b4 files=133
+stamp=420060809e5ed10d47aad780908b2fd5ea7ee3c79bfb83d6d324411441d27174 files=133
 browser name=webkit version=27.2
 page state=card views=agents violations=0 review=15 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
 page state=empty views=agents violations=0 review=2 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
