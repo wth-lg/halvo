@@ -2,6 +2,7 @@
 pub mod cdp;
 pub mod checks;
 pub mod fixture;
+pub mod killwatch;
 pub mod peer;
 #[cfg(feature = "driver")]
 pub mod pipe;

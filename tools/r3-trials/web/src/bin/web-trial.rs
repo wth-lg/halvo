@@ -3237,7 +3237,6 @@ mod driver {
     const CHILD_WAIT: Duration = Duration::from_secs(60);
     const CHILD_LIFE: Duration = Duration::from_secs(120);
     const CONTROL_WAIT: Duration = Duration::from_secs(15);
-    const PORT_FREE_WATCH: Duration = Duration::from_secs(30);
 
     struct Form {
         step: &'static str,
@@ -3470,6 +3469,32 @@ mod driver {
         left: bool,
         /// What the end of the run's own processes found after the watch and left (CP-126 E1).
         ended: checks::Ended,
+        /// The watch of `relay_port_free` (CP-145 (1)), where the row has one.
+        watch: Option<r3_web::killwatch::Watched>,
+    }
+
+    /// The processes of a kill's run that run now: those of the tree read before the kill and
+    /// every process that the run's mark owns (CP-145 (1) (b): a member born after the kill
+    /// counts). `None` when the process table could not be read.
+    fn of_the_run(
+        tree: &[r3_web::procs::Proc],
+        mark: &checks::Mark,
+    ) -> Option<Vec<r3_web::procs::Proc>> {
+        let table = r3_web::procs::table().ok()?;
+        let mut out: Vec<r3_web::procs::Proc> = tree
+            .iter()
+            .filter(|p| r3_web::procs::running(p))
+            .cloned()
+            .collect();
+        for p in &table {
+            if !out.iter().any(|o| r3_web::procs::same(o, p))
+                && mark.owns(p, &checks::command_args)
+                && r3_web::procs::running(p)
+            {
+                out.push(p.clone());
+            }
+        }
+        Some(out)
     }
 
     /// Whether another socket can bind 127.0.0.1:`port` now, as a process that wants the port
@@ -3707,16 +3732,56 @@ mod driver {
         let _ = child.wait();
         let mut gone_ms = None;
         let mut free_ms = None;
-        if paused && watch_port.is_some() {
-            while t_kill.elapsed() < PORT_FREE_WATCH && (gone_ms.is_none() || free_ms.is_none()) {
-                if free_ms.is_none() && watch_port.is_some_and(port_bindable) {
-                    free_ms = Some(t_kill.elapsed().as_millis());
-                }
-                if gone_ms.is_none() && !tree.iter().any(r3_web::procs::running) {
-                    gone_ms = Some(t_kill.elapsed().as_millis());
-                }
-                std::thread::sleep(Duration::from_millis(2));
-            }
+        let mut watch = None;
+        if let (true, Some(port)) = (paused, watch_port) {
+            // CP-145 (1): the watch ends nothing before its cap; a table that could not be read
+            // shows no end of the run
+            use r3_web::killwatch;
+            let first = root.clone();
+            let w = killwatch::watch(
+                killwatch::Readers {
+                    running: &mut || of_the_run(&tree, &mark).is_none_or(|r| !r.is_empty()),
+                    free: &mut || port_bindable(port),
+                    now_ms: &mut || t_kill.elapsed().as_millis(),
+                    pause: &mut || std::thread::sleep(killwatch::PASS_WAIT),
+                    report: &mut |at| {
+                        let now = of_the_run(&tree, &mark);
+                        let names: Vec<String> = now
+                            .iter()
+                            .flatten()
+                            .filter_map(|p| {
+                                p.exe
+                                    .as_ref()?
+                                    .file_name()
+                                    .map(|n| n.to_string_lossy().replace(' ', "_"))
+                            })
+                            .collect();
+                        eprintln!(
+                            "watch_at step={} i={i} ms={at} running={} programs={} first={}",
+                            form.step,
+                            now.as_ref()
+                                .map_or("unread".to_string(), |r| r.len().to_string()),
+                            if names.is_empty() {
+                                "-".into()
+                            } else {
+                                names.join(",")
+                            },
+                            match (&now, &first) {
+                                (Some(r), Some(f))
+                                    if r.iter().any(|p| r3_web::procs::same(p, f)) =>
+                                    "yes",
+                                (None, _) => "unread",
+                                _ => "no",
+                            }
+                        );
+                    },
+                },
+                killwatch::CAP,
+                killwatch::REPORT_AT,
+            );
+            gone_ms = w.gone_ms;
+            free_ms = w.free_ms;
+            watch = Some(w);
         } else if paused {
             while t_kill.elapsed() < KILL_WATCH {
                 if gone_ms.is_none() {
@@ -3758,6 +3823,7 @@ mod driver {
             version,
             left,
             ended,
+            watch,
         })
     }
 
@@ -3768,6 +3834,8 @@ mod driver {
         );
         let name = form.step;
         let mut ok = 0;
+        let mut misses = 0;
+        let mut opens = 0;
         let mut gone = Vec::new();
         let mut majors = Vec::new();
         for i in 1..=runs {
@@ -3778,15 +3846,15 @@ mod driver {
                     return false;
                 }
             };
-            let first = k.watched
-                && k.ended.after == 0
-                && match (k.gone_ms, k.free_ms) {
-                    (Some(g), Some(f)) => g <= f,
-                    (Some(_), None) => true,
-                    _ => false,
-                };
-            if first {
-                ok += 1;
+            // CP-145 (1) (c): ok, a miss with its cause, or open; left_before decides here too
+            let outcome = match &k.watch {
+                Some(w) => r3_web::killwatch::decide(&w.passes, k.ended.before, k.ended.after),
+                None => r3_web::killwatch::Outcome::Miss("unwatched"),
+            };
+            match outcome {
+                r3_web::killwatch::Outcome::Ok => ok += 1,
+                r3_web::killwatch::Outcome::Miss(_) => misses += 1,
+                r3_web::killwatch::Outcome::Open(_) => opens += 1,
             }
             if let Some(g) = k.gone_ms {
                 gone.push(g);
@@ -3795,11 +3863,13 @@ mod driver {
                 majors.push(m);
             }
             out(&format!(
-                "run {head} step={name} i={i} result={} watched={} gone_ms={} free_ms={} version={} left={} left_before={} left_after={}",
-                if first { "ok" } else { "miss" },
+                "run {head} step={name} i={i} result={} cause={} watched={} gone_ms={} free_ms={} max_gap_ms={} version={} left={} left_before={} left_after={}",
+                outcome.result(),
+                outcome.cause(),
                 if k.watched { "yes" } else { "no" },
                 k.gone_ms.map(|v| v.to_string()).unwrap_or("-".into()),
                 k.free_ms.map(|v| v.to_string()).unwrap_or("-".into()),
+                k.watch.as_ref().map_or("-".into(), |w| w.max_gap_ms.to_string()),
                 k.version,
                 if k.left { "yes" } else { "no" },
                 k.ended.before,
@@ -3813,6 +3883,13 @@ mod driver {
             out(&format!("notrun {head} step={name} cause=version"));
             return false;
         };
+        // CP-145 (1) (e): a call with an open kill and no miss could not finish its watch
+        if let Some(cause) = r3_web::killwatch::call_notrun(misses, opens) {
+            out(&format!(
+                "notrun {head} step={name} cause={cause} ok={ok} open={opens} of={runs}"
+            ));
+            return false;
+        }
         out(&format!(
             "cell {head} major={major}{majors_key} step={name} ok={ok} of={runs} median_ms={} relay=pipe_relay",
             median(&mut gone)
