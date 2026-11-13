@@ -1274,6 +1274,158 @@ mod tests {
     }
 
     #[test]
+    fn dropping_every_handle_settles_the_held_events_and_ends_the_loop() {
+        let mut harness = Harness::new();
+        resumed(&mut harness);
+        for _ in 0..3 {
+            harness.emit(foreground_now());
+            harness.pass();
+        }
+        assert!(harness.store.records().is_empty());
+        let Harness {
+            mut owner,
+            handle,
+            store,
+            ..
+        } = harness;
+        drop(handle);
+        assert!(
+            !owner.pass(Duration::ZERO),
+            "the loop went on with no handle"
+        );
+        assert_eq!(store.records().len(), 3, "the held events were not settled");
+    }
+
+    #[test]
+    fn three_faults_that_differ_drop_no_batch() {
+        let mut harness = Harness::new();
+        harness.store.script_writes([
+            WriteScript::Fail(WriteFault::Db(11)),
+            WriteScript::Fail(WriteFault::Db(5)),
+            WriteScript::Fail(WriteFault::Db(11)),
+        ]);
+        resumed(&mut harness);
+        for _ in 0..4 {
+            harness.emit(foreground_now());
+        }
+        settled(&mut harness);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        harness.clocks.advance(2 * RETRY_FIRST);
+        harness.pass();
+        assert_eq!(harness.store.write_calls().len(), 3);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!(
+            snapshot.events_lost, 0,
+            "three faults that differ dropped the batch"
+        );
+        assert_eq!(snapshot.events_pending, 4);
+    }
+
+    #[test]
+    fn three_writes_answered_database_full_drop_no_batch_and_say_no_space() {
+        let mut harness = Harness::new();
+        harness.store.fail_every_write(Some(WriteFault::Db(13)));
+        resumed(&mut harness);
+        for _ in 0..4 {
+            harness.emit(foreground_now());
+        }
+        settled(&mut harness);
+        harness.clocks.advance(RETRY_FIRST);
+        harness.pass();
+        harness.clocks.advance(2 * RETRY_FIRST);
+        harness.pass();
+        assert_eq!(harness.store.write_calls().len(), 3);
+        let snapshot = harness.owner.snapshot();
+        assert_eq!(snapshot.events_lost, 0, "a full database dropped the batch");
+        assert_eq!(snapshot.events_pending, 4);
+        assert!(harness.reports().iter().any(|report| matches!(
+            report,
+            Report::DrainFailing {
+                cause: DrainCause::NoSpace,
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn an_owner_over_the_discard_port_flushes_its_batch() {
+        let (sink, writer) = sink::channel(64);
+        let (mut owner, handle, _reports) = Owner::open(OwnerParts {
+            writer,
+            store: crate::daemon::discard_port::DiscardPort::new(std::path::PathBuf::from(env!(
+                "CARGO_MANIFEST_DIR"
+            ))),
+            clocks: ManualClocks::at(noon()),
+            floor: open_floor(),
+            cap: StorageCap::DEFAULT,
+            shred_chunk: SHRED_CHUNK,
+        });
+        let ask = |owner: &mut Owner<_, _>, command| {
+            let pending = handle.ask(command).unwrap();
+            owner.pass(Duration::ZERO);
+            pending.try_answer().unwrap()
+        };
+        ask(&mut owner, Command::ClosePause);
+        assert_eq!(sink.emit_event(foreground_now()), sink::Emitted::Queued);
+        let Answer::Settled(snapshot) = ask(&mut owner, Command::Settle) else {
+            panic!("no settle answer");
+        };
+        assert_eq!(snapshot.events_persisted, 1);
+        assert_eq!(snapshot.segments_written, 1);
+    }
+
+    #[test]
+    fn the_disk_total_adds_each_write_and_reads_the_usage_after_an_eviction() {
+        let mut harness = Harness::over(ModelStore::new(), open_floor(), 2048);
+        resumed(&mut harness);
+        for _ in 0..600 {
+            harness.emit(foreground_now());
+        }
+        let settled = settled(&mut harness);
+        let batches = harness.store.batches();
+        assert_eq!(batches.len(), 2);
+        let written: u64 = batches
+            .iter()
+            .map(|batch| (batch.payload.len() as u64).div_ceil(4096) * 4096)
+            .sum();
+        assert_eq!(
+            settled.disk_bytes,
+            Some(written),
+            "the disk total is not the sum of the writes"
+        );
+        harness.pass();
+        let usage: u64 = batches.iter().map(|batch| batch.payload.len() as u64).sum();
+        assert!(harness
+            .store
+            .log()
+            .iter()
+            .any(|call| matches!(call, Call::EvictTo { .. })));
+        assert_eq!(
+            harness.owner.snapshot().disk_bytes,
+            Some(usage),
+            "the disk total is not the usage after an eviction"
+        );
+    }
+
+    #[test]
+    fn last_expiry_at_is_the_wall_time_of_a_good_expiry_after_a_step() {
+        let mut harness = Harness::new();
+        resumed(&mut harness);
+        harness.clocks.advance(Duration::from_secs(10));
+        harness.pass();
+        harness.clocks.step_wall_back(Duration::from_secs(3600));
+        let calls = harness.store.expire_calls().len();
+        harness.clocks.advance(Duration::from_secs(1));
+        harness.pass();
+        assert_eq!(harness.store.expire_calls().len(), calls + 1);
+        assert_eq!(
+            harness.owner.snapshot().last_expiry_at,
+            Some(harness.clocks.wall())
+        );
+    }
+
+    #[test]
     fn an_event_of_a_listed_app_never_reaches_a_batch() {
         let mut harness = Harness::over(ModelStore::new(), floor_rooted_at_the_test_app(), 64);
         resumed(&mut harness);
@@ -1735,6 +1887,32 @@ mod tests {
                 Some(0),
                 "the snapshot counts no disk bytes for the stored segment"
             );
+        }
+
+        #[test]
+        fn a_port_that_cannot_read_the_free_space_writes_its_batch() {
+            for kind in [io::ErrorKind::Unsupported, io::ErrorKind::PermissionDenied] {
+                let mut harness = Harness::new();
+                harness.store.set_free_bytes(Err(kind));
+                resumed(&mut harness);
+                for _ in 0..3 {
+                    harness.emit(foreground_now());
+                }
+                let snapshot = settled(&mut harness);
+                let reads = harness
+                    .store
+                    .log()
+                    .iter()
+                    .filter(|call| matches!(call, Call::FreeBytes))
+                    .count();
+                println!(
+                    "ADV2 q5 volume_free_bytes answers Err({kind:?}): reads = {reads}, write calls = {}, persisted = {}, reports = {:?}",
+                    harness.store.write_calls().len(),
+                    snapshot.events_persisted,
+                    harness.reports()
+                );
+                assert_eq!(snapshot.events_persisted, 3);
+            }
         }
     }
 }
