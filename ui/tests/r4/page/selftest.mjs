@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ACTS_FILE, FIXTURES_DIR, NAMES, RUN_VIEWS, SNAPSHOTS_DIR, VIEWS_DIR, denyLines, fileRules, spreadCount, statesOf, viewRules } from './files.mjs';
 import { RECORD_FILE, committedRecord, factsOf, packagesCheck, readRecord, recordForm, stampOf, treeBeside } from './record.mjs';
 import { loadHarness, pageConfirmFirst, plan, runStates, sayRule, verdict } from './run.mjs';
@@ -347,7 +347,7 @@ export function fileCases({ repo, acorn: acornDir, work, report }) {
   }
   const crlf = indexed(copyRepo(repo, join(work, 'record-then-the-views-checked-out-with-crlf')), true);
   writeRecord(crlf);
-  for (const f of ['agents.js', 'needs.js']) writeFileSync(join(crlf, VIEWS_DIR, f), readFileSync(join(crlf, VIEWS_DIR, f), 'utf8').replace(/\n/g, '\r\n'));
+  for (const f of ['agents.js', 'needs.js']) writeFileSync(join(crlf, VIEWS_DIR, f), readFileSync(join(crlf, VIEWS_DIR, f), 'utf8').replace(/\r\n/g, '\n').replace(/\n/g, '\r\n'));
   report('record-then-the-views-checked-out-with-crlf', 'pass', recordFault(crlf));
   const real = process.env.R4_PAGE_BROWSERS || join(repo, 'tools', 'r4-page', '.browsers');
   report('packages-of-the-browsers-directory', 'pass', packagesCheck(repo, real).cause || 'pass');
@@ -448,8 +448,8 @@ export async function pageCases({ repo, work, report, log }) {
 const SMALL_STATES = ['empty', 'ten'];
 const SMALL_ITEM = 'test_changed';
 
-/** A small fixture repository: the stamped files of the repository with two states and one test item, its index holding them. */
-function smallRepo(repo, dir) {
+/** A small fixture repository: the stamped files of the repository with two states and one test item, its index holding them; its line for a Mac names the engine of this machine, so that the macos form reads the record that this machine writes. */
+function smallRepo(repo, dir, engine) {
   const files = git(repo, 'ls-files', '-z', '--', 'ui', 'tools/r4-page', 'docs/r4/page-features.txt', 'scripts/r4/ci.d/40-r4-page.sh').split('\0').filter(Boolean);
   for (const f of files) {
     if (f === 'ui/tests/r4/page/record.txt') continue;
@@ -462,6 +462,8 @@ function smallRepo(repo, dir) {
   }
   const items = JSON.parse(readFileSync(join(repo, 'ui', 'tests', 'r4', 'needs', 'items.json'), 'utf8'));
   writeFileSync(join(dir, 'ui', 'tests', 'r4', 'needs', 'items.json'), JSON.stringify({ [SMALL_ITEM]: items[SMALL_ITEM] }) + '\n');
+  const browsers = join(dir, 'tools', 'r4-page', 'browser.txt');
+  writeFileSync(browsers, readFileSync(browsers, 'utf8').replace(/^mac \S+$/m, 'mac ' + engine));
   return indexed(dir);
 }
 
@@ -475,7 +477,8 @@ function runCheck(repo, args) {
 
 /** The whole run of the macos job on a small fixture: --record writes a record that passes; a hand record over a wrong structure file and a record one byte away from the fresh one fail. */
 export async function wholeCases({ repo, work, report }) {
-  const fx = smallRepo(repo, join(work, 'whole-small'));
+  const { browserFor, machine } = await import(pathToFileURL(join(repo, 'tools', 'r4-page', 'machine.mjs')).href);
+  const fx = smallRepo(repo, join(work, 'whole-small'), browserFor(machine()));
   const written = runCheck(repo, ['record', '--repo', fx]);
   report('whole-record-of-a-small-fixture', 'pass', written.status === 0 && written.cause === 'ok' ? 'pass' : written.cause);
   const text = committedRecord(fx) || '';
