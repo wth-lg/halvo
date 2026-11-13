@@ -58,6 +58,37 @@ const LISTED: [(&str, &str, &str); 5] = [
     ),
 ];
 
+/// The roots whose files the tests of this file read.
+const ROOTS: [&str; 2] = ["crates/halvo-capture/", "src-tauri/src/"];
+
+/// The names of LISTED that bring code to the compiler; `include_str` and
+/// `include_bytes` bring a text or bytes.
+const CODE: [&str; 2] = ["path", "include"];
+
+/// The file that a use reaches: its literal from the directory of `file`.
+fn reached(file: &str, literal: &str) -> String {
+    let dir = file.rsplit_once('/').map_or("", |(dir, _)| dir);
+    format!("{dir}/{}", literal.trim_matches('"'))
+}
+
+/// Each use of `listed` that brings code and reaches a file whose name does
+/// not end in .rs, or that lies under no root of [`ROOTS`].
+fn code_reach_faults(listed: &[(&str, &str, &str)]) -> Vec<String> {
+    listed
+        .iter()
+        .filter(|(_, name, _)| CODE.contains(name))
+        .filter_map(|(file, name, literal)| {
+            let target = reached(file, literal);
+            let ok = target.ends_with(".rs")
+                && ROOTS.iter().any(|root| target.starts_with(root))
+                && !target.split('/').any(|part| part == ".." || part == ".");
+            (!ok).then(|| {
+                format!("{file}: the listed {name} reaches {target}, no .rs file under a root that these rules read")
+            })
+        })
+        .collect()
+}
+
 const KEYWORDS: [&str; 38] = [
     "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum", "extern",
     "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub",
@@ -444,6 +475,7 @@ fn the_text_filter_point_has_one_implementor_at_most_and_it_is_under_daemon() {
     let mut files = Vec::new();
     files_under("crates/halvo-capture/src/floor", &mut files);
     files_under("crates/halvo-capture/src/daemon", &mut files);
+    files.retain(|f| f.ends_with(".rs"));
     assert!(
         files
             .iter()
@@ -544,4 +576,46 @@ fn path_attributes_and_include_macros_stand_only_at_the_listed_uses() {
         uses, listed,
         "a path attribute or an include macro stands at a use that LISTED does not name, or a listed use is gone"
     );
+}
+
+#[test]
+fn every_listed_use_that_brings_code_reaches_an_rs_file_that_these_rules_read() {
+    assert_eq!(code_reach_faults(&LISTED), Vec::<String>::new());
+    let refused = [
+        (
+            "crates/halvo-capture/src/daemon/mod.rs",
+            "path",
+            "\"mutants.rows\"",
+        ),
+        (
+            "crates/halvo-capture/src/lib.rs",
+            "include",
+            "\"generated.in\"",
+        ),
+        (
+            "crates/halvo-capture/src/lib.rs",
+            "path",
+            "\"../../other/src/x.rs\"",
+        ),
+        ("src-tauri/build.rs", "path", "\"build/x.rs\""),
+    ];
+    for case in refused {
+        assert_eq!(code_reach_faults(&[case]).len(), 1, "{case:?}");
+    }
+    let kept = [
+        ("src-tauri/build.rs", "path", "\"src/commands/names.rs\""),
+        (
+            "crates/halvo-capture/src/a.rs",
+            "include_str",
+            "\"notes.txt\"",
+        ),
+        (
+            "crates/halvo-capture/src/a.rs",
+            "include_bytes",
+            "\"data.golden\"",
+        ),
+    ];
+    for case in kept {
+        assert_eq!(code_reach_faults(&[case]), Vec::<String>::new(), "{case:?}");
+    }
 }
