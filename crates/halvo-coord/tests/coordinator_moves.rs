@@ -2973,7 +2973,7 @@ fn the_persons_stop_of_an_agent_with_no_live_run_or_a_stopping_one_lapses_nothin
             .iter()
             .map(|i| i.item().clone())
             .collect::<Vec<_>>(),
-        [ready.clone()],
+        std::slice::from_ref(&ready),
         "the queued agent holds its ready item"
     );
     a_stop_changes_nothing(&c, &agent(1), &[], "a queued agent with a ready item");
