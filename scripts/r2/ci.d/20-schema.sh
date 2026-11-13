@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: The tests of halvo-schema-core and halvo-schema pass, export-names writes on two runs the names file that the crate commits as tests/golden/names.txt, and the check fails when a test that scripts/r2/20-schema-tests.txt lists at HEAD is renamed, removed, ignored, filtered out or left unbuilt, when its target is pointed at another file, when a test prints the lines that the check reads, or when a tracked file differs from HEAD after the tests, but it does not hold against code of the job that writes a test binary or a tool on the PATH before the check reads them, a test that keeps its name with another body, a required target with its test harness switched off, code that runs before main in a required test file, or a cargo configuration with a runner or a compiler wrapper (ruling S-53).
+# rule: The tests of halvo-schema-core and halvo-schema pass, export-names writes on two runs the names file that the crate commits as tests/golden/names.txt, and the check fails when a test that scripts/r2/20-schema-tests.txt lists at HEAD is renamed, removed, ignored, filtered out or left unbuilt, when its target is pointed at another file, when a test prints the lines that the check reads, or when a tracked file differs from HEAD after the tests, but it does not hold against code of the job that writes a test binary or a tool on the PATH before the check reads them, a tool that a step of the workflow itself puts earlier on the PATH (the step Prerequisites copies cargo-deny and cargo-release into $CARGO_HOME/bin, the directory of cargo that the driver puts first), a test that keeps its name with another body, a required target with its test harness switched off, code that runs before main in a required test file, or a cargo configuration with a runner or a compiler wrapper (ruling S-53).
 set -u
 name=20-schema
 golden=crates/halvo-schema/tests/golden/names.txt
@@ -728,8 +728,11 @@ the list of the one test binary that cargo's messages
 (cargo test --locked -p <package> --no-run --message-format=json) name for
 the target's file, built by the test run and not in its list of ignored
 tests. Then export-names must write the golden names file on two runs, and
-no tracked file may differ from HEAD. --self-test runs the checks against a
-stub cargo and a stub git.
+no tracked file may differ from HEAD. It trusts the job around it: code of
+the job that runs before its reads, and a tool earlier on the PATH, whether
+code of the job wrote it there or a step of the workflow itself put it there
+(ruling S-53). --self-test runs the checks against a stub cargo and a stub
+git.
 EOF
 }
 
