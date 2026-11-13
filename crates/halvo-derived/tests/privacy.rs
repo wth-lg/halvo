@@ -1,23 +1,23 @@
 mod common;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use common::{
-    episode, key, listed, open_host, own_note_body, position, raw, raw_request, registry,
+    domain, episode, key, listed, open_host, own_note_body, position, raw, raw_request, registry,
     store_id, summary_id, token, Grouping, NoProposals, OwnNote, Scratch, Seq, TestClock, DAY_NS,
-    FAR, OWN, TRACE,
+    FAR, NOTE, OWN, TRACE,
 };
 use halvo_derived::test_host::open_keyless;
 use halvo_derived::{Committed, Host, Report, Store, Takes};
 use halvo_schema_core::category::SeedCategory;
-use halvo_schema_core::ids::RequestId;
-use halvo_schema_core::kinds::KindEntry;
+use halvo_schema_core::ids::{RequestId, WorkflowId};
+use halvo_schema_core::kinds::{self, KindEntry};
 use halvo_schema_core::record::{
     Episode, FloorLayer, Instant, Ordinal, RowRead, SummaryRead, Tagged, Text, TypedRecord,
-    WriterStep,
+    Workflow, WriterStep,
 };
-use halvo_schema_core::request::{InterfaceDecision, InterfaceRole};
+use halvo_schema_core::request::{self, Decoded, ErrorName, InterfaceDecision, InterfaceRole};
 use halvo_schema_core::site::AppId;
 use halvo_sqlcipher::rusqlite::Connection;
 use sha2::{Digest, Sha256};
@@ -412,5 +412,164 @@ fn privacy_bounded() {
         summary_ids(&raw(&scratch)),
         vec![summary_id(1).as_str().to_owned()],
         "the summaries that the test's own connection counts after the reopen"
+    );
+}
+
+/// The second test step of privacy_kept: called after each commit, it counts its calls and returns one record of the
+/// test-only kind `test_note` for each workflow id that the test put in its list.
+struct NoteStep {
+    calls: Rc<Cell<u32>>,
+    named: Rc<RefCell<Vec<String>>>,
+}
+
+impl WriterStep for NoteStep {
+    fn after_commit(&self, _summaries: &dyn SummaryRead, _rows: &dyn RowRead) -> Vec<TypedRecord> {
+        self.calls.set(self.calls.get() + 1);
+        let n = self.calls.get();
+        self.named
+            .borrow()
+            .iter()
+            .map(|workflow| TypedRecord {
+                kind: "test_note",
+                json: format!(r#"{{"v":1,"workflow":"{workflow}","day":{DAY},"n":{n}}}"#),
+            })
+            .collect()
+    }
+}
+
+/// An analysis write with one episode, as its sender writes it.
+fn analysis_write(episode: &serde_json::Value) -> Vec<u8> {
+    format!(
+        r#"{{"v":1,"id":"{}","request":"analysis_write","body":{{"store":"{}","episodes":[{episode}],"commit":null}}}}"#,
+        "5".repeat(32),
+        "1".repeat(32)
+    )
+    .into_bytes()
+}
+
+fn decoded(bytes: &[u8]) -> Result<(), ErrorName> {
+    match request::decode(bytes) {
+        Ok(Decoded::AnalysisWrite(_)) => Ok(()),
+        Ok(_) => panic!("the analysis write decodes as another request"),
+        Err(e) => Err(e.error),
+    }
+}
+
+/// privacy_kept: the registry passes `kinds::check_registry`; the owner's reader refuses an analysis write whose app
+/// id is a path or whose domain is a sentence; with one test-only kind of origin capture whose entry gives a workflow
+/// key, and a second test step after the test proposer that is called after each commit and whose records of that kind
+/// are stored by the typed commit, the delete of one workflow leaves no row of any registered kind that names it, no
+/// summary of its key and no evidence or support row of those summaries, while the other workflow keeps its rows, and
+/// one more batch with no new matching episode proposes nothing with its key.
+#[test]
+fn privacy_kept() {
+    assert_eq!(kinds::check_registry(), Vec::<String>::new());
+    let good = serde_json::to_value(episode(1, DAY, domain("northwind-power.test"))).unwrap();
+    assert_eq!(decoded(&analysis_write(&good)), Ok(()), "the control write");
+    let mut path_app = good.clone();
+    path_app["app"] = serde_json::json!("/Applications/Browser.app/Contents/MacOS/browser");
+    assert_eq!(decoded(&analysis_write(&path_app)), Err(ErrorName::Malformed));
+    let mut sentence = good.clone();
+    sentence["site"]["domain"] = serde_json::json!("pay the bill at northwind power");
+    assert_eq!(decoded(&analysis_write(&sentence)), Err(ErrorName::Malformed));
+
+    let scratch = Scratch::new("privacy-kept");
+    let clock = TestClock::at_day(DAY);
+    let calls = Rc::new(Cell::new(0));
+    let named = Rc::new(RefCell::new(Vec::new()));
+    let host = Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 2 })).step(
+        "test",
+        Box::new(NoteStep {
+            calls: Rc::clone(&calls),
+            named: Rc::clone(&named),
+        }),
+    );
+    let mut store = open_store(&scratch, true, &with(&[&NOTE]), host);
+    let batch = [
+        episode(1, DAY, None),
+        episode(2, DAY, None),
+        episode(3, DAY, domain("northwind-power.test")),
+        episode(4, DAY, domain("northwind-power.test")),
+    ];
+    let first = store
+        .commit_batch(&store_id(1), &batch, position(1, 0), &mut Seq(100))
+        .unwrap();
+    assert_eq!(first.proposals.stored, 2);
+    assert_eq!(first.steps, vec![Ok(Committed::default())]);
+    let items = listed(&store);
+    let of_site = |with_site: bool| -> WorkflowId {
+        let item = items
+            .iter()
+            .find(|item| match &item.workflow {
+                Workflow::Full(full) => full.site.is_some() == with_site,
+                Workflow::Dismissed(_) => false,
+            })
+            .unwrap();
+        item.workflow.id().clone()
+    };
+    let (deleted, kept) = (of_site(false), of_site(true));
+    *named.borrow_mut() = vec![deleted.as_str().to_owned(), kept.as_str().to_owned()];
+    for at in 2..=3 {
+        let outcome = store
+            .commit_batch(&store_id(1), &[], position(at, 0), &mut Seq(100 * at))
+            .unwrap();
+        assert_eq!(
+            outcome.steps,
+            vec![Ok(Committed {
+                stored: 2,
+                dropped: 0
+            })]
+        );
+    }
+    store
+        .decide(&InterfaceDecision::delete(
+            &InterfaceRole::claim(),
+            RequestId::from_random([2; 16]),
+            deleted.clone(),
+        ))
+        .unwrap();
+    *named.borrow_mut() = vec![kept.as_str().to_owned()];
+    let after = store
+        .commit_batch(&store_id(1), &[], position(4, 0), &mut Seq(400))
+        .unwrap();
+    assert_eq!(
+        (after.proposals.stored, after.proposals.updated),
+        (0, 0),
+        "one more batch with no new episode proposes nothing with the deleted key"
+    );
+    assert_eq!(calls.get(), 4, "the second step is called after each commit");
+    drop(store);
+    let conn = raw(&scratch);
+    let naming: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM rows WHERE workflow = ?1 OR instr(body, ?1) > 0",
+            [deleted.as_str()],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(naming, 0, "rows of any kind that name the deleted workflow");
+    let support: Vec<String> = [1, 2]
+        .iter()
+        .map(|n| summary_id(*n).as_str().to_owned())
+        .collect();
+    let of_key: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM rows WHERE summary IN (?1, ?2)",
+            [&support[0], &support[1]],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(of_key, 0, "summaries of the deleted key, their evidence and their support rows");
+    let kept_notes: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM rows WHERE kind = 'test_note' AND workflow = ?1",
+            [kept.as_str()],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(kept_notes, 3, "the rows of the test-only kind of the other workflow");
+    assert_eq!(
+        count(&conn, "SELECT count(*) FROM rows WHERE kind = 'workflow'"),
+        1
     );
 }
