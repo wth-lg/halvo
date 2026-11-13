@@ -108,7 +108,7 @@ type Account = {
   unexplainedReads: number;
   refused: Map<string, { amountMinor: number; timestamp: number }>;
   queuedCancel: ProviderEvent | null;
-  unstatedCutAt: number;
+  cutAt: number | null;
   lastProviderTime: number;
   reactivateEventsSent: number;
   cancelSinceReactivation: boolean;
@@ -163,6 +163,7 @@ class World {
   private callsWhileFaultsOn = 0;
   private faultsOn = true;
   private clockMoveStopsForAPendingAnswer = false;
+  private movedTheCutBack = false;
   private closing = false;
   private downtimeLeft: number;
   private readonly scenario: Scenario;
@@ -291,7 +292,7 @@ class World {
       unexplainedReads: 0,
       refused: new Map(),
       queuedCancel: null,
-      unstatedCutAt: 0,
+      cutAt: null,
       lastProviderTime: 0,
       reactivateEventsSent: 0,
       cancelSinceReactivation: false,
@@ -344,9 +345,20 @@ class World {
     account.periodsAnnounced += 1;
     if (account.ended !== null) return;
     this.count("period.announced");
+    this.countAnOpenIntervalAcross(account, start, start + BILLING_PERIOD);
     await account.entries.webhookEvent(
       this.subscriptionEvent(account, { providerTime: start * 1000, period: { start: start * 1000, end: (start + BILLING_PERIOD) * 1000 } }),
     );
+  }
+
+  private countAnOpenIntervalAcross(account: Account, start: number, end: number): void {
+    const across = account.test.host.step(
+      (sql) =>
+        ownTables(sql).length > 0 &&
+        sql.exec("SELECT start FROM metering_interval WHERE sealed_at IS NULL AND ((start < ? AND end_at > ?) OR (start < ? AND end_at > ?))", start * 1000, start * 1000, end * 1000, end * 1000)
+          .length > 0,
+    );
+    if (across) this.count("period.learned-while-an-open-interval-spans-its-edge");
   }
 
   private port(account: Account): ProviderPort {
@@ -626,12 +638,14 @@ class World {
       const first = Math.max(endedAt * 1000, account.lastProviderTime + 1000);
       const stated = this.subscriptionEvent(account, { state: "cancelled", providerTime: first, endedAt: endedAt * 1000 });
       if (form === "stated" || lagSeconds <= 0) {
+        this.cancelArrives(account, stated);
         await account.entries.webhookEvent(stated);
       } else {
         const later = first + lagSeconds * 1000;
-        account.unstatedCutAt = Math.max(account.unstatedCutAt, later / 1000);
         this.count(`cancel.${form}`);
-        await account.entries.webhookEvent(this.subscriptionEvent(account, { state: "cancelled", providerTime: later }));
+        const unstated = this.subscriptionEvent(account, { state: "cancelled", providerTime: later });
+        this.cancelArrives(account, unstated);
+        await account.entries.webhookEvent(unstated);
         account.queuedCancel = form === "unstated-then-stated" ? stated : this.subscriptionEvent(account, { state: "cancelled", providerTime: first });
       }
       if (previous === null) account.ended = "cancel";
@@ -656,7 +670,25 @@ class World {
       ownTables(sql).length === 0 ? 0 : sql.exec("SELECT start FROM metering_interval WHERE sealed_at IS NOT NULL AND end_at > ?", Number(event.kind === "subscription" ? event.providerTime : 0)).length,
     );
     this.count(sealed > 0 ? "cancel.late-event-after-the-seal" : "cancel.late-event-before-the-seal");
+    this.cancelArrives(account, event);
     await account.entries.webhookEvent(event);
+  }
+
+  private cancelArrives(account: Account, event: ProviderEvent): void {
+    if (event.kind !== "subscription") return;
+    const at = (event.endedAt ?? event.providerTime) / 1000;
+    if (account.cutAt === null) {
+      account.cutAt = at;
+      return;
+    }
+    if (at >= account.cutAt) return;
+    const stays = account.test.host.step(
+      (sql) => ownTables(sql).length === 0 || sql.exec("SELECT start FROM metering_interval WHERE sealed_at IS NOT NULL AND end_at > ?", at * 1000).length > 0,
+    );
+    if (stays) return;
+    account.cutAt = at;
+    if (!this.movedTheCutBack) this.count("ordering.moved-the-cut-back-before-the-seal");
+    this.movedTheCutBack = true;
   }
 
   private async reactivate(account: Account): Promise<void> {
@@ -666,6 +698,7 @@ class World {
     account.reactivateEventsSent += 1;
     this.count("reactivate");
     const providerTime = Math.max(this.now * 1000, account.lastProviderTime + 1000);
+    this.countAnOpenIntervalAcross(account, start, start + BILLING_PERIOD);
     await account.entries.webhookEvent(
       this.subscriptionEvent(account, { state: "active", providerTime, period: { start: start * 1000, end: (start + BILLING_PERIOD) * 1000 } }),
     );
@@ -901,12 +934,12 @@ class World {
       for (const period of closedPeriods) {
         const reported = account.reported.get(period.index) ?? 0;
         const stampedAfterTheEnd =
-          period.index === lastPeriod && account.unstatedCutAt > period.end ? this.meter.exactTotal(account.id, period.end, account.unstatedCutAt) : 0;
+          period.index === lastPeriod && account.cutAt !== null && account.cutAt > period.end ? this.meter.exactTotal(account.id, period.end, account.cutAt) : 0;
         if (stampedAfterTheEnd > 0) this.count("event.stamped-after-the-subscription-end");
         const providerMinor = this.meter.exactTotal(account.id, period.start, period.end) + stampedAfterTheEnd;
         const provider = providerMinor * RULE_MICRO_PER_MINOR;
         let unsent = 0;
-        const countedUntil = period.index === lastPeriod ? Math.max(period.end, account.unstatedCutAt) : period.end;
+        const countedUntil = period.index === lastPeriod ? Math.max(period.end, account.cutAt ?? period.end) : period.end;
         for (const [identifier, sent] of account.refused) {
           const atTheMeter = events.some((e) => e.identifier === identifier);
           const closed = account.closedNotBillable.has(identifier);
