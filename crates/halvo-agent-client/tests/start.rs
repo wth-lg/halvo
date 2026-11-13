@@ -366,15 +366,15 @@ fn a_hello_of_another_agent_is_no_start() {
 fn a_frame_that_cannot_be_read_ends_the_run_and_its_runner() {
     for bad in ["garbage", "oversize"] {
         let rig = Rig::new("broken-frame");
-        let script = rig.script(&["hello", "on-eof hang", "child", bad, "log sent", "idle"]);
+        let script = rig.script(&["hello", "on-eof hang", "child", bad, "idle"]);
         let spec = rig.spec(&script);
         let run = spec.run.clone();
         rig.sup.start(spec).unwrap();
-        assert!(script.wait_log("sent", SHORT), "{}", script.log());
         let end = rig.rec.wait_end(&run, SHORT);
         assert!(end.is_some(), "{bad}: the run did not end");
         assert_runner_gone(&script);
         let child = script.logged("child");
+        assert_eq!(child.len(), 1, "{bad}: {}", script.log());
         assert!(
             wait_until(SHORT, || child.iter().all(|(p, c)| gone(*p, *c))),
             "{bad}"
