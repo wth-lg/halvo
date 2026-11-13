@@ -3054,6 +3054,17 @@ mod tests {
         for armed in [None, Some(store_id(1)), Some(store_id(7))] {
             assert_eq!(delete_decision(&deleting, armed), DeleteDecision::Busy);
         }
+        let mut fields = sample_status(Platform::Macos).into_fields();
+        fields.store = StoreState::Unavailable;
+        fields.store_error = Some(StoreErrorKind::Locked);
+        let locked = DaemonStatus::new(fields).unwrap();
+        for armed in [None, Some(FIXTURE_STORE_ID), Some(store_id(7))] {
+            assert_eq!(
+                delete_decision(&locked, armed),
+                DeleteDecision::Busy,
+                "locked, armed {armed:?}"
+            );
+        }
     }
 
     #[test]
