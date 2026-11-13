@@ -270,15 +270,12 @@ fn end_the_person_s_stops(f: &mut StatusFields) {
 /// that are not off: paused when desired is paused; else awaiting_resume under `hold`; else
 /// no_indicator when the lease is not fresh; else running when each of those sources is running
 /// or impaired, partial when some are, and otherwise faulted with the reason that stood, or
-/// no_source when none stood. Beside a source with the mark `unstopped`, paused, awaiting_resume
-/// and no_indicator read pausing.
+/// no_source when none stood. Beside a source with the mark `unstopped`, paused and no_indicator
+/// read pausing.
 fn settle(f: &mut StatusFields, hold: bool) {
     settle_sources(f, hold);
     if f.sources.iter().any(|s| s.unstopped)
-        && matches!(
-            f.capture,
-            Capture::Paused | Capture::AwaitingResume | Capture::NoIndicator
-        )
+        && matches!(f.capture, Capture::Paused | Capture::NoIndicator)
     {
         f.capture = Capture::Pausing;
     }
