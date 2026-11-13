@@ -1174,6 +1174,28 @@ mod tests {
     }
 
     #[test]
+    fn a_cap_set_whose_status_breaks_a_rule_of_the_type_is_its_own_error() {
+        let mut fields = sample_status(Platform::Macos).into_fields();
+        paused_beside_running(&mut fields);
+        let body = serde_json::json!({
+            "kind": "cap_set",
+            "evicting": false,
+            "status": serde_json::to_value(&fields).unwrap(),
+        });
+        let frame = serde_json::json!({"v": 1, "body": body});
+        let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+        daemon.set_raw_reply(framed(frame.to_string().as_bytes()));
+        let (client, _) = client(daemon);
+        assert_eq!(
+            client
+                .set_storage_cap(StorageCap::MIN)
+                .unwrap_err()
+                .to_string(),
+            format!("{NOT_TOGETHER}paused has desired paused")
+        );
+    }
+
+    #[test]
     fn a_reply_frame_that_cannot_be_read_stays_a_protocol_error() {
         let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
         daemon.set_raw_reply(framed(br#"{"v":1,"body":{"kind":"status","pid":1}}"#));

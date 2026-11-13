@@ -217,6 +217,33 @@ mod tests {
     }
 
     #[test]
+    fn an_impaired_source_line_counts_as_running_in_recorded() {
+        use crate::proto::{Reason, SourceLine, SourceName, SourceState};
+        let impaired = SourceState::Impaired {
+            reason: Reason::Permission,
+            error: None,
+        };
+        let sources = [
+            SourceLine {
+                name: SourceName::Keyboard,
+                state: impaired.clone(),
+            },
+            SourceLine {
+                name: SourceName::Screen,
+                state: impaired,
+            },
+        ];
+        let told = texts_of(&recorded(Platform::Windows, &switches(&[]), &sources));
+        assert!(told.contains(&TYPING_BEING_OBSERVED), "{told:?}");
+        assert!(
+            told.contains(&SCREEN_ACTIVITY_RECORDED_WITH_THE_SETTING_OFF),
+            "{told:?}"
+        );
+        assert!(!told.contains(&TYPING_NOT_OBSERVED_ON_WINDOWS), "{told:?}");
+        assert!(!told.contains(&SCREEN_ACTIVITY_NOT_RECORDED), "{told:?}");
+    }
+
+    #[test]
     fn g2_the_view_says_typing_is_observed_while_the_windows_keyboard_source_runs() {
         use crate::proto::{SourceName, SourceState};
         let mut f = sample_status(Platform::Windows).into_fields();
