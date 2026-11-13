@@ -304,7 +304,7 @@ judge() {
       if (kind == "" && tok ~ /^[A-Za-z]:\//) kind = "absolute"
       low = lower(tok)
       linked = link_re != "" && tok ~ link_re
-      if (side == "backend" && kind == "" && !linked && !index(tok, "..") && !((c == "/" || c == "$") && index(substr(tok, 2), "/"))) return
+      if (side == "backend" && kind == "" && !linked && !index(tok, "..") && !((c == "/" && length(tok) > 1) || (c == "$" && index(tok, "/")))) return
       if (side == "app" && kind == "" && !linked && low !~ /backend|[*?]/) return
       n = split(tok, sg, "/")
       if (linked) linked = through_link(sg, n)
@@ -676,7 +676,7 @@ Readings that refuse an honest line, with the form to write in its place:
 What it does not refuse, the 11 named limits, each held by a passing fixture
 known-limit-<name> of the self-test:
   known limit names-v0: backend/scripts/names-v0.sh reads crates/halvo-capture/src/event.rs of the app's tree through the variable HALVO_APP_REPO, as ruled.
-  known limit computed-path: a path that code computes, such as a climb that code repeats ("../".repeat(2)), a dirname of a dirname, pathlib's parents[n], or a variable joined on a later line.
+  known limit computed-path: a path that code computes, such as a climb that code repeats ("../".repeat(2)), a dirname of a dirname, pathlib's parents[n], a variable joined on a later line, or a word that code or the shell joins from pieces ("back" + "end", back""end).
   known limit bare-module: a bare module name that Node resolves from the node_modules of the root.
   known limit file-or-environment: a path read from a file or from the environment, such as "$BACKEND_SRC/types.ts".
   known limit nul-byte: a file with a NUL byte, which git grep does not read.
@@ -1238,6 +1238,7 @@ show_contract() {
   case_with backend-rust-joins-a-climb backend/spikes/s3/src/peek.rs 'let p = root.join("..").join("src-tauri");' 'backend/spikes/s3/src/peek.rs:1: names src-tauri'
   case_with backend-names-the-top-of-the-work-tree backend/scripts/peek.sh 'cat "$(git rev-parse --show-toplevel)/crates/halvo-capture/src/lib.rs"' 'backend/scripts/peek.sh:1: reads crates/halvo-capture/src/lib.rs outside'
   case_with backend-reads-the-app-scripts-from-the-top backend/scripts/peek.sh 'cat "$(git rev-parse --show-toplevel)/scripts/prerequisites.sh"' 'backend/scripts/peek.sh:1: reads scripts/prerequisites.sh outside'
+  case_with backend-reads-a-top-level-file-from-the-top backend/scripts/peek.sh 'cat "$(git rev-parse --show-toplevel)/package.json"' 'backend/scripts/peek.sh:1: reads package.json outside'
   case_with backend-reads-a-tracked-file-by-git backend/scripts/peek.sh 'git show HEAD:src-tauri/tauri.conf.json' 'backend/scripts/peek.sh:1: reads src-tauri/tauri.conf.json outside'
   case_with backend-reads-the-app-scripts-by-git backend/scripts/peek.sh 'git show HEAD:scripts/prerequisites.sh' 'backend/scripts/peek.sh:1: reads scripts/prerequisites.sh outside'
   case_with backend-reads-a-top-level-file-by-git backend/scripts/peek.sh 'git show HEAD:CHANGELOG.md' 'backend/scripts/peek.sh:1: reads CHANGELOG.md outside'
@@ -1348,6 +1349,8 @@ git -C "$HALVO_APP_REPO" show "$APP_COMMIT:$ENUM_PATH"'
   pass_with known-limit-computed-path backend/src/computed.ts 'const url = new URL("../".repeat(2) + "crates/halvo-capture/Cargo.toml", import.meta.url);
 const up = dirname(dirname(import.meta.dirname)) + "/crates/halvo-capture/Cargo.toml";
 p=crates; cat "$top/$p/halvo-capture/Cargo.toml"' 'read:backend/src/computed.ts'
+  pass_with computed-path-joined-from-pieces-in-the-app scripts/joined.sh 'cat "$(git rev-parse --show-toplevel)/back""end/src/types.ts"
+node -e '"'"'join(root, "back" + "end", "src")'"'"'' 'unread:scripts/joined.sh'
   pass_with known-limit-bare-module backend/scripts/tauri-info.mjs 'import { run } from "@tauri-apps/cli";' 'read:backend/scripts/tauri-info.mjs'
   pass_with known-limit-file-or-environment scripts/env.sh 'cat "$BACKEND_SRC/types.ts"' 'read:scripts/env.sh'
   fixture known-limit-nul-byte
