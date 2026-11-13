@@ -1073,13 +1073,12 @@ mod tests {
         assert_eq!(
             released_on.as_deref(),
             Some("halvo-input-tap"),
-            "(a), kept by every reading: the tap thread gives the hold back once the emit returns"
+            "the tap thread gives the hold back once its blocked emit returns"
         );
         assert_eq!(
             held_after_the_drop, 1,
-            "(b), what the head does until the ruling of \
-             evidence/eng-manager/draft-ruling-macos2-secure-hold.md: the hold is still taken \
-             after a timed-out shutdown and the drop, while the emit is blocked"
+            "the hold is the tap thread's: after a timed-out shutdown and the drop it is still \
+             taken while the emit is blocked, until that thread ends or the process ends"
         );
     }
 
