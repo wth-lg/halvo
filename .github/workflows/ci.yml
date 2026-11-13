@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,21 +78,50 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 30-app-page-test 31-app-page-layout 32-app-check-page
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 30-app-page-test 31-app-page-layout 32-app-check-page
+      - name: Tests of the package halvo (scratch only)
         shell: bash
-        run: npm run tauri build
-      - name: Version
+        run: cargo test -p halvo --locked --no-fail-fast
+      - name: Measure of AP-2 D2 (c), an address that the URL reader refuses (scratch only)
+        if: always()
+        continue-on-error: true
         shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          port=48123
+          exe=target/debug/halvo
+          [ -f "$exe.exe" ] && exe=$exe.exe
+          py=python3
+          command -v python3 >/dev/null 2>&1 || py=python
+          perl -pi -e 's/^(\s*)pub fn may_navigate\(address: &str\) -> bool \{/$1pub fn may_navigate(address: &str) -> bool {\n$1    eprintln!("halvo-measure rule-asked url={address}");/' src-tauri/src/app.rs
+          perl -pi -e 's/^(\s*)app\.exit\(Exit::PageLoaded\.code\(\)\);/$1if let Ok(port) = std::env::var("HALVO_MEASURE_PORT") {\n$1    let target = format!("http:\/\/xn--zz.localhost:{port}\/leak?d=x");\n$1    let _ = window.eval(format!("location.href = {target:?};"));\n$1    std::thread::sleep(Duration::from_secs(6));\n$1    match window.url() {\n$1        Ok(url) => eprintln!("halvo-measure window-url-after={url}"),\n$1        Err(e) => eprintln!("halvo-measure window-url-after=unreadable ({e})"),\n$1    }\n$1}\n$1app.exit(Exit::PageLoaded.code());/' src-tauri/src/check_page.rs
+          echo "d2c changed copy applied to app.rs: $(git diff --quiet -- src-tauri/src/app.rs && echo false || echo true), to check_page.rs: $(git diff --quiet -- src-tauri/src/check_page.rs && echo false || echo true)"
+          cargo build -p halvo --locked > "$RUNNER_TEMP/d2c-build.txt" 2>&1
+          echo "d2c build of the changed copy exit: $?"
+          dir=$(mktemp -d "$RUNNER_TEMP/d2c-XXXXXX")
+          (cd "$dir" && "$py" -m http.server "$port" --bind 127.0.0.1 > "$RUNNER_TEMP/d2c-listener.out" 2> "$RUNNER_TEMP/d2c-listener.err") &
+          listener=$!
+          sleep 2
+          native=$dir
+          command -v cygpath >/dev/null 2>&1 && native=$(cygpath -w "$dir")
+          HALVO_MEASURE_PORT=$port "$exe" --check-page --config-dir "$native" --within-s 60 > "$RUNNER_TEMP/d2c-check.out" 2> "$RUNNER_TEMP/d2c-check.err"
+          echo "d2c check-page exit: $?"
+          echo "d2c lines of the check that start with page=loaded: $(grep -c '^page=loaded' "$RUNNER_TEMP/d2c-check.out")"
+          echo "d2c rule asked for the target string: $(grep -q 'halvo-measure rule-asked url=.*xn--zz' "$RUNNER_TEMP/d2c-check.err" && echo true || echo false)"
+          echo "d2c rule calls in all: $(grep -c 'halvo-measure rule-asked' "$RUNNER_TEMP/d2c-check.err")"
+          echo "d2c addresses that the rule was asked about:"
+          grep 'halvo-measure rule-asked' "$RUNNER_TEMP/d2c-check.err" | sed 's/.*url=//' | sort | uniq -c
+          echo "d2c the window's address afterwards: $(grep 'halvo-measure window-url-after=' "$RUNNER_TEMP/d2c-check.err" | sed 's/.*window-url-after=//' | head -n 1)"
+          kill "$listener" 2>/dev/null
+          sleep 1
+          echo "d2c request lines that the listener on 127.0.0.1 saw: $(grep -c '"[A-Z]* /' "$RUNNER_TEMP/d2c-listener.err")"
+          grep -o '"[A-Z]* [^"]*"' "$RUNNER_TEMP/d2c-listener.err" | head -n 20
+          git checkout -- src-tauri/src/app.rs src-tauri/src/check_page.rs
+          echo "d2c tree clean after the restore: $([ -z "$(git status --porcelain)" ] && echo true || echo false)"
+          exit 0
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -140,21 +158,76 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 30-app-page-test 32-app-check-page
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 30-app-page-test 32-app-check-page
+      - name: Tests of the package halvo (scratch only)
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
+        run: cargo test -p halvo --locked --no-fail-fast
+      - name: Measure of AP-1 point 8 (scratch only)
+        if: always()
+        continue-on-error: true
         shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          local_data=$(cygpath -u "$LOCALAPPDATA")
+          app="$local_data/com.halvo.desktop"
+          exists() { if [ -d "$app" ]; then echo true; else echo false; fi; }
+          echo "p8 com.halvo.desktop exists at the start of this step, after the driver: $(exists)"
+          if [ -d "$app" ]; then mv "$app" "$RUNNER_TEMP/p8-moved-1"; fi
+          echo "p8a com.halvo.desktop exists before cargo test -p halvo: $(exists)"
+          cargo test -p halvo --locked > "$RUNNER_TEMP/p8-test.txt" 2>&1
+          echo "p8a cargo test -p halvo --locked exit: $?"
+          echo "p8a com.halvo.desktop exists after cargo test -p halvo: $(exists)"
+          if [ -d "$app" ]; then mv "$app" "$RUNNER_TEMP/p8-moved-2"; fi
+          dir=$(mktemp -d "$RUNNER_TEMP/p8-check-XXXXXX")
+          target/debug/halvo.exe --check-page --config-dir "$(cygpath -w "$dir")" --within-s 60 > "$RUNNER_TEMP/p8-check.out" 2> "$RUNNER_TEMP/p8-check.err"
+          echo "p8b halvo.exe --check-page exit: $?"
+          echo "p8b lines of the check that start with page=loaded: $(grep -c '^page=loaded commands_ok=3 version=' "$RUNNER_TEMP/p8-check.out")"
+          echo "p8b files under the config directory: $(find "$dir" -type f | wc -l)"
+          echo "p8b bytes under the config directory: $(find "$dir" -type f -printf '%s\n' | awk '{s += $1} END {print s + 0}')"
+          echo "p8b entries of the first two levels, relative to the config directory:"
+          (cd "$dir" && find . -mindepth 1 -maxdepth 2 | sort | head -n 200)
+          echo "p8b com.halvo.desktop exists after the check: $(exists)"
+          exit 0
+      - name: Measure of AP-2 D2 (c), an address that the URL reader refuses (scratch only)
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          port=48123
+          exe=target/debug/halvo
+          [ -f "$exe.exe" ] && exe=$exe.exe
+          py=python3
+          command -v python3 >/dev/null 2>&1 || py=python
+          perl -pi -e 's/^(\s*)pub fn may_navigate\(address: &str\) -> bool \{/$1pub fn may_navigate(address: &str) -> bool {\n$1    eprintln!("halvo-measure rule-asked url={address}");/' src-tauri/src/app.rs
+          perl -pi -e 's/^(\s*)app\.exit\(Exit::PageLoaded\.code\(\)\);/$1if let Ok(port) = std::env::var("HALVO_MEASURE_PORT") {\n$1    let target = format!("http:\/\/xn--zz.localhost:{port}\/leak?d=x");\n$1    let _ = window.eval(format!("location.href = {target:?};"));\n$1    std::thread::sleep(Duration::from_secs(6));\n$1    match window.url() {\n$1        Ok(url) => eprintln!("halvo-measure window-url-after={url}"),\n$1        Err(e) => eprintln!("halvo-measure window-url-after=unreadable ({e})"),\n$1    }\n$1}\n$1app.exit(Exit::PageLoaded.code());/' src-tauri/src/check_page.rs
+          echo "d2c changed copy applied to app.rs: $(git diff --quiet -- src-tauri/src/app.rs && echo false || echo true), to check_page.rs: $(git diff --quiet -- src-tauri/src/check_page.rs && echo false || echo true)"
+          cargo build -p halvo --locked > "$RUNNER_TEMP/d2c-build.txt" 2>&1
+          echo "d2c build of the changed copy exit: $?"
+          dir=$(mktemp -d "$RUNNER_TEMP/d2c-XXXXXX")
+          (cd "$dir" && "$py" -m http.server "$port" --bind 127.0.0.1 > "$RUNNER_TEMP/d2c-listener.out" 2> "$RUNNER_TEMP/d2c-listener.err") &
+          listener=$!
+          sleep 2
+          native=$dir
+          command -v cygpath >/dev/null 2>&1 && native=$(cygpath -w "$dir")
+          HALVO_MEASURE_PORT=$port "$exe" --check-page --config-dir "$native" --within-s 60 > "$RUNNER_TEMP/d2c-check.out" 2> "$RUNNER_TEMP/d2c-check.err"
+          echo "d2c check-page exit: $?"
+          echo "d2c lines of the check that start with page=loaded: $(grep -c '^page=loaded' "$RUNNER_TEMP/d2c-check.out")"
+          echo "d2c rule asked for the target string: $(grep -q 'halvo-measure rule-asked url=.*xn--zz' "$RUNNER_TEMP/d2c-check.err" && echo true || echo false)"
+          echo "d2c rule calls in all: $(grep -c 'halvo-measure rule-asked' "$RUNNER_TEMP/d2c-check.err")"
+          echo "d2c addresses that the rule was asked about:"
+          grep 'halvo-measure rule-asked' "$RUNNER_TEMP/d2c-check.err" | sed 's/.*url=//' | sort | uniq -c
+          echo "d2c the window's address afterwards: $(grep 'halvo-measure window-url-after=' "$RUNNER_TEMP/d2c-check.err" | sed 's/.*window-url-after=//' | head -n 1)"
+          kill "$listener" 2>/dev/null
+          sleep 1
+          echo "d2c request lines that the listener on 127.0.0.1 saw: $(grep -c '"[A-Z]* /' "$RUNNER_TEMP/d2c-listener.err")"
+          grep -o '"[A-Z]* [^"]*"' "$RUNNER_TEMP/d2c-listener.err" | head -n 20
+          git checkout -- src-tauri/src/app.rs src-tauri/src/check_page.rs
+          echo "d2c tree clean after the restore: $([ -z "$(git status --porcelain)" ] && echo true || echo false)"
+          exit 0
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
