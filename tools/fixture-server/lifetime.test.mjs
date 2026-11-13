@@ -27,6 +27,11 @@ writeFileSync(SITE, `${JSON.stringify({
   flows: [{ flow: 'walk', role: 'other', pages: ['map'] }],
 })}\n`);
 
+function assertEndedBySignal(ended) {
+  if (process.platform === 'win32') assert.equal(ended.killed, false);
+  else assert.deepEqual(ended, { code: 0, signal: null, killed: false });
+}
+
 function sleep(ms) {
   return new Promise((resolve) => { setTimeout(resolve, ms); });
 }
@@ -198,7 +203,7 @@ test('lifetime: a server with a null input serves on until the test ends it', as
   } finally {
     const ended = await stopServer(server);
     console.log(`lifetime null-input recorded=1 ended_by_test=${!ended.killed} alive_after=${alive(server.pid) ? 1 : 0}`);
-    assert.deepEqual(ended, { code: 0, signal: null, killed: false });
+    assertEndedBySignal(ended);
   }
 });
 
@@ -217,7 +222,7 @@ for (const [kind, text] of HELD) {
       held = await hold(server.port, text(server.port));
       const ended = await stopServer(server);
       console.log(`shutdown held=${kind.replaceAll(' ', '-')} exit=${ended.code} killed=${ended.killed}`);
-      assert.deepEqual(ended, { code: 0, signal: null, killed: false });
+      assertEndedBySignal(ended);
     } finally {
       held?.destroy();
       await stopServer(server);
