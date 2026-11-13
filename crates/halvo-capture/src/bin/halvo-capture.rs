@@ -46,6 +46,9 @@ fn main() -> ExitCode {
 /// Writes `text` to standard output and flushes it; a closed output is exit 1
 /// with no panic.
 fn print_checked(text: &str) -> ExitCode {
+    if !daemon::signal::standard_output_is_open() {
+        return fail(format_args!("the standard output is closed"));
+    }
     let mut out = std::io::stdout().lock();
     match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {
         Ok(()) => ExitCode::SUCCESS,

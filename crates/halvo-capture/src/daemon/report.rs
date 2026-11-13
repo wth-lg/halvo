@@ -147,8 +147,6 @@ mod tests {
     use super::*;
     use crate::source::CaptureError;
 
-    /// A fixture of gate-2 with the sink's line of each kind, which C5.1 puts
-    /// after `events_discarded` and the fixtures do not hold.
     fn fixture_with_sink_lines(name: &str, sink: &[KindCounts; 8]) -> String {
         let path = format!(
             "{}/../../scripts/r1-gate/fixtures/{name}",

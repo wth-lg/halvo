@@ -2347,7 +2347,7 @@ mod tests {
         assert!(output.status.success(), "the child failed: {text}");
         let line = text
             .lines()
-            .find(|line| line.starts_with("owner_growth_bytes="))
+            .find_map(|line| line.find("owner_growth_bytes=").map(|at| &line[at..]))
             .expect("the child printed no growth line");
         println!("{line}");
         let growth: u64 = line["owner_growth_bytes=".len()..]

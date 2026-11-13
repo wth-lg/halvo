@@ -316,6 +316,22 @@ impl SourceName {
     }
 }
 
+/// The `failed_source=` entry of a source's answer to its stop at the run's
+/// end: none for `Ok` and for `ThreadEnded`, an entry for every other answer
+/// (contracts.md C4 item 7).
+pub fn stop_failure(
+    name: SourceName,
+    answer: Result<(), crate::source::CaptureError>,
+) -> Option<FailedSource> {
+    match answer {
+        Ok(()) | Err(crate::source::CaptureError::ThreadEnded) => None,
+        Err(error) => Some(FailedSource {
+            name: name.as_str(),
+            error: error.to_string(),
+        }),
+    }
+}
+
 /// The sources that a run with `switches` starts: the foreground source, the
 /// screen source only while `screen_activity` is on, and the input source
 /// only while `key_class` or `pointer_class` is on.
@@ -608,7 +624,6 @@ mod tests {
     use crate::event::Modality;
     use crate::source::CaptureError;
 
-    /// A directory of the test under `<target>/tmp`, removed when it drops.
     fn test_dir() -> tempfile::TempDir {
         let target = std::env::current_exe()
             .unwrap()
@@ -623,7 +638,6 @@ mod tests {
             .unwrap()
     }
 
-    /// An account whose base directory is `0`.
     struct TestAccount(PathBuf);
 
     impl AccountLookup for TestAccount {
@@ -640,7 +654,6 @@ mod tests {
         line.iter().map(OsString::from).collect()
     }
 
-    /// A store directory and an account whose data directory lies elsewhere.
     struct Dirs {
         _root: tempfile::TempDir,
         account: TestAccount,
@@ -1182,8 +1195,6 @@ mod tests {
         assert!(outcome.loss.is_none());
     }
 
-    /// A store whose writes block for 3 s, so that no settle answers inside a
-    /// short bound.
     struct SlowStore;
 
     impl MaintainStore for SlowStore {
@@ -1297,5 +1308,80 @@ mod tests {
             .map(|kind| report.count(kind))
             .sum();
         assert_eq!(sum, report.events_received);
+    }
+
+    #[test]
+    fn the_sources_of_a_run_leave_out_what_the_switches_turn_off() {
+        let with = |flags: &[(Switch, bool)]| sources_for(SwitchFlags(flags.to_vec()).applied());
+        let (f, s, i) = (
+            SourceName::Foreground,
+            SourceName::Screen,
+            SourceName::Input,
+        );
+        assert_eq!(with(&[]), [f, i]);
+        assert_eq!(with(&[(Switch::KeyClass, false)]), [f, i]);
+        assert_eq!(with(&[(Switch::PointerClass, false)]), [f, i]);
+        assert_eq!(
+            with(&[(Switch::KeyClass, false), (Switch::PointerClass, false)]),
+            [f]
+        );
+        assert_eq!(with(&[(Switch::ScreenActivity, true)]), [f, s, i]);
+        assert_eq!(with(&[(Switch::TitleText, false)]), [f, i]);
+    }
+
+    #[test]
+    fn a_source_that_does_not_stop_adds_its_line_and_exits_3() {
+        let clocks = ManualClocks::at(noon());
+        let mut scripted = sources();
+        let timeout = CaptureError::Timeout {
+            stage: "screen_stop",
+            ms: 6_000,
+        };
+        scripted.sources[1].1.stop = Err(timeout.clone());
+        scripted.sources[2].1.stop = Err(CaptureError::ThreadEnded);
+        let outcome = run_scripted(
+            &run_of(5, SecureInput::DoNotHold, &[(Switch::ScreenActivity, true)]),
+            &mut scripted,
+            ModelStore::new(),
+            clocks,
+        );
+        assert_eq!(outcome.status, exit::TIMED_RUN_SOURCE_FAILED);
+        let text = outcome.report.render();
+        assert_eq!(line_of(&text, "failed_sources="), "failed_sources=1");
+        assert_eq!(
+            line_of(&text, "failed_source="),
+            format!("failed_source=screen: {timeout}")
+        );
+    }
+
+    #[test]
+    fn a_drop_at_the_last_settle_that_a_good_write_follows_gives_exit_1() {
+        let clocks = ManualClocks::at(noon());
+        let mut scripted = sources();
+        scripted.sources[2].1 = ScriptedSource::emitting((0..512).map(|_| key()).collect());
+        scripted.in_window = (0..100).map(|_| key()).collect();
+        let store = ModelStore::new();
+        store.script_writes([
+            WriteScript::Fail(WriteFault::Io(std::io::ErrorKind::Other)),
+            WriteScript::Fail(WriteFault::Refused),
+        ]);
+        let outcome = run_scripted(
+            &run_of(5, SecureInput::DoNotHold, &[]),
+            &mut scripted,
+            store.clone(),
+            clocks,
+        );
+        assert_eq!(
+            store.write_calls().len(),
+            3,
+            "an Io fault, a refusal and a good write"
+        );
+        assert_eq!(outcome.report.events_persisted, 101);
+        assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
+        let loss = outcome.loss.expect("no loss line");
+        assert!(
+            loss.starts_with("halvo-capture: lost events=512 "),
+            "{loss}"
+        );
     }
 }

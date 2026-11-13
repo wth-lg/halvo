@@ -42,6 +42,21 @@ extern "C" fn on_signal(_signal: libc::c_int) {
     SIGNALLED.store(true, std::sync::atomic::Ordering::SeqCst);
 }
 
+/// Whether the process's standard output is an open descriptor. The standard
+/// library writes to a closed one as to a sink, so the binary asks first.
+pub fn standard_output_is_open() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        // SAFETY: fcntl with F_GETFD reads the flags of descriptor 1 and
+        // passes no memory.
+        unsafe { libc::fcntl(1, libc::F_GETFD) != -1 }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
 /// The process's own peak of resident memory in bytes, from `getrusage` for
 /// itself, so no reaped child can raise it.
 pub fn peak_rss_bytes() -> io::Result<u64> {

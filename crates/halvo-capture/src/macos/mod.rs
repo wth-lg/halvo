@@ -10,16 +10,9 @@ pub mod screen;
 pub(crate) mod secure_input_byte;
 pub mod window_title;
 
-use std::sync::atomic::AtomicBool;
-use std::time::Duration;
-
-use crate::daemon::{DaemonError, FailedSource, RunOutcome, RunSources, SourceName, TimedRun};
 #[cfg(test)]
 use crate::event::Modality;
-use crate::source::{
-    CaptureError, CaptureSource, HealthReason, SourceContext, SourceCounters, SourceState,
-};
-use foreground::FOREGROUND_POLL;
+use crate::source::{CaptureError, HealthReason, SourceState};
 
 pub(crate) fn source_failure(error: CaptureError) -> SourceState {
     let reason = match &error {
@@ -34,153 +27,162 @@ pub(crate) fn source_failure(error: CaptureError) -> SourceState {
     SourceState::Failed { reason, error }
 }
 
-/// Runs the gate's timed run on the process main thread, into the port that
-/// keeps nothing for the store directory of `run`.
-pub(crate) fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
-    let mut sources = MacSources::claim()?;
-    crate::daemon::run_timed(
-        run,
-        &mut sources,
-        crate::daemon::discard_port::DiscardPort::new(run.store_dir.clone()),
-        crate::daemon::maintenance::SystemClocks::new(),
-        crate::daemon::signal::flag(),
-        crate::daemon::SETTLE_BOUND,
-    )
-}
+#[cfg(debug_assertions)]
+pub(crate) use timed::timed_run;
 
-/// The sources of a timed run on macOS, on the main run loop that the run
-/// waits in.
-struct MacSources {
-    main_loop: run_loop::MainRunLoop,
-    foreground_state: Option<(foreground::ForegroundWriter, foreground::ForegroundReader)>,
-    input_counters: input::InputCounters,
-    started: Vec<(SourceName, Box<dyn CaptureSource>)>,
-    hold_refusal: Option<DaemonError>,
-    input: Option<input::InputSource>,
-}
+#[cfg(debug_assertions)]
+mod timed {
+    use std::sync::atomic::AtomicBool;
+    use std::time::Duration;
 
-impl MacSources {
-    fn claim() -> Result<MacSources, DaemonError> {
-        let off_the_main_thread =
-            || DaemonError::NotImplemented("a second timed run, or one off the main thread,");
-        let mut main_loop = run_loop::MainRunLoop::claim().map_err(|_| off_the_main_thread())?;
-        let foreground_state = Some(
-            main_loop
-                .foreground_state()
-                .ok_or_else(off_the_main_thread)?,
-        );
-        Ok(MacSources {
-            main_loop,
-            foreground_state,
-            input_counters: input::InputCounters::new(),
-            started: Vec::new(),
-            hold_refusal: None,
-            input: None,
-        })
+    use super::foreground::FOREGROUND_POLL;
+    use super::{foreground, input, run_loop, screen, secure_input_byte};
+    use crate::daemon::{DaemonError, FailedSource, RunOutcome, RunSources, SourceName, TimedRun};
+    use crate::source::{CaptureSource, SourceContext, SourceCounters};
+
+    /// Runs the gate's timed run on the process main thread, into the port that
+    /// keeps nothing for the store directory of `run`.
+    pub(crate) fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
+        let mut sources = MacSources::claim()?;
+        crate::daemon::run_timed(
+            run,
+            &mut sources,
+            crate::daemon::discard_port::DiscardPort::new(run.store_dir.clone()),
+            crate::daemon::maintenance::SystemClocks::new(),
+            crate::daemon::signal::flag(),
+            crate::daemon::SETTLE_BOUND,
+        )
     }
-}
 
-impl RunSources for MacSources {
-    fn start(
-        &mut self,
-        ctx: &SourceContext,
-        wanted: &[SourceName],
-        hold_after: Option<Duration>,
-    ) -> Vec<FailedSource> {
-        let Some((foreground_writer, foreground_reader)) = self.foreground_state.take() else {
-            return Vec::new();
-        };
-        let mut failed = Vec::new();
-        let mut foreground_writer = Some(foreground_writer);
-        for name in wanted {
-            let mut source: Box<dyn CaptureSource> = match name {
-                SourceName::Foreground => match foreground_writer.take() {
-                    Some(writer) => Box::new(foreground::ForegroundSource::new(
-                        FOREGROUND_POLL,
-                        writer,
-                        self.main_loop.turns(),
-                    )),
-                    None => continue,
-                },
-                SourceName::Screen => Box::new(screen::ScreenSource::new(
-                    screen::SCREEN_FRAME_CAP,
-                    foreground_reader.clone(),
-                )),
-                SourceName::Input => {
-                    let plan = hold_after.map_or(input::HoldPlan::Never, input::HoldPlan::After);
-                    let mut input = input::InputSource::new(
-                        foreground_reader.clone(),
-                        self.input_counters.clone(),
-                        plan,
-                    );
-                    match input.begin(ctx.clone()) {
-                        Ok(_) => self.input = Some(input),
-                        Err(error) => failed.push(FailedSource {
-                            name: name.as_str(),
-                            error: error.to_string(),
-                        }),
-                    }
-                    continue;
-                }
+    /// The sources of a timed run on macOS, on the main run loop that the run
+    /// waits in.
+    struct MacSources {
+        main_loop: run_loop::MainRunLoop,
+        foreground_state: Option<(foreground::ForegroundWriter, foreground::ForegroundReader)>,
+        input_counters: input::InputCounters,
+        started: Vec<(SourceName, Box<dyn CaptureSource>)>,
+        hold_refusal: Option<DaemonError>,
+        input: Option<input::InputSource>,
+    }
+
+    impl MacSources {
+        fn claim() -> Result<MacSources, DaemonError> {
+            let off_the_main_thread =
+                || DaemonError::NotImplemented("a second timed run, or one off the main thread,");
+            let mut main_loop =
+                run_loop::MainRunLoop::claim().map_err(|_| off_the_main_thread())?;
+            let foreground_state = Some(
+                main_loop
+                    .foreground_state()
+                    .ok_or_else(off_the_main_thread)?,
+            );
+            Ok(MacSources {
+                main_loop,
+                foreground_state,
+                input_counters: input::InputCounters::new(),
+                started: Vec::new(),
+                hold_refusal: None,
+                input: None,
+            })
+        }
+    }
+
+    impl RunSources for MacSources {
+        fn start(
+            &mut self,
+            ctx: &SourceContext,
+            wanted: &[SourceName],
+            hold_after: Option<Duration>,
+        ) -> Vec<FailedSource> {
+            let Some((foreground_writer, foreground_reader)) = self.foreground_state.take() else {
+                return Vec::new();
             };
-            match source.begin(ctx.clone()) {
-                Ok(_) => self.started.push((*name, source)),
-                Err(error) => failed.push(FailedSource {
-                    name: name.as_str(),
-                    error: error.to_string(),
-                }),
+            let mut failed = Vec::new();
+            let mut foreground_writer = Some(foreground_writer);
+            for name in wanted {
+                let mut source: Box<dyn CaptureSource> = match name {
+                    SourceName::Foreground => match foreground_writer.take() {
+                        Some(writer) => Box::new(foreground::ForegroundSource::new(
+                            FOREGROUND_POLL,
+                            writer,
+                            self.main_loop.turns(),
+                        )),
+                        None => continue,
+                    },
+                    SourceName::Screen => Box::new(screen::ScreenSource::new(
+                        screen::SCREEN_FRAME_CAP,
+                        foreground_reader.clone(),
+                    )),
+                    SourceName::Input => {
+                        let plan =
+                            hold_after.map_or(input::HoldPlan::Never, input::HoldPlan::After);
+                        let mut input = input::InputSource::new(
+                            foreground_reader.clone(),
+                            self.input_counters.clone(),
+                            plan,
+                        );
+                        match input.begin(ctx.clone()) {
+                            Ok(_) => self.input = Some(input),
+                            Err(error) => failed.push(FailedSource {
+                                name: name.as_str(),
+                                error: error.to_string(),
+                            }),
+                        }
+                        continue;
+                    }
+                };
+                match source.begin(ctx.clone()) {
+                    Ok(_) => self.started.push((*name, source)),
+                    Err(error) => failed.push(FailedSource {
+                        name: name.as_str(),
+                        error: error.to_string(),
+                    }),
+                }
+            }
+            failed
+        }
+
+        fn wait(&mut self, window: Duration, stop: &AtomicBool) -> bool {
+            let slice = Duration::from_millis(100);
+            let until = std::time::Instant::now() + window;
+            loop {
+                if stop.load(std::sync::atomic::Ordering::SeqCst) {
+                    return true;
+                }
+                let left = until.saturating_duration_since(std::time::Instant::now());
+                if left.is_zero() {
+                    return false;
+                }
+                self.main_loop.turn_for(left.min(slice));
             }
         }
-        failed
-    }
 
-    fn wait(&mut self, window: Duration, stop: &AtomicBool) -> bool {
-        let slice = Duration::from_millis(100);
-        let until = std::time::Instant::now() + window;
-        loop {
-            if stop.load(std::sync::atomic::Ordering::SeqCst) {
-                return true;
+        fn stop(&mut self) -> Vec<FailedSource> {
+            let mut failed = Vec::new();
+            if let Some(mut input) = self.input.take() {
+                failed.extend(crate::daemon::stop_failure(
+                    SourceName::Input,
+                    input.shutdown(),
+                ));
+                self.hold_refusal = secure_input_byte::refusal_or_none(input.hold_refusal()).err();
             }
-            let left = until.saturating_duration_since(std::time::Instant::now());
-            if left.is_zero() {
-                return false;
+            for (name, mut source) in self.started.drain(..) {
+                failed.extend(crate::daemon::stop_failure(name, source.shutdown()));
             }
-            self.main_loop.turn_for(left.min(slice));
+            failed
         }
-    }
 
-    fn stop(&mut self) -> Vec<FailedSource> {
-        let mut failed = Vec::new();
-        if let Some(mut input) = self.input.take() {
-            if let Err(error) = input.shutdown() {
-                failed.push(FailedSource {
-                    name: SourceName::Input.as_str(),
-                    error: error.to_string(),
-                });
-            }
-            self.hold_refusal = secure_input_byte::refusal_or_none(input.hold_refusal()).err();
+        fn figures(&self) -> SourceCounters {
+            self.input_counters.figures()
         }
-        for (name, mut source) in self.started.drain(..) {
-            if let Err(error) = source.shutdown() {
-                failed.push(FailedSource {
-                    name: name.as_str(),
-                    error: error.to_string(),
-                });
-            }
-        }
-        failed
-    }
 
-    fn figures(&self) -> SourceCounters {
-        self.input_counters.figures()
-    }
-
-    fn hold_refusal(&self) -> Option<DaemonError> {
-        match &self.hold_refusal {
-            Some(DaemonError::SecureInputRefused(status)) => {
-                Some(DaemonError::SecureInputRefused(*status))
+        fn hold_refusal(&self) -> Option<DaemonError> {
+            match &self.hold_refusal {
+                Some(DaemonError::SecureInputRefused(status)) => {
+                    Some(DaemonError::SecureInputRefused(*status))
+                }
+                _ => None,
             }
-            _ => None,
         }
     }
 }

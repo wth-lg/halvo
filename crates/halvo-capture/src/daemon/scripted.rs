@@ -136,12 +136,7 @@ impl RunSources for ScriptedRun {
             if !source.started {
                 continue;
             }
-            if let Err(error) = source.shutdown() {
-                failed.push(FailedSource {
-                    name: name.as_str(),
-                    error: error.to_string(),
-                });
-            }
+            failed.extend(super::stop_failure(*name, source.shutdown()));
         }
         failed
     }
