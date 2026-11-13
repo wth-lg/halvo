@@ -440,8 +440,7 @@ fn twin<P: super::text::TextFilterPoint>() {}"
   case_of a-door-caller-in-prefill PASS tree_case prefill "$prefill" '    let keep = crate::floor::exclude::synthetic_keep::<kind::Keystroke>(subject);'
   case_of a-door-caller-in-src-tauri FAIL tree_case tauri-door src-tauri/src/main.rs '    let clearance = halvo_capture::secure_input::synthetic_clearance(None);'
   case_of a-function-named-after-a-door-beside-its-definition FAIL tree_case door-prefix "$src/floor/exclude.rs" "${keep_door#*:}
-pub fn synthetic_keep_any<K: Recorded>(subject: Subject) -> Keep<K> {
-    synthetic_keep(subject)"
+pub fn synthetic_keep_any<K: Recorded>(subject: Subject) -> Keep<K> { synthetic_keep(subject) }"
   case_of a-definition-line-in-another-file FAIL tree_case definition-elsewhere "$src/store/db.rs" "${keep_door#*:}"
   case_of a-definition-line-changed FAIL tree_case definition-changed "$src/floor/exclude.rs" 'pub(crate) fn synthetic_keep<K: Recorded>(subject: Subject) -> Keep<K> {'
   case_of a-door-caller-in-a-text-file FAIL tree_case door-text "$src/floor/extra.txt" 'fn extra() { crate::secure_input::synthetic_clearance(None); }'
