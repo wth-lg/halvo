@@ -1459,11 +1459,54 @@ fn is_confirm(frame: &FromRunner) -> bool {
     matches!(frame, FromRunner::Confirm(_))
 }
 
-/// CP-166 E7: a cancel written before the person's `reject_once` reply is read when the answer has come, before the
-/// answer is applied: nothing leaves and the answer is not stored. The rule waits for a ruling: A6.2 names no read
-/// here and A5.1 (i) has the person's answer applied before any later load.
+/// Holds for the `n`th confirmation request, counted from 1.
+fn the_card(n: usize) -> super::suite::CancelBefore {
+    let mut cards = 0;
+    Box::new(move |frame| {
+        let card = is_confirm(frame);
+        if card {
+            cards += 1;
+        }
+        card && cards == n
+    })
+}
+
+fn is_rejected_row(frame: &FromRunner) -> bool {
+    matches!(frame, FromRunner::Store(s)
+        if matches!(s.request.body(), RunnerCall::Effect(b) if b.record.state == EffectState::Rejected))
+}
+
+/// The states of the effect rows and the count of `load` frames that the runner wrote after its last confirmation
+/// request.
+fn after_the_card(record: &Record) -> (Vec<EffectState>, usize) {
+    let at = record
+        .frames
+        .iter()
+        .rposition(is_confirm)
+        .expect("a confirmation request");
+    let rest = &record.frames[at + 1..];
+    let states = rest
+        .iter()
+        .filter_map(|f| match f {
+            FromRunner::Store(s) => match s.request.body() {
+                RunnerCall::Effect(b) => Some(b.record.state),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    let loads = rest
+        .iter()
+        .filter(|f| matches!(f, FromRunner::Store(s) if matches!(s.request.body(), RunnerCall::Load(_))))
+        .count();
+    (states, loads)
+}
+
+/// CP-174 Part 2 (a), F2 T1, the pin of CP-166 E7 turned: a cancel written before the person's `reject_once` reply
+/// is read when the decision has come, after the `rejected` row is stored. The effect is `rejected`, no load follows
+/// the card, nothing leaves, and the run ends `declined`.
 #[test]
-fn a_cancel_before_a_reject_once_reply_is_read_before_the_answer_is_stored() {
+fn a_cancel_before_a_reject_once_reply_is_read_after_the_rejected_row() {
     let plan = Plan {
         answer: Answer::RejectOnce,
         cancel_before: Some(Box::new(is_confirm)),
@@ -1473,9 +1516,121 @@ fn a_cancel_before_a_reject_once_reply_is_read_before_the_answer_is_stored() {
     assert_eq!(released, 0);
     assert_eq!(
         record.states(),
-        [EffectState::Held],
-        "the answer is not stored; this rule waits for a ruling (A6.2, A5.1 (i))"
+        [EffectState::Held, EffectState::Rejected],
+        "the reject is stored before the cancel is read"
     );
+    assert_eq!(
+        after_the_card(&record),
+        (vec![EffectState::Rejected], 0),
+        "after the card: the rejected row and no load"
+    );
+    assert_eq!(record.done(), Some(Outcome::Declined));
+}
+
+/// CP-174 Part 2 (a) and (b), F2 T2: a cancel written before the person's `allow_once` reply is read before any
+/// `approved` row: the effect stays `held`, no row and no load follow the card, nothing leaves, and the run ends
+/// `declined`.
+#[test]
+fn a_cancel_before_an_allow_once_reply_is_read_before_the_approved_row() {
+    let plan = Plan {
+        cancel_before: Some(Box::new(is_confirm)),
+        ..Plan::plain()
+    };
+    let (record, released) = run(vec![delete("a", Source::Extract)], plan);
+    assert_eq!(released, 0);
+    assert_eq!(record.states(), [EffectState::Held], "no approved row");
+    assert_eq!(
+        after_the_card(&record),
+        (Vec::new(), 0),
+        "after the card: no row and no load"
+    );
+    assert_eq!(record.done(), Some(Outcome::Declined));
+}
+
+/// The first effect of a card is rejected and every other one allowed.
+fn reject_the_first(_: usize, index: usize) -> Answer {
+    if index == 0 {
+        Answer::RejectOnce
+    } else {
+        Answer::AllowOnce
+    }
+}
+
+/// CP-174 Part 2 (a), F2 T3: one card for [A, B] that rejects A and allows B, with a cancel written before the reply:
+/// A's `rejected` row is stored, then the cancel is read, so B stays `held`; no load follows, nothing leaves, and the
+/// run ends `declined`.
+#[test]
+fn a_cancel_before_a_reply_that_rejects_one_effect_and_allows_the_other_stores_the_reject_alone() {
+    let plan = Plan {
+        answer_for: Some(reject_the_first),
+        cancel_before: Some(Box::new(is_confirm)),
+        ..Plan::plain()
+    };
+    let (record, left) = run_each(
+        vec![
+            vec![delete("a", Source::Extract)],
+            vec![delete("b", Source::Extract)],
+        ],
+        None,
+        plan,
+    );
+    assert!(left.is_empty(), "nothing leaves");
+    assert_eq!(
+        last_rows(&record),
+        [(EffectState::Rejected, None), (EffectState::Held, None)]
+    );
+    assert_eq!(after_the_card(&record), (vec![EffectState::Rejected], 0));
+    assert_eq!(record.done(), Some(Outcome::Declined));
+}
+
+/// CP-174 Part 2 (a), F2 T4: the same card, with the cancel written before the reply to A's `rejected` row. The
+/// cancel is read after the rejects and before the allows, so the rows and the end are T3's.
+#[test]
+fn a_cancel_before_the_answer_to_the_rejected_row_is_read_before_the_approved_row() {
+    let plan = Plan {
+        answer_for: Some(reject_the_first),
+        cancel_before: Some(Box::new(is_rejected_row)),
+        ..Plan::plain()
+    };
+    let (record, left) = run_each(
+        vec![
+            vec![delete("a", Source::Extract)],
+            vec![delete("b", Source::Extract)],
+        ],
+        None,
+        plan,
+    );
+    assert!(left.is_empty(), "nothing leaves");
+    assert_eq!(
+        last_rows(&record),
+        [(EffectState::Rejected, None), (EffectState::Held, None)]
+    );
+    assert_eq!(after_the_card(&record), (vec![EffectState::Rejected], 0));
+    assert_eq!(record.done(), Some(Outcome::Declined));
+}
+
+/// CP-174 Part 2 (a), F2 T5: [A, B] are allowed on the first card, A takes a `rebind`, and a cancel is written
+/// before the reply to A's second card, which rejects. A is `rejected`, no load follows the card, B gets no `begin`
+/// row and nothing leaves, and the run ends `declined`.
+#[test]
+fn a_cancel_before_a_reject_on_the_card_after_a_rebind_ends_the_run_before_the_effect_behind() {
+    let plan = Plan {
+        answer_for: Some(allow_then_reject),
+        cancel_before: Some(the_card(2)),
+        ..Plan::plain()
+    };
+    let (record, left) = run_each(
+        vec![a_then_c(), vec![delete("b", Source::Extract)]],
+        None,
+        plan,
+    );
+    assert!(left.is_empty(), "nothing leaves");
+    assert_eq!(
+        last_rows(&record),
+        [(EffectState::Rejected, None), (EffectState::Approved, None)],
+        "A rejected; B as the first card left it, with no begin row"
+    );
+    assert_eq!(after_the_card(&record), (vec![EffectState::Rejected], 0));
     assert_eq!(record.done(), Some(Outcome::Declined));
 }
 

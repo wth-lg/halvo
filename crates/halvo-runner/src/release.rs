@@ -2,9 +2,7 @@ use std::collections::VecDeque;
 
 use halvo_policy::{admit, decide, digest, Checkpoint, Decision, EffectMove, Facts, LIMITS};
 use halvo_schema::executable::body::LoadReply;
-use halvo_schema::executable::frame::{
-    Approval, Confirm, ConfirmEffect, ConfirmReply, ConfirmRequest,
-};
+use halvo_schema::executable::frame::{Confirm, ConfirmEffect, ConfirmReply, ConfirmRequest};
 use halvo_schema::executable::names::{Answer, Autonomy, FieldName, LogEvent};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::V1;
@@ -412,8 +410,7 @@ impl Runner {
         if decision.answers(&request).is_err() {
             return Err(Broken::Frame("not_the_decision").into());
         }
-        self.check()?;
-        let mut rejected = Vec::new();
+        let mut answers = Vec::with_capacity(asked.len());
         for (at, _) in asked {
             let id = self.effects[*at].id().clone();
             let Some(approval) = decision.approvals.iter().find(|a| a.effect == id) else {
@@ -424,25 +421,25 @@ impl Runner {
                 .iter()
                 .find(|e| e.effect == id)
                 .and_then(|e| e.new_origin.clone());
-            self.answer(*at, approval, shown)?;
-            if approval.answer == Answer::RejectOnce {
-                rejected.push(*at);
+            answers.push((*at, approval, shown));
+        }
+        let mut rejected = Vec::new();
+        for (at, approval, _) in &answers {
+            match approval.answer {
+                Answer::RejectOnce => {
+                    self.advance(*at, EffectMove::Reject)?;
+                    rejected.push(*at);
+                }
+                Answer::AllowOnce => {}
+            }
+        }
+        self.check()?;
+        for (at, approval, shown) in answers {
+            match approval.answer {
+                Answer::AllowOnce => self.approve(at, approval, shown)?,
+                Answer::RejectOnce => {}
             }
         }
         Ok(rejected)
-    }
-
-    /// The move that the person's answer for the effect at `at` makes; `shown` is the `new_origin` that the card
-    /// named for it.
-    fn answer(
-        &mut self,
-        at: usize,
-        approval: &Approval,
-        shown: Option<WebOrigin>,
-    ) -> Result<(), Stop> {
-        match approval.answer {
-            Answer::AllowOnce => self.approve(at, approval, shown),
-            Answer::RejectOnce => self.advance(at, EffectMove::Reject).map(|_| ()),
-        }
     }
 }
