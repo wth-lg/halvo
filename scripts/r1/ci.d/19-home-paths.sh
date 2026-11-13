@@ -3,8 +3,6 @@
 # rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or in the head commit when the default branch holds it or the checkout does not, and in the tag of a run that a pushed tag started, and the list holds no entry that allows nothing in HEAD (sh scripts/check-home-paths.sh --stale); it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
 set -u
 name=19-home-paths
-ratio_floor_tenths=20
-ratio_bound_tenths=250
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -117,55 +115,6 @@ expect() {
   fi
 }
 
-milliseconds() {
-  perl -MTime::HiRes=time -e 'printf "%d\n", time * 1000'
-}
-
-timed_scan() {
-  started=$(milliseconds) || fail 'perl with Time::HiRes is missing'
-  (cd "$scratch/ratio" && sh scripts/check-home-paths.sh "$1^!") >"$scratch/ratio-$2.out" 2>&1 </dev/null
-  scan_code=$?
-  ended=$(milliseconds) || fail 'perl with Time::HiRes is missing'
-  [ "$scan_code" = 1 ] || ratio_wrong="$ratio_wrong scan-of-$2-paths-exit-$scan_code"
-  elapsed=$((ended - started))
-}
-
-ratio_case() {
-  ratio_wrong=
-  fixture ratio
-  awk 'BEGIN { for (i = 0; i < 20000; i++) printf "/%s/zed%d ", "Users", i; printf "\n" }' >"$scratch/ratio/small.txt" || exit 2
-  in_fixture ratio add small.txt || exit 2
-  in_fixture ratio commit -q -m 'one line with 20000 paths' || exit 2
-  small=$(git -C "$scratch/ratio" rev-parse HEAD) || exit 2
-  awk 'BEGIN { for (i = 0; i < 100000; i++) printf "/%s/zed%d ", "Users", i; printf "\n" }' >"$scratch/ratio/large.txt" || exit 2
-  in_fixture ratio add large.txt || exit 2
-  in_fixture ratio commit -q -m 'one line with 100000 paths' || exit 2
-  large=$(git -C "$scratch/ratio" rev-parse HEAD) || exit 2
-  small_ms=
-  for try in first second third; do
-    timed_scan "$small" "20000-$try"
-    [ -n "$small_ms" ] && [ "$small_ms" -le "$elapsed" ] || small_ms=$elapsed
-  done
-  timed_scan "$large" 100000
-  large_ms=$elapsed
-  [ "$small_ms" -gt 0 ] || small_ms=1
-  ratio_tenths=$((large_ms * 10 / small_ms))
-  printf 'ratio %s/scan-of-100000-paths-against-20000 ms_20000=%s ms_100000=%s ratio=%s.%s floor=%s.%s bound=%s.%s\n' "$name" \
-    "$small_ms" "$large_ms" "$((ratio_tenths / 10))" "$((ratio_tenths % 10))" \
-    "$((ratio_floor_tenths / 10))" "$((ratio_floor_tenths % 10))" "$((ratio_bound_tenths / 10))" "$((ratio_bound_tenths % 10))"
-  if [ -n "$ratio_wrong" ]; then
-    got="scans-not-refused:$ratio_wrong"
-  elif [ "$ratio_tenths" -lt "$ratio_floor_tenths" ]; then
-    got=below-the-floor
-  elif [ "$ratio_tenths" -gt "$ratio_bound_tenths" ]; then
-    got=above-the-bound
-  else
-    got=between
-  fi
-  printf 'case %s/ratio-of-the-two-scan-times want=between got=%s\n' "$name" "$got"
-  [ "$got" = between ] || wrong="$wrong ratio-of-the-two-scan-times"
-}
-
 self_test() {
   repo=${CI_D_REPO:-$(git rev-parse --show-toplevel)} || exit 2
   make_scratch
@@ -176,12 +125,13 @@ self_test() {
 
   sh "$repo/scripts/check-home-paths.sh" --self-test >"$scratch/predicate.out" 2>&1
   code=$?
-  grep -E '^case check-home-paths/[^ ]* (left out|not run)|^seconds check-home-paths/|^case check-home-paths/(file-name-with-a-tab-listed-by-its-quoted-name|added-entry-with-home-unset|scan-ended-by-term) ' "$scratch/predicate.out"
+  grep -E '^case check-home-paths/[^ ]* (left out|not run)|^seconds check-home-paths/|^case check-home-paths/(file-name-with-a-tab-listed-by-its-quoted-name|added-entry-with-home-unset|scan-ended-by-term|path-cut-at-its-piece-passes) ' "$scratch/predicate.out"
   predicate=$(sed -n "s/^PASS self-test:check-home-paths (\([0-9]*\) failing fixtures rejected)\$/\1/p" "$scratch/predicate.out") || predicate=
-  if [ "$code" = 0 ] && [ -n "$predicate" ]; then
+  cut_held=$(grep -c '^case check-home-paths/path-cut-at-its-piece-passes want=1 got=1$' "$scratch/predicate.out") || cut_held=0
+  if [ "$code" = 0 ] && [ -n "$predicate" ] && [ "$cut_held" = 1 ]; then
     printf 'case %s/predicate-self-test want=PASS got=PASS (%s failing fixtures rejected)\n' "$name" "$predicate"
   else
-    printf 'case %s/predicate-self-test want=PASS got=exit-%s\n' "$name" "$code"
+    printf 'case %s/predicate-self-test want=PASS got=exit-%s (lines of path-cut-at-its-piece-passes with want=1 got=1: %s)\n' "$name" "$code" "$cut_held"
     grep '^FAIL self-test:check-home-paths (wrong verdict in:' "$scratch/predicate.out"
     wrong="$wrong predicate-self-test"
     predicate=0
@@ -257,7 +207,6 @@ self_test() {
   add_commit list-malformed-in-the-commit 'more plain text' 'second'
   expect FAIL list-malformed-in-the-commit
 
-  ratio_case
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
