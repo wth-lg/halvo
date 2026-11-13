@@ -1,5 +1,3 @@
-#![cfg(not(windows))]
-
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
@@ -17,16 +15,33 @@ use tauri::{
     WebviewWindowBuilder,
 };
 
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "this test crate compiles the app's app.rs by path and uses part of it: \
+              WINDOW_SHOWN and PageLoads::count stay unused here; the app's own build lints the whole module"
+)]
 #[path = "../src/app.rs"]
 mod app;
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "this test crate compiles the app's commands by path and uses part of them: \
+              the fields module and reads of commands/names.rs stay unused here; the app's own build lints the whole module"
+)]
 #[path = "../src/commands/mod.rs"]
 mod commands;
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "this test crate compiles the app's launch.rs by path, because tray.rs names its exit codes: \
+              USAGE stays unused here; the app's own build lints the whole module"
+)]
 #[path = "../src/launch.rs"]
 mod launch;
-#[allow(dead_code)]
+#[expect(
+    dead_code,
+    reason = "this test crate compiles the app's tray.rs by path, because the capture commands refresh the tray: \
+              the four id constants, install, on_menu_event and show_main_window stay unused here; \
+              the app's own build lints the whole module"
+)]
 #[path = "../src/tray.rs"]
 mod tray;
 
@@ -112,6 +127,11 @@ fn no_tray(_app: &tauri::AppHandle<MockRuntime>) -> tauri::Result<()> {
     Ok(())
 }
 
+fn first_iteration_runs_the_set_up(app: &mut App<MockRuntime>) {
+    #[allow(deprecated)]
+    app.run_iteration(|_, _| {});
+}
+
 struct Guarded {
     app: App<MockRuntime>,
     shreds: Arc<AtomicU32>,
@@ -123,6 +143,8 @@ impl Guarded {
         let store = CountingStore::default();
         let shreds = store.shreds.clone();
         let parts = app::Parts {
+            #[cfg(windows)]
+            webview_data_dir: Some(dir.join("webview")),
             config_dir: Some(dir),
             store: Box::new(store),
             store_backend: "the counting store of the guard tests",
@@ -134,8 +156,7 @@ impl Guarded {
         let mut app = app::build(mock_builder(), parts)
             .build(context)
             .expect("the app builds on the mock runtime");
-        #[allow(deprecated)]
-        app.run_iteration(|_, _| {});
+        first_iteration_runs_the_set_up(&mut app);
         Self { app, shreds }
     }
 
@@ -151,6 +172,8 @@ impl Guarded {
             label,
             WebviewUrl::App("index.html".into()),
         );
+        #[cfg(windows)]
+        let builder = builder.data_directory(scratch(&format!("window-{label}")).join("webview"));
         builder
             .build()
             .expect("a window builds on the mock runtime")
@@ -204,11 +227,51 @@ fn refused() -> Result<Value, Value> {
     Err(Value::String(commands::REFUSED.to_string()))
 }
 
+const APP_RS: &str = include_str!("../src/app.rs");
+
+fn arms_named_by_app_rs() -> [(String, String); 2] {
+    let head = "pub const APP_ORIGIN: (&str, &str) = if cfg!(windows) {";
+    let start = APP_RS.find(head).expect("app.rs defines APP_ORIGIN");
+    let body = &APP_RS[start + head.len()..];
+    let body = &body[..body.find("};").expect("the definition of APP_ORIGIN ends")];
+    let quoted: Vec<&str> = body.split('"').skip(1).step_by(2).collect();
+    let [windows_scheme, windows_host, other_scheme, other_host] = quoted[..] else {
+        panic!("APP_ORIGIN names two pairs: {quoted:?}");
+    };
+    let windows = (windows_scheme.to_string(), windows_host.to_string());
+    let other = (other_scheme.to_string(), other_host.to_string());
+    let compiled = (app::APP_ORIGIN.0.to_string(), app::APP_ORIGIN.1.to_string());
+    assert_eq!(
+        if cfg!(windows) { &windows } else { &other },
+        &compiled,
+        "the text of APP_ORIGIN and the compiled constant"
+    );
+    [other, windows]
+}
+
+const C10_9_COMMANDS: [&str; 8] = [
+    "capture_status",
+    "inventory",
+    "set_capture_state",
+    "delete_all",
+    "set_storage_cap",
+    "onboarding_state",
+    "request_permission",
+    "open_permission_pane",
+];
+
 fn unit_commands() -> Vec<&'static str> {
-    commands::names::MODULES
+    let commands: Vec<&'static str> = commands::names::MODULES
         .iter()
         .flat_map(|module| module.commands.iter().copied())
-        .collect()
+        .collect();
+    for name in C10_9_COMMANDS {
+        assert!(
+            commands.contains(&name),
+            "the commands of the app's modules lack {name}: {commands:?}"
+        );
+    }
+    commands
 }
 
 #[test]
@@ -217,6 +280,8 @@ fn a_child_web_view_of_the_window_main_gets_no_command_of_the_unit_and_deletes_n
     let main = test.main();
     for label in ["child", "main-child"] {
         let child = WebviewBuilder::new(label, WebviewUrl::App("index.html".into()));
+        #[cfg(windows)]
+        let child = child.data_directory(scratch(&format!("{label}-data")).join("webview"));
         let child = main
             .as_ref()
             .window()
@@ -286,7 +351,13 @@ fn an_address_of_the_app_host_with_a_password_and_no_user_name_is_refused() {
     let parsed: Url = origin.parse().expect("a URL");
     assert_eq!((parsed.username(), parsed.password()), ("", Some("secret")));
     assert!(!app::is_app_url(&parsed), "the rule allows {origin}");
-    for (scheme, host) in [("tauri", "localhost"), ("http", "tauri.localhost")] {
+    let arms = [("tauri", "localhost"), ("http", "tauri.localhost")];
+    assert_eq!(
+        arms_named_by_app_rs(),
+        arms.map(|(scheme, host)| (scheme.to_string(), host.to_string())),
+        "the arms that the test asks are those that APP_ORIGIN names in src-tauri/src/app.rs"
+    );
+    for (scheme, host) in arms {
         let arm: Url = format!("{scheme}://:secret@{host}/")
             .parse()
             .expect("a URL");
@@ -301,6 +372,8 @@ fn an_address_of_the_app_host_with_a_password_and_no_user_name_is_refused() {
     );
     let test = Guarded::new("password", app::context());
     let main = test.main();
+    assert!(call(main.as_ref(), "capture_status", app_origin()).is_ok());
+    assert!(call(main.as_ref(), "capture_status", None).is_ok());
     let header = HeaderValue::from_str(&origin).expect("an address that a header can hold");
     for command in unit_commands() {
         assert_eq!(
@@ -319,6 +392,52 @@ fn an_address_of_the_app_host_with_a_password_and_no_user_name_is_refused() {
         );
     }
     assert_eq!(test.shreds(), 0);
+}
+
+#[test]
+fn the_web_view_main_moved_into_another_window_gets_no_command_of_the_unit_and_deletes_nothing() {
+    let test = Guarded::new("moved-web-view", widened_by_the_macro());
+    let main = test.main();
+    let page = main.as_ref();
+    let window_main = page.window();
+    let helper = test.window(OTHER_LABELS[0]);
+    page.reparent(&helper.as_ref().window())
+        .expect("the mock runtime moves the web view main into the window helper");
+    assert_eq!(page.label(), "main");
+    assert_eq!(page.window().label(), OTHER_LABELS[0]);
+    assert!(
+        page.url().is_ok_and(|url| app::is_app_url(&url)),
+        "the moved web view's own address is of the app's origin: {:?}",
+        page.url()
+    );
+    assert_eq!(
+        call(page, "plugin:app|version", app_origin()),
+        Ok(Value::String(app::VERSION.to_string())),
+        "the capability handed to the context macro reaches the window helper"
+    );
+    for command in unit_commands() {
+        for origin in [app_origin(), None] {
+            assert_eq!(
+                call(page, command, origin.clone()),
+                refused(),
+                "{command} from the web view main in the window helper, Origin header {origin:?}"
+            );
+        }
+    }
+    assert_eq!(
+        test.shreds(),
+        0,
+        "a call of the moved web view deleted the data"
+    );
+    page.reparent(&window_main)
+        .expect("the mock runtime moves the web view main back");
+    assert_eq!(page.window().label(), "main");
+    assert!(call(page, "delete_all", app_origin()).is_ok());
+    assert_eq!(
+        test.shreds(),
+        1,
+        "the web view main in the window main deletes the data"
+    );
 }
 
 #[test]
