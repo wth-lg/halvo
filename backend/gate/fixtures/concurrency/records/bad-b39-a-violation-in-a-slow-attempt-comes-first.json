@@ -81,6 +81,6 @@
     }
   ],
   "expect": {
-    "line": "FAIL concurrency: runs=1 of 1 cells=0 of 1 violations=1 wave=unmeasured lost-sends=0 settle-p99-at-200=18ms second-attempts=1 rollover-uncrossed=0 slow=1 burst-p50-at-200=300ms; first failure: ledger-usage-last-at-200-plain-1-try2: settled-exact r: charged 20, price times the final usage is 19"
+    "line": "FAIL concurrency: runs=1 of 1 cells=0 of 1 violations=1 wave=unmeasured lost-sends=0 settle-p99-at-200=18ms second-attempts=1 rollover-uncrossed=0 slow=1 burst-p50-at-200=300ms rollover-redrawn=0; first failure: ledger-usage-last-at-200-plain-1-try2: settled-exact r: charged 20, price times the final usage is 19"
   }
 }

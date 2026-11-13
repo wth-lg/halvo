@@ -7,5 +7,5 @@
     }
   ],
   "cells": "^rollover@20$",
-  "line": ["FAIL concurrency: ", "rollover-uncrossed=", "first failure: ", "lacked the crossing, which the driver builds before any kill (ruling B-15)"]
+  "line": ["FAIL concurrency: ", "rollover-redrawn=5", "first failure: the rollover cell built no crossing: 5 attempt(s) were drawn again and none admitted a request before the period boundary (ruling P7-72)"]
 }

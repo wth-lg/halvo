@@ -119,6 +119,6 @@
     }
   ],
   "expect": {
-    "line": "PASS concurrency: runs=2 of 2 cells=2 of 2 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=18ms second-attempts=1 rollover-uncrossed=0 slow=1 burst-p50-at-200=3000ms"
+    "line": "PASS concurrency: runs=2 of 2 cells=2 of 2 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=18ms second-attempts=1 rollover-uncrossed=0 slow=1 burst-p50-at-200=3000ms rollover-redrawn=0"
   }
 }

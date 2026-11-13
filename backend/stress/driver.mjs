@@ -686,11 +686,13 @@ async function schedule(tasks, capacity, halted) {
   return Promise.all(running);
 }
 
-const FACTS_OF_A_DISCARDED_ATTEMPT = ["slow", "burstWaits", "burstMedianMs", "slowBoundMs", "lateSettles", "lostInTransport"];
+const FACTS_OF_A_DISCARDED_ATTEMPT = ["slow", "burstWaits", "burstMedianMs", "slowBoundMs", "lateSettles", "lostInTransport", "crossingBuilt", "firstAdmissionMs"];
+const CROSSING_DRAWS_MAX = 5;
 
 async function runCounted(ctx, cell, variant, runNo, withKill) {
   const who = variant === "counts-open-holds" ? "ledger" : "control";
   const discarded = [];
+  let unbuiltDraws = 0;
   for (let attempt = 0; ; attempt++) {
     const began = Date.now();
     let result;
@@ -702,15 +704,23 @@ async function runCounted(ctx, cell, variant, runNo, withKill) {
       const key = `${who}-${cell.name.replace("@", "-at-")}-${withKill ? "kill" : "plain"}-${runNo}-try${attempt + 1}`;
       result = { key, cell: cell.name, kind: cell.kind, level: cell.level, switch: cell.switch, variant, withKill, counted: false, violations, facts: null, ms: Date.now() - began, error: text };
     }
-    const last = attempt + 1 >= ctx.cfg.attempts;
+    const unbuilt = result.facts?.crossed === false && result.facts?.crossingBuilt === false;
+    const drawsOfTheCell = ctx.crossingDraws.get(cell.name) ?? 0;
+    const drawAgain = unbuilt && drawsOfTheCell < CROSSING_DRAWS_MAX;
+    if (drawAgain) {
+      ctx.crossingDraws.set(cell.name, drawsOfTheCell + 1);
+      unbuiltDraws++;
+    }
+    const rigUnbuilt = unbuilt && !drawAgain;
+    const last = rigUnbuilt || attempt + 1 - unbuiltDraws >= ctx.cfg.attempts;
     const neverCounted = last && !(result.counted && !result.error);
-    const lostTheCrossing = result.facts?.crossed === false;
+    const lostTheCrossing = result.facts?.crossed === false && !unbuilt;
     if (ctx.stopAtFirstViolation && (result.violations.length > 0 || neverCounted || lostTheCrossing)) ctx.halted = true;
     if ((result.counted && !result.error) || last || ctx.halted) {
       ctx.progress(result, discarded.length);
-      return { ...result, discarded };
+      return rigUnbuilt ? { ...result, discarded, rigUnbuilt } : { ...result, discarded };
     }
-    if (result.error || result.facts?.slow === true) ctx.progress(result, discarded.length);
+    if (result.error || result.facts?.slow === true || unbuilt) ctx.progress(result, discarded.length);
     discarded.push({
       key: result.key,
       error: result.error,
@@ -729,6 +739,7 @@ export async function runCells(ctx, cellList, variant) {
   mkdirSync(ctx.outDir, { recursive: true });
   ctx.registry ??= join(ctx.outDir, "..", "started.jsonl");
   ctx.started ??= new Set();
+  ctx.crossingDraws ??= new Map();
   ctx.mockScript ??= fileURLToPath(new URL("./upstream.mjs", import.meta.url));
   const tasks = [];
   for (const cell of cellList) {

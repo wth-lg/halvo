@@ -94,6 +94,6 @@
     }
   ],
   "expect": {
-    "line": "FAIL concurrency: runs=0 of 2 cells=0 of 2 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=unmeasured second-attempts=1 rollover-uncrossed=0 slow=2 burst-p50-at-200=2700ms; first failure: ledger-usage-last-at-200-plain-1-try1 failed to run in 6 attempts: Error: the server did not answer within 30000 ms"
+    "line": "FAIL concurrency: runs=0 of 2 cells=0 of 2 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=unmeasured second-attempts=1 rollover-uncrossed=0 slow=2 burst-p50-at-200=2700ms rollover-redrawn=0; first failure: ledger-usage-last-at-200-plain-1-try1 failed to run in 6 attempts: Error: the server did not answer within 30000 ms"
   }
 }

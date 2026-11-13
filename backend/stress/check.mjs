@@ -56,7 +56,10 @@ export function lineOf({ selected, runs, halted, attempts }) {
   const lost = runs.reduce((total, run) => total + (run.facts?.resets ?? 0) + (run.facts?.proxyLost ?? 0), 0);
   const settles = runs.filter((run) => run.level === 200 && !run.withKill && good(run)).flatMap((run) => run.facts.settleMs);
   const p99 = settles.length === 0 ? "unmeasured" : `${nearestRank(settles, 0.99)}ms`;
-  const uncrossed = runs.filter((run) => run.kind === "rollover" && run.facts?.crossed === false);
+  const uncrossed = runs.filter((run) => run.kind === "rollover" && run.facts?.crossed === false && run.facts?.crossingBuilt !== false);
+  const unbuiltAttempts = runs.flatMap((run) => attemptsOf(run).filter((attempt) => attempt.crossed === false && attempt.crossingBuilt === false));
+  const redrawn = runs.reduce((total, run) => total + run.discarded.filter((attempt) => attempt.crossed === false && attempt.crossingBuilt === false).length, 0);
+  const rigUnbuilt = runs.filter((run) => run.rigUnbuilt === true);
   const slowAttempts = runs.flatMap((run) => attemptsOf(run).filter((attempt) => attempt.slow === true));
   const waitsAt200 = runs.filter((run) => run.level === 200).flatMap((run) => attemptsOf(run).flatMap((attempt) => attempt.burstWaits ?? []));
   const burstP50 = waitsAt200.length === 0 ? "unmeasured" : `${nearestRank(waitsAt200, 0.5)}ms`;
@@ -72,6 +75,7 @@ export function lineOf({ selected, runs, halted, attempts }) {
     `rollover-uncrossed=${uncrossed.length}`,
     `slow=${slowAttempts.length}`,
     `burst-p50-at-200=${burstP50}`,
+    `rollover-redrawn=${redrawn}`,
   ].join(" ");
 
   let failure = null;
@@ -84,6 +88,10 @@ export function lineOf({ selected, runs, halted, attempts }) {
     const incomplete = summary.find((entry) => !entry.complete);
     if (uncrossed.length > 0) {
       failure = `${uncrossed.length} attempt(s) of a rollover cell lacked the crossing, which the driver builds before any kill (ruling B-15), first ${uncrossed[0].key}`;
+    } else if (rigUnbuilt.length > 0) {
+      const gaps = unbuiltAttempts.map((attempt) => attempt.firstAdmissionMs).filter((gap) => gap !== null && gap !== undefined);
+      const gap = gaps.length === 0 ? "none, as no attempt admitted a request" : `${Math.min(...gaps)} ms`;
+      failure = `the rollover cell built no crossing: ${redrawn} attempt(s) were drawn again and none admitted a request before the period boundary (ruling P7-72); the smallest gap between a first admission and the boundary was ${gap}, first ${rigUnbuilt[0].key}`;
     } else if (failedToRun) failure = `${failedToRun.key} failed to run in ${attempts} attempts: ${failedToRun.error.split("\n")[0].slice(0, 200)}`;
     else if (neverCounted && attemptsOf(neverCounted).some((attempt) => attempt.slow === true)) {
       const waitsByBound = new Map();
@@ -112,7 +120,8 @@ export function attemptLineOf(result, discarded) {
   const extra = discarded > 0 ? `, ${discarded} earlier attempt(s) drawn again` : "";
   const slow = facts.slow ? `, first-burst median ${facts.burstMedianMs} ms over the bound of ${facts.slowBoundMs} ms, ${facts.lateSettles} late settle(s)` : "";
   const wave = result.kind === "wave" && facts.streams !== undefined ? `, ${facts.streams} stream(s), held ${facts.held}` : "";
-  return `concurrency: ${result.key}: ${said}, ${result.violations.length} violation(s), ${result.ms} ms${extra}${slow}${wave}`;
+  const unbuilt = facts.crossingBuilt === false ? `, no request admitted before the period boundary (first admission ${facts.firstAdmissionMs ?? "none"} ms after it)` : "";
+  return `concurrency: ${result.key}: ${said}, ${result.violations.length} violation(s), ${result.ms} ms${extra}${slow}${wave}${unbuilt}`;
 }
 
 async function main() {

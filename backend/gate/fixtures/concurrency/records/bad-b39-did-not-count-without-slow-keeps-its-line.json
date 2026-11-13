@@ -55,6 +55,6 @@
     }
   ],
   "expect": {
-    "line": "FAIL concurrency: runs=0 of 1 cells=0 of 1 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=unmeasured second-attempts=0 rollover-uncrossed=0 slow=0 burst-p50-at-200=200ms; first failure: ledger-usage-last-at-200-plain-1-try1 did not count in 6 attempts (admitted 1, holds open at the kill 0, a stream in flight at the kill false, voided 0)"
+    "line": "FAIL concurrency: runs=0 of 1 cells=0 of 1 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=unmeasured second-attempts=0 rollover-uncrossed=0 slow=0 burst-p50-at-200=200ms rollover-redrawn=0; first failure: ledger-usage-last-at-200-plain-1-try1 did not count in 6 attempts (admitted 1, holds open at the kill 0, a stream in flight at the kill false, voided 0)"
   }
 }

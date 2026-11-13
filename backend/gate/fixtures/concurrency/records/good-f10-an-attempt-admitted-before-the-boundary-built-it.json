@@ -1,0 +1,185 @@
+{
+  "kind": "judge",
+  "ruling": "B-15, read by P7-72 (point F10 of P7-69)",
+  "about": "a hold was admitted 1,000 ms before the boundary and ended before the new period admitted: the attempt built the state and lacks the crossing",
+  "source": "by hand",
+  "top": {
+    "cell": {
+      "name": "rollover@20",
+      "kind": "rollover",
+      "level": 20,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    },
+    "requests": [
+      {
+        "id": "old",
+        "index": 0,
+        "status": 200,
+        "body": "",
+        "sentAt": 604799950,
+        "headersAt": 604800050,
+        "endedAt": 604802050,
+        "hold": 100,
+        "receipt": {
+          "requestId": "old",
+          "amount": 100,
+          "now": 604800000,
+          "expiresAt": 604803000
+        },
+        "trailer": {
+          "settled": true,
+          "outcome": "settled",
+          "cost": 19,
+          "settle_ms": 1
+        },
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      },
+      {
+        "id": "new",
+        "index": 1,
+        "status": 200,
+        "body": "",
+        "sentAt": 604801100,
+        "headersAt": 604801200,
+        "endedAt": 604803200,
+        "hold": 100,
+        "receipt": {
+          "requestId": "new",
+          "amount": 100,
+          "now": 604801150,
+          "expiresAt": 604804150
+        },
+        "trailer": {
+          "settled": true,
+          "outcome": "settled",
+          "cost": 19,
+          "settle_ms": 1
+        },
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last"
+      }
+    ],
+    "mockEvents": [
+      {
+        "t": 604800050,
+        "id": "old",
+        "ev": "request"
+      },
+      {
+        "t": 604800100,
+        "id": "old",
+        "ev": "usage",
+        "final": true,
+        "input_tokens": 1,
+        "output_tokens": 1
+      },
+      {
+        "t": 604800110,
+        "id": "old",
+        "ev": "end",
+        "clean": true
+      },
+      {
+        "t": 604801200,
+        "id": "new",
+        "ev": "request"
+      },
+      {
+        "t": 604801250,
+        "id": "new",
+        "ev": "usage",
+        "final": true,
+        "input_tokens": 1,
+        "output_tokens": 1
+      },
+      {
+        "t": 604801260,
+        "id": "new",
+        "ev": "end",
+        "clean": true
+      }
+    ],
+    "final": {
+      "now": 604821000,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 604821000,
+        "seq": 10
+      },
+      "periods": [
+        {
+          "period_start": 1000,
+          "reported": 19,
+          "unreported": 0,
+          "open": 0
+        },
+        {
+          "period_start": 604801000,
+          "reported": 19,
+          "unreported": 0,
+          "open": 0
+        }
+      ],
+      "holds": [
+        {
+          "request_id": "old",
+          "period_start": 1000,
+          "amount": 100,
+          "expires_at": 604803000,
+          "state": "settled",
+          "dispatched": 1,
+          "created_at": 604800000,
+          "created_seq": 1,
+          "ended_at": 604800500,
+          "ended_seq": 2,
+          "ended_by": "settle",
+          "input_tokens": 1,
+          "output_tokens": 1,
+          "cost": 19,
+          "overrun": 0,
+          "late_at": null,
+          "late_seq": null
+        },
+        {
+          "request_id": "new",
+          "period_start": 604801000,
+          "amount": 100,
+          "expires_at": 604804152,
+          "state": "settled",
+          "dispatched": 1,
+          "created_at": 604801152,
+          "created_seq": 3,
+          "ended_at": 604803000,
+          "ended_seq": 4,
+          "ended_by": "settle",
+          "input_tokens": 1,
+          "output_tokens": 1,
+          "cost": 19,
+          "overrun": 0,
+          "late_at": null,
+          "late_seq": null
+        }
+      ],
+      "alarm": null,
+      "databaseSize": null
+    }
+  },
+  "expect": {
+    "counted": false,
+    "violations": [],
+    "facts": {
+      "crossed": false,
+      "crossingBuilt": true,
+      "firstAdmissionMs": -1000
+    }
+  }
+}

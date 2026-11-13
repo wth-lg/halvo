@@ -75,6 +75,7 @@ function readGateway(record) {
 async function readAttempts(record) {
   const state = process.env.GATE_STATE ?? join(HERE, "..", "..", "..", ".tmp");
   mkdirSync(state, { recursive: true });
+  const attemptsOf = (runNo) => (record.attemptsByRun ? record.attemptsByRun[runNo - 1] : record.attempts);
   const scripted = (_ctx, cell, variant, runNo, withKill, attempt) => ({
     key: `attempt-${attempt + 1}`,
     cell: cell.name,
@@ -84,28 +85,39 @@ async function readAttempts(record) {
     variant,
     withKill,
     runNo,
-    counted: record.attempts[attempt].counted,
+    counted: attemptsOf(runNo)[attempt].counted,
     violations: [],
-    facts: record.attempts[attempt].facts,
+    facts: attemptsOf(runNo)[attempt].facts,
     ms: 1,
     error: null,
   });
   const reported = [];
   const ctx = {
-    cfg: { attempts: record.attempts.length },
+    cfg: { attempts: record.cfgAttempts ?? (record.attempts ?? record.attemptsByRun[0]).length },
     target: { command: () => ({}) },
     outDir: state,
     jobs: 1,
+    stopAtFirstViolation: record.stopAtFirstViolation === true,
     progress: (result) => reported.push(result.key),
     runOnce: async (...args) => scripted(...args),
   };
-  const [run] = await driver.runCells(ctx, [record.cell], "counts-open-holds");
+  const runs = await driver.runCells(ctx, [record.cell], "counts-open-holds");
+  const [run] = runs;
   const problems = [];
-  if (run.discarded.length !== record.expect.discarded.length) problems.push(`${run.discarded.length} discarded attempts, expected ${record.expect.discarded.length}`);
+  const discarded = record.expect.discarded ?? [];
+  if (record.expect.discarded !== undefined && run.discarded.length !== discarded.length) problems.push(`${run.discarded.length} discarded attempts, expected ${discarded.length}`);
   if (record.expect.reported !== undefined && !isDeepStrictEqual(reported, record.expect.reported)) problems.push(`the driver reported ${JSON.stringify(reported)}, expected ${JSON.stringify(record.expect.reported)}`);
-  record.expect.discarded.forEach((want, at) => {
+  if (record.expect.halted !== undefined && (ctx.halted === true) !== record.expect.halted) problems.push(`the driver halted is ${ctx.halted === true}, expected ${record.expect.halted}`);
+  discarded.forEach((want, at) => {
     for (const [name, value] of Object.entries(want)) {
       if (!isDeepStrictEqual(run.discarded[at]?.[name], value)) problems.push(`discarded attempt ${at + 1} keeps ${name} as ${JSON.stringify(run.discarded[at]?.[name])}, expected ${JSON.stringify(value)}`);
+    }
+  });
+  (record.expect.runs ?? []).forEach((want, at) => {
+    const got = runs[at];
+    const facts = { key: got?.key, rigUnbuilt: got?.rigUnbuilt === true, discarded: got?.discarded.length };
+    for (const [name, value] of Object.entries(want)) {
+      if (!isDeepStrictEqual(facts[name], value)) problems.push(`run ${at + 1} has ${name} ${JSON.stringify(facts[name])}, expected ${JSON.stringify(value)}`);
     }
   });
   return { good: true, problems };

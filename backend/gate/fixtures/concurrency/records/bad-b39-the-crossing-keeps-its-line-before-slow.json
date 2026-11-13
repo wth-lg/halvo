@@ -53,6 +53,6 @@
     }
   ],
   "expect": {
-    "line": "FAIL concurrency: runs=0 of 1 cells=0 of 1 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=unmeasured second-attempts=0 rollover-uncrossed=1 slow=1 burst-p50-at-200=unmeasured; first failure: 1 attempt(s) of a rollover cell lacked the crossing, which the driver builds before any kill (ruling B-15), first ledger-rollover-at-20-plain-1-try1"
+    "line": "FAIL concurrency: runs=0 of 1 cells=0 of 1 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=unmeasured second-attempts=0 rollover-uncrossed=1 slow=1 burst-p50-at-200=unmeasured rollover-redrawn=0; first failure: 1 attempt(s) of a rollover cell lacked the crossing, which the driver builds before any kill (ruling B-15), first ledger-rollover-at-20-plain-1-try1"
   }
 }

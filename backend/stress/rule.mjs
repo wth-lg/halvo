@@ -411,6 +411,9 @@ export function judge({
   }
 
   const overdue = kill ? openAtKill.filter((row) => row.expires_at <= restartReadyAt) : [];
+  const firstAdmittedAt = rows.size === 0 ? null : Math.min(...[...rows.values()].map((row) => row.created_at));
+  const firstAdmissionMs = cell.kind !== "rollover" || firstAdmittedAt === null ? null : firstAdmittedAt - (anchor + periodMs);
+  const crossingBuilt = cell.kind === "rollover" ? firstAdmissionMs !== null && firstAdmissionMs < 0 : null;
 
   let counted = true;
   if (kill) counted = openAtKill.length > 0 && streamAtKill;
@@ -478,6 +481,8 @@ export function judge({
       settledBeforeKill: kill ? final.holds.filter((row) => row.state === "settled" && row.ended_at <= kill.at).length : 0,
       admittedAfterRestart: kill ? final.holds.filter((row) => row.created_at > kill.at).length : 0,
       crossed: cell.kind === "rollover" ? crossed : null,
+      crossingBuilt,
+      firstAdmissionMs,
       streamAtKill,
       settleMs: [...sent.values()].filter((request) => request.trailer?.settled).map((request) => request.trailer.settle_ms),
       databaseSize: final.databaseSize,

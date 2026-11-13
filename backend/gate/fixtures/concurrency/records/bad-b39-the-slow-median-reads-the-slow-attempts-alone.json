@@ -215,6 +215,6 @@
     }
   ],
   "expect": {
-    "line": "FAIL concurrency: runs=1 of 2 cells=1 of 2 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=18ms second-attempts=1 rollover-uncrossed=0 slow=6 burst-p50-at-200=100ms; first failure: 6 attempt(s) did not count because their first burst was slow (ruling B-33): the median wait of those bursts was 2800 ms, over the bound of 2600 ms; ledger-usage-missing-at-200-plain-1-try6 did not count in 6 attempts"
+    "line": "FAIL concurrency: runs=1 of 2 cells=1 of 2 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=18ms second-attempts=1 rollover-uncrossed=0 slow=6 burst-p50-at-200=100ms rollover-redrawn=0; first failure: 6 attempt(s) did not count because their first burst was slow (ruling B-33): the median wait of those bursts was 2800 ms, over the bound of 2600 ms; ledger-usage-missing-at-200-plain-1-try6 did not count in 6 attempts"
   }
 }
