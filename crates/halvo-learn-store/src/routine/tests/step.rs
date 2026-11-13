@@ -399,6 +399,20 @@ fn two_workflows_of_one_agent_keep_their_own_rows_and_marks() {
 }
 
 #[test]
+fn a_row_at_the_highest_rev_gives_no_next_row() {
+    let first = fresh(1, DAY);
+    for (rev, rows) in [(u32::MAX - 1, 1), (u32::MAX, 0)] {
+        let mut store = Store::default();
+        store.put_routine(&with_figures(&first, rev, DAY, &figures(&first)));
+        let records = store.step(DAY + 30);
+        assert_eq!(records.len(), rows, "rev {rev}");
+        if rows == 1 {
+            assert_eq!(only_row(&records).rev.get(), u32::MAX);
+        }
+    }
+}
+
+#[test]
 fn a_clock_set_back_gives_the_row_of_routine_step_and_never_the_mark() {
     let back = DAY - 10;
     let prev = settled(5, DAY, 7, DAY - 14, DAY);
