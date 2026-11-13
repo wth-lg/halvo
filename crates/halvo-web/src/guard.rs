@@ -38,7 +38,13 @@ pub const UNREAD_PAUSE: Duration = Duration::from_millis(2);
 pub enum Trigger {
     /// The guard of a run: once the executor, known by number and creation time together, no
     /// longer runs and `GRACE` has passed (CP-148 (1)); it keeps the port `PORT_MARGIN` after the
-    /// tree is gone.
+    /// tree is gone. On Windows a row with the executor's number, no creation time and the guard's
+    /// own file name counts as the executor (CP-176 A4 (a), `GuardIo::own_name`). The limit of
+    /// that rule (A4 (e)): after a hard end of the executor, a process that the guard cannot open,
+    /// of the same program name, that takes its number holds the guard, and the browser with it,
+    /// for as long as it runs. The browser has no route then, since the relay ended with the
+    /// executor. The ruling names the run's job of A6.6 and a reap at the next start as what ends
+    /// it; neither is in this crate yet.
     ExecutorGone { pid: u32, started_us: u64 },
     /// The executor's own end of a start that gave no first reply (CP-158 (1)): at once, by the
     /// same ask and forced end, with no margin.
@@ -57,6 +63,12 @@ pub struct GuardIo<'a> {
     /// The run's mark, which the executor gives the guard at its start; `None` takes no process by
     /// the dead parent's number.
     pub mark: Option<&'a crate::checks::Mark>,
+    /// The file name of the guard's own program, which is the executor's (CP-176 A4 (a)): given
+    /// on Windows, where a row of a process that the system cannot open has no creation time, so
+    /// that a row with the executor's number, no creation time and this file name (or none) is a
+    /// read that finds the executor. `None` on macOS, which has no such row, and for
+    /// `Trigger::Now`.
+    pub own_name: Option<&'a std::ffi::OsStr>,
     pub now_ms: &'a mut dyn FnMut() -> u128,
     pub pause: &'a mut dyn FnMut(bool),
     pub end: &'a mut dyn FnMut(&Proc, bool) -> bool,
@@ -79,13 +91,17 @@ pub struct GuardAct {
     pub first: bool,
     /// The file names of the programs of the processes that it asked or forced.
     pub programs: Vec<String>,
+    /// The reads, up to the act's record, in which the executor's row had its number and no
+    /// creation time (CP-176 A4 (c)).
+    pub untimed: usize,
 }
 
 impl GuardAct {
-    /// The record's line: `ended_by=guard ms=.. asked=.. forced=.. first=yes|no programs=..`.
+    /// The record's line: `ended_by=guard ms=.. asked=.. forced=.. first=yes|no programs=..
+    /// executor_untimed=..`.
     pub fn line(&self) -> String {
         format!(
-            "ended_by=guard ms={} asked={} forced={} first={} programs={}",
+            "ended_by=guard ms={} asked={} forced={} first={} programs={} executor_untimed={}",
             self.ms,
             self.asked,
             self.forced,
@@ -94,7 +110,8 @@ impl GuardAct {
                 "-".to_string()
             } else {
                 self.programs.join(",")
-            }
+            },
+            self.untimed
         )
     }
 }
@@ -127,14 +144,28 @@ pub fn run_if_guard(args: &[String]) -> Option<i32> {
     }
 }
 
+/// The four numbers of the guard's arguments: the first process's number and creation time, the
+/// executor's number and creation time; `None` when one cannot be read and when the executor's
+/// creation time is 0, which names no executor (CP-176 A4 (b)).
+fn numbers(argv: &[String]) -> Option<(u64, u64, u64, u64)> {
+    let num = |i: usize| argv.get(i).and_then(|v| v.parse::<u64>().ok());
+    let (pid, started_us, epid, estart) = (num(0)?, num(1)?, num(2)?, num(3)?);
+    (estart != 0).then_some((pid, started_us, epid, estart))
+}
+
 /// The guard's program: `argv` after `GUARD_FLAG`. It runs `guard_loop` with the system's table,
 /// the ask and the forced end of `procs`, and writes the act into the record file. Exit 2 for
-/// arguments that it cannot read.
+/// arguments that it cannot read and for an executor creation time of 0, which names no executor
+/// (CP-176 A4 (b)).
 pub fn guard_main(argv: &[String]) -> i32 {
-    let num = |i: usize| argv.get(i).and_then(|v| v.parse::<u64>().ok());
-    let (Some(pid), Some(started_us), Some(epid), Some(estart)) = (num(0), num(1), num(2), num(3))
-    else {
+    let Some((pid, started_us, epid, estart)) = numbers(argv) else {
         return 2;
+    };
+    let own = std::env::current_exe().ok();
+    let own_name = if cfg!(windows) {
+        own.as_deref().and_then(|p| p.file_name())
+    } else {
+        None
     };
     let record = argv.get(4).map(std::path::PathBuf::from);
     let mark = match (argv.get(5), argv.get(6)) {
@@ -157,6 +188,7 @@ pub fn guard_main(argv: &[String]) -> i32 {
             read: &mut || procs::table().ok(),
             args: &crate::checks::command_args,
             mark: mark.as_ref(),
+            own_name,
             now_ms: &mut || start.elapsed().as_millis(),
             pause: &mut |unread| std::thread::sleep(if unread { UNREAD_PAUSE } else { POLL }),
             end: &mut |p, force| {
@@ -259,6 +291,7 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
         read,
         args,
         mark,
+        own_name,
         now_ms,
         pause,
         end,
@@ -329,9 +362,14 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
             Trigger::ExecutorGone {
                 pid: epid,
                 started_us: estart,
-            } => !table
-                .iter()
-                .any(|t| t.pid == epid && t.started_us == estart),
+            } => match executor_in(&table, epid, estart, own_name) {
+                Executor::Found => false,
+                Executor::Untimed => {
+                    act.untimed += 1;
+                    false
+                }
+                Executor::Gone => true,
+            },
             Trigger::Now => true,
         };
         if fire {
@@ -367,6 +405,55 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
     }
 }
 
+/// What one read of the table says of the executor (CP-176 A4 (a)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Executor {
+    /// A row with its number and its creation time.
+    Found,
+    /// No such row, and a row with its number, no creation time and the guard's own file name
+    /// `own_name` (or no file name): a process that the system could not open, which the guard
+    /// counts as the executor, as a read that finds it.
+    Untimed,
+    /// Neither: a row with its number and another known creation time, or with no creation time and
+    /// another program's file name, is another process.
+    Gone,
+}
+
+/// The executor in `table` by its number `epid` and creation time `estart`, and on Windows
+/// (`own_name` given) a row with its number and no creation time whose file name is the guard's
+/// own or unknown (CP-176 A4 (a)). File names are compared with ASCII case folded, as Windows
+/// names them.
+fn executor_in(
+    table: &[Proc],
+    epid: u32,
+    estart: u64,
+    own_name: Option<&std::ffi::OsStr>,
+) -> Executor {
+    if table
+        .iter()
+        .any(|t| t.pid == epid && t.started_us == estart)
+    {
+        return Executor::Found;
+    }
+    let Some(own) = own_name else {
+        return Executor::Gone;
+    };
+    let own = own.to_string_lossy().to_ascii_lowercase();
+    let untimed = table.iter().any(|t| {
+        t.pid == epid
+            && t.started_us == 0
+            && t.exe
+                .as_deref()
+                .and_then(|e| e.file_name())
+                .is_none_or(|n| n.to_string_lossy().to_ascii_lowercase() == own)
+    });
+    if untimed {
+        Executor::Untimed
+    } else {
+        Executor::Gone
+    }
+}
+
 /// Notes in the record a process that the loop asked or forced: its program's file name, and
 /// whether it is the browser's first process.
 fn note(act: &mut GuardAct, p: &Proc, root: &Proc) {
@@ -399,6 +486,7 @@ pub fn end_tree_now(root: &Proc, mark: &crate::checks::Mark) -> GuardAct {
             },
             args: &crate::checks::command_args,
             mark: Some(mark),
+            own_name: None,
             now_ms: &mut || start.elapsed().as_millis(),
             pause: &mut |unread| std::thread::sleep(if unread { UNREAD_PAUSE } else { POLL }),
             end: &mut |p, force| {
@@ -441,6 +529,34 @@ mod tests {
         table: &dyn Fn(u128, &Ends) -> Option<Vec<Proc>>,
         args: &dyn Fn(u32) -> Option<Vec<String>>,
     ) -> (i32, u128, Ends, Option<GuardAct>) {
+        run_full(trigger, step, table, args, None)
+    }
+
+    /// The file name of the guard's own program in the Windows tests of CP-176 A4.
+    const OWN: &str = "halvo.exe";
+
+    /// `run` as on Windows: the guard's own file name `OWN` given.
+    fn run_windows(
+        trigger: Trigger,
+        step: u128,
+        table: &dyn Fn(u128, &Ends) -> Option<Vec<Proc>>,
+    ) -> (i32, u128, Ends, Option<GuardAct>) {
+        run_full(
+            trigger,
+            step,
+            table,
+            &|_| None,
+            Some(std::ffi::OsStr::new(OWN)),
+        )
+    }
+
+    fn run_full(
+        trigger: Trigger,
+        step: u128,
+        table: &dyn Fn(u128, &Ends) -> Option<Vec<Proc>>,
+        args: &dyn Fn(u32) -> Option<Vec<String>>,
+        own_name: Option<&std::ffi::OsStr>,
+    ) -> (i32, u128, Ends, Option<GuardAct>) {
         let mark = run_mark();
         let clock = Cell::new(0u128);
         let ends = RefCell::new(Vec::new());
@@ -458,6 +574,7 @@ mod tests {
                 },
                 args,
                 mark: Some(&mark),
+                own_name,
                 now_ms: &mut || clock.get(),
                 pause: &mut |_| clock.set(clock.get() + step),
                 end: &mut |p, force| {
@@ -925,6 +1042,115 @@ mod tests {
         assert!(asked.2 >= 20_000 + 3_000, "asked at {} ms", asked.2);
     }
 
+    /// A row with the executor's number (5) and no creation time, as Windows gives a process
+    /// that it cannot open, with the program's file name `name`.
+    fn untimed(name: Option<&str>) -> Proc {
+        Proc {
+            exe: name.map(std::path::PathBuf::from),
+            ..row(5, 1, 0, 5)
+        }
+    }
+
+    /// A browser's first process that runs until the guard forces it, beside the executor's row
+    /// `executor` until 10,000 ms.
+    fn beside_until_10s(executor: Proc) -> impl Fn(u128, &Ends) -> Option<Vec<Proc>> {
+        move |t, ends| {
+            let mut v = Vec::new();
+            if t < 10_000 {
+                v.push(executor.clone());
+            }
+            if forced(ends, ROOT).is_none() {
+                v.push(row(ROOT, 1, 7, ROOT));
+            }
+            Some(v)
+        }
+    }
+
+    /// CP-176 A4 (a), (c) and (d): on Windows a row with the executor's number, no creation time
+    /// and the guard's own file name (in any ASCII case, or with no file name) is a read that finds
+    /// the executor: for 10,000 ms, longer than `GRACE` and `TERM_WAIT` together, nothing is asked
+    /// or ended; when the row is gone the grace is counted from that read; the record counts the
+    /// 500 reads that found the row.
+    #[test]
+    fn a4_an_untimed_row_with_the_guard_s_own_name_is_the_executor() {
+        for name in [Some(OWN), Some("HALVO.EXE"), None] {
+            let (code, _, ends, record) =
+                run_windows(executor(50), 20, &beside_until_10s(untimed(name)));
+            assert_eq!(code, 0, "{name:?}");
+            let asked = ends.iter().find(|e| !e.1).expect("asked");
+            assert!(
+                asked.2 >= 10_000 + 3_000,
+                "{name:?}: asked at {} ms",
+                asked.2
+            );
+            assert_eq!(record.expect("recorded").untimed, 500, "{name:?}");
+        }
+    }
+
+    /// CP-176 A4 (a) and (d): a row with the executor's number, no creation time and another
+    /// program's file name is not the executor: the guard asks after its grace from the first read.
+    #[test]
+    fn a4_an_untimed_row_with_another_program_s_name_is_not_the_executor() {
+        let (code, _, ends, record) = run_windows(
+            executor(50),
+            20,
+            &beside_until_10s(untimed(Some("other.exe"))),
+        );
+        assert_eq!(code, 0);
+        let asked = ends.iter().find(|e| !e.1).expect("asked");
+        assert!(
+            (3_000..10_000).contains(&asked.2),
+            "asked at {} ms",
+            asked.2
+        );
+        assert_eq!(record.expect("recorded").untimed, 0);
+    }
+
+    /// CP-176 A4 (a) and (d): on Windows a row with the executor's number and another known
+    /// creation time is another process, whatever its file name.
+    #[test]
+    fn a4_a_row_with_another_known_time_is_not_the_executor_on_windows() {
+        let other = Proc {
+            exe: Some(OWN.into()),
+            ..row(5, 1, 51, 5)
+        };
+        let (code, _, ends, _) = run_windows(executor(50), 20, &beside_until_10s(other));
+        assert_eq!(code, 0);
+        let asked = ends.iter().find(|e| !e.1).expect("asked");
+        assert!(
+            (3_000..10_000).contains(&asked.2),
+            "asked at {} ms",
+            asked.2
+        );
+    }
+
+    /// CP-176 A4 (a): on macOS (no own file name given) nothing changes: a row with no creation
+    /// time is not the executor.
+    #[test]
+    fn a4_on_macos_an_untimed_row_is_not_the_executor() {
+        let (code, _, ends, _) = run(executor(50), 20, &beside_until_10s(untimed(Some(OWN))));
+        assert_eq!(code, 0);
+        let asked = ends.iter().find(|e| !e.1).expect("asked");
+        assert!(
+            (3_000..10_000).contains(&asked.2),
+            "asked at {} ms",
+            asked.2
+        );
+    }
+
+    /// CP-176 A4 (b): the guard refuses an executor creation time of 0 at its start.
+    #[test]
+    fn a4_the_guard_refuses_an_executor_creation_time_of_0() {
+        let argv = |estart: &str| -> Vec<String> {
+            ["9", "7", "5", estart, "/r"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        };
+        assert_eq!(numbers(&argv("0")), None);
+        assert_eq!(numbers(&argv("50")), Some((9, 7, 5, 50)));
+    }
+
     /// The verifier's m36: the margin begins again when a member is seen again after an empty read.
     #[test]
     fn m36_the_margin_begins_again_after_a_member_is_seen_again() {
@@ -1092,6 +1318,7 @@ mod tests {
                 },
                 args: &|_| None,
                 mark: None,
+                own_name: None,
                 now_ms: &mut || clock.get(),
                 pause: &mut |_| clock.set(clock.get() + 10),
                 end: &mut |p, force| fence.pass(p, force, &send),
@@ -1173,6 +1400,7 @@ mod tests {
                 },
                 args: &crate::checks::command_args,
                 mark: None,
+                own_name: None,
                 now_ms: &mut || start.elapsed().as_millis(),
                 pause: &mut |_| {
                     assert!(

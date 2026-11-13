@@ -253,6 +253,35 @@ async fn look_up(names: Names, host: &str, port: u16) -> Option<SocketAddr> {
     }
 }
 
+/// The guard's arguments after `guard`'s prefix (`guard::GUARD_FLAG`): the browser's first
+/// process `root` and the executor `me`, each by number and creation time, the record, the
+/// profile and the program. Refuses an executor with no creation time (CP-176 A4 (b)), which would
+/// name no executor to the guard.
+fn guard_args(
+    guard: &crate::guard::GuardProgram,
+    root: &Proc,
+    me: &Proc,
+    record: &std::path::Path,
+    profile: &std::path::Path,
+    program: &std::path::Path,
+) -> Result<Vec<std::ffi::OsString>, &'static str> {
+    if me.started_us == 0 {
+        return Err("own_row");
+    }
+    let mut args = guard.prefix.clone();
+    args.extend([
+        crate::guard::GUARD_FLAG.into(),
+        root.pid.to_string().into(),
+        root.started_us.to_string().into(),
+        me.pid.to_string().into(),
+        me.started_us.to_string().into(),
+        record.as_os_str().to_owned(),
+        profile.as_os_str().to_owned(),
+        program.as_os_str().to_owned(),
+    ]);
+    Ok(args)
+}
+
 fn key(host: &str, port: u16) -> HostPort {
     (host.to_ascii_lowercase(), port)
 }
@@ -359,17 +388,7 @@ impl RelayHandle {
         let me = procs::own().ok_or("own_row")?;
         let dir = crate::start::system_dir().ok_or("system_dir")?;
         let env = crate::start::guard_env().ok_or("guard_env")?;
-        let mut args = guard.prefix.clone();
-        args.extend([
-            crate::guard::GUARD_FLAG.into(),
-            root.pid.to_string().into(),
-            root.started_us.to_string().into(),
-            me.pid.to_string().into(),
-            me.started_us.to_string().into(),
-            record.as_os_str().to_owned(),
-            profile.as_os_str().to_owned(),
-            program.as_os_str().to_owned(),
-        ]);
+        let args = guard_args(guard, root, &me, record, profile, program)?;
         let spec = crate::start::Spec {
             program: &guard.program,
             args,
@@ -711,6 +730,31 @@ mod tests {
 
     fn hosts(entries: Vec<(&str, u16)>) -> List {
         List::Hosts(entries.into_iter().map(|(h, p)| key(h, p)).collect())
+    }
+
+    /// CP-176 A4 (b): `start_guard` starts no guard for an executor with no creation time; with
+    /// one, the executor's time stands in the guard's arguments.
+    #[test]
+    fn a4_no_guard_is_started_for_an_executor_with_no_creation_time() {
+        let guard = crate::guard::GuardProgram {
+            program: "/g".into(),
+            prefix: Vec::new(),
+        };
+        let proc = |pid, started_us| Proc {
+            pid,
+            ppid: 1,
+            started_us,
+            pgid: pid,
+            exe: None,
+        };
+        let p = std::path::Path::new("/p");
+        assert_eq!(
+            guard_args(&guard, &proc(9, 7), &proc(5, 0), p, p, p),
+            Err("own_row")
+        );
+        let args = guard_args(&guard, &proc(9, 7), &proc(5, 50), p, p, p).unwrap();
+        assert_eq!(args[3], "5");
+        assert_eq!(args[4], "50");
     }
 
     #[test]
