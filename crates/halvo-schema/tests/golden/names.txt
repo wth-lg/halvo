@@ -207,8 +207,10 @@ next
 night
 no
 no_record
+no_start
 none
 not_file
+not_selected
 nothing_to_do
 number
 observe
@@ -305,6 +307,7 @@ source
 spreadsheet_fill
 stale
 start
+start_accepted
 start_run
 started
 state
@@ -341,6 +344,7 @@ tokens_out
 trigger
 try_again
 unattended
+unauthorized
 unknown
 unreadable
 untrusted

@@ -128,7 +128,8 @@ object_type! {
     /// One state of one effect, kind `agent_effect`. Its class makes an effect; `kept` holds the kept fields of the
     /// class in their order, an amount of at most 32 bytes and an address of at most 320; `fields` is the number of
     /// the bound fields of the class. A `held`, `cleared` or `refused` row holds no approval and an `approved` row
-    /// one; a row with the cause `ended` is `rejected`.
+    /// one; a row with the cause `ended` is `rejected`; no row holds the cause `unauthorized`, `not_selected` or
+    /// `no_start`.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct AgentEffect {
         pub v: V1 = "v" => from_json,
@@ -168,13 +169,21 @@ object_type! {
         if e.cause == Some(Cause::Ended) && e.state != EffectState::Rejected {
             return fail("cause", "ended_not_rejected");
         }
+        if matches!(
+            e.cause,
+            Some(Cause::Unauthorized | Cause::NotSelected | Cause::NoStart)
+        ) {
+            return fail("cause", "cause_of_state");
+        }
         Ok(())
     }
 }
 
 object_type! {
     /// One line of a run's log, kind `agent_log`: ids, an event, a step number, a cause, the model token and
-    /// figures, and no text.
+    /// figures, and no text. A `start_accepted` line has `seq` 1 and no step, cause, model or figure; the cause
+    /// `unauthorized` stands in a `step_failed` line alone, and `not_selected` and `no_start` in a `stopped` line
+    /// alone.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct AgentLog {
         pub v: V1 = "v" => from_json,
@@ -192,7 +201,34 @@ object_type! {
         pub tokens_in: Option<u32> = "tokens_in" => opt(from_json),
         pub tokens_out: Option<u32> = "tokens_out" => opt(from_json),
     }
-    rules(_l) { Ok(()) }
+    rules(l) {
+        let fail = |key, rule| Err(Refusal::malformed("AgentLog", rule).at(key));
+        if l.event == LogEvent::StartAccepted {
+            if l.seq.get() != 1 {
+                return fail("seq", "start_accepted_first");
+            }
+            let held = [
+                ("step", l.step.is_some()),
+                ("cause", l.cause.is_some()),
+                ("model", l.model.is_some()),
+                ("ms", l.ms.is_some()),
+                ("tokens_in", l.tokens_in.is_some()),
+                ("tokens_out", l.tokens_out.is_some()),
+            ];
+            if let Some((key, _)) = held.iter().find(|(_, held)| *held) {
+                return fail(key, "start_accepted_form");
+            }
+        }
+        let event = match l.cause {
+            Some(Cause::Unauthorized) => Some(LogEvent::StepFailed),
+            Some(Cause::NotSelected | Cause::NoStart) => Some(LogEvent::Stopped),
+            _ => None,
+        };
+        if event.is_some_and(|event| event != l.event) {
+            return fail("cause", "cause_of_event");
+        }
+        Ok(())
+    }
 }
 
 pub(in crate::executable) fn part_of(
