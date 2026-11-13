@@ -507,11 +507,13 @@ fn the_support_rows_of_an_updated_workflow_are_those_of_its_latest_proposal_alon
     assert_eq!(revision(&scratch), before + 1);
 }
 
-/// Pins the store as built: a proposal that names a stored summary outside its bound, already past it or ahead of
-/// the clock's day, is refused and counted in `refused`. No sentence of C2.4 or C2.11 says what the store does with
-/// such a proposal; the point is with the planner (DS-3, m42), and a later sentence turns this test knowingly.
+/// A proposal that names a stored summary outside its bound for the proposal check, one day past it or one of a day
+/// after the clock's day, is refused and counted in `refused`, and no workflow row and no support row comes of it,
+/// while the same proposal inside the bound is stored. For this check a summary is inside its bound when its day is not
+/// after the clock's day and the clock's day less its day is less than the days of the entry in force, which every
+/// summary that the summary read of C2.11 visits meets (C2.4; the coordinator's ruling DS-5 (a), reading A).
 #[test]
-fn a_proposal_that_names_a_stored_summary_outside_its_bound_is_refused_as_built() {
+fn a_proposal_that_names_a_summary_after_the_clock_s_day_or_past_its_bound_is_refused() {
     let scratch = Scratch::new("proposal-outside");
     let clock = TestClock::at_day(DAY);
     let fixed = Rc::new(RefCell::new(Vec::new()));

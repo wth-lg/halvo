@@ -50,7 +50,7 @@ esac
 #= tests/propose.rs workflow_ids_are_minted_in_the_order_of_category_and_then_lowest_summary_id
 #= tests/propose.rs a_proposal_that_names_a_summary_of_another_key_is_refused_and_stores_nothing
 #= tests/propose.rs the_support_rows_of_an_updated_workflow_are_those_of_its_latest_proposal_alone
-#= tests/propose.rs a_proposal_that_names_a_stored_summary_outside_its_bound_is_refused_as_built
+#= tests/propose.rs a_proposal_that_names_a_summary_after_the_clock_s_day_or_past_its_bound_is_refused
 #= tests/propose.rs the_recurrence_step_reads_the_summaries_inside_their_bound_by_day_and_then_id
 #= tests/propose.rs the_summary_read_leaves_out_a_summary_whose_stored_day_of_going_has_come
 #= tests/propose.rs of_proposals_of_one_key_in_one_call_the_first_that_passes_stands_and_each_later_one_is_refused
@@ -150,6 +150,7 @@ esac
 #= tests/cases.rs own_origin_refused
 #= tests/cases.rs a_proposal_for_a_stored_workflow_keeps_its_id_state_and_agent_and_takes_the_rest
 #= tests/cases.rs a_routine_on_days_1_31_and_61_yields_its_proposal_on_day_61_across_the_window
+#= tests/privacy.rs with_the_clock_set_back_a_day_a_workflow_takes_its_proposal_without_the_summary_ahead_until_that_day
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"

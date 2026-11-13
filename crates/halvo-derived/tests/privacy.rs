@@ -948,3 +948,84 @@ fn an_open_is_refused_while_another_holds_the_writer_lock_and_the_database_is_fr
     drop(holder);
     assert!(open_host(&scratch, host()).is_ok(), "the control: an open after the lock is let go");
 }
+
+fn support_summaries(scratch: &Scratch) -> Vec<String> {
+    let conn = raw(scratch);
+    let mut statement = conn
+        .prepare("SELECT summary FROM rows WHERE kind = 'support' ORDER BY summary")
+        .unwrap();
+    statement
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+}
+
+/// The cost that DS-5 (a) names, pinned so that a change to its reading B is made on purpose: with the clock set back
+/// by one day over a stored summary, a commit whose test proposer still returns the key gives the stored workflow the
+/// proposal without the summary ahead, its recurrence and its support rows, while the summary stays stored and counted
+/// in the report; after the clock has reached that day, the next commit gives the row and its support rows as they
+/// were before.
+#[test]
+fn with_the_clock_set_back_a_day_a_workflow_takes_its_proposal_without_the_summary_ahead_until_that_day() {
+    let scratch = Scratch::new("clock-set-back");
+    let last = Rc::new(RefCell::new(None));
+    let host = |clock: &TestClock| {
+        let last = Rc::clone(&last);
+        Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 2 })).on_report(Box::new(
+            move |report: &Report| *last.borrow_mut() = Some(report.clone()),
+        ))
+    };
+    let clock = TestClock::at_day(DAY);
+    let mut store = open_host(&scratch, host(&clock)).unwrap();
+    let batch: Vec<Episode> = (0..3u32)
+        .map(|i| episode(u64::from(i) + 1, DAY - 2 + i, None))
+        .collect();
+    let first = store
+        .commit_batch(&store_id(1), &batch, position(1, 0), &mut Seq(100))
+        .unwrap();
+    assert_eq!(first.proposals.stored, 1);
+    drop(store);
+    let before = (common::bodies(&scratch, "workflow"), support_summaries(&scratch));
+    let all: Vec<String> = (1..=3).map(|n| summary_id(n).as_str().to_owned()).collect();
+    assert_eq!(before.1, all);
+
+    clock.set_day(DAY - 1);
+    let mut store = open_host(&scratch, host(&clock)).unwrap();
+    let back = store
+        .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(200))
+        .unwrap();
+    assert_eq!(
+        (back.proposals.stored, back.proposals.updated),
+        (0, 1),
+        "(stored, updated) with the clock set back"
+    );
+    assert_eq!(
+        last.borrow().as_ref().map(|r| r.counts.bounded),
+        Some(5),
+        "three summaries and two support rows in the report"
+    );
+    drop(store);
+    let set_back: serde_json::Value =
+        serde_json::from_str(&common::bodies(&scratch, "workflow")[0]).unwrap();
+    assert_eq!(
+        (&set_back["recurrence"]["count"], &set_back["recurrence"]["last"]),
+        (&serde_json::json!(2), &serde_json::json!(DAY - 1)),
+        "the recurrence of the proposal without the summary ahead"
+    );
+    assert_eq!(support_summaries(&scratch), all[..2].to_vec());
+    assert_eq!(summary_ids(&raw(&scratch)), all, "the summaries stored");
+
+    clock.set_day(DAY);
+    let mut store = open_host(&scratch, host(&clock)).unwrap();
+    let again = store
+        .commit_batch(&store_id(1), &[], position(3, 0), &mut Seq(300))
+        .unwrap();
+    assert_eq!(again.proposals.updated, 1);
+    drop(store);
+    assert_eq!(
+        (common::bodies(&scratch, "workflow"), support_summaries(&scratch)),
+        before,
+        "the workflow and its support rows after the clock has reached the day"
+    );
+}
