@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the windows job alone (no macos job in this copy)
 
 on:
   push:
@@ -12,110 +14,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
   windows:
     runs-on: windows-2025
-    timeout-minutes: 60
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -140,21 +41,87 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-windows-functional
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 50-windows-functional
+      - name: win-3 failing-first runs at the test-first commits
+        if: ${{ !cancelled() }}
+        continue-on-error: true
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
+        run: |
+          set -u
+          git fetch --quiet --deepen=60 origin "$GITHUB_REF" || true
+          logs="$RUNNER_TEMP/w3-proof"
+          mkdir -p "$logs"
+          lib() {
+            label=$1; commit=$2; shift 2
+            git checkout --quiet --detach "$commit" || { echo "PROOF $label commit=$commit checkout=failed"; return; }
+            cargo test --locked -p halvo-capture --lib -- "$@" >"$logs/$label-lib.log" 2>&1
+            echo "PROOF $label commit=$(git rev-parse --short=8 HEAD) kind=lib exit=$?"
+            tr -d '\r' <"$logs/$label-lib.log" | grep -E '^test .* \.\.\. |^test result|^error' | head -60
+          }
+          fc() {
+            label=$1; commit=$2; shift 2
+            git checkout --quiet --detach "$commit" || { echo "PROOF $label commit=$commit checkout=failed"; return; }
+            for name in "$@"; do
+              timeout 400 cargo test --locked -p halvo-capture --test windows_functional -- --ignored --exact "$name" --nocapture >"$logs/$label-fc.log" 2>&1
+              echo "PROOF $label commit=$(git rev-parse --short=8 HEAD) kind=functional test=$name exit=$?"
+              tr -d '\r' <"$logs/$label-fc.log" | grep -E '^TF |KNOWN-DEFECT|panicked at|^test result' | head -40
+            done
+          }
+          lib pl2 aea6743a --exact windows::tests::a_source_whose_writer_is_gone_reads_failed_with_the_reason_writer_gone windows::screen::tests::a_closed_capture_item_reads_as_failed_health
+          lib rr10 95a7fc03 --exact windows::foreground::tests::a_lookup_that_fails_after_a_success_leaves_the_cell_none windows::foreground::tests::a_new_process_whose_path_cannot_be_read_gives_a_record_with_no_app windows::foreground::tests::a_frame_host_window_names_the_process_that_it_hosts windows::foreground::tests::a_path_of_2000_bytes_keeps_at_most_1024_bytes_that_end_in_the_executable_name
+          lib rr23 2e6953d5 --exact windows::foreground::tests::two_events_for_one_app_give_one_foreground_record_and_two_title_reads windows::foreground::tests::two_hosted_apps_under_one_frame_host_give_two_foreground_records
+          lib rr08 14dd7eec --exact windows::window_title::tests::only_the_foreground_windows_own_name_change_is_a_title windows::window_title::tests::a_title_of_100000_units_is_read_up_to_the_cap windows::window_title::tests::a_title_with_an_unpaired_surrogate_is_read_without_a_panic
+          lib rr16 7593344b --exact windows::input::tests::map_keystroke_gives_the_events_of_the_shared_list windows::input::tests::a_packet_of_vkey_255_is_no_event_and_changes_no_state
+          lib rr27 d840d268 --exact windows::input::tests::decode_rejects_a_buffer_of_exactly_the_header_or_one_byte_short_of_its_record
+          lib pl3 dca4a1f0 --exact windows::input::tests::a_raw_input_source_whose_removal_is_refused_answers_the_os_error_of_the_removal windows::foreground::tests::a_foreground_source_whose_unhook_fails_answers_the_os_error_of_the_unhook windows::window_title::tests::a_title_source_whose_unhook_fails_answers_the_os_error_of_the_unhook windows::screen::tests::a_session_whose_end_is_refused_answers_its_os_error_and_reads_failed
+          fc pl3 dca4a1f0 a_timed_out_stop_reads_no_input_posted_after_its_answer
+          lib gate fc24f3af secure_input::windows::tests::
+          fc gate fc24f3af c1_raw_input_delivers_keystrokes_and_pointer_events known_defect::x1_keystrokes_typed_into_a_password_field
+          fc base 164a15ff known_defect::x1_keystrokes_typed_into_a_password_field known_defect::x3_attribution_before_the_first_foreground_change known_defect::x14_foreground_app_of_a_hosted_app known_defect::x2_window_title_events_for_other_windows_and_controls known_defect::title_event_on_a_switch_to_a_window_with_a_fixed_title known_defect::x15_a_held_key
+          git checkout --quiet --detach "$GITHUB_SHA"
+          echo "PROOF restored commit=$(git rev-parse --short=8 HEAD)"
+      - name: win-3 one-rule changes at the head
+        if: ${{ !cancelled() }}
+        continue-on-error: true
         shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set -u
+          git checkout --quiet --detach "$GITHUB_SHA"
+          rows="$RUNNER_TEMP/w3-mutants.tsv"
+          echo "bTAxLXN0aWNreS1wYXNzd29yZC1pZ25vcmVkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NlY3VyZV9pbnB1dC5ycwlzLyAgICBpZiBzYW1lX3Bhc3N3b3JkX2VsZW1lbnQgXHtccj9cbiAgICAgICAgcmV0dXJuIEZpZWxkU3RhdGU6OlBhc3N3b3JkO1xyP1xuICAgIFx9XHI/XG4vLwlsaWIJc2VjdXJlX2lucHV0Ojp3aW5kb3dzOjp0ZXN0czo6b25seV9hbl9hbnN3ZXJfdGhhdF90aGVfZmllbGRfaXNfbm9fcGFzc3dvcmRfZmllbGRfcmVhZHNfY2xlYXIKbTAyLWZpcmVmb3gtcmVhZHMtY2xlYXIJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2VjdXJlX2lucHV0LnJzCXMvRm9jdXNSZWFkOjpBbnN3ZXJlZCBceyBmaXJlZm94OiB0cnVlLCBcLlwuIFx9ID0+IEZpZWxkU3RhdGU6OlVua25vd24sL0ZvY3VzUmVhZDo6QW5zd2VyZWQgeyBmaXJlZm94OiB0cnVlLCAuLiB9ID0+IEZpZWxkU3RhdGU6OkNsZWFyLC8JbGliCXNlY3VyZV9pbnB1dDo6d2luZG93czo6dGVzdHM6Om9ubHlfYW5fYW5zd2VyX3RoYXRfdGhlX2ZpZWxkX2lzX25vX3Bhc3N3b3JkX2ZpZWxkX3JlYWRzX2NsZWFyCm0wMy1uby1hbnN3ZXItcmVhZHMtY2xlYXIJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2VjdXJlX2lucHV0LnJzCXMvRm9jdXNSZWFkOjpOb0Fuc3dlciBceyBwcm90ZWN0ZWQ6IGZhbHNlIFx9IFx8IEZvY3VzUmVhZDo6VW5yZWFkYWJsZSA9PiBGaWVsZFN0YXRlOjpVbmtub3duLC9Gb2N1c1JlYWQ6Ok5vQW5zd2VyIHsgcHJvdGVjdGVkOiBmYWxzZSB9IHwgRm9jdXNSZWFkOjpVbnJlYWRhYmxlID0+IEZpZWxkU3RhdGU6OkNsZWFyLC8JbGliCXNlY3VyZV9pbnB1dDo6d2luZG93czo6dGVzdHM6Om9ubHlfYW5fYW5zd2VyX3RoYXRfdGhlX2ZpZWxkX2lzX25vX3Bhc3N3b3JkX2ZpZWxkX3JlYWRzX2NsZWFyCm0wNC1wYXNzd29yZC1lZGl0LWlnbm9yZWQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2VjdXJlX2lucHV0LnJzCXMvICAgIGlmIGtleVwucGFzc3dvcmRfZWRpdCBcey8gICAgaWYgZmFsc2Ugey8JbGliCXNlY3VyZV9pbnB1dDo6d2luZG93czo6dGVzdHM6OmFfcGFzc3dvcmRfZWRpdF91bmRlcl90aGVfZm9jdXNfd2l0aGhvbGRzX3RoZV9rZXlfd2hhdGV2ZXJfdGhlX2RldGVjdG9yX3JlYWQKbTA1LW5vLWxvb2stYWhlYWQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2VjdXJlX2lucHV0LnJzCXMvTWFyazo6RmllbGRcKGxhdGVyXCkgPT4gc3RhdGUgPSBtb3N0X3Jlc3RyaWN0aXZlXChzdGF0ZSwgbGF0ZXJcKSwvTWFyazo6RmllbGQoX2xhdGVyKSA9PiB7fS8JbGliCXNlY3VyZV9pbnB1dDo6d2luZG93czo6dGVzdHM6OmFfZm9jdXNfZXZlbnRfdGhhdF9hcnJpdmVzX2FmdGVyX3RoZV9rZXlfd2l0aGluX2l0c19ob2xkX2RlY2lkZXNfYWdhaW5zdF9pdAptMDYtbm8taG9sZAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9zZWN1cmVfaW5wdXQucnMJcy8gICAgICAgIEZpZWxkU3RhdGU6OkNsZWFyIGlmIG5vd1wud3JhcHBpbmdfc3ViXChrZXlcLnRpY2tcKSA8IG1zXChLRVlfSE9MRFwpID0+IEp1ZGdtZW50OjpXYWl0LFxyP1xuLy8JbGliCXNlY3VyZV9pbnB1dDo6d2luZG93czo6dGVzdHM6OmFfa2V5X2luX2FfY2xlYXJfZmllbGRfd2FpdHNfaXRzX2hvbGRfYW5kX3RoZW5fZ2V0c19hX2NsZWFyYW5jZQptMDctbGF0Y2gtZG9lcy1ub3Qtd2FpdAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9zZWN1cmVfaW5wdXQucnMJcy8gICAgICAgICAgICAgICAgTm9uZSA9PiByZXR1cm4gSnVkZ21lbnQ6OldhaXQsLyAgICAgICAgICAgICAgICBOb25lID0+IEZpZWxkU3RhdGU6OkNsZWFyLC8JbGliCXNlY3VyZV9pbnB1dDo6d2luZG93czo6dGVzdHM6OmFfa2V5X2FmdGVyX2FfbGF0Y2hfd2FpdHNfZm9yX3RoZV9uZXh0X2ZpZWxkX21hcmsKbTA4LWxvb2stYWhlYWQtY3Jvc3Nlcy1hLWxhdGNoCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NlY3VyZV9pbnB1dC5ycwlzLyAgICAgICAgICAgIE1hcms6OkxhdGNoID0+IGJyZWFrLC8gICAgICAgICAgICBNYXJrOjpMYXRjaCA9PiB7fS8JbGliCXNlY3VyZV9pbnB1dDo6d2luZG93czo6dGVzdHM6OmFfa2V5X2FmdGVyX2FfbGF0Y2hfd2FpdHNfZm9yX3RoZV9uZXh0X2ZpZWxkX21hcmsKbTA5LXBhc3N3b3JkLXJlYWRzLXVua25vd24JY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2VjdXJlX2lucHV0LnJzCXMvXChGaWVsZFN0YXRlOjpQYXNzd29yZCwgX1wpIFx8IFwoXywgRmllbGRTdGF0ZTo6UGFzc3dvcmRcKSA9PiBGaWVsZFN0YXRlOjpQYXNzd29yZCwvKEZpZWxkU3RhdGU6OlBhc3N3b3JkLCBfKSB8IChfLCBGaWVsZFN0YXRlOjpQYXNzd29yZCkgPT4gRmllbGRTdGF0ZTo6VW5rbm93biwvCWxpYglzZWN1cmVfaW5wdXQ6OndpbmRvd3M6OnRlc3RzOjphX2ZvY3VzX2V2ZW50X3RoYXRfYXJyaXZlc19hZnRlcl90aGVfa2V5X3dpdGhpbl9pdHNfaG9sZF9kZWNpZGVzX2FnYWluc3RfaXQKbTEwLXdhaXRpbmcta2V5LW5ldmVyLWxhdGUJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2VjdXJlX2lucHV0LnJzCXMvICAgICAgICAgICAgSnVkZ21lbnQ6OldhaXQgaWYgYWdlID4gc3VwZXI6OkxBVEVfS0VZX01BWCA9PiBTZWN1cmVJbnB1dFJlYWRpbmc6OlVua25vd24sXHI/XG4vLwlsaWIJc2VjdXJlX2lucHV0Ojp3aW5kb3dzOjp0ZXN0czo6YV9rZXlfdGhhdF93YWl0c19wYXN0X3RoZV9sYXRlX2JvdW5kX2lzX2xhdGUKbTExLXRhYi1tb3Zlcy1uby1mb2N1cwljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9zZWN1cmVfaW5wdXQucnMJcy9tYXRjaGVzIVwodmtleSwgMHgwOSBcfCAweDBEL21hdGNoZXMhKHZrZXksIDB4MEQvCWxpYglzZWN1cmVfaW5wdXQ6OndpbmRvd3M6OnRlc3RzOjprZXlzX3RhYl9lbnRlcl9lc2NhcGVfYW5kX3RoZV93aW5kb3dzX2tleXNfbW92ZV90aGVfZm9jdXMKbTEyLWhvbGQtemVybwljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9zZWN1cmVfaW5wdXQucnMJcy9wdWIgY29uc3QgS0VZX0hPTEQ6IER1cmF0aW9uID0gRHVyYXRpb246OmZyb21fbWlsbGlzXCgxMjBcKTsvcHViIGNvbnN0IEtFWV9IT0xEOiBEdXJhdGlvbiA9IER1cmF0aW9uOjpmcm9tX21pbGxpcygwKTsvCWxpYglzZWN1cmVfaW5wdXQ6OndpbmRvd3M6OnRlc3RzOjphX2tleV9pbl9hX2NsZWFyX2ZpZWxkX3dhaXRzX2l0c19ob2xkX2FuZF90aGVuX2dldHNfYV9jbGVhcmFuY2UKbTEzLXJlbGVhc2Uta2VlcHMtdGhlLWtleS1kb3duCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2lucHV0LnJzCXMvICAgICAgICBcKmRvd24gPSBmYWxzZTtccj9cbiAgICAgICAgcmV0dXJuIE5vbmU7LyAgICAgICAgcmV0dXJuIE5vbmU7LwlsaWIJd2luZG93czo6aW5wdXQ6OnRlc3RzOjptYXBfa2V5c3Ryb2tlX2dpdmVzX3RoZV9ldmVudHNfb2ZfdGhlX3NoYXJlZF9saXN0Cm0xNC1uby1zaG9ydGN1dAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9pbnB1dC5ycwlzLyAgICAgICAgcmV0dXJuIFNvbWVcKEtleUNsYXNzOjpTaG9ydGN1dFwpOy8gICAgICAgIHJldHVybiBTb21lKGNsYXNzX29mKGtleS52a2V5KSk7LwlsaWIJd2luZG93czo6aW5wdXQ6OnRlc3RzOjptYXBfa2V5c3Ryb2tlX2dpdmVzX3RoZV9ldmVudHNfb2ZfdGhlX3NoYXJlZF9saXN0Cm0xNS1lbnRlci1pcy1vdGhlcgljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9pbnB1dC5ycwlzLyAgICAgICAgMHgwRCA9PiBLZXlDbGFzczo6RW50ZXIsLyAgICAgICAgMHgwRCA9PiBLZXlDbGFzczo6T3RoZXIsLwlsaWIJd2luZG93czo6aW5wdXQ6OnRlc3RzOjptYXBfa2V5c3Ryb2tlX2dpdmVzX3RoZV9ldmVudHNfb2ZfdGhlX3NoYXJlZF9saXN0Cm0xNi1hbHQtbWFrZXMtbm8tY2hvcmQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvaW5wdXQucnMJcy9jb25zdCBDSE9SRF9LRVlTOiBcW3UxNjsgOFxdID0gXFsweDExLCAweEEyLCAweEEzLCAweDEyLCAweEE0LCAweEE1LCAweDVCLCAweDVDXF07L2NvbnN0IENIT1JEX0tFWVM6IFt1MTY7IDhdID0gWzB4MTEsIDB4QTIsIDB4QTMsIDB4MTEsIDB4QTIsIDB4QTMsIDB4NUIsIDB4NUNdOy8JbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6bWFwX2tleXN0cm9rZV9naXZlc190aGVfZXZlbnRzX29mX3RoZV9zaGFyZWRfbGlzdAptMTctdmtleS0yNTUtaXMtYS1rZXkJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvaW5wdXQucnMJcy8gICAgaWYga2V5XC52a2V5ID49IE5PX0tFWSBcey8gICAgaWYga2V5LnZrZXkgPiBOT19LRVkgey8JbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6YV9wYWNrZXRfb2ZfdmtleV8yNTVfaXNfbm9fZXZlbnRfYW5kX2NoYW5nZXNfbm9fc3RhdGUKbTE4LXJlbW92YWwtbm90LXJlcG9ydGVkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2lucHV0LnJzCXMvICAgICAgICBzZWxmXC5zaWduYWxcLnJlcG9ydF9yZW1vdmFsXChSRU1PVkVfU1RBR0UsIHJlbW92ZWRcKTsvICAgICAgICBsZXQgXyA9IHJlbW92ZWQ7LwlsaWIJd2luZG93czo6aW5wdXQ6OnRlc3RzOjphX3Jhd19pbnB1dF9zb3VyY2Vfd2hvc2VfcmVtb3ZhbF9pc19yZWZ1c2VkX2Fuc3dlcnNfdGhlX29zX2Vycm9yX29mX3RoZV9yZW1vdmFsCm0xOS1uby1yZW1vdmFsLWJlZm9yZS10aW1lb3V0CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2lucHV0LnJzCXMvICAgICAgICAgICAgbGV0IF8gPSByZW1vdmVfb25jZVwoJnNlbGZcLnJlbW92ZWQsIHNlbGZcLmRldmljZSwgc2VsZlwuY2FsbHNcLnJlbW92ZV9kZXZpY2VcKTsvICAgICAgICAgICAgbGV0IF8gPSAmc2VsZi5yZW1vdmVkOy8JZmMJYV90aW1lZF9vdXRfc3RvcF9yZWFkc19ub19pbnB1dF9wb3N0ZWRfYWZ0ZXJfaXRzX2Fuc3dlcgptMjAtc3RvcC1pZ25vcmVzLXJlbW92YWwJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCXMvICAgICAgICBtYXRjaCBzZWxmXC5zaWduYWxcLnJlbW92YWxfZmFpbHVyZVwoXCkgXHsvICAgICAgICBtYXRjaCBOb25lOjo8Q2FwdHVyZUVycm9yPiB7LwlsaWIJd2luZG93czo6Zm9yZWdyb3VuZDo6dGVzdHM6OmFfZm9yZWdyb3VuZF9zb3VyY2Vfd2hvc2VfdW5ob29rX2ZhaWxzX2Fuc3dlcnNfdGhlX29zX2Vycm9yX29mX3RoZV91bmhvb2sKbTIxLWhlYWx0aC1pZ25vcmVzLXJlbW92YWwJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCXMvICAgICAgICBpZiBsZXQgU29tZVwoZXJyb3JcKSA9ICZzZWxmXC5yZW1vdmFsX2ZhaWxlZCBce1xyP1xuICAgICAgICAgICAgcmV0dXJuIFNvdXJjZUhlYWx0aCBcey8gICAgICAgIGlmIGxldCBTb21lKGVycm9yKSA9IE5vbmU6OjwmQ2FwdHVyZUVycm9yPiB7XG4gICAgICAgICAgICByZXR1cm4gU291cmNlSGVhbHRoIHsvCWxpYgl3aW5kb3dzOjpmb3JlZ3JvdW5kOjp0ZXN0czo6YV9mb3JlZ3JvdW5kX3NvdXJjZV93aG9zZV91bmhvb2tfZmFpbHNfYW5zd2Vyc190aGVfb3NfZXJyb3Jfb2ZfdGhlX3VuaG9vawptMjItYmVnaW4tYWZ0ZXItcmVtb3ZhbC1mYWlsdXJlCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzLyAgICAgICAgaWYgc2VsZlwucHVtcFwuaXNfc29tZVwoXCkgXHxcfCBzZWxmXC5yZW1vdmFsX2ZhaWxlZFwuaXNfc29tZVwoXCkgXHsvICAgICAgICBpZiBzZWxmLnB1bXAuaXNfc29tZSgpIHsvCWxpYgl3aW5kb3dzOjppbnB1dDo6dGVzdHM6OmFfcmF3X2lucHV0X3NvdXJjZV93aG9zZV9yZW1vdmFsX2lzX3JlZnVzZWRfYW5zd2Vyc190aGVfb3NfZXJyb3Jfb2ZfdGhlX3JlbW92YWwKbTIzLXdyaXRlci1nb25lLXJlYWRzLXRocmVhZC1lbmRlZAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9tb2QucnMJcy9cKFNvbWVcKF9cKSwgTm9uZVwpIGlmIHdyaXRlcl9nb25lID0+IGZhaWxlZF93aXRoXChIZWFsdGhSZWFzb246OldyaXRlckdvbmVcKSwvKFNvbWUoXyksIE5vbmUpIGlmIHdyaXRlcl9nb25lID0+IGZhaWxlZF93aXRoKEhlYWx0aFJlYXNvbjo6VGhyZWFkRW5kZWQpLC8JbGliCXdpbmRvd3M6OnRlc3RzOjphX3NvdXJjZV93aG9zZV93cml0ZXJfaXNfZ29uZV9yZWFkc19mYWlsZWRfd2l0aF90aGVfcmVhc29uX3dyaXRlcl9nb25lCm0yNC1zdGFsZS1hcHAta2VwdAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9mb3JlZ3JvdW5kLnJzCXMvICAgICAgICAgICAgXCpsYXN0ID0gZnJvbnRcLmFzX3JlZlwoXClcLmFuZF90aGVuXChcfGZyb250XHwgZnJvbnRcLnBhdGhcLmNsb25lXChcKVwpOy8gICAgICAgICAgICBpZiBsZXQgU29tZShwYXRoKSA9IGZyb250LmFzX3JlZigpLmFuZF90aGVuKHxmcm9udHwgZnJvbnQucGF0aC5jbG9uZSgpKSB7ICpsYXN0ID0gU29tZShwYXRoKTsgfS8JbGliCXdpbmRvd3M6OmZvcmVncm91bmQ6OnRlc3RzOjphX2xvb2t1cF90aGF0X2ZhaWxzX2FmdGVyX2Ffc3VjY2Vzc19sZWF2ZXNfdGhlX2NlbGxfbm9uZQptMjUtZW1pdC1vbi1ldmVyeS1ldmVudAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9mb3JlZ3JvdW5kLnJzCXMvICAgICAgICBpZiBzZWxmXC5sYXN0X3BpZCA9PSBTb21lXChmcm9udFwucGlkXCkgXHsvICAgICAgICBpZiBmYWxzZSB7LwlsaWIJd2luZG93czo6Zm9yZWdyb3VuZDo6dGVzdHM6OnR3b19ldmVudHNfZm9yX29uZV9hcHBfZ2l2ZV9vbmVfZm9yZWdyb3VuZF9yZWNvcmRfYW5kX3R3b190aXRsZV9yZWFkcwptMjYtZnJhbWUtaG9zdC1uYW1lcy1pdHNlbGYJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvZm9yZWdyb3VuZC5ycwlzL1wuZmluZFwoXHwmcGlkXHwgcGlkICE9IDAgJiYgcGlkICE9IGZyYW1lX3BpZFwpLy5maW5kKHwmcGlkfCBwaWQgIT0gMCkvCWxpYgl3aW5kb3dzOjpmb3JlZ3JvdW5kOjp0ZXN0czo6YV9mcmFtZV9ob3N0X3dpbmRvd19uYW1lc190aGVfcHJvY2Vzc190aGF0X2l0X2hvc3RzCm0yNy1jYXAta2VlcHMtdGhlLWhlYWQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvZm9yZWdyb3VuZC5ycwlzLyAgICBwYXRoXC5kcmFpblwoXC5cLnN0YXJ0XCk7LyAgICBwYXRoLnRydW5jYXRlKHBhdGgubGVuKCkgLSBzdGFydCk7LwlsaWIJd2luZG93czo6Zm9yZWdyb3VuZDo6dGVzdHM6OmFfcGF0aF9vZl8yMDAwX2J5dGVzX2tlZXBzX2F0X21vc3RfMTAyNF9ieXRlc190aGF0X2VuZF9pbl90aGVfZXhlY3V0YWJsZV9uYW1lCm0yOC1uby1zZWNvbmQtcmVhZAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9mb3JlZ3JvdW5kLnJzCXMvICAgICAgICAgICAgRXJyXChlcnJvclwpIGlmIGVycm9yXC5jb2RlXChcKSA9PSBFUlJPUl9JTlNVRkZJQ0lFTlRfQlVGRkVSXC50b19ocmVzdWx0XChcKSA9PiBjb250aW51ZSwvICAgICAgICAgICAgRXJyKGVycm9yKSBpZiBlcnJvci5jb2RlKCkgPT0gRVJST1JfSU5TVUZGSUNJRU5UX0JVRkZFUi50b19ocmVzdWx0KCkgPT4gcmV0dXJuIE5vbmUsLwlsaWIJd2luZG93czo6Zm9yZWdyb3VuZDo6dGVzdHM6OmFfcGF0aF9sb25nZXJfdGhhbl9tYXhfcGF0aF9pc19yZWFkX2FnYWluX3dpdGhfdGhlX2xhcmdlc3RfYnVmZmVyCm0yOS1mcmFtZS1ob3N0LW5hbWUtd3JvbmcJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvZm9yZWdyb3VuZC5ycwlzL25hbWVcLmVxX2lnbm9yZV9hc2NpaV9jYXNlXCgiQXBwbGljYXRpb25GcmFtZUhvc3RcLmV4ZSJcKS9uYW1lLmVxX2lnbm9yZV9hc2NpaV9jYXNlKCJBcHBsaWNhdGlvbkZyYW1lSG9zdCIpLwlsaWIJd2luZG93czo6Zm9yZWdyb3VuZDo6dGVzdHM6OmFfZnJhbWVfaG9zdF93aW5kb3dfbmFtZXNfdGhlX3Byb2Nlc3NfdGhhdF9pdF9ob3N0cwptMzAtdGl0bGUtb2YtYW55LW9iamVjdAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy93aW5kb3dfdGl0bGUucnMJcy9ccj9cbiAgICAgICAgJiYgb2JqZWN0ID09IE9CSklEX1dJTkRPV1wuMC8vCWxpYgl3aW5kb3dzOjp3aW5kb3dfdGl0bGU6OnRlc3RzOjpvbmx5X3RoZV9mb3JlZ3JvdW5kX3dpbmRvd3Nfb3duX25hbWVfY2hhbmdlX2lzX2FfdGl0bGUKbTMxLXRpdGxlLW9mLWEtY2hpbGQtb2JqZWN0CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3dpbmRvd190aXRsZS5ycwlzL1xyP1xuICAgICAgICAmJiBjaGlsZCA9PSBDSElMRElEX1NFTEYgYXMgaTMyLy8JbGliCXdpbmRvd3M6OndpbmRvd190aXRsZTo6dGVzdHM6Om9ubHlfdGhlX2ZvcmVncm91bmRfd2luZG93c19vd25fbmFtZV9jaGFuZ2VfaXNfYV90aXRsZQptMzItcmVwZWF0LXRpdGxlLWtlcHQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvd2luZG93X3RpdGxlLnJzCXMvICAgICAgICBpZiBzZWxmXC4wID09IHNlZW4gXHtccj9cbiAgICAgICAgICAgIHJldHVybiBmYWxzZTtccj9cbiAgICAgICAgXH1ccj9cbi8vCWxpYgl3aW5kb3dzOjp3aW5kb3dfdGl0bGU6OnRlc3RzOjphX3JlcGVhdF9vZl90aGVfbGFzdF90aXRsZV9vZl9hX3dpbmRvd19pc19kcm9wcGVkCm0zMy1yZWZ1c2VkLWVuZC1yZWFkcy10aHJlYWQtZW5kZWQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2NyZWVuLnJzCXMvICAgICAgICAgICAgT2tcKEVyclwoZXJyb3IgQCBDYXB0dXJlRXJyb3I6Ok9zIFx7IFwuXC4gXH1cKVwpID0+IFNvbWVcKEVyclwoZXJyb3JcKVwpLFxyP1xuLy8JbGliCXdpbmRvd3M6OnNjcmVlbjo6dGVzdHM6OmFfc2Vzc2lvbl93aG9zZV9lbmRfaXNfcmVmdXNlZF9hbnN3ZXJzX2l0c19vc19lcnJvcl9hbmRfcmVhZHNfZmFpbGVkCm0zNC1jbG9zZWQtaXRlbS1yZWFkcy13cml0ZXItZ29uZQljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9zY3JlZW4ucnMJcy9Tb21lXChfXCkgaWYgaXRlbV9jbG9zZWQgPT4gc3VwZXI6OmZhaWxlZF93aXRoXChIZWFsdGhSZWFzb246Okl0ZW1DbG9zZWRcKSwvU29tZShfKSBpZiBpdGVtX2Nsb3NlZCA9PiBzdXBlcjo6ZmFpbGVkX3dpdGgoSGVhbHRoUmVhc29uOjpXcml0ZXJHb25lKSwvCWxpYgl3aW5kb3dzOjpzY3JlZW46OnRlc3RzOjphX2Nsb3NlZF9jYXB0dXJlX2l0ZW1fcmVhZHNfYXNfZmFpbGVkX2hlYWx0aAptMzUtcmVmdXNlZC1lbmQtbm90LWJ1c3kJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2NyZWVuLnJzCXMvIFx8XHwgc2VsZlwuZW5kX3JlZnVzZWRcLmlzX3NvbWVcKFwpLy8JbGliCXdpbmRvd3M6OnNjcmVlbjo6dGVzdHM6OmFfc2Vzc2lvbl93aG9zZV9lbmRfaXNfcmVmdXNlZF9hbnN3ZXJzX2l0c19vc19lcnJvcl9hbmRfcmVhZHNfZmFpbGVkCg==" | base64 -d >"$rows"
+          caught=0; survived=0; nobuild=0; unapplied=0; total=0
+          while IFS="$(printf '\t')" read -r name file sub kind test; do
+            [ -n "$name" ] || continue
+            total=$((total + 1))
+            W3_SUB=$sub perl -0777 -i -pe 'BEGIN { $s = $ENV{W3_SUB} } eval $s; die $@ if $@' "$file"
+            if git diff --quiet -- "$file"; then
+              echo "MUTANT $name verdict=not-applied"; unapplied=$((unapplied + 1)); continue
+            fi
+            if [ "$kind" = lib ]; then
+              timeout 600 cargo test --locked -p halvo-capture --lib -- --exact "$test" >"$RUNNER_TEMP/w3-m.log" 2>&1
+            else
+              timeout 600 cargo test --locked -p halvo-capture --test windows_functional -- --ignored --exact "$test" --nocapture >"$RUNNER_TEMP/w3-m.log" 2>&1
+            fi
+            code=$?
+            log=$(tr -d '\r' <"$RUNNER_TEMP/w3-m.log")
+            if printf '%s\n' "$log" | grep -q '^error\(\[E[0-9]*\]\)\{0,1\}: '; then
+              verdict=no-build; nobuild=$((nobuild + 1))
+            elif [ "$code" -ne 0 ] && printf '%s\n' "$log" | grep -q "^test .* \.\.\. FAILED"; then
+              verdict=caught; caught=$((caught + 1))
+            elif [ "$code" -eq 0 ] && printf '%s\n' "$log" | grep -q 'test result: ok. 1 passed'; then
+              verdict=survived; survived=$((survived + 1))
+            else
+              verdict=other-exit-$code
+            fi
+            echo "MUTANT $name test=$test verdict=$verdict"
+            printf '%s\n' "$log" | grep -E 'panicked at|^test .* \.\.\. |^test result' | head -4
+            git checkout --quiet -- "$file"
+          done <"$rows"
+          echo "MUTANTS total=$total caught=$caught survived=$survived no_build=$nobuild not_applied=$unapplied"
+          git status --porcelain
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
