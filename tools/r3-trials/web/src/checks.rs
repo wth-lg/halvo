@@ -1279,6 +1279,42 @@ mod tests {
         assert_eq!(FOLLOW_STEP, std::time::Duration::from_millis(5));
     }
 
+    /// CP-145 (2) (f): the check takes the start lock for its read, so it waits while a start holds
+    /// it.
+    #[cfg(unix)]
+    #[test]
+    fn a_check_waits_while_the_start_lock_is_held() {
+        let held = crate::start::lock();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let reader = std::thread::spawn(move || {
+            let row = Proc {
+                pid: std::process::id(),
+                ppid: 1,
+                started_us: 0,
+                exe: None,
+            };
+            let _ = check_named(&Subject {
+                root: &row,
+                profile: std::path::Path::new("/nonexistent-profile"),
+                pipe: None,
+                relay_port: None,
+            });
+            let _ = tx.send(());
+        });
+        let early = rx.recv_timeout(std::time::Duration::from_millis(500));
+        drop(held);
+        let late = rx.recv_timeout(std::time::Duration::from_secs(30));
+        let _ = reader.join();
+        assert!(
+            early.is_err(),
+            "the check read while the start lock was held"
+        );
+        assert!(
+            late.is_ok(),
+            "the check did not read after the lock was let go"
+        );
+    }
+
     /// The coordinator's point on an unread table: a read whose process table could not be read is
     /// open (`table_unread=1`), never a read that found nothing.
     #[test]
