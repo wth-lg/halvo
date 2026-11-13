@@ -135,7 +135,6 @@ impl Runner {
             let e = &mut self.effects[at];
             e.digest = digest;
             e.rebinds += 1;
-            e.approval = None;
         }
         self.store_row(at, next, cause)?;
         Ok(next)

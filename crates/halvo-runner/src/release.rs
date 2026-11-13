@@ -99,10 +99,10 @@ impl Runner {
     /// reply. A request with no reply leaves its effect `releasing`, and the run ends `effect_unknown`.
     pub(crate) fn release(&mut self, requests: Vec<Box<dyn Paused>>) -> Result<(), Stop> {
         let loaded = self.load()?;
-        self.check()?;
-        self.within_wall()?;
         let mut open = Vec::new();
         for mut request in requests {
+            self.check()?;
+            self.within_wall()?;
             let bound = request.bound().map_err(failed)?;
             let class = request.class();
             admit(class, &bound, &facts_of(request.as_ref(), &loaded))

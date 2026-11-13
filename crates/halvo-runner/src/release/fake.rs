@@ -221,3 +221,81 @@ fn reject_once_lets_nothing_leave() {
     assert_eq!(record.states(), [EffectState::Held, EffectState::Rejected]);
     assert_eq!(record.done(), Some(Outcome::Declined));
 }
+
+/// A9.3: a first read that `admit` refuses makes no `propose`; the run ends `failed` with `provenance`.
+#[test]
+fn a_first_read_that_admit_refuses_makes_no_propose() {
+    let (record, released) = run(vec![delete("a", Source::Model)], Plan::plain());
+    assert_eq!(released, 0);
+    assert!(record.states().is_empty(), "no propose row");
+    assert_eq!(
+        stopped(&record),
+        Some((LogEvent::Stopped, Some(Cause::Provenance)))
+    );
+}
+
+/// A5.1: a `propose` that `decide` refuses makes the run end `refused`; nothing is asked and nothing leaves.
+#[test]
+fn a_refused_propose_ends_the_run_refused() {
+    let plan = Plan {
+        observe_from_load: Some(1),
+        ..Plan::plain()
+    };
+    let (record, released) = run(vec![delete("a", Source::Extract)], plan);
+    assert_eq!(released, 0);
+    assert_eq!(record.states(), [EffectState::Refused]);
+    assert!(record.confirms().is_empty());
+    assert_eq!(record.done(), Some(Outcome::Refused));
+}
+
+/// A6.5: the `wall_s` of the load before the `begin`, lowered to 0, ends the run with `limit` and `wall` before
+/// the `begin`; nothing leaves.
+#[test]
+fn a_wall_s_lowered_at_the_load_before_the_begin_ends_the_run() {
+    let plan = Plan {
+        wall_zero_from_load: Some(2),
+        ..Plan::plain()
+    };
+    let (record, released) = run(vec![delete("a", Source::Extract)], plan);
+    assert_eq!(released, 0);
+    assert_eq!(record.states(), [EffectState::Held, EffectState::Approved]);
+    assert_eq!(record.done(), Some(Outcome::Limit));
+    assert_eq!(
+        stopped(&record),
+        Some((LogEvent::Stopped, Some(Cause::Wall)))
+    );
+}
+
+/// A5.2: an approval that a row of the run held before is used, also after a `rebind`; the runner refuses it and
+/// nothing leaves.
+#[test]
+fn an_approval_id_given_twice_is_refused_as_used() {
+    let plan = Plan {
+        one_approval_id: true,
+        ..Plan::plain()
+    };
+    let reads = vec![delete("a", Source::Extract), delete("b", Source::Extract)];
+    let (record, released) = run(reads, plan);
+    assert_eq!(released, 0);
+    assert_eq!(record.confirms().len(), 2);
+    assert_eq!(
+        record.states(),
+        [EffectState::Held, EffectState::Approved, EffectState::Held]
+    );
+    assert_eq!(record.done(), Some(Outcome::Failed));
+}
+
+/// A6.3: a decision that does not answer the request's effects with their digests is a frame refusal: status 2,
+/// no `approve` and nothing leaves.
+#[test]
+fn a_decision_with_another_digest_is_a_frame_refusal() {
+    let plan = Plan {
+        other_digest: true,
+        ..Plan::plain()
+    };
+    let (record, released) = run(vec![delete("a", Source::Extract)], plan);
+    assert_eq!(released, 0);
+    assert_eq!(record.states(), [EffectState::Held]);
+    assert_eq!(record.status, 2);
+    assert!(record.finish().is_none());
+}

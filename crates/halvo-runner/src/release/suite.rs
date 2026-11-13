@@ -27,8 +27,8 @@ use halvo_schema::executable::names::{
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::{Name, OwnValue, V1};
 use halvo_schema::executable::{
-    AgentConfig, AgentEffect, AgentLog, AgentRun, ApprovalId, EffectId, EffectState, FromRunner,
-    HandbackResult, Outcome, RunId, RunnerCall, RunnerReply, ToRunner, WebOrigin,
+    AgentConfig, AgentEffect, AgentLog, AgentRun, ApprovalId, Digest, EffectId, EffectState,
+    FromRunner, HandbackResult, Outcome, RunId, RunnerCall, RunnerReply, ToRunner, WebOrigin,
 };
 use halvo_schema::{AgentId, Category, WorkflowId};
 
@@ -329,13 +329,18 @@ fn data_dir() -> PathBuf {
 /// far, before the decision is written; `answer` is the answer for every effect of a decision; with
 /// `stop_after_begin` it closes both ends of the link once it has answered a `begin` row; with
 /// `cancel_before_begin_answer` it writes a `cancel` before the answer to a `begin` row; and from the load of the
-/// count `observe_from_load` on, the configuration's autonomy is `observe`.
+/// count `observe_from_load` on, the configuration's autonomy is `observe`, and from the load of the count
+/// `wall_zero_from_load` on its `wall_s` is 0; with `one_approval_id` every approval has the same id; with
+/// `other_digest` every approval names a digest that is not its effect's.
 pub(crate) struct Plan {
     pub(crate) on_confirm: Box<dyn FnMut(usize) + Send>,
     pub(crate) answer: Answer,
     pub(crate) stop_after_begin: bool,
     pub(crate) cancel_before_begin_answer: bool,
     pub(crate) observe_from_load: Option<usize>,
+    pub(crate) wall_zero_from_load: Option<usize>,
+    pub(crate) one_approval_id: bool,
+    pub(crate) other_digest: bool,
 }
 
 impl Plan {
@@ -347,6 +352,9 @@ impl Plan {
             stop_after_begin: false,
             cancel_before_begin_answer: false,
             observe_from_load: None,
+            wall_zero_from_load: None,
+            one_approval_id: false,
+            other_digest: false,
         }
     }
 }
@@ -385,6 +393,9 @@ fn supervise(
                             let mut config = config.clone();
                             if plan.observe_from_load.is_some_and(|from| loads >= from) {
                                 config.autonomy = Autonomy::Observe;
+                            }
+                            if plan.wall_zero_from_load.is_some_and(|from| loads >= from) {
+                                config.limits.wall_s = 0;
                             }
                             config
                         },
@@ -435,9 +446,17 @@ fn supervise(
                     .iter()
                     .enumerate()
                     .map(|(i, e)| Approval {
-                        approval: ApprovalId::from_random([(confirms * 16 + i) as u8; 16]),
+                        approval: if plan.one_approval_id {
+                            ApprovalId::from_random([0x77; 16])
+                        } else {
+                            ApprovalId::from_random([(confirms * 16 + i) as u8; 16])
+                        },
                         effect: e.effect.clone(),
-                        digest: e.digest.clone(),
+                        digest: if plan.other_digest {
+                            Digest::parse(&"0".repeat(64)).expect("a digest")
+                        } else {
+                            e.digest.clone()
+                        },
                         answer: plan.answer,
                     })
                     .collect();
