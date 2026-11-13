@@ -1642,4 +1642,48 @@ mod tests {
         );
         assert_eq!(again, b"screen frame bytes");
     }
+
+    #[test]
+    fn every_database_open_carries_the_no_follow_flag_and_no_uri_flag() {
+        for flags in [DATABASE_OPEN, PROBE_OPEN] {
+            assert!(flags.contains(OpenFlags::SQLITE_OPEN_NOFOLLOW), "{flags:?}");
+            assert!(!flags.contains(OpenFlags::SQLITE_OPEN_URI), "{flags:?}");
+            assert!(!flags.contains(OpenFlags::SQLITE_OPEN_CREATE), "{flags:?}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_database_open_of_a_link_answers_corrupt_and_writes_nothing_beside_the_target() {
+        halvo_sqlcipher::initialize().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let resolved = Dir::open(dir.path()).unwrap();
+        let target = resolved.path().join("target.db");
+        Connection::open(&target)
+            .unwrap()
+            .execute_batch("CREATE TABLE t (x INTEGER);")
+            .unwrap();
+        let bytes = std::fs::read(&target).unwrap();
+        let link = resolved.path().join("store.db");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+
+        for flags in [DATABASE_OPEN, PROBE_OPEN] {
+            let answer = Connection::open_with_flags(&link, flags)
+                .and_then(|conn| {
+                    conn.query_row("SELECT count(*) FROM t", [], |r| r.get::<_, i64>(0))
+                })
+                .map_err(database_open_error);
+            assert!(
+                matches!(&answer, Err(StoreError::Corrupt(text)) if text == LINKED_DATABASE),
+                "{flags:?}: {answer:?}"
+            );
+        }
+        let mut names: Vec<String> = std::fs::read_dir(resolved.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["store.db", "target.db"]);
+        assert!(std::fs::read(&target).unwrap() == bytes);
+    }
 }
