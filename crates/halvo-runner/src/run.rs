@@ -63,6 +63,10 @@ pub(crate) fn cause_of(error: ReplyError) -> Cause {
     }
 }
 
+/// The `seq` of the log row `start_accepted`, which the store's handler of `start_run` stores, so that the
+/// runner's own lines count from the next (A7.4, CP-135 (5)).
+const START_ROW: u32 = 1;
+
 pub(crate) struct Runner {
     pub(crate) args: Args,
     pub(crate) link: Link,
@@ -95,7 +99,7 @@ impl Runner {
             role: RunnerRole::claim(),
             started: Clock::now(),
             waited: Duration::ZERO,
-            log_seq: 0,
+            log_seq: START_ROW,
             steps: 0,
             handbacks: 0,
             confirmations: 0,
