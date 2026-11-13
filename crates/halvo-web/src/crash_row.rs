@@ -17,7 +17,8 @@ pub struct Place {
 }
 
 /// One file of a listing: its place, its path under the place's root, its size and its time of
-/// change in seconds since the Unix epoch.
+/// change in nanoseconds since the Unix epoch, at the grain that the system gives (CP-186 T4 (c)).
+/// A file written again at its own size inside one tick of that grain is no change.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct File {
     pub place: &'static str,
@@ -80,7 +81,7 @@ fn walk(
             .modified()
             .ok()
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map_or(0, |d| d.as_secs());
+            .map_or(0, |d| d.as_nanos() as u64);
         out.insert(
             (place, rel),
             (meta.len(), modified, meta.file_type().is_symlink()),
@@ -657,6 +658,76 @@ mod tests {
 
     fn res(places: &[Place], b: &Facts, m: &Facts, c: &[File], sent: usize) -> &'static str {
         result(places, &Listing::new(), b, m, c, sent).result
+    }
+
+    /// CP-186 T4 (c), with the review's case crash/07: a file under a listed place that is written
+    /// again at its own size with another time of change is in the listing.
+    #[test]
+    fn t4_a_file_written_again_at_its_size_with_another_time_is_listed() {
+        let (dir, places) = tree("listing-time");
+        let path = dir.join("Crashpad").join("settings.dat");
+        let before = snapshot(&places);
+        let then = std::fs::metadata(&path).unwrap().modified().unwrap();
+        std::fs::write(&path, b"new").unwrap();
+        let f = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        f.set_modified(then + std::time::Duration::from_millis(1_500))
+            .unwrap();
+        drop(f);
+        let got = changed(&before, &snapshot(&places));
+        assert_eq!(got.len(), 1, "{got:?}");
+        assert_eq!((got[0].rel.as_str(), got[0].size), ("settings.dat", 3));
+        assert!(!got[0].removed);
+        // Two times inside one second: the listing keeps the system's grain and does not cut the
+        // time to seconds.
+        let second = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+        let set = |at: std::time::SystemTime| {
+            std::fs::write(&path, b"one").unwrap();
+            let f = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+            f.set_modified(at).unwrap();
+        };
+        set(second + std::time::Duration::from_millis(100));
+        let early = snapshot(&places);
+        set(second + std::time::Duration::from_millis(400));
+        let got = changed(&early, &snapshot(&places));
+        assert_eq!(got.len(), 1, "{got:?}");
+    }
+
+    /// CP-186 T4 (d), with the review's case crash/08: a dump by each ending and under each of the
+    /// three directories of a Crashpad database, as the first part of the path and deeper, and the
+    /// files that are no dump.
+    #[test]
+    fn t4_is_dump_by_ending_and_by_directory() {
+        let dump = |rel: &str| is_dump(&file("c", rel, 1));
+        for rel in [
+            "x.dmp",
+            "a/x.DMP",
+            "x.ips",
+            "x.crash",
+            "x.wer",
+            "x.hdmp",
+            "x.mdmp",
+            "pending/x",
+            "completed/x",
+            "new/x",
+            "db/pending/x",
+            "db/completed/x",
+            "db/new/x",
+        ] {
+            assert!(dump(rel), "{rel}");
+        }
+        for rel in [
+            "settings.dat",
+            "x.dmpx",
+            "x.ips.txt",
+            "dmp",
+            "xpending/x",
+            "notcompleted/x",
+            "renew/x",
+            "db/xpending/x",
+            "pending",
+        ] {
+            assert!(!dump(rel), "{rel}");
+        }
     }
 
     /// CP-186 T3, the review's case crash/03: a file that stood before and is gone after is in the
