@@ -30,7 +30,7 @@ const DAEMON: &str = "crates/halvo-capture/src/daemon/";
 /// Every use of `#[path]` and of the include macros that the crate and the app
 /// may hold: the file from the root of the repository, the name, and the
 /// literal that it reads.
-const LISTED: [(&str, &str, &str); 5] = [
+const LISTED: [(&str, &str, &str); 6] = [
     (
         "crates/halvo-capture/src/secure_input.rs",
         "path",
@@ -40,6 +40,11 @@ const LISTED: [(&str, &str, &str); 5] = [
         "crates/halvo-capture/src/secure_input.rs",
         "path",
         "\"windows/secure_input.rs\"",
+    ),
+    (
+        "crates/halvo-capture/src/secure_input_macos.rs",
+        "path",
+        "\"secure_input_macos_hold.rs\"",
     ),
     (
         "crates/halvo-capture/src/store/mod.rs",
