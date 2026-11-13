@@ -29,6 +29,9 @@ row grammar is in scripts/r1-gate/README.md.
       Check that every substitution still applies and that its mutant builds.
   sh scripts/r1-gate/mutation-test.sh --list
       Print the rows: name, state, verdict, row file.
+  Every mode but --self-test first refuses a row name that stands in more than
+  one row, unless one of the two is a transitional row and the other the row
+  that takes it over, and names each place of the name.
   sh scripts/r1-gate/mutation-test.sh --self-test [-v]
       Prove the classifier and the row rules on fixtures.
 
@@ -76,17 +79,21 @@ row_defect() {
     required|'required on measuring-mac'|'required on hosted-runner'|'required on test-bed'|transitional|control|'pending '?*|'retired '?*) ;;
     *) printf 'the state %s is none of: required, required on PLACE, transitional, control, pending ITEM, retired REASON\n' "$row_state"; return 1 ;;
   esac
-  row_twice=$(awk -F '\t' -v n="$row_name" '$1 == n { print $2 }' "$work/twice.tsv")
-  [ -z "$row_twice" ] || { printf 'the name stands in %s\n' "$row_twice"; return 1; }
   return 0
 }
 
 names_twice() {
   awk -F '\t' '
     $3 == "malformed" { next }
-    { n[$3]++; files[$3] = files[$3] (files[$3] == "" ? "" : " and in ") $1
+    { n[$3]++; files[$3] = files[$3] (files[$3] == "" ? "" : " and in ") $1 " line " $2
       if ($7 == "transitional") { beside = $4; sub(/\/[^\/]*$/, "", beside); takeover[$3] = beside "/mutants.rows" } else holder[$3] = $1 }
-    END { for (k in n) if (n[k] > 1 && !(n[k] == 2 && (k in takeover) && holder[k] == takeover[k])) print k "\t" files[k] }' "$table" > "$work/twice.tsv"
+    END { for (k in n) if (n[k] > 1 && !(n[k] == 2 && (k in takeover) && holder[k] == takeover[k])) print k "\t" files[k] }' "$table" > "$work/twice.unsorted" || return 2
+  LC_ALL=C sort "$work/twice.unsorted" > "$work/twice.tsv" || return 2
+  [ -s "$work/twice.tsv" ] || return 0
+  while IFS="$TAB" read -r twice_name twice_files; do
+    say FAIL "$twice_name" "the name stands in $twice_files"
+  done < "$work/twice.tsv"
+  return 3
 }
 
 needs_cargo() {
@@ -156,7 +163,8 @@ run_rows() {
   table=$work/rows.tsv
   rows_table "$tree" "$table" || { say FAIL rows "the row files of the copy could not be read"; return 2; }
   if [ ! -s "$table" ]; then say FAIL rows "no mutants.rows file holds a row"; return 1; fi
-  names_twice || return 2
+  names_twice
+  case $? in 0) ;; 3) return 1 ;; *) return 2 ;; esac
   if [ "$list" = yes ]; then
     awk -F '\t' '{ printf "mutation:%s\t%s\t%s\t%s\n", $3, $7, $6, $1 }' "$table"
     return 0
@@ -317,7 +325,7 @@ row() {
 }
 
 fixture_run() {
-  list=no; apply_only=${2:-no}; strict=${3:-no}; only=${fixture_only:-}; budget=${fixture_budget:-}
+  list=${fixture_list:-no}; apply_only=${2:-no}; strict=${3:-no}; only=${fixture_only:-}; budget=${fixture_budget:-}
   work=$gate_scratch/work-$1
   mkdir -p "$work"
   run_rows "$gate_scratch/$1"
@@ -368,6 +376,11 @@ STUB
 
 with_only() {
   fixture_only=" $1"; shift
+  "$@"
+}
+
+with_list() {
+  fixture_list=yes
   "$@"
 }
 
@@ -575,6 +588,21 @@ cases() {
   row twice/scripts/r1-gate/mutants.rows same b.sh 's/two/2/' leak required X-1
   row twice/code/mutants.rows same a.sh 's/one/1/' leak required X-2
   t name-twice FAIL fixture_run twice yes
+  t name-in-two-files-fails-the-list FAIL with_list fixture_run twice
+  t name-in-two-files-names-both PASS with_list fixture_says twice 'FAIL mutation:same (the name stands in code/mutants.rows line 1 and in scripts/r1-gate/mutants.rows line 1)'
+  fixture_tree twice-late
+  row twice-late/scripts/r1-gate/mutants.rows applies b.sh 's/two/three/' leak required X-1
+  row twice-late/scripts/r1-gate/mutants.rows same b.sh 's/two/2/' leak required X-1
+  row twice-late/code/mutants.rows same a.sh 's/one/1/' leak required X-2
+  t name-in-two-files-applies-no-row FAIL fixture_says twice-late 'PASS mutation:applies' yes
+  fixture_tree thrice
+  mkdir -p "$gate_scratch/thrice/code/inner"
+  printf 'echo three\n' > "$gate_scratch/thrice/code/inner/c.sh"
+  row thrice/scripts/r1-gate/mutants.rows same b.sh 's/two/2/' leak required X-1
+  row thrice/code/mutants.rows same a.sh 's/one/1/' leak required X-2
+  row thrice/code/inner/mutants.rows same c.sh 's/three/3/' leak required X-3
+  t name-in-three-files-names-all-three PASS with_list fixture_says thrice 'FAIL mutation:same (the name stands in code/inner/mutants.rows line 1 and in code/mutants.rows line 1 and in scripts/r1-gate/mutants.rows line 1)'
+  t transitional-and-its-takeover-pass-the-list PASS with_list fixture_run moved
   fixture_tree five
   printf 'five\tb.sh\ts/two/2/\tleak\trequired\n' >> "$gate_scratch/five/scripts/r1-gate/mutants.rows"
   t row-with-five-fields FAIL fixture_run five yes

@@ -42,7 +42,10 @@ empty, and a line that is empty is skipped.
     name <tab> file <tab> substitution <tab> verdict <tab> state <tab> item
 
 - **name**: one name in the whole repository. The only repeat allowed is a
-  transitional row and the row that takes it over.
+  transitional row and the row that takes it over. Before it applies any row,
+  and under `--list` too, the runner refuses every other repeat, in one rows
+  file or in several, and exits 1 with one line for each such name:
+  `FAIL mutation:<name> (the name stands in <rows file> line <n> and in <rows file> line <n>)`.
 - **file**: the file to mutate, relative to the directory of the row file, with
   no `..` in it. For a `transitional` or a `control` row it is relative to the
   repository root.
