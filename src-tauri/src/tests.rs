@@ -898,6 +898,23 @@ fn a_call_of_the_app_host_from_another_port_or_with_user_information_is_refused(
         status.is_ok(),
         "a call with no Origin header from the app's page: {status:?}"
     );
+    let near = near_origin(true, false);
+    main.navigate(near.parse().expect("a URL"))
+        .expect("the mock runtime records the address");
+    for command in unit_commands() {
+        let reply = invoke_with_headers(
+            &main,
+            &near,
+            command,
+            serde_json::json!({}),
+            Default::default(),
+        );
+        assert_eq!(
+            reply,
+            Err(Value::String(commands::REFUSED.to_string())),
+            "{command} from the window main whose own address is {near}, with no Origin header"
+        );
+    }
 }
 
 fn widened_labels_reach_no_command_of_the_unit() {
