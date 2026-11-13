@@ -68,7 +68,7 @@ tests_decide() {
     '' | *[!0-9]*) said=none ;;
     *) said=$counts ;;
   esac
-  if [ "$said" = none ] || [ "$results" = none ] || [ "$said" != "$oks" ] || [ "$results" != "$oks" ]; then
+  if [ "$said" != "$oks" ] || [ "$results" != "$oks" ]; then
     broke "rule 1: the run's three counts are not one number: running N tests gives $said, ok lines give $oks, the result line gives $results"
   fi
   others=$(grep -E '^test .* \.\.\. ' "$2.lf" | grep -c -v -E '^test [^ ]+ \.\.\. ok$')
@@ -471,6 +471,9 @@ self_test() {
   check_tests a-run-that-ends-before-its-result-line "FAIL rule 1: the run's three counts are not one number: running N tests gives 12, ok lines give 11, the result line gives none" 0 '/^test launch::tests::each_exit_has_its_code /d; /^test result:/d' "$keep"
   check_tests_adding one-more-ok-line-than-the-run-counts "FAIL rule 1: the run's three counts are not one number: running N tests gives 12, ok lines give 13, the result line gives 12" 0 out "$keep" '^test tray::' 'test launch::tests::a_line_that_no_test_of_the_run_printed ... ok' 18
   check_tests_with_list a-list-of-four-guard-tests "FAIL rule 1: the list guard_tests of this check holds 4 names" 0 '/^test a_call_whose_origin_header_is_no_address_is_refused /d; s/^running 12 tests$/running 11 tests/; s/^test result: ok\. 12 passed;/test result: ok. 11 passed;/' 'a_call_whose_origin_header_is_no_address_is_refused'
+  check_tests a-running-line-that-counts-one-less "FAIL rule 1: the run's three counts are not one number: running N tests gives 11, ok lines give 12, the result line gives 12" 0 's/^running 12 tests$/running 11 tests/' "$keep"
+  check_tests a-result-line-that-counts-one-more "FAIL rule 1: the run's three counts are not one number: running N tests gives 12, ok lines give 12, the result line gives 13" 0 's/^test result: ok\. 12 passed;/test result: ok. 13 passed;/' "$keep"
+  check_tests a-result-line-with-an-ignored-test "FAIL rule 1: the run's three counts are not one number: running N tests gives 12, ok lines give 12, the result line gives none" 0 's/^test result: ok\. 12 passed; 0 failed; 0 ignored;/test result: ok. 12 passed; 0 failed; 1 ignored;/' "$keep"
   check_tests no-running-line "FAIL rule 1: the run started 0 test binaries, 0 of them" 0 "$keep" '/Running /d'
 
   check_tree tree-passes PASS 0 "$keep"
