@@ -478,7 +478,7 @@ function runCheck(repo, args) {
 }
 
 /** The whole run of the macos job on a small fixture: --record writes a record that passes; a hand record over a wrong structure file and a record one byte away from the fresh one fail. */
-async function wholeCases({ repo, work, report }) {
+export async function wholeCases({ repo, work, report }) {
   const fx = smallRepo(repo, join(work, 'whole-small'));
   const written = runCheck(repo, ['record', '--repo', fx]);
   report('whole-record-of-a-small-fixture', 'pass', written.status === 0 && written.cause === 'ok' ? 'pass' : written.cause);
