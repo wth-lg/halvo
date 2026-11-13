@@ -477,9 +477,10 @@ impl PumpHandle {
     }
 
     fn let_go(&mut self) {
-        if self.join.take().is_some() {
+        if let Some(join) = self.join.take() {
             self.signal.set();
             (self.post)(self.id);
+            drop(join);
         }
     }
 }
@@ -615,8 +616,11 @@ where
 pub(crate) fn post_quit_to(thread_id: PumpThreadId) {
     use windows::Win32::Foundation::{LPARAM, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{PostThreadMessageW, WM_QUIT};
-    // SAFETY: PostThreadMessageW takes a thread id and two plain values; a
-    // thread with no queue or one that ended makes it fail and changes nothing.
+    // SAFETY: PostThreadMessageW takes a thread id and two plain values. A
+    // pump handle posts only while it holds its thread's join handle, so the
+    // id names that thread: a thread with no queue, or one that ended, makes
+    // the call fail and changes nothing, and no other thread can take the id
+    // while the handle is open.
     unsafe {
         let _ = PostThreadMessageW(thread_id.get(), WM_QUIT, WPARAM(0), LPARAM(0));
     }
