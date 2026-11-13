@@ -888,6 +888,34 @@ mod tests {
         (source, handle, writer, asks, weak)
     }
 
+    fn counting_opener(
+        opened: &Cell<u32>,
+    ) -> impl FnOnce(SinkHandle, ForegroundReader, FrameRateCap) -> Result<Opened, CaptureError> + '_
+    {
+        move |_sink, _foreground, _cap| {
+            opened.set(opened.get() + 1);
+            Err(CaptureError::Start(
+                "the counting opener opens nothing".into(),
+            ))
+        }
+    }
+
+    #[test]
+    fn a_source_with_no_stream_calls_its_opener_once() {
+        let (handle, _writer) = sink::channel(8);
+        let (_fg_writer, reader) = foreground_state_for_test();
+        let mut source = ScreenSource::new(SCREEN_FRAME_CAP, reader);
+        let opened = Cell::new(0);
+        let begun = source.begin_with(handle, counting_opener(&opened));
+        assert_eq!(opened.get(), 1);
+        assert_eq!(
+            begun,
+            Err(CaptureError::Start(
+                "the counting opener opens nothing".into()
+            ))
+        );
+    }
+
     fn sink_closed(handle: SinkHandle, writer: &SinkWriter) -> bool {
         drop(handle);
         writer
@@ -899,11 +927,13 @@ mod tests {
     #[test]
     fn a_second_begin_is_refused_and_a_clean_shutdown_releases_the_output_and_the_sink() {
         let (mut source, handle, writer, asks, weak) = started(&[Some(StopReply::Stopped)]);
-        let second = source.begin(SourceContext::new(handle.clone()));
+        let opened = Cell::new(0);
+        let second = source.begin_with(handle.clone(), counting_opener(&opened));
         let called = Instant::now();
         let shut = source.shutdown();
         let took = called.elapsed();
         assert_eq!(second, Err(CaptureError::AlreadyStarted));
+        assert_eq!(opened.get(), 0, "a second begin opened a stream");
         assert!(
             shut == Ok(()) && took < SCREEN_STOP_DEADLINE,
             "{shut:?} after {took:?}"
@@ -937,10 +967,12 @@ mod tests {
         assert!(took < SCREEN_STOP_DEADLINE, "the shutdown took {took:?}");
         assert!(source.output.is_none() && source.queue.is_none());
         assert!(weak.load().is_some(), "the kept output was released");
+        let opened = Cell::new(0);
         assert_eq!(
-            source.begin(SourceContext::new(handle.clone())),
+            source.begin_with(handle.clone(), counting_opener(&opened)),
             Err(CaptureError::AlreadyStarted)
         );
+        assert_eq!(opened.get(), 0, "a begin after the timeout opened a stream");
         assert!(
             sink_closed(handle, &writer),
             "the kept output still holds the sink"
