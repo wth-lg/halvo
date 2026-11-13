@@ -18,14 +18,16 @@ use std::time::Duration;
 use halvo_policy::{effect_step, preset, Effect, EffectMove};
 use halvo_schema::executable::body::{LoadReply, LoadedBindings, Stored};
 use halvo_schema::executable::frame::{
-    Approval, ConfirmDecision, ConfirmReply, ConfirmRequest, HandbackReply, StoreReply,
+    Approval, Cancel, ConfirmDecision, ConfirmReply, ConfirmRequest, HandbackReply, StoreReply,
     StoreReplyFrame,
 };
-use halvo_schema::executable::names::{Answer, FieldName, HandbackOutcome, HandbackReason};
+use halvo_schema::executable::names::{
+    Answer, Autonomy, FieldName, HandbackOutcome, HandbackReason,
+};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::{Name, OwnValue, V1};
 use halvo_schema::executable::{
-    AgentConfig, AgentEffect, AgentRun, ApprovalId, EffectId, EffectState, FromRunner,
+    AgentConfig, AgentEffect, AgentLog, AgentRun, ApprovalId, EffectId, EffectState, FromRunner,
     HandbackResult, Outcome, RunId, RunnerCall, RunnerReply, ToRunner, WebOrigin,
 };
 use halvo_schema::{AgentId, Category, WorkflowId};
@@ -292,6 +294,20 @@ impl Record {
         })
     }
 
+    pub(crate) fn logs(&self) -> Vec<AgentLog> {
+        self.frames
+            .iter()
+            .filter_map(|f| match f {
+                FromRunner::Store(s) => match s.request.body() {
+                    RunnerCall::Log(b) => Some(b.records.clone()),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .flatten()
+            .collect()
+    }
+
     pub(crate) fn finish(&self) -> Option<AgentRun> {
         self.frames.iter().find_map(|f| match f {
             FromRunner::Store(s) => match s.request.body() {
@@ -309,23 +325,47 @@ fn data_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("port-suite-data-dir-never-made")
 }
 
+/// What the in-memory supervisor does beside answering: `on_confirm` runs with the count of confirmation requests so
+/// far, before the decision is written; `answer` is the answer for every effect of a decision; with
+/// `stop_after_begin` it closes both ends of the link once it has answered a `begin` row; with
+/// `cancel_before_begin_answer` it writes a `cancel` before the answer to a `begin` row; and from the load of the
+/// count `observe_from_load` on, the configuration's autonomy is `observe`.
+pub(crate) struct Plan {
+    pub(crate) on_confirm: Box<dyn FnMut(usize) + Send>,
+    pub(crate) answer: Answer,
+    pub(crate) stop_after_begin: bool,
+    pub(crate) cancel_before_begin_answer: bool,
+    pub(crate) observe_from_load: Option<usize>,
+}
+
+impl Plan {
+    /// A plan that answers `allow_once` and does nothing else.
+    pub(crate) fn plain() -> Plan {
+        Plan {
+            on_confirm: Box::new(|_| {}),
+            answer: Answer::AllowOnce,
+            stop_after_begin: false,
+            cancel_before_begin_answer: false,
+            observe_from_load: None,
+        }
+    }
+}
+
 /// The in-memory supervisor and store: it reads the runner's frames until the end of the runner's output and
-/// answers each; `on_confirm` runs with the count of confirmation requests so far, before the decision is written,
-/// and every effect of a decision is `allow_once`. With `stop_after_begin` it closes both ends of the link once it
-/// has answered a `begin` row. The store's handler of the run's end makes a `releasing` effect `unknown` at the
+/// answers each as `plan` says. The store's handler of the run's end makes a `releasing` effect `unknown` at the
 /// run's `finish`, and at the end of the link when no `finish` came, as after the library's `end_run` (A7.5).
 fn supervise(
     mut from_runner: impl Read,
     mut to_runner: impl Write,
     config: AgentConfig,
     bindings: (Vec<WebOrigin>, Vec<Slot>),
-    mut on_confirm: impl FnMut(usize),
-    stop_after_begin: bool,
+    mut plan: Plan,
 ) -> (Vec<FromRunner>, HashMap<EffectId, EffectState>) {
     let mut frames = Vec::new();
     let mut last: HashMap<EffectId, AgentEffect> = HashMap::new();
     let mut after_end = HashMap::new();
     let mut confirms = 0usize;
+    let mut loads = 0usize;
     loop {
         let mut head = [0u8; 4];
         if from_runner.read_exact(&mut head).is_err() {
@@ -340,7 +380,14 @@ fn supervise(
             FromRunner::Store(s) => {
                 let answer = match s.request.body() {
                     RunnerCall::Load(_) => RunnerReply::Load(LoadReply {
-                        config: config.clone(),
+                        config: {
+                            loads += 1;
+                            let mut config = config.clone();
+                            if plan.observe_from_load.is_some_and(|from| loads >= from) {
+                                config.autonomy = Autonomy::Observe;
+                            }
+                            config
+                        },
                         playbook: None,
                         bindings: Some(LoadedBindings {
                             rev: NonZeroU32::MIN,
@@ -391,10 +438,10 @@ fn supervise(
                         approval: ApprovalId::from_random([(confirms * 16 + i) as u8; 16]),
                         effect: e.effect.clone(),
                         digest: e.digest.clone(),
-                        answer: Answer::AllowOnce,
+                        answer: plan.answer,
                     })
                     .collect();
-                on_confirm(confirms);
+                (plan.on_confirm)(confirms);
                 Some(ToRunner::ConfirmReply(ConfirmReply {
                     decision: ConfirmDecision { v: V1, approvals },
                 }))
@@ -411,13 +458,19 @@ fn supervise(
         let begun = matches!(&frame, FromRunner::Store(s)
             if matches!(s.request.body(), RunnerCall::Effect(b) if b.record.state == EffectState::Releasing));
         frames.push(frame);
+        if plan.cancel_before_begin_answer && begun {
+            let json = ToRunner::Cancel(Cancel {}).to_json().expect("a frame");
+            if to_runner.write_all(&encode(&json)).is_err() {
+                break;
+            }
+        }
         if let Some(reply) = reply {
             let json = reply.to_json().expect("a frame");
             if to_runner.write_all(&encode(&json)).is_err() {
                 break;
             }
         }
-        if stop_after_begin && begun {
+        if plan.stop_after_begin && begun {
             break;
         }
     }
@@ -437,12 +490,11 @@ fn supervise(
 
 /// Runs the runner's confirm path on `request` in this process, with the preset of `category` and `bindings`,
 /// against the in-memory supervisor, and ends the run as the runner ends one.
-fn run_path(
+pub(crate) fn run_path(
     category: Category,
     bindings: (Vec<WebOrigin>, Vec<Slot>),
     request: Box<dyn Paused>,
-    on_confirm: impl FnMut(usize) + Send + 'static,
-    stop_after_begin: bool,
+    plan: Plan,
 ) -> Record {
     let run = RunId::from_random([0x51; 16]);
     let agent = AgentId::from_random([0x52; 16]);
@@ -472,16 +524,8 @@ fn run_path(
         Box::new(from_runner_write),
         Box::new(|| {}),
     );
-    let supervisor = std::thread::spawn(move || {
-        supervise(
-            from_runner,
-            to_runner,
-            config,
-            bindings,
-            on_confirm,
-            stop_after_begin,
-        )
-    });
+    let supervisor =
+        std::thread::spawn(move || supervise(from_runner, to_runner, config, bindings, plan));
     let mut runner = Runner::new(args, link);
     let end = runner.release(vec![request]).map(|()| Outcome::Completed);
     let status = runner.close(end);
@@ -524,8 +568,7 @@ pub(crate) fn commit_without_reply(maker: &mut dyn Maker) {
         maker.category(Case::NoReply),
         maker.bindings(&fixture, Case::NoReply),
         request,
-        |_| {},
-        false,
+        Plan::plain(),
     );
     let after = fixture.state();
     assert_eq!(
@@ -574,13 +617,15 @@ pub(crate) fn changed_on_page(maker: &mut dyn Maker) {
         maker.category(Case::AmountChanges),
         maker.bindings(&fixture, Case::AmountChanges),
         request,
-        move |n| {
-            if n == 1 {
-                let changed = http(port, "POST", "control.agent.test", "/change", &[], b"");
-                assert_eq!(changed.status, 200, "the amount changes after the approval");
-            }
+        Plan {
+            on_confirm: Box::new(move |n| {
+                if n == 1 {
+                    let changed = http(port, "POST", "control.agent.test", "/change", &[], b"");
+                    assert_eq!(changed.status, 200, "the amount changes after the approval");
+                }
+            }),
+            ..Plan::plain()
         },
-        false,
     );
     let after = fixture.state();
     let due = fixture.seed()["utility"]["amount_due"]
@@ -649,8 +694,10 @@ pub(crate) fn stopped_between_begin_and_commit(maker: &mut dyn Maker) {
         maker.category(Case::NoReply),
         maker.bindings(&fixture, Case::NoReply),
         request,
-        |_| {},
-        true,
+        Plan {
+            stop_after_begin: true,
+            ..Plan::plain()
+        },
     );
     let after = fixture.state();
     assert!(

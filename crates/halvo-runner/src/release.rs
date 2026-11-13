@@ -15,6 +15,8 @@ use crate::link::Broken;
 use crate::run::{Runner, Stop};
 
 #[cfg(test)]
+mod fake;
+#[cfg(test)]
 mod standin;
 #[cfg(test)]
 pub(crate) mod suite;
