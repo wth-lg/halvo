@@ -28,7 +28,10 @@ The stamp holds every tracked file under ui/ and tools/r4-page/,
 docs/r4/page-features.txt and this script, as the index holds them. Before a
 run the check compares the copies of the harness's manifest and lock in the
 browsers directory with the committed ones, and each installed package's
-version with the lock.
+version with the lock. With R4_PAGE_BROWSERS unset and no
+tools/r4-page/.browsers, it fetches the build into $RUNNER_TEMP/r4-page-browsers
+in a hosted job and into its artifacts directory elsewhere, so that no job
+uploads a build.
 
 Limits, each with its manual step:
 - The hosted image, its system and its fonts, and the Node version beyond the
@@ -140,7 +143,11 @@ acorn() {
 
 browsers() {
   if [ -z "${R4_PAGE_BROWSERS:-}" ] && [ ! -d "$repo/tools/r4-page/.browsers" ]; then
-    R4_PAGE_BROWSERS=$artifacts/browsers
+    if [ -n "${RUNNER_TEMP:-}" ]; then
+      R4_PAGE_BROWSERS=$RUNNER_TEMP/r4-page-browsers
+    else
+      R4_PAGE_BROWSERS=$artifacts/browsers
+    fi
     export R4_PAGE_BROWSERS
     sh "$repo/tools/r4-page/fetch.sh" "$R4_PAGE_BROWSERS" >"$artifacts/fetch.log" 2>&1 || fail browser
   fi
@@ -327,6 +334,29 @@ empty_after() {
   case_line "$label" pass "$got"
 }
 
+fetch_case() {
+  fx=$work/fx-fetch-$2
+  fixture "fx-fetch-$2"
+  mkdir -p "$fx/tools/r4-page" "$work/art-$2" || fail setup
+  cat >"$fx/tools/r4-page/fetch.sh" <<'EOF' || fail setup
+#!/bin/sh
+mkdir -p "$1" && printf x >"$1/build.bin"
+EOF
+  git -C "$fx" update-index --assume-unchanged tools/r4-page/fetch.sh || fail setup
+  cp -R "$artifacts/acorn" "$work/art-$2/" || fail setup
+  if [ "$2" = rt ]; then
+    env -u R4_PAGE_BROWSERS RUNNER_TEMP="$work/rt" CI_D_JOB="$nested" R4_STUB=pass PATH="$work/bin-stub:$PATH" CI_D_REPO="$fx" CI_D_ARTIFACTS="$work/art-rt" "$shell" "$me" >/dev/null 2>&1
+    in_artifacts=$(find "$work/art-rt" -name build.bin | wc -l | tr -d ' ')
+    got=artifacts-$in_artifacts
+    [ "$in_artifacts" = 0 ] && [ -f "$work/rt/r4-page-browsers/build.bin" ] && got=pass
+  else
+    env -u R4_PAGE_BROWSERS -u RUNNER_TEMP CI_D_JOB="$nested" R4_STUB=pass PATH="$work/bin-stub:$PATH" CI_D_REPO="$fx" CI_D_ARTIFACTS="$work/art-local" "$shell" "$me" >/dev/null 2>&1
+    got=missing
+    [ -f "$work/art-local/browsers/build.bin" ] && got=pass
+  fi
+  case_line "$1" pass "$got"
+}
+
 signal_case() {
   mkdir -p "$work/sig-tmp" || fail setup
   env TMPDIR="$work/sig-tmp" CI_D_JOB="$nested" R4_STUB=hang R4_STUB_PID="$work/sig.pid" R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-pass" CI_D_ARTIFACTS="$artifacts" "$shell" "$me" >/dev/null 2>&1 &
@@ -410,6 +440,8 @@ self_test() {
   script_case a-run-that-changes-a-tracked-file-outside-the-inputs FAIL:dirty env R4_STUB=dirty-outside R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-dirty-outside" CI_D_ARTIFACTS="$artifacts" "$shell" "$me"
   script_case a-whole-run-that-fails-on-the-record FAIL:record env R4_STUB=whole-record R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-record" CI_D_ARTIFACTS="$artifacts" "$shell" "$me"
   script_case a-windows-run-that-fails FAIL:record env CI_D_JOB=windows R4_STUB=page-record R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-record-windows" CI_D_ARTIFACTS="$artifacts" "$shell" "$me"
+  fetch_case a-hosted-run-fetches-under-runner-temp rt
+  fetch_case a-run-without-runner-temp-fetches-into-its-artifacts local
   empty_after a-run-that-passes-leaves-no-temporary-directory pass-tmp R4_STUB=pass R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-pass" CI_D_ARTIFACTS="$artifacts"
   signal_case
   [ "$wrong" -eq 0 ] || fail cases

@@ -1,11 +1,11 @@
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ACTS_FILE, FIXTURES_DIR, NAMES, RUN_VIEWS, SNAPSHOTS_DIR, VIEWS_DIR, denyLines, fileRules, spreadCount, statesOf, viewRules } from './files.mjs';
 import { RECORD_FILE, committedRecord, factsOf, packagesCheck, readRecord, recordForm, stampOf, treeBeside } from './record.mjs';
-import { loadHarness, pageConfirmFirst, plan, runStates, sayRule, verdict } from './run.mjs';
+import { joined, loadHarness, pageConfirmFirst, plan, runStates, sayRule, verdict } from './run.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -340,6 +340,11 @@ export function fileCases({ repo, acorn: acornDir, work, report }) {
   report('verdict-a-check-that-missed', 'page', verdict(states, missedCheck, needs, say) || 'pass');
   const missedRegion = results.map((r, i) => (i === 0 ? { ...r, region: { read: 1, misses: ['agents:rebuilt'] }, ok: false } : r));
   report('verdict-a-region-that-missed', 'status', verdict(states, missedRegion, needs, say) || 'pass');
+  const ok = { violations: 0, review: 1, keyboard: 'ok', structure: 'same', size: 'ok', modes: 'ok', modes_off: '-', markup: 'ok' };
+  const lined = results.map((r, i) => ({ ...r, line: i === 0 ? { ...ok, keyboard: 'miss' } : ok }));
+  report('joined-line-shows-a-miss-of-a-state', 'pass', / keyboard=miss /.test(joined(states.length, lined, null)) ? 'pass' : 'fail');
+  const needsMiss = { ...needs, line: { ...ok, markup: 'miss' } };
+  report('joined-line-shows-a-miss-of-page-mjs', 'pass', / markup=miss$/.test(joined(states.length, results.map((r) => ({ ...r, line: ok })), needsMiss)) ? 'pass' : 'fail');
   for (const [name, fault, plant] of RECORD_CASES) {
     const dir = indexed(copyRepo(repo, join(work, name)));
     plant(dir);
@@ -445,6 +450,44 @@ export async function pageCases({ repo, work, report, log }) {
   await wholeCases({ repo, work, report });
 }
 
+const STAND_IN = "import { writeFileSync } from 'node:fs';\nwriteFileSync(process.env.R4_PID_FILE, String(process.pid));\nsetInterval(() => {}, 1000);\n";
+
+const pause = (ms) => new Promise((done) => setTimeout(done, ms));
+
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A TERM to check.mjs while page.mjs runs: page.mjs, here a stand-in that writes its process id and waits, must end with it. */
+async function termCase(repo, fx, work) {
+  const dir = join(work, 'term-during-page-mjs');
+  cpSync(fx, dir, { recursive: true });
+  writeFileSync(join(dir, 'ui', 'tests', 'r4', 'needs', 'page.mjs'), STAND_IN);
+  const pidFile = join(work, 'term-page-mjs.pid');
+  const env = { ...process.env, R4_PID_FILE: pidFile, R4_PAGE_BROWSERS: process.env.R4_PAGE_BROWSERS || join(repo, 'tools', 'r4-page', '.browsers') };
+  const check = spawn(process.execPath, [join(HERE, 'check.mjs'), 'page', '--repo', dir], { env, stdio: 'ignore' });
+  const ended = new Promise((done) => check.on('close', (code, signal) => done(code === null ? signal : code)));
+  for (let i = 0; i < 240 && !existsSync(pidFile); i++) await pause(500);
+  if (!existsSync(pidFile)) {
+    check.kill('SIGKILL');
+    return 'no-page-mjs';
+  }
+  const pid = Number(readFileSync(pidFile, 'utf8'));
+  check.kill('SIGTERM');
+  const code = await ended;
+  for (let i = 0; i < 20 && alive(pid); i++) await pause(250);
+  if (alive(pid)) {
+    process.kill(pid, 'SIGKILL');
+    return 'page-mjs-left-' + code;
+  }
+  return code === 143 ? 'ended' : 'exit-' + code;
+}
+
 const SMALL_STATES = ['empty', 'ten'];
 const SMALL_ITEM = 'test_changed';
 
@@ -500,6 +543,7 @@ export async function wholeCases({ repo, work, report }) {
   const s = runCheck(repo, ['whole', '--repo', stale, '--out', join(work, 'fresh-s.txt')]);
   const before = s.lines.some((l) => l.startsWith('page record fault=stamp')) && !s.lines.some((l) => l.startsWith('page state='));
   report('whole-a-stale-record-fails-before-the-run', 'record', before ? s.cause : 'ran-' + s.cause);
+  report('a-term-during-page-mjs-ends-page-mjs', 'ended', await termCase(repo, fx, work));
   const oneByte = join(work, 'whole-a-record-one-byte-away');
   cpSync(fx, oneByte, { recursive: true });
   writeFileSync(join(oneByte, RECORD_FILE), text.replace(/^(page state=ten .* review=)(\d+)/m, (m, a, n) => a + (Number(n) + 1)));

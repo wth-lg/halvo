@@ -14,6 +14,24 @@ export const REGIONS = ['agents'];
 /** Where a run stands: the state and the step, which a run that stops names. */
 export const stage = { state: '-', step: '-' };
 
+/** The child processes that a run started and that have not ended: page.mjs. */
+export const children = new Set();
+
+/** Hands TERM, INT and HUP on to every child that a run started, waits for them for at most 5 s, and ends this process with 128 and the signal's number. */
+export function forwardSignals() {
+  for (const [signal, code] of [['SIGTERM', 143], ['SIGINT', 130], ['SIGHUP', 129]]) {
+    process.on(signal, () => {
+      const left = [...children];
+      for (const c of left) c.kill(signal);
+      const done = () => process.exit(code);
+      if (left.length === 0) done();
+      let open = left.length;
+      for (const c of left) c.once('close', () => --open === 0 && done());
+      setTimeout(done, 5000);
+    });
+  }
+}
+
 /** The milliseconds that the say rule's press waits for its control before the driver gives up. */
 export const PRESS_MS = 10000;
 
@@ -199,12 +217,14 @@ export function needsPage(repo, log, only) {
   return new Promise((done) => {
     const args = [join(repo, 'ui', 'tests', 'r4', 'needs', 'page.mjs'), ...(only ? ['--states', only.join(',')] : [])];
     const child = spawn(process.execPath, args, { cwd: repo, stdio: ['ignore', 'pipe', 'pipe'] });
+    children.add(child);
     let out = '';
     child.stdout.on('data', (d) => {
       out += d;
     });
     child.stderr.on('data', (d) => process.stderr.write(d));
     child.on('close', (code) => {
+      children.delete(child);
       const lines = out.split('\n').filter(Boolean);
       for (const l of lines) log('needs ' + l);
       const last = lines.length ? lines[lines.length - 1] : '';
@@ -270,7 +290,8 @@ export async function pageCheck({ repo, write, needs: runNeeds, only, needsOnly,
   const needs = runNeeds && (!needsOnly || needsOnly.length) ? await needsPage(repo, log, needsOnly) : null;
   if (needs) log('page needs_alone states=' + (needs.parsed ? needs.states : '-') + ' test_items=' + (needs.parsed ? needs.items : '-') + ' failed=' + (needs.parsed ? needs.itemsFailed : '-') + ' exit=' + needs.code);
   const needsStates = needsOnly ? needsOnly.filter((s) => all.includes(s)).length : all.length;
-  return { all, states, results, needs, say, cause: verdict(states, results, runNeeds && (!needsOnly || needsOnly.length) ? needs || { parsed: false } : null, say, needsStates) };
+  const cause = verdict(states, results, runNeeds && (!needsOnly || needsOnly.length) ? needs || { parsed: false } : null, say, needsStates);
+  return { all, states, results, needs, say, cause, line: joined(all.length, results, needs) };
 }
 
 /** The first cause that holds for a whole run: a state that a run or page.mjs left unread, then a check that missed, then a region that missed. */

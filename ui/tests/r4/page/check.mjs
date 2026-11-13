@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileRules } from './files.mjs';
 import { RECORD_FILE, committedRecord, factsOf, firstDiff, packagesCheck, readRecord, recordForm, treeBeside } from './record.mjs';
-import { joined, pageCheck, stage } from './run.mjs';
+import { forwardSignals, pageCheck, stage } from './run.mjs';
 
 const USAGE =
   'usage: node ui/tests/r4/page/check.mjs files --repo DIR --acorn DIR | page --repo DIR [--write] | whole --repo DIR --out FILE | record --repo DIR | selftest --repo DIR --acorn DIR --work DIR';
@@ -33,6 +33,8 @@ function stopped(message) {
   console.log('page stopped state=' + stage.state + ' step=' + stage.step + ' message=' + first);
 }
 
+forwardSignals();
+
 process.on('exit', (code) => {
   if (code === 13) stopped('a top-level await never settled');
 });
@@ -60,7 +62,7 @@ function browsersDir(repo) {
 async function whole(repo, log) {
   const f = factsOf(repo);
   const r = await pageCheck({ repo, needs: true, log });
-  log(joined(f.all.length, r.results, r.needs));
+  log(r.line);
   if (r.cause) return { cause: r.cause, facts: f };
   const m = /^browser name=(\S+) version=(\S+)$/.exec(browserLine || '');
   const own = new Map(r.results.map((x) => [x.state, x.line.review]));
@@ -91,7 +93,7 @@ if (command === 'files') {
   if (!write) packages(repo);
   const r = await pageCheck({ repo, write, needs: !write, log });
   log('page ran states=' + r.results.length + ' of ' + r.all.length + ' needs_states=' + (r.needs && r.needs.parsed ? r.needs.states : '-') + ' test_items=' + (r.needs && r.needs.parsed ? r.needs.items : '-'));
-  log(joined(r.all.length, r.results, r.needs));
+  log(r.line);
   end(r.cause);
 } else if (command === 'whole') {
   const out = arg(rest, '--out');
