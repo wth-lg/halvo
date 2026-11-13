@@ -78,8 +78,15 @@ impl Scratch {
 }
 
 impl Drop for Scratch {
+    /// Removes the directory; where the removal fails it prints one line with the path to standard error and does not
+    /// panic.
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.path);
+        if let Err(e) = std::fs::remove_dir_all(&self.path) {
+            eprintln!(
+                "the scratch directory {} was not removed: {e}",
+                self.path.display()
+            );
+        }
     }
 }
 

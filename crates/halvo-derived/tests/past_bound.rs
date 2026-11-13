@@ -193,7 +193,6 @@ impl Handler for Reader {
 
 /// One store with rows of every class and of the workflow run, held open at its clock.
 struct Fixture {
-    scratch: Scratch,
     clock: TestClock,
     store: Store,
     workflow: WorkflowId,
@@ -202,6 +201,7 @@ struct Fixture {
     echo: Rc<Cell<bool>>,
     fixed: Rc<RefCell<Vec<Proposal>>>,
     at: u64,
+    scratch: Scratch,
 }
 
 impl Fixture {
