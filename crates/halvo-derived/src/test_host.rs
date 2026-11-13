@@ -42,7 +42,8 @@ pub fn start_sqlite() {
 
 /// The delete of everything that the derived store holds: it drops `store`, so that the store's connection closes
 /// before its writer lock is released, and then removes the directory `derived/` of the store with every file in
-/// it, the database, its write-ahead log, its shared-memory file, the writer lock and the key file among them. It
+/// it, the database, its write-ahead log, the writer lock and the key file among them, and a shared-memory file where
+/// another connection left one. It
 /// returns the error of the removal, after which a part of the directory may be left.
 pub fn delete_all(store: Store) -> std::io::Result<()> {
     let dir = store

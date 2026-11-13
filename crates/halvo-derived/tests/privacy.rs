@@ -1051,8 +1051,10 @@ const OPENED: i32 = 41;
 const OTHER: i32 = 42;
 
 /// The second process of the test: this test binary run again for the one test of the second process, with the data
-/// directory in its environment. Dropped on any path of the test, a panic among them, it ends the one process that it
-/// started, by the handle that it got at the start, and no other.
+/// directory in its environment. The child answers by its own exit code and ends itself. Dropped on any path of the
+/// test, a panic among them, the guard asks through the handle that `spawn` returned whether that one process still
+/// runs, and only then ends it through the same handle and waits for it; it looks up no process by number or by name,
+/// signals no other process, and ends no process that the child itself started.
 struct Second(std::process::Child);
 
 impl Second {
@@ -1326,4 +1328,73 @@ fn the_search_finds_a_stored_marker_in_the_log_before_a_checkpoint() {
     let store = one_stored(&scratch, STORED_MARKER);
     assert_eq!(holding(&scratch, STORED_MARKER), vec!["derived.db-wal"]);
     drop(store);
+}
+
+/// The name, the length and the sha256 of every entry of `derived/` under `scratch`, in the order of their names.
+fn fingerprint(scratch: &Scratch) -> Vec<(String, u64, String)> {
+    let mut entries: Vec<(String, u64, String)> = std::fs::read_dir(scratch.path().join("derived"))
+        .unwrap()
+        .map(|entry| {
+            let entry = entry.unwrap();
+            let bytes = std::fs::read(entry.path()).unwrap();
+            let hash: String = Sha256::digest(&bytes)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect();
+            (
+                entry.file_name().to_string_lossy().into_owned(),
+                bytes.len() as u64,
+                hash,
+            )
+        })
+        .collect();
+    entries.sort();
+    entries
+}
+
+/// S-68 (3), both ways: a database that a key made is refused by the keyless open, and a database that the keyless
+/// open made is refused by the keyed open, each as `OpenError::Sealed`, and the name, the length and the sha256 of
+/// every entry of `derived/` are the same after the refused open as before it.
+#[test]
+fn the_keyless_open_refuses_a_keyed_database_and_the_keyed_open_a_keyless_one() {
+    let host = || Host::new(Box::new(TestClock::at_day(DAY)), Box::new(NoProposals));
+    let keyed = Scratch::new("keyed-refused");
+    drop(open_store(&keyed, true, &registry(), host()));
+    let before = fingerprint(&keyed);
+    assert!(before
+        .iter()
+        .any(|(name, len, _)| name == "derived.db" && *len > 0));
+    assert_eq!(
+        open_keyless(keyed.path(), &registry(), host(), &mut Seq(1 << 40)).err(),
+        Some(OpenError::Sealed),
+        "the keyless open of a keyed database"
+    );
+    assert_eq!(
+        fingerprint(&keyed),
+        before,
+        "the entries of a keyed database after the refused keyless open"
+    );
+    let plain_made = Scratch::new("keyless-refused");
+    drop(open_store(&plain_made, false, &registry(), host()));
+    let before = fingerprint(&plain_made);
+    assert!(before
+        .iter()
+        .any(|(name, len, _)| name == "derived.db" && *len > 0));
+    assert_eq!(
+        Store::open(
+            plain_made.path(),
+            &key(),
+            &registry(),
+            host(),
+            &mut Seq(1 << 40)
+        )
+        .err(),
+        Some(OpenError::Sealed),
+        "the keyed open of a keyless database"
+    );
+    assert_eq!(
+        fingerprint(&plain_made),
+        before,
+        "the entries of a keyless database after the refused keyed open"
+    );
 }

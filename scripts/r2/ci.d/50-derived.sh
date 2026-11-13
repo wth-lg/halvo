@@ -166,6 +166,7 @@ esac
 #= tests/cases.rs a_second_making_of_a_scratch_leaf_that_exists_fails
 #= src/lib.rs tests::two_unit_directories_of_one_name_in_one_process_get_two_paths
 #= tests/past_bound.rs a_dropped_fixture_leaves_no_directory
+#= tests/privacy.rs the_keyless_open_refuses_a_keyed_database_and_the_keyed_open_a_keyless_one
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"

@@ -509,7 +509,8 @@ fn the_support_rows_of_an_updated_workflow_are_those_of_its_latest_proposal_alon
 
 /// A proposal that names a stored summary outside its bound for the proposal check, one day past it or one of a day
 /// after the clock's day, is refused and counted in `refused`, and no workflow row and no support row comes of it,
-/// while the same proposal inside the bound is stored. For this check a summary is inside its bound when its day is not
+/// while the same proposal inside the bound is stored: the control, with the clock moved to the day of the summary
+/// that was one day ahead, stores the proposal that names that summary alone as one workflow. For this check a summary is inside its bound when its day is not
 /// after the clock's day and the clock's day less its day is less than the days of the entry in force, which every
 /// summary that the summary read of C2.11 visits meets (C2.4; the coordinator's ruling DS-5 (a), reading A).
 #[test]
