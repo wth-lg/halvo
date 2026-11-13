@@ -33,7 +33,7 @@ impl Runner {
     fn token(&mut self, target: &ApiTarget, loaded: &LoadReply) -> Result<SecretText, Stop> {
         let name = Name::parse(target.adapter.as_str()).map_err(|_| unreadable())?;
         match self.secret(&name)? {
-            SecretReply::Stored(value) => return stored(value),
+            SecretReply::Stored(value) => return Ok(value),
             SecretReply::Unreadable(_) => return Err(unreadable()),
             SecretReply::None => {}
         }
@@ -46,7 +46,7 @@ impl Runner {
             HandbackOutcome::Declined => Err(Stop::End(Outcome::Declined, Some(Cause::Declined))),
             HandbackOutcome::Timeout => Err(Stop::End(Outcome::HandedBack, Some(Cause::Timeout))),
             HandbackOutcome::Done => match self.secret(result.secret.as_ref().unwrap_or(&name))? {
-                SecretReply::Stored(value) => stored(value),
+                SecretReply::Stored(value) => Ok(value),
                 SecretReply::Unreadable(_) => Err(unreadable()),
                 SecretReply::None => Err(Stop::End(Outcome::HandedBack, None)),
             },
@@ -62,12 +62,4 @@ impl Runner {
             _ => Err(Broken::Frame("not_a_secret_reply").into()),
         }
     }
-}
-
-/// A stored secret holds at least one byte; an empty one is a store that could not be read (CP-95 (1)).
-fn stored(value: SecretText) -> Result<SecretText, Stop> {
-    if value.expose().is_empty() {
-        return Err(unreadable());
-    }
-    Ok(value)
 }

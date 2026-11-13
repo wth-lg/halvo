@@ -139,14 +139,16 @@ fn a_link_that_times_out_ends_the_run_handed_back_with_the_cause_timeout() {
     );
 }
 
+/// The test's token as a stored secret; the test fails here when the parse refuses it.
+fn token() -> SecretText {
+    SecretText::parse(TOKEN).expect("the test's token parses as a stored secret")
+}
+
 #[test]
 fn a_stored_secret_reaches_the_call_which_has_no_adapter_in_this_build() {
     for secrets in [
-        vec![SecretReply::Stored(SecretText::new(TOKEN))],
-        vec![
-            SecretReply::None,
-            SecretReply::Stored(SecretText::new(TOKEN)),
-        ],
+        vec![SecretReply::Stored(token())],
+        vec![SecretReply::None, SecretReply::Stored(token())],
     ] {
         let linked = secrets.len() == 2;
         let sup = agent(66, Category::Email);
@@ -185,18 +187,13 @@ fn a_stored_secret_reaches_the_call_which_has_no_adapter_in_this_build() {
     }
 }
 
+/// Since U1.5 no stored secret is empty: `SecretText::parse` refuses the empty text with the rule `empty_secret`,
+/// and a frame `secret_reply` reads its value through that parse. This test takes the place of
+/// `an_empty_stored_secret_is_a_store_that_could_not_be_read` (CP-127).
 #[test]
-fn an_empty_stored_secret_is_a_store_that_could_not_be_read() {
-    let sup = agent(67, Category::Email);
-    let seen = serve(
-        &sup,
-        vec![SecretReply::Stored(SecretText::new(""))],
-        Vec::new(),
-    );
-    assert_eq!(seen.done(), Some(Outcome::Failed));
-    assert!(seen.handbacks().is_empty());
-    assert_eq!(
-        seen.logs().last().map(|l| l.cause),
-        Some(Some(Cause::Secret))
-    );
+fn an_empty_stored_secret_is_refused_by_secret_text_parse_with_empty_secret() {
+    match SecretText::parse("") {
+        Ok(_) => panic!("an empty stored secret is refused"),
+        Err(refusal) => assert_eq!(refusal.rule(), "empty_secret"),
+    }
 }
