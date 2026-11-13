@@ -3885,7 +3885,7 @@ fn a_queued_start_of_a_ready_item_whose_read_brings_a_lost_switch_off_is_refused
         ..Limits::PRODUCT
     };
     for order in ORDERS {
-        let c = coordinator(&[MANUAL, slotted], one);
+        let c = coordinator(&[MANUAL, slotted, MANUAL], one);
         let (ready, kind) = open_item(&c);
         assert_eq!(kind, ItemKind::Ready);
         let first = start(&c, 0);
@@ -3908,13 +3908,26 @@ fn a_queued_start_of_a_ready_item_whose_read_brings_a_lost_switch_off_is_refused
             "{order:?}: the item is open"
         );
         refused_after_its_read(&c, m, 1, starts, &format!("{order:?}"));
+        assert_eq!(c.control(&agent(2), Action::RunNow), Ok(()), "{order:?}");
+        assert_eq!(started(&c).len(), 1, "{order:?}: agent 2 waits");
         c.ports().ports.end_runner(&first);
         c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
             .unwrap();
+        let specs: Vec<AgentId> = c
+            .ports()
+            .ports
+            .calls
+            .borrow()
+            .iter()
+            .filter_map(|t| match &t.call {
+                Call::Start(spec) => Some(spec.agent.clone()),
+                _ => None,
+            })
+            .collect();
         assert_eq!(
-            started(&c).len(),
-            1,
-            "{order:?}: the queue holds no start of the agent"
+            specs,
+            [agent(0), agent(2)],
+            "{order:?}: the queue holds no start of agent 1, so the end takes agent 2's"
         );
         assert_eq!(run_starts_of(&c, 1), starts, "{order:?}");
     }
