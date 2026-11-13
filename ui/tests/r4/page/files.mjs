@@ -1,8 +1,9 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, relative, sep } from 'node:path';
 
-const NAMES = [
+export const NAMES = [
   'setTimeout',
   'setInterval',
   'requestAnimationFrame',
@@ -38,6 +39,15 @@ const OTHER_STRUCTURE = [
   join('ui', 'tests', 'r4', 'agents', 'structure'),
   join('tools', 'r4-page', 'sample'),
 ];
+
+/** The count of view files that the index holds under ui/app/views/, or null outside a git work tree. */
+function viewsOfCommit(repo) {
+  try {
+    return execFileSync('git', ['-C', repo, 'ls-files', '-z', '--', VIEWS_DIR.split(sep).join('/')], { stdio: ['ignore', 'pipe', 'ignore'] }).toString('utf8').split('\0').filter(Boolean).length;
+  } catch {
+    return null;
+  }
+}
 
 function filesUnder(dir) {
   const out = [];
@@ -84,13 +94,23 @@ function walk(node, visit) {
   }
 }
 
-function keyName(node) {
-  if (!node.computed && node.property.type === 'Identifier') return node.property.name;
-  if (node.property.type === 'Literal' && typeof node.property.value === 'string') return node.property.value;
+/** The text of an expression that is a string literal or a join of string literals with +, else null. */
+function joinedText(node) {
+  if (node.type === 'Literal' && typeof node.value === 'string') return node.value;
+  if (node.type === 'BinaryExpression' && node.operator === '+') {
+    const a = joinedText(node.left);
+    const b = a === null ? null : joinedText(node.right);
+    return a === null || b === null ? null : a + b;
+  }
   return null;
 }
 
-/** The rules of contracts.md I8.4 on one view file's text: the parse at ECMAScript 2022, template strings, the 21 names, the two prefixes and the deny patterns. */
+function keyName(node) {
+  if (!node.computed && node.property.type === 'Identifier') return node.property.name;
+  return node.computed ? joinedText(node.property) : null;
+}
+
+/** The rules of contracts.md I8.4 on one view file's text: the parse at ECMAScript 2022, template strings, the 21 names and the two prefixes (in the text, in decoded names and strings, in a key or a value that joins string literals, a member write or writeln of any object, a with statement) and the deny patterns. */
 export function viewRules(acorn, text, denies) {
   const found = { syntax: [], template: [], names: [], deny: [] };
   let ast = null;
@@ -105,11 +125,16 @@ export function viewRules(acorn, text, denies) {
       if (node.type === 'TemplateLiteral' || node.type === 'TaggedTemplateExpression') found.template.push('template');
       if (node.type === 'Identifier' || node.type === 'PrivateIdentifier') hitsIn(node.name).forEach((h) => names.add(h));
       if (node.type === 'Literal' && typeof node.value === 'string') hitsIn(node.value).forEach((h) => names.add(h));
+      if (node.type === 'BinaryExpression') {
+        const joined = joinedText(node);
+        if (joined !== null) hitsIn(joined).forEach((h) => names.add(h));
+      }
+      if (node.type === 'WithStatement') names.add('with');
       if (node.type === 'MemberExpression') {
         const k = keyName(node);
         if (k !== null) {
           hitsIn(k).forEach((h) => names.add(h));
-          if ((k === 'write' || k === 'writeln') && node.object.type === 'Identifier' && node.object.name === 'document') names.add('document.write');
+          if (k === 'write' || k === 'writeln') names.add('document.write');
         }
       }
     });
@@ -192,6 +217,7 @@ export function fileRules(repo, acornDir) {
     return { lines, cause: 'features' };
   }
   const views = filesUnder(join(repo, VIEWS_DIR)).sort();
+  const committed = viewsOfCommit(repo);
   const total = { syntax: 0, template: 0, names: 0, deny: 0 };
   let unrun = 0;
   for (const v of views) {
@@ -207,7 +233,7 @@ export function fileRules(repo, acornDir) {
   }
   lines.push(
     'files views=' + views.length + ' syntax=' + total.syntax + ' template=' + total.template + ' names=' + total.names + ' deny=' + total.deny +
-      ' deny_lines=' + denies.length + ' unrun=' + unrun,
+      ' deny_lines=' + denies.length + ' unrun=' + unrun + ' commit_views=' + (committed === null ? '-' : committed),
   );
   const states = statesOf(join(repo, FIXTURES_DIR));
   let acts;
@@ -247,6 +273,7 @@ export function fileRules(repo, acornDir) {
     : total.names ? 'names'
     : total.deny ? 'deny'
     : unrun ? 'unrun'
+    : views.length === 0 || (committed !== null && committed !== views.length) ? 'views'
     : states.length === 0 ? 'states'
     : acts.unknown ? 'acts'
     : missing || stale ? 'structure'
@@ -255,4 +282,3 @@ export function fileRules(repo, acornDir) {
     : null;
   return { lines, cause };
 }
-

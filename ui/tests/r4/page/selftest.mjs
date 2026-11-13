@@ -1,10 +1,13 @@
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { ACTS_FILE, FIXTURES_DIR, RUN_VIEWS, SNAPSHOTS_DIR, VIEWS_DIR, denyLines, fileRules, spreadCount, statesOf, viewRules } from './files.mjs';
-import { RECORD_FILE, STAMPED, pushLine, readRecord, recordText, rotation, stampOf } from './record.mjs';
+import { fileURLToPath } from 'node:url';
+import { ACTS_FILE, FIXTURES_DIR, NAMES, RUN_VIEWS, SNAPSHOTS_DIR, VIEWS_DIR, denyLines, fileRules, spreadCount, statesOf, viewRules } from './files.mjs';
+import { RECORD_FILE, committedRecord, factsOf, packagesCheck, pushLine, readRecord, recordForm, rotation, stampOf, treeBeside } from './record.mjs';
 import { loadHarness, pageConfirmFirst, plan, runStates, sayRule, verdict } from './run.mjs';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 const COPIED = [
   VIEWS_DIR,
@@ -13,6 +16,9 @@ const COPIED = [
   ACTS_FILE,
   join('docs', 'r4', 'page-features.txt'),
   join('tools', 'r4-page', 'package.json'),
+  join('tools', 'r4-page', 'package-lock.json'),
+  join('tools', 'r4-page', 'browser.txt'),
+  join('ui', 'index.html'),
   join('ui', 'tests', 'r4', 'needs', 'structure'),
   join('ui', 'tests', 'r4', 'agents', 'structure'),
   join('ui', 'tests', 'r4', 'needs', 'items.json'),
@@ -34,6 +40,14 @@ const VIEW_CASES = [
   ['syntax-after-2022', 'syntax', (t) => t + '\nvar r4x = /[a]/v;\n'],
   ['names-escaped-global-call', 'names', (t) => t + '\n\\u0073etTimeout(function () {}, 1);\n'],
   ['syntax-module-grammar', 'syntax', (t) => t + "\nimport x from './x.js';\n"],
+  ['names-write-of-an-alias', 'names', (t) => t + '\nfunction r4z() { var d = document; d.write("<p>x</p>"); }\n'],
+  ['names-a-with-statement', 'names', (t) => t + '\nfunction r4z() { with (document) body; }\n'],
+  ['names-a-joined-key-set-timeout', 'names', (t) => t + '\nwindow["set" + "Timeout"](function () {}, 0);\n'],
+  ['names-a-joined-key-fetch', 'names', (t) => t + '\nself["fe" + "tch"]("/x");\n'],
+  ['names-a-decoded-string-carried-to-a-key', 'names', (t) => t + '\nvar r4k = "\\u0069nnerHTML"; document.body[r4k] = "x";\n'],
+  ['a-name-that-ends-in-a-forbidden-name', 'pass', (t) => t + '\nvar prefetch = 1;\n'],
+  ['a-name-that-starts-with-a-forbidden-name', 'pass', (t) => t + '\nvar fetcher = 1;\n'],
+  ...NAMES.map((n) => ['names-each-' + n.replace('.', '-'), 'names', (t) => t + '\n' + (n === 'document.write' ? "document.write('x');" : 'var r4n = window.' + n + ';') + '\n']),
 ];
 
 const DENY = '# a planted deny line of the self-test\ndeny\tplanted_feature\t18.0\t\\.r4plantedFeature\\(\n';
@@ -42,6 +56,13 @@ const FILE_CASES = [
   ['a-denied-feature', 'deny', (d) => {
     append(d, join('docs', 'r4', 'page-features.txt'), DENY);
     append(d, join(VIEWS_DIR, 'agents.js'), '\ndocument.body.r4plantedFeature(1);\n');
+  }],
+  ['a-deny-pattern-that-needs-the-u-flag', 'deny', (d) => {
+    append(d, join('docs', 'r4', 'page-features.txt'), '# a planted deny line of the self-test\ndeny\tplanted_unicode\t18.0\t\\.r4\\p{Lu}planted\\(\n');
+    append(d, join(VIEWS_DIR, 'agents.js'), '\ndocument.body.r4Xplanted(1);\n');
+  }],
+  ['no-view-file', 'views', (d) => {
+    for (const f of ['agents.js', 'needs.js']) renameSync(join(d, VIEWS_DIR, f), join(d, f));
   }],
   ['a-malformed-feature-line', 'features', (d) => append(d, join('docs', 'r4', 'page-features.txt'), 'deny\tonly-three\t18.0\n')],
   ['a-bad-deny-pattern', 'features', (d) => append(d, join('docs', 'r4', 'page-features.txt'), 'deny\tbad\t18.0\t(\n')],
@@ -145,35 +166,39 @@ function append(dir, rel, text) {
   writeFileSync(join(dir, rel), readFileSync(join(dir, rel), 'utf8') + text);
 }
 
-function listOf(dir) {
-  const out = [];
-  const visit = (rel) => {
-    const full = join(dir, rel);
-    if (!existsSync(full)) return;
-    if (statSync(full).isDirectory()) for (const f of readdirSync(full)) visit(rel + '/' + f);
-    else out.push(rel);
-  };
-  for (const s of STAMPED) visit(s);
-  return out;
+function git(dir, ...args) {
+  return execFileSync('git', ['-C', dir, ...args], { stdio: ['ignore', 'pipe', 'ignore'] }).toString('utf8');
+}
+
+/** A fixture repository whose index holds its files, with no commit. */
+function indexed(dir, crlf = false) {
+  git(dir, 'init', '-q');
+  if (crlf) git(dir, 'config', 'core.autocrlf', 'true');
+  git(dir, 'add', '-A');
+  return dir;
+}
+
+function counted(names) {
+  return new Map(names.map((n, i) => [n, (i % 9) + 1]));
+}
+
+/** A record of a passing run of the fixture, as the writer writes it, through one change of its text. */
+function writeRecord(dir, change = (x) => x) {
+  git(dir, 'add', '-A');
+  const f = factsOf(dir);
+  const text = recordForm({ ...f, version: '27.2', own: counted(f.all), needs: counted([...f.all, ...f.items]) });
+  writeFileSync(join(dir, RECORD_FILE), change(text));
+}
+
+function recordFault(dir) {
+  git(dir, 'add', '-A');
+  return readRecord(committedRecord(dir), factsOf(dir)).fault || 'pass';
 }
 
 const OK_LINE = ' violations=0 review=0 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok';
 
-function writeRecord(dir, change = (l) => l, cause = null) {
-  const states = statesOf(join(dir, FIXTURES_DIR));
-  const lines = [
-    ...plan(join(dir, FIXTURES_DIR), states).map((r) => 'page state=' + r.state + ' views=' + r.label + OK_LINE + ' region=ok'),
-    ...states.map((s) => 'needs page state=' + s + OK_LINE),
-    'page states=' + states.length + OK_LINE,
-  ];
-  writeFileSync(join(dir, RECORD_FILE), recordText({ ...stampOf(dir, listOf(dir)), browser: 'browser name=webkit version=27.2', lines: change(lines), cause }));
-}
-
-function recordFault(dir) {
-  const states = statesOf(join(dir, FIXTURES_DIR));
-  const labels = Object.fromEntries(plan(join(dir, FIXTURES_DIR), states).map((r) => [r.state, r.label]));
-  return readRecord(dir, states, stampOf(dir, listOf(dir)).stamp, labels).fault || 'pass';
-}
+const line = (start, change) => (text) => text.split('\n').map((l) => (l.startsWith(start) ? change(l) : l)).join('\n');
+const drop = (start) => (text) => text.split('\n').filter((l) => !l.startsWith(start)).join('\n');
 
 const RECORD_CASES = [
   ['record-as-written', 'pass', (d) => writeRecord(d)],
@@ -181,6 +206,20 @@ const RECORD_CASES = [
   ['record-then-a-view-changed', 'stamp', (d) => {
     writeRecord(d);
     append(d, join(VIEWS_DIR, 'agents.js'), '\n');
+  }],
+  ['record-then-a-lone-carriage-return-in-a-view', 'stamp', (d) => {
+    writeRecord(d);
+    const p = join(d, VIEWS_DIR, 'agents.js');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('\n', '\r\n'));
+  }],
+  ['record-then-a-file-under-ui-outside-the-views-changed', 'stamp', (d) => {
+    writeRecord(d);
+    append(d, join('ui', 'index.html'), '\n');
+  }],
+  ['record-then-a-line-of-the-harness-lock-changed', 'stamp', (d) => {
+    writeRecord(d);
+    const p = join(d, 'tools', 'r4-page', 'package-lock.json');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('"lockfileVersion": 3', '"lockfileVersion": 3 '));
   }],
   ['record-then-a-state-added', 'stamp', (d) => {
     writeRecord(d);
@@ -190,20 +229,28 @@ const RECORD_CASES = [
     writeRecord(d);
     append(d, join(SNAPSHOTS_DIR, 'ten.txt'), '- {"role":"note"}\n');
   }],
-  ['record-then-the-views-checked-out-with-crlf', 'pass', (d) => {
-    writeRecord(d);
-    for (const f of ['agents.js', 'needs.js']) writeFileSync(join(d, VIEWS_DIR, f), readFileSync(join(d, VIEWS_DIR, f), 'utf8').replace(/\n/g, '\r\n'));
-  }],
-  ['record-of-a-run-that-failed', 'result', (d) => writeRecord(d, (l) => l, 'page')],
-  ['record-without-a-run-of-a-state', 'states', (d) => writeRecord(d, (l) => l.slice(1))],
-  ['record-without-a-needs-run-of-a-state', 'states', (d) => writeRecord(d, (l) => l.filter((x) => !x.startsWith('needs page state=ten ')))],
-  ['record-with-a-run-that-missed', 'result', (d) => writeRecord(d, (l) => l.map((x) => (x.startsWith('page state=ten ') ? x + ' misses=2:focus_unseen' : x)))],
-  ['record-with-a-region-that-missed', 'result', (d) => writeRecord(d, (l) => l.map((x) => (x.startsWith('page state=ten ') ? x.replace('region=ok', 'region=miss') : x)))],
-  ['record-of-a-confirmation-state-with-one-view', 'views', (d) => writeRecord(d, (l) => l.map((x) => (x.startsWith('page state=needs_confirm_page ') ? x.replace('views=both', 'views=agents') : x)))],
-  ['record-with-failed-values-and-no-miss-name', 'result', (d) => writeRecord(d, (l) => l.map((x) => (x.startsWith('page state=card ') ? x.replace('keyboard=ok', 'keyboard=miss') : x)))],
-  ['record-whose-joined-line-shows-a-miss', 'result', (d) => writeRecord(d, (l) => l.map((x) => (x.startsWith('page states=') ? x.replace('structure=same', 'structure=differ') : x)))],
-  ['record-with-a-second-stamp', 'no_stamp', (d) => writeRecord(d, (l) => [...l, 'stamp=' + '0'.repeat(64)])],
-  ['record-whose-line-counts-fewer-states', 'states', (d) => writeRecord(d, (l) => l.map((x) => (x.startsWith('page states=') ? x.replace(/states=\d+/, 'states=1') : x)))],
+  ['record-with-files-999', 'stamp', (d) => writeRecord(d, line('stamp=', (l) => l.replace(/files=\d+/, 'files=999')))],
+  ['record-with-violations-1-on-a-line', 'form', (d) => writeRecord(d, line('page state=ten ', (l) => l.replace('violations=0', 'violations=1')))],
+  ['record-with-markup-miss-and-no-miss-name', 'form', (d) => writeRecord(d, line('page state=ten ', (l) => l.replace('markup=ok', 'markup=miss')))],
+  ['record-with-region-not-read-on-a-line', 'form', (d) => writeRecord(d, line('page state=ten ', (l) => l.replace('region=ok', 'region=-')))],
+  ['record-whose-regions-line-says-say-miss', 'form', (d) => writeRecord(d, line('page regions ', (l) => l.replace('say=ok', 'say=miss')))],
+  ['record-without-its-regions-line', 'form', (d) => writeRecord(d, drop('page regions '))],
+  ['record-with-failed-test-items', 'form', (d) => writeRecord(d, line('needs page test_items=', (l) => l.replace('failed=0', 'failed=7')))],
+  ['record-whose-needs-run-exited-1', 'form', (d) => writeRecord(d, line('page needs_alone ', (l) => l.replace('exit=0', 'exit=1')))],
+  ['record-without-the-line-of-a-test-item', 'form', (d) => writeRecord(d, (x) => drop('needs page state=' + Object.keys(JSON.parse(readFileSync(join(d, 'ui', 'tests', 'r4', 'needs', 'items.json'), 'utf8')))[0] + ' ')(x))],
+  ['record-with-a-key-twice-on-a-line', 'form', (d) => writeRecord(d, line('page state=ten ', (l) => l.replace('keyboard=ok', 'keyboard=miss keyboard=ok')))],
+  ['record-of-another-engine', 'form', (d) => writeRecord(d, line('browser name=', (l) => l.replace('name=webkit', 'name=chromium')))],
+  ['record-without-a-browser-line', 'form', (d) => writeRecord(d, drop('browser name='))],
+  ['record-with-a-line-after-the-result', 'form', (d) => writeRecord(d, (x) => x + 'page state=ten\n')],
+  ['record-with-another-first-line', 'form', (d) => writeRecord(d, (x) => x.replace('page record: ', 'page record by hand: '))],
+  ['record-of-a-run-that-failed', 'form', (d) => writeRecord(d, (x) => x.replace('result=ok', 'result=page'))],
+  ['record-without-a-run-of-a-state', 'form', (d) => writeRecord(d, drop('page state=ten '))],
+  ['record-without-a-needs-run-of-a-state', 'form', (d) => writeRecord(d, drop('needs page state=ten '))],
+  ['record-with-a-run-that-missed', 'form', (d) => writeRecord(d, line('page state=ten ', (l) => l + ' misses=2:focus_unseen'))],
+  ['record-of-a-confirmation-state-with-one-view', 'form', (d) => writeRecord(d, line('page state=needs_confirm_page ', (l) => l.replace('views=both', 'views=agents')))],
+  ['record-whose-joined-line-shows-a-miss', 'form', (d) => writeRecord(d, line('page states=', (l) => l.replace('structure=same', 'structure=differ')))],
+  ['record-whose-joined-line-counts-another-review', 'form', (d) => writeRecord(d, line('page states=', (l) => l.replace(/review=\d+/, 'review=1')))],
+  ['record-with-a-second-stamp', 'form', (d) => writeRecord(d, (x) => x.replace('result=ok\n', 'stamp=' + '0'.repeat(64) + '\nresult=ok\n'))],
 ];
 
 function copyRepo(repo, dir) {
@@ -248,6 +295,17 @@ export function fileCases({ repo, acorn: acornDir, work, report }) {
     plant(dir);
     report(name, cause, fileRules(dir, acornDir).cause || 'pass');
   }
+  const lacking = indexed(copyRepo(repo, join(work, 'a-view-that-the-commit-holds-and-the-tree-lacks')));
+  renameSync(join(lacking, VIEWS_DIR, 'agents.js'), join(lacking, 'agents.js'));
+  report('a-view-that-the-commit-holds-and-the-tree-lacks', 'views', fileRules(lacking, acornDir).cause || 'pass');
+  const beside = indexed(copyRepo(repo, join(work, 'tree-beside')));
+  report('tree-beside-a-clean-index', 'pass', treeBeside(beside).length === 0 ? 'pass' : 'fail');
+  writeFileSync(join(beside, RECORD_FILE), 'x\n');
+  report('tree-beside-leaves-the-record-out', 'pass', treeBeside(beside).length === 0 ? 'pass' : 'fail');
+  writeFileSync(join(beside, 'ui', 'extra.txt'), 'x\n');
+  report('tree-beside-an-untracked-file', 'listed', treeBeside(beside).join() === 'ui/extra.txt' ? 'listed' : 'pass');
+  append(beside, join(VIEWS_DIR, 'agents.js'), '\n');
+  report('tree-beside-a-changed-tracked-file', 'listed', treeBeside(beside).includes('ui/app/views/agents.js') ? 'listed' : 'pass');
   const fx = join(repo, FIXTURES_DIR);
   const states = statesOf(fx);
   const runs = plan(fx, states);
@@ -260,10 +318,10 @@ export function fileCases({ repo, acorn: acornDir, work, report }) {
     firsts.length > 0 && otherConfirms.length > 0 && runs.every((r) => (r.views.length === 2) === firsts.includes(r.state) && r.label === (r.views.length === 2 ? 'both' : 'agents')) ? 'pass' : 'fail',
   );
   report('page-confirm-first-of-a-native-confirmation', 'pass', otherConfirms.every((s) => !pageConfirmFirst(JSON.parse(readFileSync(join(fx, 'state-' + s + '.json'), 'utf8')).snapshot)) ? 'pass' : 'fail');
-  const one = { line: {}, names: [], region: { misses: [] } };
+  const one = { line: {}, names: [], region: { read: 1, misses: [] }, ok: true };
   const needs = { parsed: true, states: states.length, code: 0, itemsFailed: 0 };
-  const results = states.map((state) => ({ ...one, state }));
-  const say = { misses: [] };
+  const results = runs.map((r) => ({ ...r, ...one }));
+  const say = { read: 1, misses: [] };
   report('verdict-of-a-whole-run', 'pass', verdict(states, results, needs, say) || 'pass');
   report('verdict-a-state-with-no-run', 'states', verdict(states, results.slice(1), needs, say) || 'pass');
   report('verdict-a-run-of-another-state', 'states', verdict(states, [...results.slice(1), { ...one, state: 'other' }], needs, say) || 'pass');
@@ -272,12 +330,40 @@ export function fileCases({ repo, acorn: acornDir, work, report }) {
   report('verdict-needs-alone-exit-1', 'page', verdict(states, results, { ...needs, code: 1 }, say) || 'pass');
   report('verdict-a-test-item-failed', 'page', verdict(states, results, { ...needs, itemsFailed: 1 }, say) || 'pass');
   report('verdict-no-states', 'states', verdict([], [], needs, say) || 'pass');
-  report('verdict-a-say-missed', 'status', verdict(states, results, needs, { misses: ['agents:say'] }) || 'pass');
+  report('verdict-a-say-missed', 'status', verdict(states, results, needs, { read: 1, misses: ['agents:say'] }) || 'pass');
+  const missedCheck = results.map((r, i) => (i === 0 ? { ...r, names: ['2:focus_unseen'], ok: false } : r));
+  report('verdict-a-check-that-missed', 'page', verdict(states, missedCheck, needs, say) || 'pass');
+  const missedRegion = results.map((r, i) => (i === 0 ? { ...r, region: { read: 1, misses: ['agents:rebuilt'] }, ok: false } : r));
+  report('verdict-a-region-that-missed', 'status', verdict(states, missedRegion, needs, say) || 'pass');
   for (const [name, fault, plant] of RECORD_CASES) {
-    const dir = copyRepo(repo, join(work, name));
+    const dir = indexed(copyRepo(repo, join(work, name)));
     plant(dir);
     report(name, fault, recordFault(dir));
   }
+  const crlf = indexed(copyRepo(repo, join(work, 'record-then-the-views-checked-out-with-crlf')), true);
+  writeRecord(crlf);
+  for (const f of ['agents.js', 'needs.js']) writeFileSync(join(crlf, VIEWS_DIR, f), readFileSync(join(crlf, VIEWS_DIR, f), 'utf8').replace(/\n/g, '\r\n'));
+  report('record-then-the-views-checked-out-with-crlf', 'pass', recordFault(crlf));
+  const real = process.env.R4_PAGE_BROWSERS || join(repo, 'tools', 'r4-page', '.browsers');
+  report('packages-of-the-browsers-directory', 'pass', packagesCheck(repo, real).cause || 'pass');
+  const lockDiffers = join(work, 'packages-lock-differs');
+  mkdirSync(lockDiffers, { recursive: true });
+  const lock = JSON.parse(readFileSync(join(repo, 'tools', 'r4-page', 'package-lock.json'), 'utf8'));
+  for (const key of Object.keys(lock.packages || {}).filter((k) => k.startsWith('node_modules/'))) {
+    mkdirSync(join(lockDiffers, key), { recursive: true });
+    if (existsSync(join(real, key, 'package.json'))) cpSync(join(real, key, 'package.json'), join(lockDiffers, key, 'package.json'));
+  }
+  cpSync(join(repo, 'tools', 'r4-page', 'package.json'), join(lockDiffers, 'package.json'));
+  writeFileSync(join(lockDiffers, 'package-lock.json'), readFileSync(join(repo, 'tools', 'r4-page', 'package-lock.json'), 'utf8') + ' ');
+  report('packages-a-copy-of-the-lock-differs', 'browser', packagesCheck(repo, lockDiffers).cause || 'pass');
+  const versionDiffers = join(work, 'packages-a-version-differs');
+  mkdirSync(versionDiffers, { recursive: true });
+  cpSync(join(lockDiffers, 'node_modules'), join(versionDiffers, 'node_modules'), { recursive: true });
+  for (const f of ['package.json', 'package-lock.json']) cpSync(join(repo, 'tools', 'r4-page', f), join(versionDiffers, f));
+  report('packages-copies-as-committed', 'pass', packagesCheck(repo, versionDiffers).cause || 'pass');
+  const pw = join(versionDiffers, 'node_modules', 'playwright', 'package.json');
+  writeFileSync(pw, JSON.stringify({ ...JSON.parse(readFileSync(pw, 'utf8')), version: '0.0.1' }));
+  report('packages-a-version-differs', 'browser', packagesCheck(repo, versionDiffers).cause || 'pass');
   const a = rotation('0'.repeat(40), states);
   const b = rotation('1'.repeat(40), states);
   report('rotation-reads-every-state-once', 'pass', a.slice().sort().join() === states.join() ? 'pass' : 'fail');
@@ -342,6 +428,7 @@ export async function pageCases({ repo, work, report, log }) {
   const SAY_CASES = [
     ['a-region-rebuilt-at-a-status-change', 'agents:rebuilt', (t) => swap(t, '    says.forEach(function (s) {\n', "    if (says.length) {\n      var fresh = el('div', 'r4a-say', null);\n      fresh.setAttribute('role', 'status');\n      status.parentNode.replaceChild(fresh, status);\n      status = fresh;\n    }\n    says.forEach(function (s) {\n")],
     ['a-region-hidden-once-it-holds-a-say', 'agents:hidden', css('.r4a-say:not(:empty){display:none}')],
+    ['a-row-that-takes-no-press', 'agents:press', (t) => swap(t, "    var li = el('li', 'r4a-row', null);\n", "    var li = el('li', 'r4a-row', null);\n    li.inert = true;\n")],
     ['a-say-set-as-markup', 'agents:markup', (t) => swap(t, "      status.appendChild(el('p', null, s));\n", "      var said = el('p', null, null);\n      said['inner' + 'HTML'] = s;\n      status.appendChild(said);\n")],
   ];
   for (const [name, miss, plant] of SAY_CASES) {
@@ -359,11 +446,67 @@ export async function pageCases({ repo, work, report, log }) {
   }
   const kept = await sayRule(harness, controlOrigin, fx, statesOf(fx));
   report('say-control-of-the-unchanged-view', 'pass', kept.read === 1 && kept.misses.length === 0 ? 'pass' : 'fail');
+  await wholeCases({ repo, work, report });
+}
+
+const SMALL_STATES = ['empty', 'ten'];
+const SMALL_ITEM = 'test_changed';
+
+/** A small fixture repository: the stamped files of the repository with two states and one test item, its index holding them. */
+function smallRepo(repo, dir) {
+  const files = git(repo, 'ls-files', '-z', '--', 'ui', 'tools/r4-page', 'docs/r4/page-features.txt', 'scripts/r4/ci.d/40-r4-page.sh').split('\0').filter(Boolean);
+  for (const f of files) {
+    if (f === 'ui/tests/r4/page/record.txt') continue;
+    const state = /^ui\/tests\/fixtures\/coord\/state-(.+)\.json$/.exec(f);
+    if (state && !SMALL_STATES.includes(state[1])) continue;
+    const structure = /^ui\/tests\/r4\/(?:snapshots|agents\/structure|needs\/structure)\/(.+)\.txt$/.exec(f);
+    if (structure && !SMALL_STATES.includes(structure[1]) && structure[1] !== SMALL_ITEM) continue;
+    mkdirSync(dirname(join(dir, f)), { recursive: true });
+    cpSync(join(repo, f), join(dir, f));
+  }
+  const items = JSON.parse(readFileSync(join(repo, 'ui', 'tests', 'r4', 'needs', 'items.json'), 'utf8'));
+  writeFileSync(join(dir, 'ui', 'tests', 'r4', 'needs', 'items.json'), JSON.stringify({ [SMALL_ITEM]: items[SMALL_ITEM] }) + '\n');
+  return indexed(dir);
+}
+
+function runCheck(repo, args) {
+  const env = { ...process.env, R4_PAGE_BROWSERS: process.env.R4_PAGE_BROWSERS || join(repo, 'tools', 'r4-page', '.browsers') };
+  const r = spawnSync(process.execPath, [join(HERE, 'check.mjs'), ...args], { env, encoding: 'utf8' });
+  const lines = (r.stdout || '').split('\n').filter(Boolean);
+  const last = lines.length ? lines[lines.length - 1] : '';
+  return { status: r.status, lines, cause: last.startsWith('check result=') ? last.slice('check result='.length) : 'exit-' + r.status };
+}
+
+/** The whole run of the macos job on a small fixture: --record writes a record that passes; a hand record over a wrong structure file and a record one byte away from the fresh one fail. */
+async function wholeCases({ repo, work, report }) {
+  const fx = smallRepo(repo, join(work, 'whole-small'));
+  const written = runCheck(repo, ['record', '--repo', fx]);
+  report('whole-record-of-a-small-fixture', 'pass', written.status === 0 && written.cause === 'ok' ? 'pass' : written.cause);
+  const text = committedRecord(fx) || '';
+  const byHand = join(work, 'whole-a-hand-record-over-a-wrong-structure-file');
+  cpSync(fx, byHand, { recursive: true });
+  const p = join(byHand, SNAPSHOTS_DIR, 'ten.txt');
+  writeFileSync(p, readFileSync(p, 'utf8').replace('"name":"Your agents"', '"name":"Your agent list"'));
+  git(byHand, 'add', '-A');
+  const f = stampOf(byHand);
+  writeFileSync(join(byHand, RECORD_FILE), text.replace(/^stamp=\S+ files=\d+$/m, 'stamp=' + f.stamp + ' files=' + f.files));
+  report('whole-a-hand-record-over-a-wrong-structure-file', 'page', runCheck(repo, ['whole', '--repo', byHand, '--out', join(work, 'fresh-a.txt')]).cause);
+  const stale = join(work, 'whole-a-stale-record-fails-before-the-run');
+  cpSync(fx, stale, { recursive: true });
+  append(stale, join('ui', 'index.html'), '\n');
+  git(stale, 'add', '-A');
+  const s = runCheck(repo, ['whole', '--repo', stale, '--out', join(work, 'fresh-s.txt')]);
+  const before = s.lines.some((l) => l.startsWith('page record fault=stamp')) && !s.lines.some((l) => l.startsWith('page state='));
+  report('whole-a-stale-record-fails-before-the-run', 'record', before ? s.cause : 'ran-' + s.cause);
+  const oneByte = join(work, 'whole-a-record-one-byte-away');
+  cpSync(fx, oneByte, { recursive: true });
+  writeFileSync(join(oneByte, RECORD_FILE), text.replace(/^(page state=ten .* review=)(\d+)/m, (m, a, n) => a + (Number(n) + 1)));
+  report('whole-a-record-one-byte-away', 'record', runCheck(repo, ['whole', '--repo', oneByte, '--out', join(work, 'fresh-b.txt')]).cause);
 }
 
 /** The self-test of 40-r4-page: every planted fault is rejected by its rule or check, and the unchanged copies pass. */
-export async function selfTest({ repo, acorn, log }) {
-  const work = mkdtempSync(join(tmpdir(), 'r4-page-selftest-'));
+export async function selfTest({ repo, acorn, work, log }) {
+  mkdirSync(work, { recursive: true });
   const r = reporter(log);
   fileCases({ repo, acorn, work, report: r.report });
   await pageCases({ repo, work, report: r.report, log });

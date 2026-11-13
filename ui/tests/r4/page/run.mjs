@@ -11,6 +11,12 @@ export const KEYS = ['keyboard', 'structure', 'size', 'modes', 'markup'];
 /** The views whose status region the rule reads: the agents view's, and the needs view's once U3.6 has landed it. */
 export const REGIONS = ['agents'];
 
+/** Where a run stands: the state and the step, which a run that stops names. */
+export const stage = { state: '-', step: '-' };
+
+/** The milliseconds that the say rule's press waits for its control before the driver gives up. */
+export const PRESS_MS = 10000;
+
 function json(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
 }
@@ -112,6 +118,8 @@ export async function sayRule(harness, origin, fixtures, states) {
   if (!first) return { read: 0, misses: ['agents:no_state'] };
   const control = row.controls.find((c) => ACTING.includes(c.control)).control;
   const replies = [{ state: first }, { call: 'agents_control', args: { agent: row.agent, action: control }, reply: { ok: 'yes' } }, { state: flip(first, row.agent) }];
+  stage.state = 'say';
+  stage.step = 'open';
   const h = await harness.open({ origin, replies, views: [AGENTS] });
   try {
     await h.page.evaluate(() => {
@@ -119,6 +127,8 @@ export async function sayRule(harness, origin, fixtures, states) {
       for (const e of heading ? heading.closest('section').querySelectorAll('[role="status"]') : []) e.r4pageMark = 'kept';
     });
     try {
+      stage.step = 'press';
+      h.page.setDefaultTimeout(PRESS_MS);
       await harness.act(h, { act: control, param: row.agent });
       await harness.settled(h);
     } catch {
@@ -149,10 +159,13 @@ export async function runStates(harness, { origin, runs, snapshots, acts, write,
   for (const run of runs) {
     const line = blank();
     const names = [];
+    stage.state = run.state;
+    stage.step = 'open';
     const h = await harness.open({ origin, state: run.state, views: run.views, acts: acts[run.state] || [] });
     let region = { read: 0, misses: [] };
     try {
       for (const n of checks) {
+        stage.step = 'check ' + n;
         let r;
         try {
           r = await harness.check(h, n, { snapshot: join(snapshots, run.state + '.txt'), write: write && n === 3 });
@@ -162,6 +175,7 @@ export async function runStates(harness, { origin, runs, snapshots, acts, write,
         Object.assign(line, r.counts);
         if (!r.ok) names.push(n + ':' + r.names.join(','));
       }
+      stage.step = 'region';
       if (readRegion) region = await regionRule(harness, h, run.views);
     } finally {
       await h.close();
@@ -178,8 +192,10 @@ export async function runStates(harness, { origin, runs, snapshots, acts, write,
   return results;
 }
 
-/** Runs ui/tests/r4/needs/page.mjs, the needs view alone on every state and on its test items (ruling RD-25 (e)), and reads its last two lines. */
+/** Runs ui/tests/r4/needs/page.mjs, the needs view alone on every state and on its test items (ruling RD-25 (e)), and reads its lines. */
 export function needsPage(repo, log, only) {
+  stage.state = 'needs';
+  stage.step = 'page.mjs';
   return new Promise((done) => {
     const args = [join(repo, 'ui', 'tests', 'r4', 'needs', 'page.mjs'), ...(only ? ['--states', only.join(',')] : [])];
     const child = spawn(process.execPath, args, { cwd: repo, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -195,6 +211,11 @@ export function needsPage(repo, log, only) {
       const items = lines.find((l) => l.startsWith('page test_items=')) || '';
       const m = /^page states=(\d+) violations=(\d+) review=(\d+) keyboard=(\S+) structure=(\S+) size=(\S+) modes=(\S+) modes_off=(\S+) markup=(\S+) engine=(\S+)$/.exec(last);
       const t = /^page test_items=(\d+) failed=(\d+)$/.exec(items);
+      const reviews = new Map();
+      for (const l of lines) {
+        const e = /^page state=(\S+) violations=\d+ review=(\d+) /.exec(l);
+        if (e && !reviews.has(e[1])) reviews.set(e[1], Number(e[2]));
+      }
       if (!m || !t) {
         done({ code, parsed: false });
         return;
@@ -207,6 +228,7 @@ export function needsPage(repo, log, only) {
         engine: m[10],
         items: Number(t[1]),
         itemsFailed: Number(t[2]),
+        reviews,
       });
     });
   });
@@ -251,7 +273,7 @@ export async function pageCheck({ repo, write, needs: runNeeds, only, needsOnly,
   return { all, states, results, needs, say, cause: verdict(states, results, runNeeds && (!needsOnly || needsOnly.length) ? needs || { parsed: false } : null, say, needsStates) };
 }
 
-/** The first cause that holds for a whole run: a state that no run or page.mjs did not read, a check that missed, then a region that missed. */
+/** The first cause that holds for a whole run: a state that a run or page.mjs left unread, then a check that missed, then a region that missed. */
 export function verdict(states, results, needs, say, needsStates = states.length) {
   if (states.length === 0 || results.length !== states.length) return 'states';
   const ran = results.map((r) => r.state).sort();
