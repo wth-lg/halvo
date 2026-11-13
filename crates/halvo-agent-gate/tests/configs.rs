@@ -282,6 +282,13 @@ fn a_stored_configuration_that_validate_refuses_prints_its_cause() {
 fn a_line_with_nothing_stored_never_prints_valid() {
     let rev = CoordinatorReply::parse(br#"{"rev":1}"#).expect("a reply");
     assert_eq!(ConfigResult::of(None, &Ok(rev)), ConfigResult::Missing);
+    let mut nothing = good_line(SeedCategory::Email);
+    nothing.stored = false;
+    nothing.result = ConfigResult::Missing;
+    assert_eq!(
+        nothing.render(),
+        "config category=email stored=no state=approved agent=set result=none"
+    );
     assert_eq!(
         ConfigResult::of(None, &Err(declared("binding"))),
         ConfigResult::Refused(declared("binding"))

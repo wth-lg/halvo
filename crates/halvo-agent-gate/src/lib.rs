@@ -10,10 +10,12 @@
 //!
 //! The check scripts/r3/ci.d/20-r3-policy.sh starts this crate's binary and every test binary of this crate,
 //! halvo-policy and halvo-agent-store itself, from the paths in cargo's messages of a build that compiles nothing. It
-//! does not hold against code of the job that writes a test binary or a tool on the PATH before the check reads them,
-//! a test that keeps its name with another body, a required target with its test harness switched off, code that
-//! runs before main in a required test file, or a compiler wrapper or a cargo configuration that changes what is
-//! built (ruling S-53).
+//! holds two lists: 19 tests, each run by its name alone in its own target's binary, and the 25 test targets of the
+//! three crates, each of which must have exactly one test binary. It does not hold against code of the job that
+//! writes a test binary or a tool on the PATH before the check reads them, a test that keeps its name with another
+//! body, a required target with its test harness switched off, code that runs before main in a required test file, or
+//! a compiler wrapper or a cargo configuration that changes what is built (ruling S-53), nor against a test that
+//! stands in no list and is removed from its target, which no list holds without naming every test.
 
 #[cfg(not(feature = "memory-store"))]
 compile_error!(

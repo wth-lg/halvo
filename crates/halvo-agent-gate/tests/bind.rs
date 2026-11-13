@@ -529,6 +529,8 @@ fn a_seed_origin_outside_the_seed_form_is_refused_before_any_body() {
         "http://2130706433",
         "http://1.2.3.04",
         "http://256.1.1.1",
+        "http://a1.agent.test",
+        "https://a.agent.test",
     ];
     let mut cases: Vec<Value> = Vec::new();
     for host in hosts {
@@ -536,7 +538,7 @@ fn a_seed_origin_outside_the_seed_form_is_refused_before_any_body() {
         cases.push(json!({"origins": ["http://pay.agent.test", host], "slots": [{"name": "payee", "value": ["P"]}]}));
     }
     cases.push(json!({"origins": ["http://utility.agent.test", "http://127.0.0.1", "http://256.1.1.1"], "slots": [{"name": "range", "value": ["B2:D6"]}]}));
-    assert_eq!(cases.len(), 13);
+    assert_eq!(cases.len(), 17);
     for case in cases {
         let seed = with_binding("bill", case.clone());
         assert_eq!(
