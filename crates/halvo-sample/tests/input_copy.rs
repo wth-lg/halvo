@@ -273,3 +273,33 @@ fn input_copy_refusals() {
     );
     assert!(!dir.join("o").exists());
 }
+
+#[test]
+fn an_input_copy_keeps_every_run_mark_of_its_tier() {
+    let dir = scratch("marks");
+    let t = tier(&dir, false);
+    let out = dir.join("copy");
+    let o = run(&["input-copy", "--input-set", &app_title(), &s(&t), &s(&out)]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    let count = |root: &Path, edge: &str| -> usize {
+        files_under(root)
+            .iter()
+            .filter(|f| f.contains("/day-"))
+            .map(|f| {
+                fs::read_to_string(root.join(f))
+                    .expect("day")
+                    .lines()
+                    .filter(|l| {
+                        l.contains("\"kind\":\"run_mark\"")
+                            && l.contains(&format!("\"p\":{{\"edge\":\"{edge}\"}}"))
+                    })
+                    .count()
+            })
+            .sum()
+    };
+    for edge in ["start", "end"] {
+        let in_tier = count(&t, edge);
+        assert_eq!(in_tier, 1, "{edge}");
+        assert_eq!(count(&out, edge), in_tier, "{edge}");
+    }
+}
