@@ -850,3 +850,55 @@ fn a_refused_open_changes_no_row_no_revision_and_no_value_of_meta() {
     drop(open_entries(&scratch, base(&clock, Grouping { min: 1 }), &[&PAIR_A]).unwrap());
     assert_eq!(kind_rows(&scratch, "test_pair").len(), 1);
 }
+
+#[test]
+fn a_window_record_that_names_one_segment_twice_is_stored_once_and_goes_with_its_purge() {
+    let scratch = Scratch::new("segment-twice");
+    let clock = TestClock::at_day(DAY);
+    let w = workflow(&scratch, &clock, &[&TRACE]);
+    let records: Records = Rc::new(RefCell::new(Vec::new()));
+    let mut store = open_entries(&scratch, with_step(&clock, &records, vec![]), &[&TRACE]).unwrap();
+    let mut at = 2;
+    let mut commit = |store: &mut Store, segments: &[u64]| {
+        *records.borrow_mut() = vec![trace(&w, segments)];
+        let outcome = store
+            .commit_batch(&store_id(1), &[], position(at, 0), &mut Seq(at * 100))
+            .unwrap();
+        at += 1;
+        outcome.steps
+    };
+    assert_eq!(
+        commit(&mut store, &[5, 6]),
+        vec![Ok(Committed {
+            stored: 1,
+            dropped: 0
+        })]
+    );
+    assert_eq!(
+        commit(&mut store, &[7, 7]),
+        vec![Ok(Committed {
+            stored: 1,
+            dropped: 0
+        })]
+    );
+    assert_eq!(store.purge(&[Ordinal::new(7).unwrap()]).unwrap(), 1);
+    store.purge(&[Ordinal::new(8).unwrap()]).unwrap();
+    assert_eq!(
+        commit(&mut store, &[8, 8]),
+        vec![Ok(Committed {
+            stored: 0,
+            dropped: 1
+        })]
+    );
+    drop(store);
+    let left = kind_rows(&scratch, "test_trace");
+    assert_eq!(left.len(), 1);
+    assert!(left[0].contains("[5,6]"));
+    assert_eq!(
+        count(
+            &scratch,
+            "SELECT count(*) FROM sources JOIN rows ON rows.id = sources.row WHERE rows.kind = 'test_trace'"
+        ),
+        2
+    );
+}

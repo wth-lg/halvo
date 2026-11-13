@@ -166,7 +166,7 @@ impl Tx<'_> {
         Ok(())
     }
 
-    /// Inserts one row with its source ordinals and marks its family as changed.
+    /// Inserts one row with its source ordinals, each once, as a set, and marks its family as changed.
     pub(crate) fn insert(&self, row: &NewRow<'_>) -> Result<i64, Fault> {
         self.exec(
             sql::ROW_INSERT,
@@ -184,8 +184,9 @@ impl Tx<'_> {
             ],
         )?;
         let id = self.conn.last_insert_rowid();
-        for ordinal in row.segments {
-            let ordinal = i64::try_from(*ordinal).map_err(|_| Fault::Row)?;
+        let segments: BTreeSet<u64> = row.segments.iter().copied().collect();
+        for ordinal in segments {
+            let ordinal = i64::try_from(ordinal).map_err(|_| Fault::Row)?;
             self.exec(sql::SOURCE_INSERT, [ordinal, id])?;
         }
         self.changed(row.entry.family);

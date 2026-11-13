@@ -27,6 +27,7 @@ esac
 #= tests/commit.rs commit_batch_refuses_a_batch_read_from_another_store
 #= tests/commit.rs a_commit_at_or_before_the_committed_position_changes_nothing
 #= tests/commit.rs commit_batch_stores_no_row_past_the_bound_of_its_class
+#= tests/commit.rs an_episode_that_names_one_segment_twice_is_refused_by_its_reader
 #= tests/purge.rs purge_removes_every_window_row_that_names_a_shredded_ordinal
 #= tests/purge.rs purge_below_removes_every_window_row_below_the_first_live_ordinal
 #= tests/purge.rs a_commit_stores_no_window_row_that_names_a_purged_ordinal
@@ -50,6 +51,7 @@ esac
 #= tests/typed.rs an_open_refuses_an_entry_whose_workflow_key_names_another_id_than_a_stored_row
 #= tests/typed.rs a_refused_open_changes_no_row_no_revision_and_no_value_of_meta
 #= tests/typed.rs a_window_record_that_names_a_purged_ordinal_is_dropped_and_the_rest_of_the_list_applied
+#= tests/typed.rs a_window_record_that_names_one_segment_twice_is_stored_once_and_goes_with_its_purge
 #= tests/typed.rs a_handler_in_front_passes_the_request_on_and_commits_after_the_owning_handler
 #= tests/state.rs the_state_call_moves_an_approved_workflow_among_approved_active_and_paused
 #= tests/state.rs the_state_call_refuses_a_proposed_a_dismissed_and_a_missing_workflow_and_an_active_one_with_no_agent

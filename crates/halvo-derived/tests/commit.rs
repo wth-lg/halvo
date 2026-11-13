@@ -243,3 +243,26 @@ fn a_batch_with_a_value_that_its_reader_refuses_is_refused_whole() {
         1
     );
 }
+
+#[test]
+fn an_episode_that_names_one_segment_twice_is_refused_by_its_reader() {
+    let scratch = Scratch::new("episode-segment-twice");
+    let clock = TestClock::at_day(20_767);
+    let mut store = open(&scratch, &clock).unwrap();
+    let mut twice = episode(7, 20_767, None);
+    twice.segments = vec![
+        halvo_schema_core::record::Ordinal::new(7).unwrap(),
+        halvo_schema_core::record::Ordinal::new(7).unwrap(),
+    ];
+    let refused = store.commit_batch(&store_id(1), &[twice], position(1, 1), &mut Seq(1));
+    assert_eq!(refused.err(), Some(Error::Refused(ErrorName::Malformed)));
+    let text = format!(
+        r#"{{"id":"{}","category":"email","site":null,"app":"com.example.browser","day":20767,"part":"evening","minutes":5,"keys":null,"pointer":null,"segments":[7,7],"expires":1,"start":1,"end":2,"steps":[]}}"#,
+        "7".repeat(32)
+    );
+    assert!(serde_json::from_str::<halvo_schema_core::record::Episode>(&text).is_err());
+    let once = text.replace("[7,7]", "[7]");
+    assert!(serde_json::from_str::<halvo_schema_core::record::Episode>(&once).is_ok());
+    drop(store);
+    assert_eq!(bodies(&scratch, "summary").len(), 0);
+}
