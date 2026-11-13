@@ -1032,6 +1032,67 @@ pub(crate) mod tests {
         assert_eq!(handoff.counts().lost, 2);
     }
 
+    #[test]
+    fn a_closed_hand_off_takes_no_packet_while_its_forwarder_is_parked() {
+        let (sink, writer) = crate::sink::channel(1);
+        assert!(forward_one(&sink, pointer("filler")).is_ok());
+        let handoff = HandOff::start(sink, "halvo-test-forward", Arc::default()).expect("hand-off");
+        let producer = handoff.producer();
+        producer.push(pointer("parked"));
+        wait_until("the forwarder took no packet", || handoff.queued() == 0);
+        handoff.close();
+        for _ in 0..3 {
+            producer.push(pointer("after-close"));
+        }
+        producer.push_motion(pointer("after-close"));
+        let lost = handoff.counts().lost;
+        let queued = handoff.queued();
+        let pending = handoff.pending_motion();
+        let filler = writer.recv().expect("the filler");
+        let mut apps = Vec::new();
+        while let Ok(received) = writer.recv_timeout(Duration::from_secs(1)) {
+            apps.push(received.event().foreground_app.clone());
+        }
+        assert_eq!(filler.foreground_app, "filler");
+        assert_eq!(
+            lost, 4,
+            "each push into the closed hand-off is counted lost"
+        );
+        assert_eq!(queued, 0, "a push into the closed hand-off was queued");
+        assert!(
+            !pending,
+            "a motion sample is pending in the closed hand-off"
+        );
+        assert_eq!(apps, ["parked"], "only the parked packet reaches the sink");
+    }
+
+    #[test]
+    fn a_gone_writer_counts_the_queued_packets_and_the_pending_motion_sample() {
+        let (sink, writer) = crate::sink::channel(1);
+        assert!(forward_one(&sink, pointer("filler")).is_ok());
+        let handoff = HandOff::start(sink, "halvo-test-forward", Arc::default()).expect("hand-off");
+        let producer = handoff.producer();
+        producer.push(pointer("parked"));
+        wait_until("the forwarder took no packet", || handoff.queued() == 0);
+        for _ in 0..3 {
+            producer.push(pointer("queued"));
+        }
+        producer.push_motion(pointer("pending"));
+        let queued = handoff.queued();
+        let pending = handoff.pending_motion();
+        drop(writer);
+        wait_until("the forwarder did not see the gone writer", || {
+            handoff.writer_gone()
+        });
+        assert_eq!(queued, 3);
+        assert!(pending, "no motion sample was pending");
+        assert_eq!(
+            handoff.counts().lost,
+            4,
+            "the three queued packets and the pending motion sample"
+        );
+    }
+
     fn stuck_source(sink: SinkHandle) -> Lifecycle {
         let mut life = Lifecycle::default();
         let started = life.begin(&SourceContext::new(sink), "halvo-test-forward", |_| {
