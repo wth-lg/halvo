@@ -39,18 +39,23 @@ Until builds are signed, any process of the same user can read whatever a reply 
 | `run_end` | Nothing in R1: the name is reserved, and protocol v1 answers it `unsupported_op`. |
 
 Every other op is answered `unsupported_op`. In the key `v` of a frame that is one JSON
-object, a version is an integer from 0 to 18446744073709551615. A frame that starts with `{`
-and ends with `}`, is one JSON object with each key once at every depth, and holds in `v` a
-version other than 1 is answered `unsupported_version`; a `v` that is no such integer is
-answered `invalid_argument`. Expiry, cap eviction and delete-all need no lease;
+object, a version is an integer from 0 to 18446744073709551615. A frame that holds in `v` a
+version other than 1 is answered `unsupported_version` when it starts with `{` and ends with
+`}`, is one JSON object with each key once at every depth, nests no deeper than 127 levels
+(each object and each array counts, the frame's own object among them), and holds no number
+outside the range of a 64-bit float and no lone surrogate escape. Every other frame of another
+version, and a `v` that is no such integer, is answered `invalid_argument`. Expiry, cap eviction and delete-all need no lease;
 after a lapse capture reads `no_indicator`, and the lapse writes nothing to the state
 file.
 
 One decode of a request frame of at most 4,096 bytes holds at most 524,288 bytes live at
-once (`REQUEST_DECODE_PEAK_BYTES`), and the worst shape that the crate's test measures,
-objects of the empty key nested side by side, holds 471,098. One decode of a reply frame of
-at most 262,144 bytes holds at most 33,554,432 bytes live at once (`REPLY_DECODE_PEAK_BYTES`),
-and the same shape holds 33,009,946.
+once (`REQUEST_DECODE_PEAK_BYTES`). The worst frame that the crate's test measures, a pause
+with one field too many that holds objects of the empty key nested 101 deep, 8 side by side,
+holds 518,676. One decode of a reply frame of at most 262,144 bytes holds at most 33,554,432
+bytes live at once (`REPLY_DECODE_PEAK_BYTES`). The worst, an error reply with one field that
+the build does not know that holds such objects nested 100 deep, 522 side by side, holds
+33,047,177. The test's frames carry their tree in a body that the decoder reads, and it sweeps
+the depth and the width of that tree on both sides.
 
 ## What never crosses the channel
 
@@ -68,7 +73,10 @@ descriptor or a handle from a reply.
   channel. ctl then prints "the data directory is in use and no connection could be made at
   <socket path>; capture may be running" with exit 1 while the lock is held, and never
   "capture service not running" then. The ways left are a signal to the daemon and the
-  app's end of a child that does not answer.
+  app's end of a child that does not answer. An entry planted at the data directory's
+  path that is no directory (a FIFO, a file, a socket or a link to one) makes the read and
+  the take of the lock an error at once, which ctl prints with exit 1 and never as not
+  running.
 - Run the offline delete, `halvo-capture --delete-all`.
 - Answer as a false server on the socket path before the daemon binds it. The app's
   guard against that is the pid of the child it started; `ctl` has none. Exit 0 of

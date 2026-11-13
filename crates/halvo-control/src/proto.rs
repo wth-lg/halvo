@@ -268,13 +268,16 @@ impl<'de> Deserialize<'de> for Unique {
 
 /// The most bytes that one call of [`decode_request`] holds live at once for a frame of at most
 /// [`crate::wire::REQUEST_MAX_BYTES`]: 128 for each byte. The call parses the whole frame into
-/// a tree before it reads the shape; the worst shape that the test of wire.rs measures, objects
-/// of the empty key nested side by side, holds 471,098.
+/// a tree before it reads the shape; the worst frame that the test of wire.rs measures, a pause
+/// with one field too many that holds objects of the empty key nested 101 deep, 8 side by side,
+/// holds 518,676.
 pub const REQUEST_DECODE_PEAK_BYTES: usize = 524_288;
 
 /// The most bytes that one call of [`decode_reply`] holds live at once for a frame of at most
-/// [`crate::wire::REPLY_MAX_BYTES`]: 128 for each byte. The worst shape that the test of
-/// wire.rs measures, objects of the empty key nested side by side, holds 33,009,946.
+/// [`crate::wire::REPLY_MAX_BYTES`]: 128 for each byte. The call keeps one tree of the body.
+/// The worst frame that the test of wire.rs measures, an error reply with one field that the
+/// build does not know that holds objects of the empty key nested 100 deep, 522 side by side,
+/// holds 33,047,177.
 pub const REPLY_DECODE_PEAK_BYTES: usize = 33_554_432;
 
 /// The version of a frame that is one JSON object whose key `v` holds an integer from 0 to
@@ -353,14 +356,15 @@ pub enum ReplyError {
 }
 
 /// The rule that the status of a reply body breaks, when the body is a status, a
-/// capture_changed or a cap_set whose status has every field of a status.
-fn broken_status_rule(body: &Object) -> Option<StatusError> {
+/// capture_changed or a cap_set whose status has every field of a status. It reads the body
+/// in place and copies no part of it.
+fn broken_status_rule(body: &serde_json::Value) -> Option<StatusError> {
     let status = match body.get("kind").and_then(serde_json::Value::as_str)? {
-        "status" | "capture_changed" => serde_json::Value::Object(body.clone()),
-        "cap_set" => body.get("status")?.clone(),
+        "status" | "capture_changed" => body,
+        "cap_set" => body.get("status")?,
         _ => return None,
     };
-    let fields: StatusFields = serde_json::from_value(status).ok()?;
+    let fields = StatusFields::deserialize(status).ok()?;
     DaemonStatus::new(fields).err()
 }
 
@@ -420,13 +424,12 @@ pub fn decode_reply(frame: &[u8]) -> Result<Reply, ReplyError> {
     if version != PROTOCOL_VERSION {
         return Err(ReplyError::Version(version));
     }
-    let body = body.ok_or(ReplyError::NotAnEnvelope)?;
-    serde_json::from_value(serde_json::Value::Object(body.clone())).map_err(|e| {
-        match (broken_status_rule(&body), outside_a_list(&e)) {
-            (Some(broken), _) => ReplyError::Status(broken),
-            (None, Some(outside)) => ReplyError::UnknownValue(outside),
-            (None, None) => ReplyError::Body(e.to_string()),
-        }
+    let body = serde_json::Value::Object(body.ok_or(ReplyError::NotAnEnvelope)?);
+    let broken = broken_status_rule(&body);
+    serde_json::from_value(body).map_err(|e| match (broken, outside_a_list(&e)) {
+        (Some(broken), _) => ReplyError::Status(broken),
+        (None, Some(outside)) => ReplyError::UnknownValue(outside),
+        (None, None) => ReplyError::Body(e.to_string()),
     })
 }
 
@@ -2429,6 +2432,46 @@ stopped/kind body
         }
     }
 
+    /// A frame of version 2 whose body holds in `x` arrays nested so that the frame nests
+    /// `levels` deep, each object and each array counted, the frame's own object among them.
+    fn version_2_nested(levels: usize) -> Vec<u8> {
+        let arrays = levels - 2;
+        let mut frame = br#"{"v":2,"body":{"x":"#.to_vec();
+        frame.extend(std::iter::repeat_n(b'[', arrays));
+        frame.extend(std::iter::repeat_n(b']', arrays));
+        frame.extend_from_slice(b"}}");
+        frame
+    }
+
+    #[test]
+    fn a_frame_of_another_version_is_unsupported_version_only_when_the_decoder_reads_all_of_it() {
+        let code = |frame: &[u8]| decode_request(frame).unwrap_err().code();
+        assert_eq!(code(&version_2_nested(127)), ErrorCode::UnsupportedVersion);
+        assert_eq!(
+            code(&version_2_nested(128)),
+            ErrorCode::InvalidArgument,
+            "one level deeper than the 127 that the decoder reads"
+        );
+        assert_eq!(
+            code(br#"{"v":2,"body":{"n":1e300}}"#),
+            ErrorCode::UnsupportedVersion
+        );
+        assert_eq!(
+            code(br#"{"v":2,"body":{"n":1e400}}"#),
+            ErrorCode::InvalidArgument,
+            "a number outside a 64-bit float"
+        );
+        assert_eq!(
+            code(br#"{"v":2,"body":{"s":"\ud800\udc00"}}"#),
+            ErrorCode::UnsupportedVersion
+        );
+        assert_eq!(
+            code(br#"{"v":2,"body":{"s":"\ud800"}}"#),
+            ErrorCode::InvalidArgument,
+            "a lone surrogate escape"
+        );
+    }
+
     /// The sample status as JSON, with `store`, `store_error` and `store_retry_in_s` set.
     fn status_json_with_store(store: &str, error: &str, retry: u64) -> serde_json::Value {
         let mut json = serde_json::to_value(sample_status(Platform::Macos).into_fields()).unwrap();
@@ -2438,6 +2481,9 @@ stopped/kind body
         json
     }
 
+    /// The store lines of C2.8 that this test holds, `store=unavailable` beside
+    /// `store_error=obstructed`, stand in for fixture lines that gate-3 writes, until gate-3 adds
+    /// them to a fixture.
     #[test]
     fn e14_obstructed_is_a_cause_of_store_unavailable_and_a_value_outside_the_list_is_refused() {
         let status: DaemonStatus =
@@ -3858,6 +3904,14 @@ stopped/kind body
             (Opening, None, shown, shown, DeleteDecision::Accept),
             (Sealed, key_file, None, None, DeleteDecision::Accept),
             (Unavailable, io, None, None, DeleteDecision::Accept),
+            (
+                Unavailable,
+                Some(StoreErrorKind::Obstructed),
+                None,
+                None,
+                DeleteDecision::Accept,
+            ),
+            (UnsupportedVersion, None, None, None, DeleteDecision::Accept),
             (Deleting, None, None, None, DeleteDecision::Busy),
             (
                 Unavailable,

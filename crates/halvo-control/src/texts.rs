@@ -48,12 +48,9 @@ pub struct Recorded {
 /// The sentences of `recorded` for the switches a daemon reports, in their order. A sentence
 /// that says a source does not record is given only while that source's line reads off (a
 /// source with no line reads as off); beside a line that is not off, a sentence that says the
-/// source runs stands in its place.
-pub fn recorded(
-    platform: Platform,
-    switches: &[SwitchLine],
-    sources: &[SourceLine],
-) -> Vec<Recorded> {
+/// source runs stands in its place. It is private: [`texts`] is the one way in, and it passes
+/// every source line of a status, which the status type requires for its platform.
+fn recorded(platform: Platform, switches: &[SwitchLine], sources: &[SourceLine]) -> Vec<Recorded> {
     let off = |name: SourceName| {
         sources
             .iter()
@@ -217,6 +214,35 @@ mod tests {
     }
 
     #[test]
+    fn an_impaired_source_line_counts_as_running_in_recorded() {
+        use crate::proto::{Reason, SourceLine, SourceName, SourceState};
+        let impaired = SourceState::Impaired {
+            reason: Reason::Permission,
+            error: None,
+        };
+        let sources = [
+            SourceLine {
+                name: SourceName::Keyboard,
+                state: impaired.clone(),
+                unstopped: false,
+            },
+            SourceLine {
+                name: SourceName::Screen,
+                state: impaired,
+                unstopped: false,
+            },
+        ];
+        let told = texts_of(&recorded(Platform::Windows, &switches(&[]), &sources));
+        assert!(told.contains(&TYPING_BEING_OBSERVED), "{told:?}");
+        assert!(
+            told.contains(&SCREEN_ACTIVITY_RECORDED_WITH_THE_SETTING_OFF),
+            "{told:?}"
+        );
+        assert!(!told.contains(&TYPING_NOT_OBSERVED_ON_WINDOWS), "{told:?}");
+        assert!(!told.contains(&SCREEN_ACTIVITY_NOT_RECORDED), "{told:?}");
+    }
+
+    #[test]
     fn g2_the_view_says_typing_is_observed_while_the_windows_keyboard_source_runs() {
         use crate::proto::{SourceName, SourceState};
         let mut f = sample_status(Platform::Windows).into_fields();
@@ -238,6 +264,76 @@ mod tests {
         assert!(
             told.contains(&"Typing is being observed. Pause capture to stop it."),
             "{told:?}"
+        );
+    }
+
+    const WAITS: &str = "this pins what the head says; the rule waits for a ruling (CT-8 E9, \
+                         evidence/eng-manager/draft-rulings-control2-round3.md)";
+
+    #[test]
+    fn e9_recorded_beside_a_stopped_or_failed_keyboard_or_screen_line_is_pinned_as_the_head_gives_it(
+    ) {
+        use crate::proto::{Reason, SourceLine, SourceName, SourceState};
+        for state in [
+            SourceState::Stopped { by_user: false },
+            SourceState::Stopped { by_user: true },
+            SourceState::Failed {
+                reason: Reason::Permission,
+                error: None,
+            },
+        ] {
+            let keyboard = [SourceLine {
+                name: SourceName::Keyboard,
+                state: state.clone(),
+                unstopped: false,
+            }];
+            assert_eq!(
+                texts_of(&recorded(Platform::Windows, &switches(&[]), &keyboard)),
+                vec![
+                    "Typing is being observed. Pause capture to stop it.",
+                    "Screen activity is not recorded."
+                ],
+                "a Windows keyboard line {state:?} and no screen line: {WAITS}"
+            );
+            let screen = [SourceLine {
+                name: SourceName::Screen,
+                state: state.clone(),
+                unstopped: false,
+            }];
+            for platform in [Platform::Macos, Platform::Windows] {
+                assert!(
+                    texts_of(&recorded(platform, &switches(&[]), &screen)).contains(
+                        &"Screen activity is being recorded although the setting is off. Pause capture to stop it."
+                    ),
+                    "{platform:?}, a screen line {state:?} beside its switch off: {WAITS}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn e9_the_password_sentence_of_windows_with_no_guard_beside_a_running_keyboard_is_pinned_as_the_head_gives_it(
+    ) {
+        use crate::proto::{SourceName, SourceState};
+        let mut f = sample_status(Platform::Windows).into_fields();
+        assert_eq!(f.password_guard, PasswordGuard::None);
+        let keyboard = f
+            .sources
+            .iter()
+            .position(|s| s.name == SourceName::Keyboard)
+            .unwrap();
+        f.sources[keyboard].state = SourceState::Running;
+        f.enabled_sources = vec![
+            SourceName::Foreground,
+            SourceName::Keyboard,
+            SourceName::Pointer,
+            SourceName::WindowTitle,
+        ];
+        let status = DaemonStatus::new(f).unwrap();
+        assert_eq!(
+            texts(&status).passwords,
+            "Halvo observes no typing on Windows in this version, so it records nothing that you type into a password field.",
+            "{WAITS}"
         );
     }
 
