@@ -786,7 +786,19 @@ stopped_by() {
   case $stop_whom in
     tree) for stop_child in $(descendants_of "$stop_pid"); do kill -s "$stop_signal_sent" "$stop_child" 2> /dev/null; done
       kill -s "$stop_signal_sent" "$stop_pid" ;;
-    helper) kill -s "$stop_signal_sent" -- "-$stop_pid"
+    helper) stop_before=" $(pgrep -P "$stop_pid" | tr '\n' ' ') "
+      kill -s "$stop_signal_sent" -- "-$stop_pid"
+      stop_polls=0
+      while kill -0 "$stop_pid" 2> /dev/null && [ "$stop_polls" -lt 300 ]; do
+        stop_waiting=no
+        for stop_child in $(pgrep -P "$stop_pid"); do
+          case $stop_before in *" $stop_child "*) ;; *) stop_waiting=yes ;; esac
+        done
+        [ "$stop_waiting" = no ] || break
+        stop_polls=$((stop_polls + 1))
+        sleep 0.1
+      done
+      if ! kill -0 "$stop_pid" 2> /dev/null && [ -e "$stop_fixture/bin/marker" ]; then stop_held_at_end=yes; fi
       : > "$stop_fixture/bin/go"
       stop_polls=0
       while kill -0 "$stop_pid" 2> /dev/null && [ "$stop_polls" -lt "$((helper_kill_after_s * 10))" ]; do
