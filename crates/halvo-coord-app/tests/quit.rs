@@ -181,3 +181,18 @@ fn the_grace_counts_from_the_end_of_a_slow_first_step() {
         kill - cancel
     );
 }
+
+#[test]
+fn a_clock_that_fails_after_the_first_step_leaves_the_whole_grace() {
+    let hub = hub(1);
+    let run = live_run(&hub);
+    hub.coordinator().ports().inner().fail_clock_at_cancel();
+    let m = mark(&hub);
+    let took = quit(&hub, None).join().unwrap();
+    assert!(took >= ms(900) && took < ms(3_000), "{took:?}");
+    assert_eq!(kills(&hub, m), [run]);
+    assert!(
+        halvo_coord::ports::Clock::now(hub.coordinator().ports()).is_err(),
+        "the clock failed"
+    );
+}

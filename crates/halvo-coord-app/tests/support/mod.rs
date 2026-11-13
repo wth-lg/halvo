@@ -12,6 +12,7 @@ use halvo_coord::types::{
 };
 use halvo_coord_app::{handler, Agents, Hub, Native, Present};
 use std::num::NonZeroU32;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread::ThreadId;
 use tauri::ipc::{CallbackFn, InvokeBody};
@@ -30,6 +31,8 @@ pub struct Shared {
     free: Condvar,
     ports: Ports<Config>,
     policy: Policy<Config>,
+    clock_fails_at_cancel: AtomicBool,
+    clock_failing: AtomicBool,
 }
 
 // SAFETY: `ports` and `policy` are read only inside `enter`, which lets one thread in at a time.
@@ -58,6 +61,11 @@ impl Shared {
         turn.0 = Some(me);
         turn.1 += 1;
         Turn(self)
+    }
+
+    /// From the next `Runs::cancel` on, `Clock::now` and `Clock::today` fail with `no_service`.
+    pub fn fail_clock_at_cancel(&self) {
+        self.clock_fails_at_cancel.store(true, Ordering::SeqCst);
     }
 
     /// Runs `f` on the memory ports.
@@ -149,6 +157,8 @@ pub fn world(agents: usize, limits: Limits) -> Shared {
         free: Condvar::new(),
         ports,
         policy: Policy::new(&[]),
+        clock_fails_at_cancel: AtomicBool::new(false),
+        clock_failing: AtomicBool::new(false),
     }
 }
 
@@ -412,6 +422,9 @@ impl Runs for Shared {
 
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {
         let _turn = self.enter();
+        if self.clock_fails_at_cancel.load(Ordering::SeqCst) {
+            self.clock_failing.store(true, Ordering::SeqCst);
+        }
         self.ports.cancel(run)
     }
 
@@ -436,11 +449,17 @@ impl Analysis for Shared {
 impl Clock for Shared {
     fn now(&self) -> Result<u64, PortError> {
         let _turn = self.enter();
+        if self.clock_failing.load(Ordering::SeqCst) {
+            return Err(PortError::NoService);
+        }
         self.ports.now()
     }
 
     fn today(&self) -> Result<u32, PortError> {
         let _turn = self.enter();
+        if self.clock_failing.load(Ordering::SeqCst) {
+            return Err(PortError::NoService);
+        }
         self.ports.today()
     }
 }
