@@ -81,7 +81,8 @@ pub struct ForeignPeer {
 /// caller holds the accepted socket: on macOS the descriptors of the tree's processes and then of
 /// every other process that this user may read, on Windows the table of TCP connections with owner
 /// ids. The owner is read twice, before and after the tree, and must be the same process both
-/// times; a pid whose creation time is not the one that the tree recorded is not in the tree. The
+/// times, by number and creation time: after the second read the table is read again, and the
+/// owner must still have the creation time that the tree's table recorded (CP-170 E7 (b)); a pid whose creation time is not the one that the tree recorded is not in the tree. The
 /// reads hold the start lock, so that no child of this process is between its start and its
 /// program, when it could hold a copy of a descriptor of this process. Gives the owner's number.
 pub fn check_peer(
@@ -118,8 +119,9 @@ pub fn check_peer_with(
     owners: &mut dyn FnMut() -> Vec<u32>,
     table: &dyn Fn() -> std::io::Result<Vec<Proc>>,
 ) -> Result<u32, ForeignPeer> {
+    let table_read = table;
     let first = owners();
-    let table = table().map_err(|_| foreign(peer_port, 0, 0, "table"))?;
+    let table = table_read().map_err(|_| foreign(peer_port, 0, 0, "table"))?;
     let tree: Vec<u32> = procs::descendants(&table, std::slice::from_ref(root))
         .into_iter()
         .filter(|p| table.iter().any(|t| procs::same(t, p)))
@@ -135,6 +137,17 @@ pub fn check_peer_with(
     let again = owners();
     if again != first {
         return Err(foreign(peer_port, again.len(), in_tree, "owner_changed"));
+    }
+    let recorded = table
+        .iter()
+        .find(|t| t.pid == first[0])
+        .map(|t| t.started_us);
+    let now = table_read()
+        .ok()
+        .and_then(|t| t.into_iter().find(|t| t.pid == first[0]))
+        .map(|t| t.started_us);
+    if recorded.is_none() || now != recorded {
+        return Err(foreign(peer_port, 1, in_tree, "owner_changed"));
     }
     Ok(first[0])
 }
@@ -669,6 +682,60 @@ mod tests {
             Ok(vec![row(100, 1, 10), reused.clone()])
         });
         assert_eq!(got.err().map(|f| f.cause), Some("outside_tree"));
+    }
+
+    /// CP-170 E7 (a), the review's tests/03 and m13: a row whose ports match and whose two ends
+    /// are not both at 127.0.0.1 holds no connection.
+    #[test]
+    fn a_row_with_an_end_off_loopback_is_no_owner() {
+        let other = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2));
+        let rows = [
+            Socket {
+                local: (other, 5000),
+                ..socket(20, 5000, 6000, false)
+            },
+            Socket {
+                remote: (other, 6000),
+                ..socket(21, 5000, 6000, false)
+            },
+            socket(22, 5000, 6000, false),
+        ];
+        assert_eq!(owners_among(&rows, 5000, 6000), vec![22]);
+    }
+
+    /// CP-170 E7 (b): the owner by number and creation time: an owner whose number another process
+    /// took between the tree's table and the second read is refused.
+    #[test]
+    fn an_owner_whose_number_another_process_took_is_refused() {
+        let root = row(100, 1, 10);
+        let reads = std::cell::Cell::new(0);
+        let table = || -> std::io::Result<Vec<Proc>> {
+            reads.set(reads.get() + 1);
+            Ok(if reads.get() == 1 {
+                vec![row(100, 1, 10), row(101, 100, 5001)]
+            } else {
+                vec![row(100, 1, 10), row(101, 1, 5009)]
+            })
+        };
+        let got = check_peer_with(&root, 5000, &mut || vec![101], &table);
+        assert_eq!(got.err().map(|f| f.cause), Some("owner_changed"));
+    }
+
+    /// CP-170 E7 (c), m16: `check_peer` waits for the start lock.
+    #[test]
+    fn the_peer_check_waits_for_the_start_lock() {
+        let held = crate::start::lock();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let t = std::thread::spawn(move || {
+            let _ = check_peer(None, 5000, 6000);
+            let _ = tx.send(());
+        });
+        assert!(rx
+            .recv_timeout(std::time::Duration::from_millis(300))
+            .is_err());
+        drop(held);
+        assert!(rx.recv_timeout(std::time::Duration::from_secs(5)).is_ok());
+        t.join().unwrap();
     }
 
     #[test]

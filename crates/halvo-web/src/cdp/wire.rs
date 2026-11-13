@@ -46,6 +46,24 @@ impl Rule {
     }
 }
 
+/// Whether the rule lets a paused request through: never a service worker's script (A4.2: no
+/// service worker runs in the agent's browser), else as the rule says; with no rule, nothing.
+pub(crate) fn decision(
+    rule: Option<&Rule>,
+    method: &str,
+    origin: &str,
+    headers: &serde_json::Value,
+) -> bool {
+    let worker_script = headers
+        .as_object()
+        .map(|h| {
+            h.iter()
+                .any(|(k, v)| k.eq_ignore_ascii_case("service-worker") && v == "script")
+        })
+        .unwrap_or(false);
+    !worker_script && rule.is_some_and(|r| r.lets_through(method, origin))
+}
+
 pub(crate) fn changes_state(method: &str) -> bool {
     !matches!(method, "GET" | "HEAD" | "OPTIONS")
 }
@@ -454,21 +472,12 @@ impl Wire {
         let method = ev.request.method.clone();
         let (origin, path) = split_url(&ev.request.url);
         let (body, body_complete) = body_of(&ev.request);
-        let worker_script = ev
-            .request
-            .headers
-            .inner()
-            .as_object()
-            .map(|h| {
-                h.iter()
-                    .any(|(k, v)| k.eq_ignore_ascii_case("service-worker") && v == "script")
-            })
-            .unwrap_or(false);
-        let let_through = !worker_script
-            && self
-                .rule()
-                .map(|r| r.lets_through(&method, &origin))
-                .unwrap_or(false);
+        let let_through = decision(
+            self.rule().as_ref(),
+            &method,
+            &origin,
+            ev.request.headers.inner(),
+        );
         let id = ev.request_id.clone();
         let hold = self.rule().map(|r| r.hold).unwrap_or(false);
         let document = matches!(ev.resource_type, ResourceType::Document);
@@ -638,6 +647,52 @@ mod tests {
     use super::*;
 
     /// M60, A4.2: every method but GET, HEAD and OPTIONS changes state, PUT among them.
+    fn reads_only(allowed: &[&str]) -> Rule {
+        Rule {
+            allowed: allowed.iter().map(|a| a.to_string()).collect(),
+            state_changing: true,
+            hold: false,
+            policy: None,
+        }
+    }
+
+    /// CP-170 E7 (d), m04: an origin that an allowed origin begins is no allowed origin.
+    #[test]
+    fn an_origin_that_an_allowed_origin_begins_is_refused() {
+        let rule = reads_only(&["http://pay.agent.test", "http://pay.agent.test:80"]);
+        let none = serde_json::json!({});
+        assert!(decision(Some(&rule), "GET", "http://pay.agent.test", &none));
+        for other in [
+            "http://pay.agent.test.evil.example",
+            "http://pay.agent.test:8080",
+            "http://pay.agent.test:80.evil.example",
+        ] {
+            assert!(!decision(Some(&rule), "GET", other, &none), "{other}");
+        }
+        assert!(!decision(None, "GET", "http://pay.agent.test", &none));
+    }
+
+    /// CP-170 E7 (e), m07: a service worker's script is not let through, also from an allowed
+    /// origin.
+    #[test]
+    fn a_service_worker_s_script_is_not_let_through() {
+        let rule = reads_only(&["http://utility.agent.test"]);
+        let script = serde_json::json!({"Service-Worker": "script"});
+        assert!(!decision(
+            Some(&rule),
+            "GET",
+            "http://utility.agent.test",
+            &script
+        ));
+        let plain = serde_json::json!({"Accept": "*/*"});
+        assert!(decision(
+            Some(&rule),
+            "GET",
+            "http://utility.agent.test",
+            &plain
+        ));
+    }
+
     #[test]
     fn every_method_but_get_head_and_options_changes_state() {
         for m in [

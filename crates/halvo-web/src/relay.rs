@@ -25,14 +25,16 @@ pub use crate::peer::ForeignPeer;
 /// A host and a port, the unit of the relay's list and of its record.
 pub type HostPort = (String, u16);
 
-/// The relay of rulings CP-24 and CP-64: a SOCKS5 listener on a loopback port that the driver's
-/// own process opens, given to the browser as its only route. It takes one CONNECT per tunnel. When
-/// it holds a list, a tunnel to a host and port outside the list is refused at the SOCKS5 request,
-/// before any byte leaves and before the relay looks the name up, and the refusal is recorded by
-/// host and port. A name that it may reach goes to 127.0.0.1 when it is under `.test`, `localhost`
-/// or a loopback address, and is refused otherwise. It passes the bytes of a tunnel both ways
-/// without reading them. When a host leaves the list, its open tunnels are closed. When the process
-/// ends, the system closes the relay's sockets with it.
+/// The relay of A11.1 (rulings CP-24, CP-64, CP-89 (e)): a SOCKS5 listener on a loopback port of
+/// the executor's own process, given to the browser as its only route. It starts with an empty
+/// list and refuses every tunnel until the runner allows a host and port. It takes one CONNECT per
+/// tunnel; a tunnel to a host and port outside the list is refused at the SOCKS5 request, before
+/// any byte leaves and before any lookup, and the refusal is recorded by host and port. A listed
+/// host is then looked up by `Names`: `Names::Fixture` takes a name under `.test` alone, to
+/// 127.0.0.1, and `Names::System` asks the system. A peer that is not at 127.0.0.1, or not one
+/// process of the browser's tree (`peer::check_peer`), is refused unread and recorded apart. The
+/// bytes of a tunnel pass both ways unread. A host that leaves the list has its open tunnels
+/// closed. When the process ends, the system closes the relay's sockets with it.
 pub struct Relay {
     pub port: u16,
     task: JoinHandle<()>,
