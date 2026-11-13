@@ -414,11 +414,7 @@ impl<'c> Play<'c> {
             .collect();
         self.runner(json!({"op": "log", "agent": agent, "run": run, "records": records}))?;
         if recovered {
-            let put_number = match self.arm {
-                Arm::Admit => number,
-                Arm::None | Arm::Plain => number + 1,
-            };
-            self.runner(json!({"op": "put_playbook", "agent": agent, "run": run, "number": put_number, "steps": put}))?;
+            self.runner(json!({"op": "put_playbook", "agent": agent, "run": run, "number": number + 1, "steps": put}))?;
         }
         let outcome = if completed { "completed" } else { "failed" };
         let record = self.record(&run, "replay", outcome, number, lines.len());
