@@ -204,6 +204,28 @@ fn refused() -> Result<Value, Value> {
     Err(Value::String(commands::REFUSED.to_string()))
 }
 
+const APP_RS: &str = include_str!("../src/app.rs");
+
+fn arms_named_by_app_rs() -> [(String, String); 2] {
+    let head = "pub const APP_ORIGIN: (&str, &str) = if cfg!(windows) {";
+    let start = APP_RS.find(head).expect("app.rs defines APP_ORIGIN");
+    let body = &APP_RS[start + head.len()..];
+    let body = &body[..body.find("};").expect("the definition of APP_ORIGIN ends")];
+    let quoted: Vec<&str> = body.split('"').skip(1).step_by(2).collect();
+    let [windows_scheme, windows_host, other_scheme, other_host] = quoted[..] else {
+        panic!("APP_ORIGIN names two pairs: {quoted:?}");
+    };
+    let windows = (windows_scheme.to_string(), windows_host.to_string());
+    let other = (other_scheme.to_string(), other_host.to_string());
+    let compiled = (app::APP_ORIGIN.0.to_string(), app::APP_ORIGIN.1.to_string());
+    assert_eq!(
+        if cfg!(windows) { &windows } else { &other },
+        &compiled,
+        "the text of APP_ORIGIN and the compiled constant"
+    );
+    [other, windows]
+}
+
 const C10_9_COMMANDS: [&str; 8] = [
     "capture_status",
     "inventory",
@@ -304,7 +326,13 @@ fn an_address_of_the_app_host_with_a_password_and_no_user_name_is_refused() {
     let parsed: Url = origin.parse().expect("a URL");
     assert_eq!((parsed.username(), parsed.password()), ("", Some("secret")));
     assert!(!app::is_app_url(&parsed), "the rule allows {origin}");
-    for (scheme, host) in [("tauri", "localhost"), ("http", "tauri.localhost")] {
+    let arms = [("tauri", "localhost"), ("http", "tauri.localhost")];
+    assert_eq!(
+        arms_named_by_app_rs(),
+        arms.map(|(scheme, host)| (scheme.to_string(), host.to_string())),
+        "the arms that the test asks are those that APP_ORIGIN names in src-tauri/src/app.rs"
+    );
+    for (scheme, host) in arms {
         let arm: Url = format!("{scheme}://:secret@{host}/")
             .parse()
             .expect("a URL");
