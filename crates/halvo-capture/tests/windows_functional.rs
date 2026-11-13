@@ -509,9 +509,11 @@ fn app_class(app: &str, own_exe: &str) -> &'static str {
     }
 }
 
+const SHUTDOWN_LINE: &str = "TF shutdown source=";
+
 fn stop_counted<S: CaptureSource>(source: &mut S, name: &str) -> Result<(), CaptureError> {
     let stopped = source.shutdown();
-    println!("TF shutdown source={name} ok={}", stopped.is_ok());
+    println!("{SHUTDOWN_LINE}{name} ok={}", stopped.is_ok());
     stopped
 }
 
@@ -3460,8 +3462,9 @@ fn window_sample(hwnd: HWND) -> String {
         BOOL::from(true)
     }
     let mut children: Vec<HWND> = Vec::new();
-    // SAFETY: the callback has the WNDENUMPROC signature and reads `children`
-    // only while this call runs.
+    // SAFETY: the callback has the WNDENUMPROC signature and writes `children`
+    // through a pointer made from an exclusive borrow, only while this
+    // enumeration runs on this thread; nothing else touches `children` meanwhile.
     unsafe {
         let _ = EnumChildWindows(
             Some(hwnd),
@@ -3560,8 +3563,9 @@ fn top_windows() -> Vec<HWND> {
         BOOL::from(true)
     }
     let mut all: Vec<HWND> = Vec::new();
-    // SAFETY: the callback has the WNDENUMPROC signature and reads `all` only
-    // while this call runs.
+    // SAFETY: the callback has the WNDENUMPROC signature and writes `all`
+    // through a pointer made from an exclusive borrow, only while this
+    // enumeration runs on this thread; nothing else touches `all` meanwhile.
     unsafe {
         let _ = EnumWindows(Some(each), LPARAM(&mut all as *mut Vec<HWND> as isize));
     }
@@ -4151,8 +4155,9 @@ fn window_titled(prefix: &str) -> Option<(HWND, String)> {
         BOOL::from(true)
     }
     let mut all: Vec<(HWND, String)> = Vec::new();
-    // SAFETY: the callback has the WNDENUMPROC signature and reads `all`
-    // only while this call runs.
+    // SAFETY: the callback has the WNDENUMPROC signature and writes `all`
+    // through a pointer made from an exclusive borrow, only while this
+    // enumeration runs on this thread; nothing else touches `all` meanwhile.
     unsafe {
         let _ = EnumWindows(
             Some(each),

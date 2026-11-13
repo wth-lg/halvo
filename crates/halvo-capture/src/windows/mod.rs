@@ -93,6 +93,18 @@ mod packet {
     }
 
     impl Packet {
+        /// Outside the crate no packet can be named, so none can be made:
+        ///
+        /// ```compile_fail,E0603
+        /// use halvo_capture::windows::Packet;
+        /// ```
+        ///
+        /// A public item of the same module can be named:
+        ///
+        /// ```
+        /// use halvo_capture::windows::EventPlacement;
+        /// let _ = EventPlacement::unpersisted(2);
+        /// ```
         pub(crate) fn keystroke(
             clearance: KeystrokeClearance,
             app: Option<String>,
@@ -1295,6 +1307,12 @@ pub(crate) mod tests {
             waited < Duration::from_millis(250),
             "the drop waited {waited:?}"
         );
+    }
+
+    #[test]
+    fn stop_deadlines_are_the_first_values_of_c12_item_7() {
+        assert_eq!(INPUT_STOP_DEADLINE, Duration::from_millis(1_000));
+        assert_eq!(SCREEN_STOP_DEADLINE, Duration::from_millis(6_000));
     }
 
     #[test]

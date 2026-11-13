@@ -167,6 +167,22 @@ fn judge(marks: &VecDeque<Entry>, key: &HeldKey, now: u32) -> Judgment {
 }
 
 /// The probe of the Windows keyboard source: the gate's reading for one key.
+/// Outside the gate's module no probe with a reading of its own can be made:
+///
+/// ```compile_fail,E0603
+/// use halvo_capture::secure_input::windows::PasswordFieldProbe;
+/// use halvo_capture::secure_input::SecureInputReading;
+///
+/// let _ = PasswordFieldProbe(SecureInputReading::Inactive);
+/// ```
+///
+/// The probe that reads Unknown can be made:
+///
+/// ```
+/// use halvo_capture::secure_input::windows::PasswordFieldProbe;
+///
+/// let _ = PasswordFieldProbe::default();
+/// ```
 #[derive(Debug, Clone, Copy)]
 pub struct PasswordFieldProbe(SecureInputReading);
 

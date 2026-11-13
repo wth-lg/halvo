@@ -6,6 +6,7 @@ name=50-windows-functional
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
 failing_fixtures=27
+shutdown_line='TF shutdown source='
 fixtures_at_once=4
 LC_ALL=C
 export LC_ALL
@@ -272,7 +273,7 @@ measure() {
     not_ok=0
     for log in "$work"/test-*.log; do
       [ -f "$log" ] || continue
-      found=$(tr -d '\r' <"$log" | grep -c "TF shutdown source=$source ok=false")
+      found=$(tr -d '\r' <"$log" | grep -c "$shutdown_line$source ok=false")
       not_ok=$((not_ok + found))
     done
     line="shutdown_not_ok source=$source count=$not_ok"
@@ -303,7 +304,9 @@ launch() {
     STUB_SPEC=$work/spec-$1
     STUB_TF=$work/bin/tf-stub
     WF_EXPECTED_FILE=$expected_file
+    STUB_SHUTDOWN_LINE=$test_file_shutdown_line
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_SPEC STUB_TF WF_EXPECTED_FILE STUB_EXE STUB_LIST_EXIT
+    export STUB_SHUTDOWN_LINE
     if [ -n "$limit" ]; then
       WF_TEST_LIMIT_S=$limit
       export WF_TEST_LIMIT_S
@@ -436,6 +439,10 @@ case $kind in
     printf 'TF %s source_built_by_test=keyboard\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
     exit 0
     ;;
+  shutdown-not-ok)
+    printf '%skeyboard ok=false\ntest %s ... ok\n\n%s\n\n' "$STUB_SHUTDOWN_LINE" "$test" "$ok"
+    exit 0
+    ;;
   fakes)
     printf 'WF ghost_test_not_in_the_file result=pass\nWF %s result=known-defect id=RR-windows-99\n' "$test"
     printf 'WF total=99 pass=99 known_defect=0 fail=0\nPASS 50-windows-functional\n'
@@ -493,6 +500,8 @@ EOF
 }
 
 self_test() {
+  test_file=$(cd "$(dirname "$0")/../../.." && pwd)/crates/halvo-capture/tests/windows_functional.rs
+  test_file_shutdown_line=$(sed -n 's/^const SHUTDOWN_LINE: &str = "\(.*\)";$/\1/p' "$test_file")
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   mkdir -p "$work/bin" "$work/repo" || exit 2
   write_stubs
@@ -533,6 +542,9 @@ fixtures() {
     "${nl}WF known_defect::c5_watch_armed_while_the_per_user_key_is_absent result=known-defect id=RR-windows-12${nl}" \
     "${nl}shutdown_not_ok source=keyboard count=0${nl}" \
     "${nl}WF total=$real_total pass=$((real_total - real_known)) known_defect=$real_known fail=0${nl}PASS $name"
+  check a-not-ok-shutdown-in-the-form-of-the-test-file-is-counted PASS "c1_raw_input|shutdown-not-ok${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
+    "${nl}shutdown_not_ok source=keyboard count=1${nl}" \
+    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}PASS $name"
   check a-test-prints-the-lines-of-the-script PASS "c1_raw_input|fakes${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}    | WF ghost_test_not_in_the_file result=pass${nl}" \
     "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}PASS $name" \
