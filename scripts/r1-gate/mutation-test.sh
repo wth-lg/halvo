@@ -786,18 +786,22 @@ stopped_by() {
   case $stop_whom in
     tree) for stop_child in $(descendants_of "$stop_pid"); do kill -s "$stop_signal_sent" "$stop_child" 2> /dev/null; done
       kill -s "$stop_signal_sent" "$stop_pid" ;;
-    helper) stop_before=" $(pgrep -P "$stop_pid" | tr '\n' ' ') "
-      kill -s "$stop_signal_sent" -- "-$stop_pid"
+    helper|helper-again) kill -s "$stop_signal_sent" -- "-$stop_pid"
       stop_polls=0
       while kill -0 "$stop_pid" 2> /dev/null && [ "$stop_polls" -lt 300 ]; do
-        stop_waiting=no
-        for stop_child in $(pgrep -P "$stop_pid"); do
-          case $stop_before in *" $stop_child "*) ;; *) stop_waiting=yes ;; esac
-        done
-        [ "$stop_waiting" = no ] || break
+        polls_of_the_step "$stop_fixture"
+        [ "$step_polls" -lt 3 ] || break
         stop_polls=$((stop_polls + 1))
         sleep 0.1
       done
+      if [ "$stop_whom" = helper-again ]; then
+        stop_again=0
+        while kill -0 "$stop_pid" 2> /dev/null && [ "$stop_again" -lt 10 ]; do
+          kill -s "$stop_signal_sent" -- "-$stop_pid"
+          stop_again=$((stop_again + 1))
+          sleep 0.1
+        done
+      fi
       if ! kill -0 "$stop_pid" 2> /dev/null && [ -e "$stop_fixture/bin/marker" ]; then stop_held_at_end=yes; fi
       : > "$stop_fixture/bin/go"
       stop_polls=0
@@ -1254,11 +1258,14 @@ cases() {
 
 shield_cases() {
   helper_kill_after_s=5
-  for shield_fixture in term int hup bound; do
+  for shield_fixture in term int hup bound again; do
     fixture_tree "stop-shield-$shield_fixture"
     stub_gate_until_go "stop-shield-$shield_fixture"
+    stub_ps "stop-shield-$shield_fixture"
     row "stop-shield-$shield_fixture/scripts/r1-gate/mutants.rows" held b.sh 's/two/three/' 'measured rows' required X-1
   done
+  : > "$gate_scratch/stop-shield-again/bin/ps.slow"
+  t stop-by-term-again-while-the-runner-waits-for-a-gate-check-changes-nothing PASS stopped_by stop-shield-again TERM helper-again 60 run 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
   for shield_signal in TERM INT HUP; do
     stop_line "$shield_signal"
     t "stop-by-$stop_line_lower-as-the-helper-ends-a-run-lets-a-gate-check-end" PASS stopped_by "stop-shield-$stop_line_lower" "$shield_signal" helper 60 run "$stop_line_status" gone itself 1 "STOPPED mutation:held (signal $shield_signal; no test was running)"
@@ -1270,6 +1277,7 @@ shield_cases() {
   cp "$DIR/lib.sh" "$gate_scratch/stop-shield-unmutated/scripts/r1-gate/lib.sh"
   stub_cargo stop-shield-unmutated 0
   stub_gate_until_go stop-shield-unmutated
+  stub_ps stop-shield-unmutated
   row stop-shield-unmutated/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
   t stop-by-term-as-the-helper-ends-a-run-lets-an-unmutated-gate-check-end PASS with_cargo_home stop-shield-unmutated stopped_by stop-shield-unmutated TERM helper 60 run 143 gone itself 2 'STOPPED mutation:held (signal TERM; no test was running)'
   t a-shielded-step-starts-with-no-signal-and-not-after-one PASS shield_start_rule
@@ -1278,9 +1286,31 @@ shield_cases() {
   printf 'pub fn f() -> i32 { 1 }\n' > "$gate_scratch/stop-shield-build/crates/x/src/lib.rs"
   cp "$DIR/lib.sh" "$gate_scratch/stop-shield-build/scripts/r1-gate/lib.sh"
   stub_cargo stop-shield-build go
+  stub_ps stop-shield-build
   stub_gate_hold stop-shield-build
   row stop-shield-build/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
   t stop-by-term-as-the-helper-ends-a-run-lets-the-unmutated-build-end PASS with_cargo_home stop-shield-build stopped_by stop-shield-build TERM helper 60 run 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
+}
+
+stub_ps() {
+  mkdir -p "$gate_scratch/$1/bin"
+  stub_ps_real=$(command -v ps)
+  printf '%s\n' "$stub_ps_real" > "$gate_scratch/$1/bin/ps.real"
+  cat > "$gate_scratch/$1/bin/ps" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+case "$*" in
+  *stat=*) printf '%s\n' "$*" >> "$here/ps.polls"; [ ! -e "$here/ps.slow" ] || sleep 1 ;;
+esac
+read -r real < "$here/ps.real"
+exec "$real" "$@"
+STUB
+  chmod +x "$gate_scratch/$1/bin/ps"
+}
+
+polls_of_the_step() {
+  step_polls=0
+  [ ! -f "$1/bin/ps.polls" ] || step_polls=$(wc -l < "$1/bin/ps.polls" | tr -d ' ')
 }
 
 stub_gate_until_go() {
