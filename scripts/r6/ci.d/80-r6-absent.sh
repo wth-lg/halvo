@@ -492,6 +492,7 @@ reset_stubs() {
   STUB_NO_COMMIT=
   STUB_CHANGE_AT=
   STUB_CHANGE_LINE=
+  STUB_CHANGE_FILE=status
   STUB_TREE_OUT=$work/stub/tree.out
   STUB_TREE_EXIT=0
   STUB_DEBUG_OUT=$work/stub/debug.out
@@ -507,8 +508,8 @@ reset_stubs() {
   CASE_RUSTFLAGS=
   CASE_ENCODED=
   CASE_QUIET=
-  : >"$work/tree/status" || exit 2
-  : >"$work/tree/flags" || exit 2
+  : >"$work/tree/status" || fixture_fail
+  : >"$work/tree/flags" || fixture_fail
 }
 
 check() {
@@ -519,7 +520,7 @@ check() {
     CI_D_REPO=$work/repo
     CI_D_ARTIFACTS=$work/artifacts/$case_name
     STUB_TREE=$work/tree
-    export CI_D_REPO CI_D_ARTIFACTS STUB_TREE STUB_COMMIT STUB_NO_COMMIT STUB_CHANGE_AT STUB_CHANGE_LINE
+    export CI_D_REPO CI_D_ARTIFACTS STUB_TREE STUB_COMMIT STUB_NO_COMMIT STUB_CHANGE_AT STUB_CHANGE_LINE STUB_CHANGE_FILE
     export STUB_TREE_OUT STUB_TREE_EXIT STUB_DEBUG_OUT STUB_DEBUG_EXIT STUB_RELEASE_OUT STUB_RELEASE_EXIT
     export STUB_PROBE_OUT STUB_PROBE_EXIT STUB_CONTROL_OUT STUB_CONTROL_EXIT STUB_JOB_FLAG STUB_GITLINK
     unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
@@ -625,7 +626,7 @@ case $* in
   'build --locked --offline --manifest-path '*'/pair/Cargo.toml --target-dir '*' --message-format short --bin probe'*) kind=probe ;;
 esac
 if [ -n "$STUB_CHANGE_AT" ] && [ "$kind" = "$STUB_CHANGE_AT" ]; then
-  printf '%s\n' "$STUB_CHANGE_LINE" >>"$STUB_TREE/status"
+  printf '%s\n' "$STUB_CHANGE_LINE" >>"$STUB_TREE/${STUB_CHANGE_FILE:-status}"
 fi
 case $kind in
   tree)
@@ -685,7 +686,7 @@ case $kind in
     ;;
 esac
 EOF
-  chmod +x "$work/bin/git" "$work/bin/cargo" || exit 2
+  chmod +x "$work/bin/git" "$work/bin/cargo" || fixture_fail
 }
 
 write_outputs() {
@@ -720,22 +721,23 @@ test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 running 0 tests
 EOF
-  sed 's|target/debug/|target/release/|; s|test profile \[unoptimized + debuginfo\]|release profile [optimized]|' "$stub/debug.out" >"$stub/release.out" || exit 2
-  printf 'halvo-route v0.0.0 (crates/halvo-route)\n\nhalvo-route-wire v0.0.0 (crates/halvo-route-wire)\n\342\224\234\342\224\200\342\224\200 serde v1.0.229\n\342\224\224\342\224\200\342\224\200 serde_json v1.0.154\n' >"$stub/tree.out" || exit 2
-  printf '   Compiling r6-absent-pair v0.0.0 (pair)\nsrc/bin/probe.rs:4:26: error[E0624]: associated function test_hosted is private: private associated function\nerror: could not compile r6-absent-pair (bin "probe") due to 1 previous error\n' >"$stub/probe.out" || exit 2
-  printf '%s\n' "$control_want" >"$stub/control.out" || exit 2
-  printf 'halvo-route-wire v0.0.0 (crates/halvo-route-wire)\n\342\224\224\342\224\200\342\224\200 reqwest v0.12.0\n' >"$stub/tree-reqwest.out" || exit 2
-  awk '$0 != "test no_grant_in_release ... ok"' "$stub/debug.out" >"$stub/debug-no-grant.out" || exit 2
-  awk '$0 != "test no_grant_in_release ... ok"' "$stub/release.out" >"$stub/release-no-grant.out" || exit 2
-  printf '' >"$stub/empty.out" || exit 2
-  printf 'src/bin/probe.rs:4:26: error[E0624]: associated function test_hosted is private\n' >"$stub/probe-text.out" || exit 2
-  sed 's/answer=ruling$/answer=grant/' "$stub/control.out" >"$stub/control-grant.out" || exit 2
+  sed 's|target/debug/|target/release/|; s|test profile \[unoptimized + debuginfo\]|release profile [optimized]|' "$stub/debug.out" >"$stub/release.out" || fixture_fail
+  printf 'halvo-route v0.0.0 (crates/halvo-route)\n\nhalvo-route-wire v0.0.0 (crates/halvo-route-wire)\n\342\224\234\342\224\200\342\224\200 serde v1.0.229\n\342\224\224\342\224\200\342\224\200 serde_json v1.0.154\n' >"$stub/tree.out" || fixture_fail
+  printf '   Compiling r6-absent-pair v0.0.0 (pair)\nsrc/bin/probe.rs:4:26: error[E0624]: associated function test_hosted is private: private associated function\nerror: could not compile r6-absent-pair (bin "probe") due to 1 previous error\n' >"$stub/probe.out" || fixture_fail
+  printf 'control tier=low_cost_hosted answer=ruling\ncontrol tier=frontier answer=ruling\ncontrol cfg_test=yes\n' >"$stub/control.out" || fixture_fail
+  printf 'control tier=low_cost_hosted answer=ruling\ncontrol tier=frontier answer=grant\ncontrol cfg_test=yes\n' >"$stub/control-frontier-grant.out" || fixture_fail
+  printf 'halvo-route-wire v0.0.0 (crates/halvo-route-wire)\n\342\224\224\342\224\200\342\224\200 reqwest v0.12.0\n' >"$stub/tree-reqwest.out" || fixture_fail
+  awk '$0 != "test no_grant_in_release ... ok"' "$stub/debug.out" >"$stub/debug-no-grant.out" || fixture_fail
+  awk '$0 != "test no_grant_in_release ... ok"' "$stub/release.out" >"$stub/release-no-grant.out" || fixture_fail
+  printf '' >"$stub/empty.out" || fixture_fail
+  printf 'src/bin/probe.rs:4:26: error[E0624]: associated function test_hosted is private\n' >"$stub/probe-text.out" || fixture_fail
+  printf 'control tier=low_cost_hosted answer=grant\ncontrol tier=frontier answer=grant\ncontrol cfg_test=yes\n' >"$stub/control-grant.out" || fixture_fail
 }
 
 make_commit() {
-  mkdir -p "$1/crates/halvo-route/data" "$1/scripts/r6" "$1/docs/r6" || exit 2
-  printf 'ruling=none\n' >"$1/crates/halvo-route/data/ruling.txt" || exit 2
-  cp crates/halvo-route/data/policy.tsv "$1/crates/halvo-route/data/policy.tsv" || exit 2
+  mkdir -p "$1/crates/halvo-route/data" "$1/scripts/r6" "$1/docs/r6" || fixture_fail
+  printf 'ruling=none\n' >"$1/crates/halvo-route/data/ruling.txt" || fixture_fail
+  cp crates/halvo-route/data/policy.tsv "$1/crates/halvo-route/data/policy.tsv" || fixture_fail
 }
 
 fixture_fail() {
@@ -853,47 +855,48 @@ ruling_units() {
   u=$work/u
   for fixture in other-line:'ruling=hosted\n' without-its-lf:'ruling=none' line-twice:'ruling=none\nruling=none\n' \
     carriage-return:'ruling=none\r\n' leading-space:' ruling=none\n'; do
-    printf '%b' "${fixture#*:}" >"$u/ruling-${fixture%%:*}" || exit 2
+    printf '%b' "${fixture#*:}" >"$u/ruling-${fixture%%:*}" || fixture_fail
     unit "ruling-${fixture%%:*}" other failing ruling_of "$u/ruling-${fixture%%:*}"
   done
   unit ruling-missing other failing ruling_of "$u/no-such-file"
-  mkdir "$u/ruling-directory" || exit 2
+  mkdir "$u/ruling-directory" || fixture_fail
   unit ruling-directory other failing ruling_of "$u/ruling-directory"
-  printf 'ruling=none\n' >"$u/ruling-none" || exit 2
+  printf 'ruling=none\n' >"$u/ruling-none" || fixture_fail
   unit ruling-none none passing ruling_of "$u/ruling-none"
 }
 
 row_units() {
   u=$work/u
   policy=crates/halvo-route/data/policy.tsv
-  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "frontier"; $4 = "high" } { print }' "$policy" >"$u/policy-frontier" || exit 2
-  awk -F "$tab" -v OFS="$tab" 'NR == 3 { $3 = "low_cost_hosted"; $4 = "low" } { print }' "$policy" >"$u/policy-low-cost" || exit 2
-  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "Frontier" } { print }' "$policy" >"$u/policy-unknown-word" || exit 2
-  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $4 = "frontier" } { print }' "$policy" >"$u/policy-hosted-level" || exit 2
-  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $7 = $7 "\r"; $3 = "frontier\r" } { print }' "$policy" >"$u/policy-hosted-cr" || exit 2
-  awk '{ printf "%s\r\n", $0 }' "$policy" >"$u/policy-crlf" || exit 2
-  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "frontier" } { printf "%s\r\n", $0 }' "$policy" >"$u/policy-crlf-frontier" || exit 2
-  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "on_device"; $4 = "low" } { print }' "$policy" >"$u/policy-on-device" || exit 2
-  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "low_cost_hosted"; $4 = "low"; print }' "$policy" >"$u/policy-without-its-header" || exit 2
-  cp "$policy" "$u/policy-nul-byte" || exit 2
-  printf 'other\tcompile\tnone\000\t-\tnot_seed\t0\t0\n' >>"$u/policy-nul-byte" || exit 2
-  for fixture in frontier low-cost unknown-word hosted-level hosted-cr crlf-frontier without-its-header nul-byte; do
+  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "frontier"; $4 = "high" } { print }' "$policy" >"$u/policy-frontier" || fixture_fail
+  awk -F "$tab" -v OFS="$tab" 'NR == 3 { $3 = "low_cost_hosted"; $4 = "low" } { print }' "$policy" >"$u/policy-low-cost" || fixture_fail
+  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "Frontier" } { print }' "$policy" >"$u/policy-unknown-word" || fixture_fail
+  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $4 = "frontier" } { print }' "$policy" >"$u/policy-hosted-level" || fixture_fail
+  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $5 = "low_cost_hosted" } { print }' "$policy" >"$u/policy-low-cost-in-the-basis-cell" || fixture_fail
+  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $7 = $7 "\r"; $3 = "frontier\r" } { print }' "$policy" >"$u/policy-hosted-cr" || fixture_fail
+  awk '{ printf "%s\r\n", $0 }' "$policy" >"$u/policy-crlf" || fixture_fail
+  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "frontier" } { printf "%s\r\n", $0 }' "$policy" >"$u/policy-crlf-frontier" || fixture_fail
+  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "on_device"; $4 = "low" } { print }' "$policy" >"$u/policy-on-device" || fixture_fail
+  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "low_cost_hosted"; $4 = "low"; print }' "$policy" >"$u/policy-without-its-header" || fixture_fail
+  cp "$policy" "$u/policy-nul-byte" || fixture_fail
+  printf 'other\tcompile\tnone\000\t-\tnot_seed\t0\t0\n' >>"$u/policy-nul-byte" || fixture_fail
+  for fixture in frontier low-cost unknown-word hosted-level low-cost-in-the-basis-cell hosted-cr crlf-frontier without-its-header nul-byte; do
     unit "policy-$fixture" 1 failing hosted_rows "$u/policy-$fixture" "$policy_header" 3 'none hand_back on_device' 1
   done
   unit policy-missing 1 failing hosted_rows "$u/no-such-file" "$policy_header" 3 'none hand_back on_device' 1
-  mkdir "$u/policy-directory" || exit 2
+  mkdir "$u/policy-directory" || fixture_fail
   unit policy-directory 1 failing hosted_rows "$u/policy-directory" "$policy_header" 3 'none hand_back on_device' 0
   unit policy-on-device 0 passing hosted_rows "$u/policy-on-device" "$policy_header" 3 'none hand_back on_device' 1
   unit policy-crlf 0 passing hosted_rows "$u/policy-crlf" "$policy_header" 3 'none hand_back on_device' 1
   unit policy-committed 0 passing hosted_rows "$policy" "$policy_header" 3 'none hand_back on_device' 1
 
   row="bill${tab}utility_bill_payment${tab}compile${tab}on_device${tab}m1${tab}mac${tab}1${tab}dev${tab}1${tab}yes${tab}3${tab}10${tab}5${tab}5${tab}low${tab}s1"
-  printf '%s\n%s\n' "$recorded_header" "$row" >"$u/recorded-on-device" || exit 2
-  printf '%s\n%s\n' "$recorded_header" "$row" | sed "2s/${tab}on_device${tab}/${tab}frontier${tab}/" >"$u/recorded-frontier" || exit 2
-  printf '%s\n%s\n%s\n' "$recorded_header" "$row" "$row" | sed "3s/${tab}on_device${tab}/${tab}low_cost_hosted${tab}/" >"$u/recorded-low-cost" || exit 2
+  printf '%s\n%s\n' "$recorded_header" "$row" >"$u/recorded-on-device" || fixture_fail
+  printf '%s\n%s\n' "$recorded_header" "$row" | sed "2s/${tab}on_device${tab}/${tab}frontier${tab}/" >"$u/recorded-frontier" || fixture_fail
+  printf '%s\n%s\n%s\n' "$recorded_header" "$row" "$row" | sed "3s/${tab}on_device${tab}/${tab}low_cost_hosted${tab}/" >"$u/recorded-low-cost" || fixture_fail
   unit recorded-frontier 1 failing hosted_rows "$u/recorded-frontier" "$recorded_header" 4 on_device 0
   unit recorded-low-cost 1 failing hosted_rows "$u/recorded-low-cost" "$recorded_header" 4 on_device 0
-  mkdir "$u/recorded-directory" || exit 2
+  mkdir "$u/recorded-directory" || fixture_fail
   unit recorded-directory 1 failing hosted_rows "$u/recorded-directory" "$recorded_header" 4 on_device 0
   unit recorded-on-device 0 passing hosted_rows "$u/recorded-on-device" "$recorded_header" 4 on_device 0
   unit recorded-missing 0 passing hosted_rows "$u/no-such-file" "$recorded_header" 4 on_device 0
@@ -903,29 +906,29 @@ entry_units() {
   u=$work/u
   for fixture in entry:'[fixed]\n127.0.0.1:1\n[agent]\n' blank-line:'[fixed]\n\n[agent]\n' \
     last-line-without-lf:'[fixed]\n[agent]\nexample.invalid:443' carriage-returns:'[fixed]\r\n127.0.0.1:1\r\n[agent]\r\n' headings-with-carriage-returns:'[fixed]\r\n[agent]\r\n'; do
-    mkdir -p "$u/egress-${fixture%%:*}" || exit 2
-    printf '%b' "${fixture#*:}" >"$u/egress-${fixture%%:*}/gate.txt" || exit 2
+    mkdir -p "$u/egress-${fixture%%:*}" || fixture_fail
+    printf '%b' "${fixture#*:}" >"$u/egress-${fixture%%:*}/gate.txt" || fixture_fail
   done
   unit egress-entry 1 failing egress_entries "$u/egress-entry"
   unit egress-blank-line 1 failing egress_entries "$u/egress-blank-line"
   unit egress-last-line-without-lf 1 failing egress_entries "$u/egress-last-line-without-lf"
   unit egress-carriage-returns 1 failing egress_entries "$u/egress-carriage-returns"
   unit egress-headings-with-carriage-returns 0 passing egress_entries "$u/egress-headings-with-carriage-returns"
-  mkdir -p "$u/egress-nested/agent" || exit 2
-  printf '[fixed]\n[agent]\n' >"$u/egress-nested/gate.txt" || exit 2
-  printf '[fixed]\n[agent]\nexample.invalid:443\n' >"$u/egress-nested/agent/list.txt" || exit 2
+  mkdir -p "$u/egress-nested/agent" || fixture_fail
+  printf '[fixed]\n[agent]\n' >"$u/egress-nested/gate.txt" || fixture_fail
+  printf '[fixed]\n[agent]\nexample.invalid:443\n' >"$u/egress-nested/agent/list.txt" || fixture_fail
   unit egress-entry-in-a-subdirectory 1 failing egress_entries "$u/egress-nested"
-  printf '[fixed]\n[agent]\n127.0.0.1:1\n' >"$u/egress-as-a-file" || exit 2
+  printf '[fixed]\n[agent]\n127.0.0.1:1\n' >"$u/egress-as-a-file" || fixture_fail
   unit egress-path-is-a-file 1 failing egress_entries "$u/egress-as-a-file"
-  mkdir -p "$u/egress-headings" || exit 2
-  printf '[fixed]\n[agent]\n' >"$u/egress-headings/gate.txt" || exit 2
+  mkdir -p "$u/egress-headings" || fixture_fail
+  printf '[fixed]\n[agent]\n' >"$u/egress-headings/gate.txt" || fixture_fail
   unit egress-headings-only 0 passing egress_entries "$u/egress-headings"
   unit egress-missing 0 passing egress_entries "$u/no-such-directory"
-  mkdir -p "$u/egress-nul" "$u/egress-unreadable" || exit 2
-  printf '[fixed]\000example.invalid:443\n[agent]\n' >"$u/egress-nul/gate.txt" || exit 2
+  mkdir -p "$u/egress-nul" "$u/egress-unreadable" || fixture_fail
+  printf '[fixed]\000example.invalid:443\n[agent]\n' >"$u/egress-nul/gate.txt" || fixture_fail
   unit egress-nul-byte 1 failing egress_entries "$u/egress-nul"
-  printf '[fixed]\n[agent]\n' >"$u/egress-unreadable/gate.txt" || exit 2
-  chmod 000 "$u/egress-unreadable/gate.txt" || exit 2
+  printf '[fixed]\n[agent]\n' >"$u/egress-unreadable/gate.txt" || fixture_fail
+  chmod 000 "$u/egress-unreadable/gate.txt" || fixture_fail
   if [ -r "$u/egress-unreadable/gate.txt" ]; then
     printf 'case %s/egress-unreadable-file skipped: this system reads a file of mode 000\n' "$name"
   else
@@ -935,13 +938,13 @@ entry_units() {
 
 crate_units() {
   u=$work/u
-  printf '%s\r\n' 'reqwest v0.12.0' >"$u/tree-all" || exit 2
+  printf '%s\r\n' 'reqwest v0.12.0' >"$u/tree-all" || fixture_fail
   printf '%s\n' '|-- hyper v1.0.0' "$(printf '\342\224\234\342\224\200\342\224\200') ureq v2.0.0" '|   `-- rustls v0.23.0 (*)' \
     '    ring v0.17.0' 'aws_lc_rs v1.0.0' 'native-tls v0.2.0' 'openssl-sys v0.9.0' 'Tokio v1.0.0' 'socket2 v0.5.0' \
-    'mio v1.0.0 (registry+https://example.invalid)' >>"$u/tree-all" || exit 2
+    'mio v1.0.0 (registry+https://example.invalid)' >>"$u/tree-all" || fixture_fail
   unit tree-every-listed-package 11 failing net_crates "$u/tree-all"
   printf '%s\n' 'halvo-route-wire v0.0.0 (crates/reqwest)' '|-- tokio-util v0.7.0' '|-- hyper-util v0.1.0' \
-    '|-- rustls-pemfile v2.0.0' '|-- ringbuf v0.4.0' '`-- mio-extras v2.0.0' >"$u/tree-near" || exit 2
+    '|-- rustls-pemfile v2.0.0' '|-- ringbuf v0.4.0' '`-- mio-extras v2.0.0' >"$u/tree-near" || fixture_fail
   unit tree-near-names 0 passing net_crates "$u/tree-near"
   unit tree-committed-form 0 passing net_crates "$work/stub/tree.out"
 }
@@ -956,24 +959,24 @@ grant_units() {
       verdict "grants-$1" "$2" miss "$3"
     fi
   }
-  awk '$0 != "test pinned_files_hold_their_hashes ... ok"' "$base" >"$u/grants-without-the-pins-ok" || exit 2
-  awk '$0 != "test no_grant_in_release ... ok"' "$base" >"$u/grants-without-the-grant-ok" || exit 2
-  awk '/^test (no_grant_in_release|pinned_files_hold_their_hashes) \.\.\. ok$/ { held = held $0 "\n"; next } { print } $0 == "test pick_rule ... ok" { printf "%s", held }' "$base" >"$u/grants-under-the-next-target" || exit 2
-  awk '!/Running tests\/no_grant_in_release\.rs /' "$base" >"$u/grants-without-the-target-line" || exit 2
-  awk '{ print } /Running tests\/no_grant_in_release\.rs / { print }' "$base" >"$u/grants-target-line-twice" || exit 2
-  awk '{ sub(/deps\/no_grant_in_release-/, "deps/pick_rules-") } { print }' "$base" >"$u/grants-other-binary" || exit 2
-  awk '{ sub(/Running tests\/no_grant_in_release\.rs /, "Running tests/forge.rs ") } { print }' "$base" >"$u/grants-other-source" || exit 2
-  awk '$0 == "test no_grant_in_release ... ok" { print "   Doc-tests halvo_route" } { print }' "$base" >"$u/grants-after-a-doc-tests-line" || exit 2
-  awk '$0 == "test pinned_files_hold_their_hashes ... ok" { $0 = "test pinned_files_hold_their_hashes - should panic ... ok" } { print }' "$base" >"$u/grants-should-panic" || exit 2
-  awk '{ print } $0 == "test no_grant_in_release ... ok" { print }' "$base" >"$u/grants-ok-line-twice" || exit 2
-  awk '/Running tests\/no_grant_in_release\.rs / { sub(/\)$/, "") } { print }' "$base" >"$u/grants-target-line-without-its-paren" || exit 2
+  awk '$0 != "test pinned_files_hold_their_hashes ... ok"' "$base" >"$u/grants-without-the-pins-ok" || fixture_fail
+  awk '$0 != "test no_grant_in_release ... ok"' "$base" >"$u/grants-without-the-grant-ok" || fixture_fail
+  awk '/^test (no_grant_in_release|pinned_files_hold_their_hashes) \.\.\. ok$/ { held = held $0 "\n"; next } { print } $0 == "test pick_rule ... ok" { printf "%s", held }' "$base" >"$u/grants-under-the-next-target" || fixture_fail
+  awk '!/Running tests\/no_grant_in_release\.rs /' "$base" >"$u/grants-without-the-target-line" || fixture_fail
+  awk '{ print } /Running tests\/no_grant_in_release\.rs / { print }' "$base" >"$u/grants-target-line-twice" || fixture_fail
+  awk '{ sub(/deps\/no_grant_in_release-/, "deps/pick_rules-") } { print }' "$base" >"$u/grants-other-binary" || fixture_fail
+  awk '{ sub(/Running tests\/no_grant_in_release\.rs /, "Running tests/forge.rs ") } { print }' "$base" >"$u/grants-other-source" || fixture_fail
+  awk '$0 == "test no_grant_in_release ... ok" { print "   Doc-tests halvo_route" } { print }' "$base" >"$u/grants-after-a-doc-tests-line" || fixture_fail
+  awk '$0 == "test pinned_files_hold_their_hashes ... ok" { $0 = "test pinned_files_hold_their_hashes - should panic ... ok" } { print }' "$base" >"$u/grants-should-panic" || fixture_fail
+  awk '{ print } $0 == "test no_grant_in_release ... ok" { print }' "$base" >"$u/grants-ok-line-twice" || fixture_fail
+  awk '/Running tests\/no_grant_in_release\.rs / { sub(/\)$/, "") } { print }' "$base" >"$u/grants-target-line-without-its-paren" || fixture_fail
   for fixture in without-the-pins-ok without-the-grant-ok under-the-next-target without-the-target-line target-line-twice \
     other-binary other-source after-a-doc-tests-line should-panic ok-line-twice target-line-without-its-paren; do
     grant_case "$fixture" miss failing
   done
-  awk '/^ *Running / { gsub(/\//, "\\"); sub(/\)$/, ".exe)") } { printf "%s\r\n", $0 }' "$base" >"$u/grants-windows-form" || exit 2
+  awk '/^ *Running / { gsub(/\//, "\\"); sub(/\)$/, ".exe)") } { printf "%s\r\n", $0 }' "$base" >"$u/grants-windows-form" || fixture_fail
   grant_case windows-form hold passing
-  cp "$work/stub/release.out" "$u/grants-release-form" || exit 2
+  cp "$work/stub/release.out" "$u/grants-release-form" || fixture_fail
   grant_case release-form hold passing
 }
 
@@ -987,19 +990,19 @@ probe_units() {
     fi
   }
   e0624='error[E0624]: associated function test_hosted is private'
-  printf '' >"$u/probe-no-error" || exit 2
-  printf 'src/bin/probe.rs:4:26: error[E0599]: no function or associated item named test_hosted found\n' >"$u/probe-e0599" || exit 2
-  printf 'src/bin/probe.rs:5:26: %s\n' "$e0624" >"$u/probe-another-line" || exit 2
-  printf 'src/bin/probe.rs:4:26: %s\ncrates/halvo-route/src/leave.rs:586:5: error[E0432]: unresolved import sha2\n' "$e0624" >"$u/probe-and-an-error-in-the-library" || exit 2
-  printf 'src/bin/probe.rs:4:26: %s\nerror[E0432]: unresolved import sha2\n  --> crates/halvo-route/src/leave.rs:586:5\n' "$e0624" >"$u/probe-and-a-long-form-error" || exit 2
-  printf 'other/src/bin/probe.rs:4:26: %s\n' "$e0624" >"$u/probe-another-file" || exit 2
-  printf 'src/bin/probe.rs:4:26: error: associated function test_hosted is private\n' >"$u/probe-error-without-a-code" || exit 2
+  printf '' >"$u/probe-no-error" || fixture_fail
+  printf 'src/bin/probe.rs:4:26: error[E0599]: no function or associated item named test_hosted found\n' >"$u/probe-e0599" || fixture_fail
+  printf 'src/bin/probe.rs:5:26: %s\n' "$e0624" >"$u/probe-another-line" || fixture_fail
+  printf 'src/bin/probe.rs:4:26: %s\ncrates/halvo-route/src/leave.rs:586:5: error[E0432]: unresolved import sha2\n' "$e0624" >"$u/probe-and-an-error-in-the-library" || fixture_fail
+  printf 'src/bin/probe.rs:4:26: %s\nerror[E0432]: unresolved import sha2\n  --> crates/halvo-route/src/leave.rs:586:5\n' "$e0624" >"$u/probe-and-a-long-form-error" || fixture_fail
+  printf 'other/src/bin/probe.rs:4:26: %s\n' "$e0624" >"$u/probe-another-file" || fixture_fail
+  printf 'src/bin/probe.rs:4:26: error: associated function test_hosted is private\n' >"$u/probe-error-without-a-code" || fixture_fail
   for fixture in no-error e0599 another-line and-an-error-in-the-library and-a-long-form-error another-file error-without-a-code; do
     probe_case "$fixture" holds-no-stop failing
   done
-  cp "$work/stub/probe.out" "$u/probe-committed-form" || exit 2
+  cp "$work/stub/probe.out" "$u/probe-committed-form" || fixture_fail
   probe_case committed-form stops passing
-  printf 'src\\bin\\probe.rs:4:26: %s\r\nerror: aborting due to 1 previous error\r\n' "$e0624" >"$u/probe-windows-form" || exit 2
+  printf 'src\\bin\\probe.rs:4:26: %s\r\nerror: aborting due to 1 previous error\r\n' "$e0624" >"$u/probe-windows-form" || fixture_fail
   probe_case windows-form stops passing
 }
 
@@ -1007,35 +1010,47 @@ full_cases() {
   check all-hold PASS 'absent ruling=none hosted_picks=0 hosted_rows=0 net_crates=0 entries=0 grants=0 test_value=0'
 
   for variant in ruling policy recorded egress; do
-    mkdir "$work/commit-$variant" || exit 2
+    mkdir "$work/commit-$variant" || fixture_fail
     make_commit "$work/commit-$variant"
   done
-  printf 'ruling=hosted\n' >"$work/commit-ruling/crates/halvo-route/data/ruling.txt" || exit 2
+  printf 'ruling=hosted\n' >"$work/commit-ruling/crates/halvo-route/data/ruling.txt" || fixture_fail
   STUB_COMMIT=$work/commit-ruling
   check ruling-file-with-another-line FAIL 'absent ruling=other hosted_picks=0 ' "FAIL $name (ruling)"
-  cp "$work/u/policy-frontier" "$work/commit-policy/crates/halvo-route/data/policy.tsv" || exit 2
+  cp "$work/u/policy-frontier" "$work/commit-policy/crates/halvo-route/data/policy.tsv" || fixture_fail
   STUB_COMMIT=$work/commit-policy
   check policy-pick-raised-to-frontier FAIL ' hosted_picks=1 hosted_rows=0 ' "FAIL $name (picks)"
-  mkdir -p "$work/commit-recorded/docs/r6/outcomes" || exit 2
-  cp "$work/u/recorded-frontier" "$work/commit-recorded/docs/r6/outcomes/recorded.tsv" || exit 2
+  mkdir -p "$work/commit-recorded/docs/r6/outcomes" || fixture_fail
+  cp "$work/u/recorded-frontier" "$work/commit-recorded/docs/r6/outcomes/recorded.tsv" || fixture_fail
   STUB_COMMIT=$work/commit-recorded
   check recorded-row-of-a-hosted-tier FAIL ' hosted_rows=1 net_crates=0 ' "FAIL $name (rows)"
-  cp "$work/u/recorded-on-device" "$work/commit-recorded/docs/r6/outcomes/recorded.tsv" || exit 2
+  cp "$work/u/recorded-on-device" "$work/commit-recorded/docs/r6/outcomes/recorded.tsv" || fixture_fail
   STUB_COMMIT=$work/commit-recorded
   check recorded-rows-on-the-device PASS ' hosted_rows=0 net_crates=0 '
-  mkdir "$work/commit-recorded-directory" || exit 2
+  mkdir "$work/commit-recorded-directory" || fixture_fail
   make_commit "$work/commit-recorded-directory"
-  mkdir -p "$work/commit-recorded-directory/docs/r6/outcomes/recorded.tsv" || exit 2
-  printf 'x\n' >"$work/commit-recorded-directory/docs/r6/outcomes/recorded.tsv/x" || exit 2
+  mkdir -p "$work/commit-recorded-directory/docs/r6/outcomes/recorded.tsv" || fixture_fail
+  printf 'x\n' >"$work/commit-recorded-directory/docs/r6/outcomes/recorded.tsv/x" || fixture_fail
   STUB_COMMIT=$work/commit-recorded-directory
   check recorded-path-is-a-directory FAIL ' hosted_rows=1 net_crates=0 ' "FAIL $name (rows)"
   STUB_GITLINK=1
   check egress-entry-that-is-no-file FAIL ' entries=1 grants=0 ' "FAIL $name (entries)"
 
-  mkdir -p "$work/commit-egress/scripts/r6/egress" || exit 2
-  printf '[fixed]\n127.0.0.1:1\n[agent]\n' >"$work/commit-egress/scripts/r6/egress/gate.txt" || exit 2
+  mkdir -p "$work/commit-egress/scripts/r6/egress" || fixture_fail
+  printf '[fixed]\n127.0.0.1:1\n[agent]\n' >"$work/commit-egress/scripts/r6/egress/gate.txt" || fixture_fail
   STUB_COMMIT=$work/commit-egress
   check egress-list-with-an-entry FAIL ' entries=1 grants=0 ' "FAIL $name (entries)"
+
+  mkdir "$work/commit-no-policy" || fixture_fail
+  make_commit "$work/commit-no-policy"
+  mv "$work/commit-no-policy/crates/halvo-route/data/policy.tsv" "$work/commit-no-policy/policy.away" || fixture_fail
+  STUB_COMMIT=$work/commit-no-policy
+  check commit-without-a-policy FAIL ' hosted_picks=1 hosted_rows=0 ' "FAIL $name (picks)"
+  mkdir "$work/commit-ruling-and-pick" || fixture_fail
+  make_commit "$work/commit-ruling-and-pick"
+  printf 'ruling=hosted\n' >"$work/commit-ruling-and-pick/crates/halvo-route/data/ruling.txt" || fixture_fail
+  cp "$work/u/policy-frontier" "$work/commit-ruling-and-pick/crates/halvo-route/data/policy.tsv" || fixture_fail
+  STUB_COMMIT=$work/commit-ruling-and-pick
+  check ruling-and-pick-name-the-ruling FAIL 'absent ruling=other hosted_picks=1 ' "FAIL $name (ruling)"
 
   STUB_TREE_OUT=$work/stub/tree-reqwest.out
   check tree-names-a-network-package FAIL ' net_crates=1 entries=0 ' "FAIL $name (crates)"
@@ -1060,17 +1075,19 @@ full_cases() {
   check probe-exits-0-with-the-error-text FAIL ' test_value=1' "FAIL $name (test_value)"
   STUB_CONTROL_OUT=$work/stub/control-grant.out
   check control-answers-grant FAIL ' test_value=1' "FAIL $name (test_value)"
+  STUB_CONTROL_OUT=$work/stub/control-frontier-grant.out
+  check control-answers-grant-for-frontier FAIL ' test_value=1' "FAIL $name (test_value)"
   STUB_CONTROL_EXIT=1
   check control-exits-1 FAIL ' test_value=1' "FAIL $name (test_value)"
   STUB_CONTROL_EXIT=101
   STUB_PROBE_EXIT=0
   STUB_PROBE_OUT=$work/stub/empty.out
   check probe-and-control-miss FAIL ' test_value=2' "FAIL $name (test_value)"
-  CASE_RUSTFLAGS='-Dwarnings'
-  STUB_JOB_FLAG='-Dwarnings'
+  CASE_RUSTFLAGS='--cfg r6_job'
+  STUB_JOB_FLAG='--cfg r6_job'
   check job-rustflags-kept PASS ' test_value=0'
-  CASE_ENCODED='-Dwarnings'
-  STUB_JOB_FLAG='-Dwarnings'
+  CASE_ENCODED=$(printf -- '--cfg\037r6_job')
+  STUB_JOB_FLAG='--cfg r6_job'
   check job-encoded-rustflags-kept PASS ' test_value=0'
   CASE_QUIET=true
   check job-sets-cargo-quiet PASS ' grants=0 test_value=0'
@@ -1084,9 +1101,21 @@ full_cases() {
     esac
     check "tree-changed-by-$STUB_CHANGE_AT" FAIL "tree changed=after-$when ? .cargo/config.toml" "FAIL $name (${kind#*:})"
   done
-  printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-route/data/ruling.txt\n' >"$work/tree/status" || exit 2
+  printf 'h crates/halvo-route/data/ruling.txt\n' >"$work/tree/flags" || fixture_fail
+  check assume-unchanged-file-before-the-run FAIL 'tree changed=before h crates/halvo-route/data/ruling.txt' "FAIL $name (setup)"
+  printf 'S crates/halvo-route/data/policy.tsv\n' >"$work/tree/flags" || fixture_fail
+  check skip-worktree-file-before-the-run FAIL 'tree changed=before S crates/halvo-route/data/policy.tsv' "FAIL $name (setup)"
+  STUB_CHANGE_AT=debug
+  STUB_CHANGE_FILE=flags
+  STUB_CHANGE_LINE='S crates/halvo-route/src/leave.rs'
+  check skip-worktree-set-by-the-debug-run FAIL 'tree changed=after-debug S crates/halvo-route/src/leave.rs' "FAIL $name (grants)"
+  STUB_CHANGE_AT=tree
+  STUB_CHANGE_FILE=flags
+  STUB_CHANGE_LINE='h crates/halvo-route/data/policy.tsv'
+  check assume-unchanged-set-by-cargo-tree FAIL 'tree changed=after-tree h crates/halvo-route/data/policy.tsv' "FAIL $name (crates)"
+  printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-route/data/ruling.txt\n' >"$work/tree/status" || fixture_fail
   check changed-file-before-the-run FAIL 'tree changed=before 1 crates/halvo-route/data/ruling.txt' "FAIL $name (setup)"
-  printf '? notes.txt\n! target/\n' >"$work/tree/status" || exit 2
+  printf '? notes.txt\n! target/\n' >"$work/tree/status" || fixture_fail
   check untracked-and-ignored-before-the-run PASS ' test_value=0'
   STUB_NO_COMMIT=1
   check no-commit FAIL 'tree commit=unreadable' "FAIL $name (setup)"
@@ -1099,7 +1128,7 @@ full_cases() {
   direct "$?" "$usage" usage unknown-argument
   unentered=$(CI_D_REPO=$work/no-such-directory sh "$self" 2>&1)
   direct "$?" "$unentered" setup cannot-enter-the-repository
-  : >"$work/a-file" || exit 2
+  : >"$work/a-file" || fixture_fail
   unmade=$(CI_D_REPO=$work/repo CI_D_ARTIFACTS=$work/a-file/artifacts sh "$self" 2>&1)
   direct "$?" "$unmade" setup cannot-make-a-directory
 }
