@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ and no package named with sqlite or sqlcipher, and cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, no tracked file differs from HEAD after cargo ran, and on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job, while its self-test runs every case in the macos job and, in the windows job, only the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/ and the windows job's hosted stores) and three controls, because the windows job is held under ST-22's line; the windows job no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; a tree that such a case stands for is refused by the macos job of the same commit.
+# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ and no package named with sqlite or sqlcipher, and cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, no tracked file differs from HEAD after cargo ran, and on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job, while its self-test runs every case in the macos job and, in the windows job, only the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/ and the windows job's hosted stores) and three controls, because the windows job is held under ST-22's line, and fails when a case of its job's list did not run, when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives and that harness cases of both jobs check with values of their own; the windows job no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; a tree that such a case stands for is refused by the macos job of the same commit.
 set -u
 name=10-r7-account
 case $0 in
@@ -32,7 +32,9 @@ deny-targets-fifth deny-targets-lack-one deny-targets-gone tracked-unchanged
 tracked-file-changed untracked-file-written no-deny-pin pin-with-other-characters
 banned-package-in-graph edit-that-changes-nothing crlf-without-carriage-returns job-read-once
 no-job-runs-every-case windows-job-runs-its-list-alone macos-job-misses-a-case
-windows-job-misses-a-case case-on-no-list'
+windows-job-misses-a-case case-on-no-list verdict-names-a-case-not-run
+verdict-names-a-case-on-no-list verdict-names-a-left-out-count verdict-names-a-job-not-read
+verdict-of-right-values-has-no-word'
 macos_cases='tests-fail no-test-ran test-count-not-a-number build-fails deny-fails fmt-fails
 clippy-fails self-hosted-runner actions-not-true hosted-macos hosted-test-fails
 hosted-line-missing hosted-line-of-another-store hosted-file-line-missing hosted-other-job
@@ -672,6 +674,30 @@ cases_missing() {
   done
 }
 
+split_verdict() {
+  # $1 the job that the self-test read, $2 the driver's job, $3 the cases that ran, $4 the
+  # cases noted on no list, $5 the count of cases left out. Prints one word after a space for
+  # each fault and nothing for right values.
+  missing=$(cases_missing "$1" "$3") || {
+    printf ' cases-missing-failed'
+    return 1
+  }
+  for missing_case in $missing; do
+    printf ' not-run:%s' "$missing_case"
+  done
+  for unlisted_case in $4; do
+    printf ' on-no-list:%s' "$unlisted_case"
+  done
+  expected_left=0
+  if [ "$1" = windows ]; then
+    for listed_case in $macos_cases; do
+      selected "$listed_case" && expected_left=$((expected_left + 1))
+    done
+  fi
+  [ "$5" -eq "$expected_left" ] || printf ' left-out-count:%s-not-%s' "$5" "$expected_left"
+  [ "$1" = "$2" ] || printf ' job-not-read'
+}
+
 run_case() {
   case=$1
   selected "$case" || return 0
@@ -741,6 +767,7 @@ harness_case() {
 
 self_test() {
   self_test_job=${CI_D_JOB:-}
+  split=' split-not-checked'
   ran=
   left=0
   unlisted=
@@ -1017,17 +1044,19 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
   fi
   all_cases="$windows_cases $macos_cases"
   without_one=$(for listed_case in $all_cases; do [ "$listed_case" = tests-fail ] || printf '%s ' "$listed_case"; done)
-  if [ "$(R7_ACCOUNT_CASES='' cases_missing macos "$without_one")" = ' tests-fail' ] &&
-    [ -z "$(R7_ACCOUNT_CASES='' cases_missing macos "$all_cases")" ]; then
+  if missing_one=$(R7_ACCOUNT_CASES='' cases_missing macos "$without_one") &&
+    missing_none=$(R7_ACCOUNT_CASES='' cases_missing macos "$all_cases") &&
+    [ "$missing_one" = ' tests-fail' ] && [ -z "$missing_none" ]; then
     harness_case macos-job-misses-a-case refused
   else
     harness_case macos-job-misses-a-case "missed no case"
   fi
   without_one=$(for listed_case in $windows_cases; do [ "$listed_case" = unchanged ] || printf '%s ' "$listed_case"; done)
   without_link=$(for listed_case in $windows_cases; do [ "$listed_case" = link-out-of-account ] || printf '%s ' "$listed_case"; done)
-  if [ "$(R7_ACCOUNT_CASES='' cases_missing windows "$without_one")" = ' unchanged' ] &&
-    [ -z "$(R7_ACCOUNT_CASES='' cases_missing windows "$windows_cases")" ] &&
-    [ -z "$(R7_ACCOUNT_CASES='' cases_missing windows "$without_link")" ]; then
+  if missing_one=$(R7_ACCOUNT_CASES='' cases_missing windows "$without_one") &&
+    missing_none=$(R7_ACCOUNT_CASES='' cases_missing windows "$windows_cases") &&
+    missing_link=$(R7_ACCOUNT_CASES='' cases_missing windows "$without_link") &&
+    [ "$missing_one" = ' unchanged' ] && [ -z "$missing_none" ] && [ -z "$missing_link" ]; then
     harness_case windows-job-misses-a-case refused
   else
     harness_case windows-job-misses-a-case "missed no case"
@@ -1042,24 +1071,49 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
   else
     harness_case case-on-no-list "took a case of no list"
   fi
-
-  for missing_case in $(cases_missing "$self_test_job" "$ran"); do
-    wrong="$wrong not-run:$missing_case"
+  macos_count=0
+  for listed_case in $macos_cases; do
+    macos_count=$((macos_count + 1))
   done
-  for unlisted_case in $unlisted; do
-    wrong="$wrong on-no-list:$unlisted_case"
-  done
-  expected_left=0
-  if [ "$self_test_job" = windows ]; then
-    for listed_case in $macos_cases; do
-      selected "$listed_case" && expected_left=$((expected_left + 1))
-    done
+  without_one=$(for listed_case in $all_cases; do [ "$listed_case" = tests-fail ] || printf '%s ' "$listed_case"; done)
+  if verdict=$(R7_ACCOUNT_CASES='' split_verdict macos macos "$without_one" '' 0) &&
+    [ "$verdict" = ' not-run:tests-fail' ]; then
+    harness_case verdict-names-a-case-not-run refused
+  else
+    harness_case verdict-names-a-case-not-run "gave '$verdict'"
   fi
-  [ "$left" -eq "$expected_left" ] || wrong="$wrong left-out-count:$left-not-$expected_left"
-  [ "$self_test_job" = "${CI_D_JOB:-}" ] || wrong="$wrong job-not-read"
+  if verdict=$(R7_ACCOUNT_CASES='' split_verdict macos macos "$all_cases" ' case-of-no-list' 0) &&
+    [ "$verdict" = ' on-no-list:case-of-no-list' ]; then
+    harness_case verdict-names-a-case-on-no-list refused
+  else
+    harness_case verdict-names-a-case-on-no-list "gave '$verdict'"
+  fi
+  if verdict=$(R7_ACCOUNT_CASES='' split_verdict windows windows "$windows_cases" '' $((macos_count - 1))) &&
+    [ "$verdict" = " left-out-count:$((macos_count - 1))-not-$macos_count" ]; then
+    harness_case verdict-names-a-left-out-count refused
+  else
+    harness_case verdict-names-a-left-out-count "gave '$verdict'"
+  fi
+  if verdict=$(R7_ACCOUNT_CASES='' split_verdict windows macos "$windows_cases" '' "$macos_count") &&
+    [ "$verdict" = ' job-not-read' ]; then
+    harness_case verdict-names-a-job-not-read refused
+  else
+    harness_case verdict-names-a-job-not-read "gave '$verdict'"
+  fi
+  if verdict=$(R7_ACCOUNT_CASES='' split_verdict macos macos "$all_cases" '' 0) &&
+    [ -z "$verdict" ] &&
+    verdict=$(R7_ACCOUNT_CASES='' split_verdict windows windows "$windows_cases" '' "$macos_count") &&
+    [ -z "$verdict" ]; then
+    harness_case verdict-of-right-values-has-no-word refused
+  else
+    harness_case verdict-of-right-values-has-no-word "gave '$verdict'"
+  fi
+
+  split=$(split_verdict "$self_test_job" "${CI_D_JOB:-}" "$ran" "$unlisted" "$left") ||
+    split="$split split-verdict-failed"
   printf 'cases left to the macos job: %s\n' "$left"
-  if [ -n "$wrong" ]; then
-    printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
+  if [ -n "$split$wrong" ]; then
+    printf 'FAIL self-test:%s (wrong verdict in:%s%s)\n' "$name" "$split" "$wrong"
     exit 1
   fi
   printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
