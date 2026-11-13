@@ -1,7 +1,7 @@
 mod common;
 
 use common::{
-    bodies, count, episode, open, position, store_id, summary_id, Scratch, Seq, TestClock,
+    bodies, count, episode, open, position, raw, store_id, summary_id, Scratch, Seq, TestClock,
 };
 use halvo_schema_core::record::{Episode, Evidence, Ordinal};
 
@@ -129,10 +129,20 @@ fn the_high_water_mark_rises_over_purged_ordinals_that_follow_it() {
     assert_eq!(count(&scratch, "SELECT ordinal FROM purged"), 9);
 }
 
+/// The purge's answer, the evidence rows left after it, the answer of the purge below, the drops of the later commit,
+/// the mark, and the ordinals of the purged set.
+type AtTop = (
+    Result<u64, halvo_derived::Fault>,
+    usize,
+    bool,
+    u64,
+    i64,
+    Vec<i64>,
+);
+
 /// At `top`, with the mark raised to it: an evidence row that names it, its purge, a purge below it, and a later
-/// commit that names it. Returns the purge's answer, the evidence rows left after it, the answer of the purge below
-/// and the drops of the later commit.
-fn purge_at(name: &str, top: u64) -> (Result<u64, halvo_derived::Fault>, usize, bool, u64) {
+/// commit that names it.
+fn purge_at(name: &str, top: u64) -> AtTop {
     let scratch = Scratch::new(name);
     let clock = TestClock::at_day(20_767);
     let mut store = open(&scratch, &clock).unwrap();
@@ -160,12 +170,26 @@ fn purge_at(name: &str, top: u64) -> (Result<u64, halvo_derived::Fault>, usize, 
         )
         .unwrap();
     drop(store);
-    (purged, left, below, later.dropped)
+    let mark = count(&scratch, "SELECT mark FROM meta");
+    let set = raw(&scratch)
+        .prepare("SELECT ordinal FROM purged ORDER BY ordinal")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    (purged, left, below, later.dropped, mark, set)
 }
 
 #[test]
 fn a_purge_at_the_highest_ordinal_refuses_nothing_and_keeps_the_ordinal_purged() {
     let max = i64::MAX as u64;
-    assert_eq!(purge_at("purge-max", max), (Ok(1), 0, true, 1));
-    assert_eq!(purge_at("purge-max-less-one", max - 1), (Ok(1), 0, true, 1));
+    assert_eq!(
+        purge_at("purge-max", max),
+        (Ok(1), 0, true, 1, i64::MAX, vec![i64::MAX])
+    );
+    assert_eq!(
+        purge_at("purge-max-less-one", max - 1),
+        (Ok(1), 0, true, 1, i64::MAX, Vec::new())
+    );
 }
