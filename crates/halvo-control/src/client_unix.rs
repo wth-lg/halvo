@@ -637,6 +637,43 @@ mod tests {
         );
     }
 
+    /// A connector whose socket lies outside its data directory, as C3.5 allows when the
+    /// socket goes under the user's temporary directory.
+    fn connector_beside(data_dir: &Path, socket_dir: &DataDir) -> UnixConnector {
+        UnixConnector {
+            socket: socket_dir.control_socket(),
+            data_dir: data_dir.to_path_buf(),
+            expected_pid: None,
+        }
+    }
+
+    #[test]
+    fn a_fifo_at_the_data_directory_path_is_an_io_error_with_exit_1_at_once_through_the_connector()
+    {
+        use crate::instance_lock::planted;
+
+        let (_base, socket_dir) = short_data_dir();
+        crate::testing::make_private_dir(&socket_dir.run_dir()).unwrap();
+        let fifo = socket_dir.path().join("planted");
+        planted::mkfifo(&fifo);
+        let connector = connector_beside(&fifo, &socket_dir);
+        let answer = planted::answer_within(&fifo, &fifo, move |_| Client::new(connector).status());
+        let Some(answer) = answer else {
+            panic!(
+                "the connect did not return within {:?} on a FIFO at the data directory's path",
+                planted::BOUND
+            );
+        };
+        assert!(matches!(answer, Err(ClientError::Io(_))), "{answer:?}");
+        let printed = crate::ctl_text::print(
+            &crate::ctl_text::Verb::Status { indicator: false },
+            answer.map(crate::proto::Reply::Status),
+            &socket_dir,
+        );
+        assert_eq!(printed.status, 1, "{printed:?}");
+        assert!(!printed.stderr.contains("not running"), "{printed:?}");
+    }
+
     #[test]
     fn no_data_directory_is_unreachable() {
         let (_base, dir) = short_data_dir();

@@ -98,12 +98,142 @@ pub fn read(dir: &Path) -> std::io::Result<LockRead> {
     }
 }
 
+/// Test helpers for an entry that is no directory at a data directory's path.
+#[cfg(test)]
+pub(crate) mod planted {
+    use std::path::{Path, PathBuf};
+    use std::time::{Duration, Instant};
+
+    /// How long a call on a planted entry may take before the test calls it blocked. The call
+    /// is expected to return at once; 10 s leaves a hosted runner that holds a thread for
+    /// seconds far inside the bound.
+    pub(crate) const BOUND: Duration = Duration::from_secs(10);
+
+    pub(crate) fn mkfifo(path: &Path) {
+        use std::os::unix::ffi::OsStrExt;
+        let c_path = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
+        // SAFETY: c_path is a live NUL-terminated path; mkfifo takes no other pointer.
+        assert_eq!(unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) }, 0);
+    }
+
+    /// While a thread may be blocked in an open of the FIFO at `fifo`, this opens the FIFO for
+    /// writing, which ends such an open, and waits for the thread, each with a bound, on every
+    /// path out of the test.
+    struct Unblock {
+        fifo: PathBuf,
+        thread: Option<std::thread::JoinHandle<()>>,
+    }
+
+    impl Drop for Unblock {
+        fn drop(&mut self) {
+            use std::os::unix::fs::OpenOptionsExt;
+            let Some(thread) = self.thread.take() else {
+                return;
+            };
+            let until = Instant::now() + BOUND;
+            let mut writer = None;
+            while !thread.is_finished() && Instant::now() < until {
+                if writer.is_none() {
+                    writer = std::fs::OpenOptions::new()
+                        .write(true)
+                        .custom_flags(libc::O_NONBLOCK)
+                        .open(&self.fifo)
+                        .ok();
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            drop(writer);
+            if thread.is_finished() {
+                let _ = thread.join();
+            }
+        }
+    }
+
+    /// The answer of `call` on `path`, from a thread of its own, or `None` when it has not
+    /// answered within [`BOUND`]. `fifo` names a FIFO that the guard opens for writing to end
+    /// a blocked open; it may be `path` itself or the FIFO that a link at `path` names.
+    pub(crate) fn answer_within<T: Send + 'static>(
+        path: &Path,
+        fifo: &Path,
+        call: impl FnOnce(&Path) -> T + Send + 'static,
+    ) -> Option<T> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let at = path.to_path_buf();
+        let thread = std::thread::spawn(move || {
+            let _ = tx.send(call(&at));
+        });
+        let _guard = Unblock {
+            fifo: fifo.to_path_buf(),
+            thread: Some(thread),
+        };
+        rx.recv_timeout(BOUND).ok()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn dir() -> tempfile::TempDir {
         tempfile::Builder::new().prefix("il").tempdir().unwrap()
+    }
+
+    /// What sits at the data directory's path, and the FIFO that a blocked open waits on.
+    fn plant(
+        base: &Path,
+        kind: &str,
+    ) -> (
+        std::path::PathBuf,
+        std::path::PathBuf,
+        Option<std::os::unix::net::UnixListener>,
+    ) {
+        let path = base.join("d");
+        let fifo = base.join("f");
+        planted::mkfifo(&fifo);
+        let mut listener = None;
+        match kind {
+            "a FIFO" => {
+                std::fs::rename(&fifo, &path).unwrap();
+                return (path.clone(), path, None);
+            }
+            "a regular file" => std::fs::write(&path, b"x").unwrap(),
+            "a socket" => listener = Some(std::os::unix::net::UnixListener::bind(&path).unwrap()),
+            "a link to a FIFO" => std::os::unix::fs::symlink(&fifo, &path).unwrap(),
+            _ => unreachable!(),
+        }
+        (path, fifo, listener)
+    }
+
+    #[test]
+    fn an_entry_that_is_no_directory_at_the_data_directory_path_is_an_error_at_once() {
+        for kind in ["a FIFO", "a regular file", "a socket", "a link to a FIFO"] {
+            let base = dir();
+            let (path, fifo, _listener) = plant(base.path(), kind);
+            let read = planted::answer_within(&path, &fifo, |p| read(p).map_err(|e| e.kind()));
+            let try_take = planted::answer_within(&path, &fifo, |p| {
+                InstanceLock::try_take(p)
+                    .map(|l| l.is_some())
+                    .map_err(|e| e.kind())
+            });
+            let take = planted::answer_within(&path, &fifo, |p| {
+                InstanceLock::take(p)
+                    .map(|l| l.is_some())
+                    .map_err(|e| e.kind())
+            });
+            for (call, answer) in [
+                ("read", read.map(|a| a.map(|r| format!("{r:?}")))),
+                ("try_take", try_take.map(|a| a.map(|t| format!("{t:?}")))),
+                ("take", take.map(|a| a.map(|t| format!("{t:?}")))),
+            ] {
+                let Some(answer) = answer else {
+                    panic!("{call} on {kind} at the data directory's path did not return within {:?}; PL-8 (2)(d) says it never waits", planted::BOUND);
+                };
+                assert!(
+                    matches!(answer, Err(k) if k != std::io::ErrorKind::NotFound),
+                    "{call} on {kind}: {answer:?}; anything that is no directory is an error, never NoDirectory, Free or a lock"
+                );
+            }
+        }
     }
 
     #[test]
