@@ -325,6 +325,9 @@ fn data_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("port-suite-data-dir-never-made")
 }
 
+/// A change of the slots that the load of a count gives.
+pub(crate) type SlotsAt = Box<dyn FnMut(usize, &mut Vec<Slot>) + Send>;
+
 /// What the in-memory supervisor does beside answering: `on_confirm` runs with the count of confirmation requests so
 /// far, before the decision is written; `answer` is the answer for every effect of a decision; with
 /// `stop_after_begin` it closes both ends of the link once it has answered a `begin` row; with
@@ -333,7 +336,7 @@ fn data_dir() -> PathBuf {
 /// `wall_zero_from_load` on its `wall_s` is 0; with `one_approval_id` every approval has the same id; with
 /// `other_digest` every approval names a digest that is not its effect's; and the loads for whose count `runs_at`
 /// holds give a configuration under which `decide` gives `run` for `delete` (`unattended`, `allow` `delete`,
-/// `untrusted` no).
+/// `untrusted` no); and `slots_at` changes the slots of the bindings that the load of a count gives.
 pub(crate) struct Plan {
     pub(crate) on_confirm: Box<dyn FnMut(usize) + Send>,
     pub(crate) answer: Answer,
@@ -344,6 +347,7 @@ pub(crate) struct Plan {
     pub(crate) one_approval_id: bool,
     pub(crate) other_digest: bool,
     pub(crate) runs_at: Option<fn(usize) -> bool>,
+    pub(crate) slots_at: Option<SlotsAt>,
 }
 
 impl Plan {
@@ -359,6 +363,7 @@ impl Plan {
             one_approval_id: false,
             other_digest: false,
             runs_at: None,
+            slots_at: None,
         }
     }
 }
@@ -412,7 +417,13 @@ fn supervise(
                         bindings: Some(LoadedBindings {
                             rev: NonZeroU32::MIN,
                             origins: bindings.0.clone(),
-                            slots: bindings.1.clone(),
+                            slots: {
+                                let mut slots = bindings.1.clone();
+                                if let Some(change) = plan.slots_at.as_mut() {
+                                    change(loads, &mut slots);
+                                }
+                                slots
+                            },
                         }),
                         sessions: Vec::new(),
                     }),
@@ -747,4 +758,63 @@ pub(crate) fn stopped_between_begin_and_commit(maker: &mut dyn Maker) {
         Some(&EffectState::Unknown),
         "the effect is unknown after the run's end"
     );
+}
+
+/// The ruling CP-157 E1 (A5.1, A5.2): the slot `instrument` of a `payment` names another instrument at the load
+/// before the `begin` than at the load before the `propose`. The object built again from that load has another
+/// digest, so the effect takes a `rebind` and the person is asked again with the new instrument; the request that
+/// leaves is the renewed one, and the fixture holds one payment, with the new instrument and none with the old.
+pub(crate) fn slot_changed_at_the_load_before_the_begin(maker: &mut dyn Maker) {
+    let fixture = Fixture::start();
+    fixture.reset(&["amount_changes"]);
+    let request = maker.paused(&fixture, Case::AmountChanges);
+    let instruments = &fixture.seed()["utility"]["instruments"];
+    let first = instruments[0].as_str().expect("an instrument").to_string();
+    let second = instruments[1].as_str().expect("an instrument").to_string();
+    let newer = second.clone();
+    let record = run_path(
+        maker.category(Case::AmountChanges),
+        maker.bindings(&fixture, Case::AmountChanges),
+        request,
+        Plan {
+            slots_at: Some(Box::new(move |load, slots| {
+                if load >= 2 {
+                    for s in slots.iter_mut() {
+                        if s.name.as_str() == "instrument" {
+                            *s = slot("instrument", &newer);
+                        }
+                    }
+                }
+            })),
+            ..Plan::plain()
+        },
+    );
+    let after = fixture.state();
+    let confirms = record.confirms();
+    assert_eq!(confirms.len(), 2, "the person is asked again");
+    assert_eq!(field(&confirms[0], FieldName::Instrument), first);
+    assert_eq!(
+        field(&confirms[1], FieldName::Instrument),
+        second,
+        "the second confirmation shows the new instrument"
+    );
+    assert_eq!(
+        record.states(),
+        [
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Releasing,
+            EffectState::Committed
+        ]
+    );
+    let paid: Vec<String> = after["utility"]["payments"]
+        .as_array()
+        .expect("the payments")
+        .iter()
+        .map(|p| p["instrument"].as_str().expect("an instrument").to_string())
+        .collect();
+    assert_eq!(paid, [second], "one payment, with the new instrument");
+    assert_eq!(record.done(), Some(Outcome::Completed));
 }

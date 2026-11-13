@@ -13,7 +13,8 @@ use halvo_schema::Category;
 
 use super::suite::{
     answer_of, changed_on_page, commit_without_reply, http, request_bytes, send_bytes, slot,
-    stopped_between_begin_and_commit, Case, Fixture, Maker,
+    slot_changed_at_the_load_before_the_begin, stopped_between_begin_and_commit, Case, Fixture,
+    Maker,
 };
 use super::{Left, Paused, Replied};
 
@@ -60,7 +61,7 @@ impl Paused for Delete {
         ActionClass::Delete
     }
 
-    fn bound(&mut self) -> Result<Bound, Cause> {
+    fn bound(&mut self, _slots: &[Slot]) -> Result<Bound, Cause> {
         let id = self.ids.first().ok_or(Cause::StepFailed)?;
         Bound::new(
             ActionClass::Delete,
@@ -90,9 +91,18 @@ impl Paused for Delete {
         Box::new(Sent(send_bytes(self.port, &bytes)))
     }
 
-    fn renew(self: Box<Self>) -> Result<Box<dyn Paused>, Cause> {
+    fn renew(self: Box<Self>, _slots: &[Slot]) -> Result<Box<dyn Paused>, Cause> {
         Ok(self)
     }
+}
+
+/// The value of the slot `name` among `slots`.
+fn slot_value(slots: &[Slot], name: &str) -> Result<String, Cause> {
+    slots
+        .iter()
+        .find(|s| s.name.as_str() == name)
+        .map(|s| s.value.joined())
+        .ok_or(Cause::StepFailed)
 }
 
 /// The payment of the bill in the payment frame: `POST /charge` with the frame's one-time token.
@@ -100,7 +110,6 @@ struct Pay {
     port: u16,
     pay: WebOrigin,
     token: String,
-    payee: String,
     instrument: String,
 }
 
@@ -109,7 +118,9 @@ impl Paused for Pay {
         ActionClass::Payment
     }
 
-    fn bound(&mut self) -> Result<Bound, Cause> {
+    fn bound(&mut self, slots: &[Slot]) -> Result<Bound, Cause> {
+        let payee = slot_value(slots, "payee")?;
+        let instrument = slot_value(slots, "instrument")?;
         let path = format!("/frame?kind=bill&token={}", self.token);
         let frame = http(self.port, "GET", "pay.agent.test", &path, &[], b"");
         let amount =
@@ -117,9 +128,9 @@ impl Paused for Pay {
         Bound::new(
             ActionClass::Payment,
             vec![
-                field(FieldName::Payee, Source::Slot, None, &self.payee),
+                field(FieldName::Payee, Source::Slot, None, &payee),
                 field(FieldName::Amount, Source::Extract, Some(&self.pay), amount),
-                field(FieldName::Instrument, Source::Slot, None, &self.instrument),
+                field(FieldName::Instrument, Source::Slot, None, &instrument),
                 field(FieldName::Origin, Source::Const, None, self.pay.as_str()),
             ],
         )
@@ -150,8 +161,11 @@ impl Paused for Pay {
         Box::new(Sent(send_bytes(self.port, &bytes)))
     }
 
-    fn renew(self: Box<Self>) -> Result<Box<dyn Paused>, Cause> {
-        Ok(self)
+    fn renew(self: Box<Self>, slots: &[Slot]) -> Result<Box<dyn Paused>, Cause> {
+        Ok(Box::new(Pay {
+            instrument: slot_value(slots, "instrument")?,
+            ..*self
+        }))
     }
 }
 
@@ -249,7 +263,6 @@ impl Maker for Standin {
                     port,
                     pay: fixture.origin("pay"),
                     token,
-                    payee: text(&seed["utility"]["payee"]),
                     instrument: text(&seed["utility"]["instruments"][0]),
                 })
             }
@@ -270,4 +283,9 @@ fn refusal_changed_on_page() {
 #[test]
 fn a_runner_stopped_between_begin_and_commit_leaves_its_effect_unknown_after_the_runs_end() {
     stopped_between_begin_and_commit(&mut Standin);
+}
+
+#[test]
+fn a_slot_changed_at_the_load_before_the_begin_is_asked_again_and_leaves() {
+    slot_changed_at_the_load_before_the_begin(&mut Standin);
 }

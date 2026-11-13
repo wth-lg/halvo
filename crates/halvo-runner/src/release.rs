@@ -7,6 +7,7 @@ use halvo_schema::executable::frame::{
     Approval, Confirm, ConfirmEffect, ConfirmReply, ConfirmRequest,
 };
 use halvo_schema::executable::names::{Answer, Autonomy, LogEvent};
+use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
     ActionClass, AgentConfig, Bound, Cause, EffectState, FromRunner, Outcome, ToRunner,
@@ -28,17 +29,18 @@ pub(crate) mod suite;
 pub(crate) trait Paused {
     /// The class of the effect, a confirm class of A9.3.
     fn class(&self) -> ActionClass;
-    /// The bound object read again from the request's source while the request is paused (A9.3, A6.3).
-    fn bound(&mut self) -> Result<Bound, Cause>;
+    /// The bound object built again from `slots`, the slots of the bindings of the load that the runner has just
+    /// made, and from the request's own source read again while the request is paused (A5.1, A9.3, A6.3).
+    fn bound(&mut self, slots: &[Slot]) -> Result<Bound, Cause>;
     /// The facts of A9.3 that the maker knows from this run and not from a page's text: the origin of the paused
     /// request, the ids and the senders that its own list calls returned. The runner adds the origins of the
     /// bindings of its newest load.
     fn facts(&self) -> Facts;
     /// Lets the paused request leave, once, and gives the request that left.
     fn release(self: Box<Self>) -> Box<dyn Left>;
-    /// Fails the paused request, so that no byte of it leaves, and makes the same request again, paused, for an
-    /// effect that is asked again with new values.
-    fn renew(self: Box<Self>) -> Result<Box<dyn Paused>, Cause>;
+    /// Fails the paused request, so that no byte of it leaves, and makes the same request again from `slots`, the
+    /// slots of the load that the runner has just made, paused, for an effect that is asked again with new values.
+    fn renew(self: Box<Self>, slots: &[Slot]) -> Result<Box<dyn Paused>, Cause>;
 }
 
 /// A request of an effect that left.
@@ -66,6 +68,15 @@ fn refused(config: &AgentConfig) -> Stop {
 
 fn failed(cause: Cause) -> Stop {
     Stop::End(Outcome::Failed, Some(cause))
+}
+
+/// The slots of the bindings of `loaded`.
+fn slots_of(loaded: &LoadReply) -> &[Slot] {
+    loaded
+        .bindings
+        .as_ref()
+        .map(|b| b.slots.as_slice())
+        .unwrap_or(&[])
 }
 
 /// The facts of a paused request with the origins of the bindings of `loaded`.
@@ -109,7 +120,7 @@ impl Runner {
         for mut request in requests {
             self.check()?;
             self.within_wall()?;
-            let bound = request.bound().map_err(failed)?;
+            let bound = request.bound(slots_of(&loaded)).map_err(failed)?;
             let class = request.class();
             admit(class, &bound, &facts_of(request.as_ref(), &loaded))
                 .map_err(|refusal| failed(refusal.cause()))?;
@@ -148,8 +159,8 @@ impl Runner {
             for mut o in batch {
                 self.advance(o.at, EffectMove::End)?;
                 let class = o.request.class();
-                o.request = o.request.renew().map_err(failed)?;
-                o.bound = o.request.bound().map_err(failed)?;
+                o.request = o.request.renew(slots_of(&again)).map_err(failed)?;
+                o.bound = o.request.bound(slots_of(&again)).map_err(failed)?;
                 admit(class, &o.bound, &facts_of(o.request.as_ref(), &again))
                     .map_err(|refusal| failed(refusal.cause()))?;
                 o.at = self.propose(decide(&again.config, class, Checkpoint::No), &o.bound)?;
@@ -203,7 +214,7 @@ impl Runner {
             if decision == Decision::Confirm && self.effects[one.at].state == EffectState::Cleared {
                 return Ok(Some((one, again)));
             }
-            let now = match one.request.bound() {
+            let now = match one.request.bound(slots_of(&again)) {
                 Ok(now) => now,
                 Err(cause) => {
                     self.advance(one.at, EffectMove::End)?;
@@ -241,7 +252,7 @@ impl Runner {
             if cleared {
                 self.advance(one.at, EffectMove::End)?;
                 *renewed += 1;
-                one.request = one.request.renew().map_err(failed)?;
+                one.request = one.request.renew(slots_of(&again)).map_err(failed)?;
                 one.at = self.propose(decide(&again.config, class, Checkpoint::No), &now)?;
                 one.bound = now;
                 match self.effects[one.at].state {
@@ -264,7 +275,7 @@ impl Runner {
                     class,
                 },
             )?;
-            one.request = one.request.renew().map_err(failed)?;
+            one.request = one.request.renew(slots_of(&again)).map_err(failed)?;
             one.bound = now;
             self.confirm(&[(one.at, &one.bound)])?;
             if self.effects[one.at].state == EffectState::Rejected {

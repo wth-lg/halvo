@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use halvo_policy::Facts;
 use halvo_schema::executable::names::{Answer, FieldName, HandbackReason, LogEvent, Source};
+use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::OwnValue;
 use halvo_schema::executable::{ActionClass, Bound, BoundField, Cause, EffectState, Outcome};
 use halvo_schema::Category;
@@ -17,6 +18,7 @@ struct Fake {
     reads: Vec<Bound>,
     at: usize,
     released: Arc<AtomicU32>,
+    from_slot: bool,
 }
 
 struct Answers;
@@ -32,7 +34,15 @@ impl Paused for Fake {
         ActionClass::Delete
     }
 
-    fn bound(&mut self) -> Result<Bound, Cause> {
+    fn bound(&mut self, slots: &[Slot]) -> Result<Bound, Cause> {
+        if self.from_slot {
+            let item = slots
+                .iter()
+                .find(|s| s.name.as_str() == "item")
+                .map(|s| s.value.joined())
+                .ok_or(Cause::StepFailed)?;
+            return Ok(delete(&item, Source::Extract));
+        }
         let read = self.reads[self.at.min(self.reads.len() - 1)].clone();
         self.at += 1;
         Ok(read)
@@ -50,7 +60,7 @@ impl Paused for Fake {
         Box::new(Answers)
     }
 
-    fn renew(self: Box<Self>) -> Result<Box<dyn Paused>, Cause> {
+    fn renew(self: Box<Self>, _slots: &[Slot]) -> Result<Box<dyn Paused>, Cause> {
         Ok(self)
     }
 }
@@ -76,6 +86,7 @@ fn run(reads: Vec<Bound>, plan: Plan) -> (Record, u32) {
         reads,
         at: 0,
         released: Arc::clone(&released),
+        from_slot: false,
     };
     let record = run_path(
         Category::CalendarCleanup,
@@ -370,4 +381,50 @@ fn the_new_effects_of_one_step_are_at_most_two_in_all() {
         stopped(&record),
         Some((LogEvent::Stopped, Some(Cause::Changed)))
     );
+}
+
+/// A5.1, A5.2, the ruling CP-157 E1: a `cleared` effect whose slot changes at the load before its `begin` is
+/// ended and proposed again from that load's slot, and its request leaves with the new value.
+#[test]
+fn a_cleared_effect_whose_slot_changes_at_the_load_before_the_begin_is_proposed_again() {
+    let released = Arc::new(AtomicU32::new(0));
+    let fake = Fake {
+        reads: Vec::new(),
+        at: 0,
+        released: Arc::clone(&released),
+        from_slot: true,
+    };
+    let plan = Plan {
+        runs_at: Some(|_| true),
+        slots_at: Some(Box::new(|load, slots| {
+            let value = if load >= 2 { "b" } else { "a" };
+            slots.push(super::suite::slot("item", value));
+        })),
+        ..Plan::plain()
+    };
+    let record = run_path(
+        Category::CalendarCleanup,
+        (Vec::new(), Vec::new()),
+        Box::new(fake),
+        plan,
+    );
+    assert_eq!(released.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        record.states(),
+        [
+            EffectState::Cleared,
+            EffectState::Rejected,
+            EffectState::Cleared,
+            EffectState::Releasing,
+            EffectState::Committed
+        ]
+    );
+    let digest_b = halvo_policy::digest(&delete("b", Source::Extract)).expect("a digest");
+    assert_eq!(
+        record.effects()[2].digest,
+        digest_b,
+        "proposed again with the new slot"
+    );
+    assert_eq!(record.effects()[3].digest, digest_b);
+    assert_eq!(record.done(), Some(Outcome::Completed));
 }
