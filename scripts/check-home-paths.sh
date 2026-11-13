@@ -151,7 +151,8 @@ when git quotes the name of such a file, the commits count as refused.
 Every file is read: a file that git calls binary, a
 lock file and a generated file by their bytes (git log --text, with no
 textconv and no external diff), split at each newline, with every NUL byte
-taken out first, so that UTF-16 text reads as ASCII; the target of a symbolic
+taken out first, so that UTF-16 and UTF-32 text of ASCII characters reads as
+ASCII, in either byte order; the target of a symbolic
 link; and the name of a file that a commit adds, as line 0. A renamed file
 counts as added in full. A line that a later commit removes again still
 counts, because the commit that holds it is pushed. A carriage return at the
@@ -159,7 +160,9 @@ end of a line changes no answer. A line is read in pieces of 1,000
 characters, each with the 320 before it and the 1,000 after it in view, so
 the time grows with the length of a line and with the count of its matches,
 and a path that goes on for more than 1,000 characters past the start of its
-piece is cut there.
+piece is cut there. A run of separators counts as one, so a path behind a run
+of more than about 1,000 separators is cut there too (a run of 2,500 passes,
+a run of 900 is caught): a part of the named limit K14.
 The settings of a clone that change what git
 log prints (colour, prefixes, a relative diff, renames, submodule logs,
 ignored submodules, blank context lines, quoted names) are set for the call.
@@ -272,7 +275,7 @@ scheme), /var/home/<name>, /usr/home/<name>, /export/home/<name> and
 address (:8080/Users/<name>), the listing of an archive without its first
 slash, the short form DOCUME~1, a name whose first character is
 percent-encoded, an HTML entity or a \u escape for a separator, base64, a
-compressed file (zip, gzip, a PNG chunk), UTF-32, and a path that a person
+compressed file (zip, gzip, a PNG chunk), and a path that a person
 spells so that it does not read as one: a path broken over two lines, a join
 of strings, a letter of the root as a percent code, /./ or /Shared/../, a
 quoted name. It does not find a path after an escape sequence in a spelling
@@ -494,7 +497,7 @@ function scan_text(text, file, use_list,   lowered, size, first, own_end, base, 
   return out
 }
 function malformed(n, why) {
-  print "ERROR " list ": line " n ": " why
+  print "ERROR " list_name ": line " n ": " why "; correct that line of scripts/home-path-allow.txt (an entry is a file, a tab, the home path as the scan matches it, a tab and a reason) and commit it"
   failed = 1
   exit 2
 }
@@ -700,14 +703,16 @@ EOF
 }
 
 run_scan() {
-  awk -v list="$1" -v list_path="$LIST_IN_THE_REPOSITORY" -v list_forms="${3:-}" -v own_check="$own_check" -v stale="$stale" \
+  awk -v list="$1" -v list_name="$scan_list_name" -v list_path="$LIST_IN_THE_REPOSITORY" -v list_forms="${3:-}" -v own_check="$own_check" -v stale="$stale" \
     -v own_full="$own_full" -v own_unknown="$own_unknown" -v base_list="$base_list" -f "$work/scan.awk" "$2"
 }
 
 list_of_commit() {
   scan_list=$allow
+  scan_list_name=$allow
   [ -z "$allow_given" ] || return 0
   scan_list=$work/list-of-commit
+  scan_list_name="$LIST_IN_THE_REPOSITORY of commit $1"
   : >"$scan_list"
   [ -n "$1" ] || return 0
   if git cat-file -e "$1:$LIST_IN_THE_REPOSITORY" 2>/dev/null </dev/null; then
@@ -830,7 +835,7 @@ exempt_commit() {
 }
 
 load_commit_range() {
-  [ -f "$script_dir/commit-range.sh" ] || die "scripts/commit-range.sh, which lists the commits of a range or a push, is missing beside $0"
+  [ -f "$script_dir/commit-range.sh" ] || die "scripts/commit-range.sh, which lists the commits of a range or a push, is missing beside $0; restore it (git checkout HEAD -- scripts/commit-range.sh; in a sparse checkout without scripts/, git sparse-checkout add scripts) and run the check again"
   # shellcheck source=scripts/commit-range.sh
   . "$script_dir/commit-range.sh"
 }
@@ -864,7 +869,7 @@ check_push() {
   fi
   account_that_pushes
   while IFS= read -r pushed_ref; do
-    commit_range_read_push_line "$pushed_ref" || die "cannot read this line that git wrote to the pre-push hook: $pushed_ref"
+    commit_range_read_push_line "$pushed_ref" || die "cannot read this line that git wrote to the pre-push hook: $pushed_ref. Each line holds a local ref, a local object id, a remote ref and a remote object id of 40 or 64 lower-case hexadecimal characters; scan the commits by hand with sh scripts/check-home-paths.sh <remote>/<branch>..<local branch>, and push again with a git that writes such lines"
     range_status=0
     commit_range_of_push "$exempt" "$default_ref_of_remote" >"$work/commits" 2>"$work/log-error" || range_status=$?
     case $range_status in
@@ -1991,7 +1996,7 @@ self_test_hook() {
 
   mv "$hook_home/scripts/check-home-paths.sh" "$work/scanner-aside" || die 'mv failed'
   : >"$hook_home/scripts/check-home-paths.sh"
-  push_case scanner-with-no-bytes-beside-the-hook refused 'without its PASS line' proof messages
+  push_case scanner-with-no-bytes-beside-the-hook refused 'without its PASS line, so the push is refused. Restore the scanner (git checkout HEAD -- scripts/check-home-paths.sh)' proof messages
   mv "$work/scanner-aside" "$hook_home/scripts/check-home-paths.sh" || die 'mv failed'
   (cd "$repo" && printf 'refs/heads/x %s refs/heads/x %s\n' 1234567890123456789012345678901234567890 0000000000000000000000000000000000000000 |
     HOME=$work/homes/nobody sh "$self" --allow "$list" --pre-push proof) >"$work/out-unresolvable-object" 2>&1
@@ -2055,10 +2060,10 @@ self_test_hook() {
   esac
 
   mv "$hook_home/scripts/check-home-paths.sh" "$work/scanner-aside" || die 'mv failed'
-  push_case scanner-missing-beside-the-hook refused 'scripts/check-home-paths.sh is missing' proof messages
+  push_case scanner-missing-beside-the-hook refused 'git checkout HEAD -- scripts/check-home-paths.sh; in a sparse checkout without scripts/, git sparse-checkout add scripts' proof messages
   mv "$work/scanner-aside" "$hook_home/scripts/check-home-paths.sh" || die 'mv failed'
   mv "$hook_home/$LIST_IN_THE_REPOSITORY" "$work/list-aside" || die 'mv failed'
-  push_case list-missing-beside-the-hook refused "$LIST_IN_THE_REPOSITORY is missing" proof messages
+  push_case list-missing-beside-the-hook refused "git checkout HEAD -- $LIST_IN_THE_REPOSITORY; in a sparse checkout without scripts/, git sparse-checkout add scripts" proof messages
   mv "$work/list-aside" "$hook_home/$LIST_IN_THE_REPOSITORY" || die 'mv failed'
 
   (cd "$repo" && printf 'not a line that git writes\n' | HOME=$work/homes/nobody sh "$self" --allow "$list" --pre-push proof) >"$work/out-unreadable-line" 2>&1
@@ -2094,6 +2099,7 @@ own_full=
 own_unknown=
 base_list=
 scan_list=
+scan_list_name=
 stale=
 allow_given=
 while [ $# -gt 0 ]; do

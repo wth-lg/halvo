@@ -305,7 +305,7 @@ require_repository_with_exempt_commit() {
 load_commit_range() {
   if [ -n "$own_directory" ]; then
     [ -f "$own_directory/commit-range.sh" ] ||
-      die "$own_directory/commit-range.sh, which lists the commits of a range or a push, is missing beside this script, so no commit was read. Restore it with git checkout HEAD -- scripts/commit-range.sh (in a sparse checkout, add scripts/ to the checkout first) and run the check again."
+      die "$own_directory/commit-range.sh, which lists the commits of a range or a push, is missing beside this script, so no commit was read. Restore it (git checkout HEAD -- scripts/commit-range.sh; in a sparse checkout without scripts/, git sparse-checkout add scripts) and run the check again."
     # shellcheck source=scripts/commit-range.sh
     . "$own_directory/commit-range.sh"
     return 0
@@ -397,7 +397,7 @@ check_push() {
   default_ref_of_remote=$(commit_range_default_of_remote "$remote" "$default_ref")
   while IFS= read -r pushed_ref; do
     commit_range_read_push_line "$pushed_ref" ||
-      die "cannot read this line that git wrote to the pre-push hook, so the push was not checked: $pushed_ref"
+      die "cannot read this line that git wrote to the pre-push hook, so the push was not checked: $pushed_ref. Each line holds a local ref, a local object id, a remote ref and a remote object id of 40 or 64 lower-case hexadecimal characters; check the commits by hand with sh scripts/check-commit-messages.sh <remote>/<branch>..<local branch>, and push again with a git that writes such lines."
     range_status=0
     commits=$(commit_range_of_push "$NEWEST_EXEMPT_COMMIT" "$default_ref_of_remote") || range_status=$?
     case $range_status in
@@ -633,6 +633,7 @@ self_test() {
     sh "$hook_tree/.githooks/commit-msg" "$hook_tree/message" >"$hook_tree/out" 2>&1 || status=$?
     text=present
     [ -z "$left_out" ] || grep -qF -- "scripts/$left_out is missing" "$hook_tree/out" || text=absent
+    [ -z "$left_out" ] || grep -qF -- "git checkout HEAD -- scripts/$left_out; in a sparse checkout without scripts/, git sparse-checkout add scripts" "$hook_tree/out" || text=absent
     fixtures=$((fixtures + 1))
     if [ "$status" = "$want_status" ] && [ "$text" = present ]; then
       printf 'PASS %s (the tree is %s)\n' "$name" "$hook_tree"
