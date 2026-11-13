@@ -308,7 +308,7 @@ fn values_read_again_that_admit_refuses_end_the_effect() {
 
 /// A5.2: the person's `reject_once` rejects the effect; nothing leaves and the run ends `declined`.
 #[test]
-fn reject_once_lets_nothing_leave() {
+fn reject_once_lets_no_request_of_its_effect_leave() {
     let plan = Plan {
         answer: Answer::RejectOnce,
         ..Plan::plain()
@@ -1091,4 +1091,49 @@ fn a_request_to_an_origin_that_no_binding_holds_gets_no_card_for_each_class() {
             "{class:?}"
         );
     }
+}
+
+/// CP-166 E6: on one card for two effects the person rejects the first and allows the second. The rejected effect's
+/// request never leaves, and the allowed one's leaves once.
+#[test]
+fn reject_once_for_one_effect_and_allow_once_for_the_other_lets_the_allowed_one_leave_once() {
+    let left = Arc::new(Mutex::new(Vec::new()));
+    let requests: Vec<Box<dyn Paused>> = ["a", "b"]
+        .iter()
+        .map(|id| {
+            Box::new(Fake {
+                reads: vec![delete(id, Source::Extract)],
+                left: Arc::clone(&left),
+                ..Fake::default()
+            }) as Box<dyn Paused>
+        })
+        .collect();
+    let plan = Plan {
+        answer_for: Some(|_, index| {
+            if index == 0 {
+                Answer::RejectOnce
+            } else {
+                Answer::AllowOnce
+            }
+        }),
+        ..Plan::plain()
+    };
+    let record = run_many_path(
+        Category::CalendarCleanup,
+        (Vec::new(), Vec::new()),
+        requests,
+        plan,
+    );
+    assert_eq!(record.confirms().len(), 1, "one card for both");
+    let left = left.lock().expect("the record of what left").clone();
+    assert_eq!(
+        left,
+        [(0, delete("b", Source::Extract))],
+        "the allowed request leaves once"
+    );
+    assert_eq!(
+        record.done(),
+        Some(Outcome::Declined),
+        "today's end of a run with a rejected effect; the end waits for a ruling (the review's D1)"
+    );
 }

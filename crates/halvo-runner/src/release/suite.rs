@@ -338,7 +338,8 @@ pub(crate) type SlotsAt = Box<dyn FnMut(usize, &mut Vec<Slot>) + Send>;
 pub(crate) type OriginsAt = Box<dyn FnMut(usize, &mut Vec<WebOrigin>) + Send>;
 
 /// What the in-memory supervisor does beside answering: `on_confirm` runs with the count of confirmation requests so
-/// far, before the decision is written; `answer` is the answer for every effect of a decision; with
+/// far, before the decision is written; `answer` is the answer for every effect of a decision, unless `answer_for`
+/// gives one for the card of a count and the effect of an index in it (CP-166 E6); with
 /// `stop_after_begin` it closes both ends of the link once it has answered a `begin` row; with
 /// `cancel_before_begin_answer` it writes a `cancel` before the answer to a `begin` row; and from the load of the
 /// count `observe_from_load` on, the configuration's autonomy is `observe`, and from the load of the count
@@ -351,6 +352,7 @@ pub(crate) type OriginsAt = Box<dyn FnMut(usize, &mut Vec<WebOrigin>) + Send>;
 pub(crate) struct Plan {
     pub(crate) on_confirm: Box<dyn FnMut(usize) + Send>,
     pub(crate) answer: Answer,
+    pub(crate) answer_for: Option<fn(usize, usize) -> Answer>,
     pub(crate) stop_after_begin: bool,
     pub(crate) cancel_before_begin_answer: bool,
     pub(crate) observe_from_load: Option<usize>,
@@ -371,6 +373,7 @@ impl Plan {
         Plan {
             on_confirm: Box::new(|_| {}),
             answer: Answer::AllowOnce,
+            answer_for: None,
             stop_after_begin: false,
             cancel_before_begin_answer: false,
             observe_from_load: None,
@@ -505,7 +508,7 @@ fn supervise(
                         } else {
                             e.digest.clone()
                         },
-                        answer: plan.answer,
+                        answer: plan.answer_for.map_or(plan.answer, |of| of(confirms, i)),
                     })
                     .collect();
                 (plan.on_confirm)(confirms);
