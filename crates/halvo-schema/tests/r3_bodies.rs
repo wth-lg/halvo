@@ -2004,3 +2004,35 @@ fn every_reply_of_a_runner_body_is_counted_on_the_bytes_given_by_its_own_parse_a
         );
     }
 }
+
+fn refused_with(
+    result: Result<impl std::fmt::Debug, Refusal>,
+    cause: RefusalCause,
+    type_name: &str,
+    rule: &str,
+) {
+    let refusal = result.expect_err(type_name);
+    assert_eq!(
+        (refusal.cause(), refusal.type_name(), refusal.rule()),
+        (cause, type_name, rule)
+    );
+}
+
+#[test]
+fn a_runner_reply_one_byte_over_its_bound_is_refused_before_any_byte_of_it_is_read() {
+    let text = r#"{"stored":1}"#;
+    let fill = |len: usize| " ".repeat(len - text.len() - 1);
+    for len in [CHECKPOINTS_REPLY_MAX, CHECKPOINTS_REPLY_MAX + 1] {
+        let not_json_at_first = format!("x{}{text}", fill(len));
+        let broken_at_last = format!("{text}{}x", fill(len));
+        for input in [not_json_at_first, broken_at_last] {
+            assert_eq!(input.len(), len);
+            let parsed = RunnerReply::parse(input.as_bytes());
+            if len > CHECKPOINTS_REPLY_MAX {
+                refused_with(parsed, RefusalCause::Length, "RunnerReply", "reply_bytes");
+            } else {
+                refused_with(parsed, RefusalCause::Malformed, "RunnerReply", "json");
+            }
+        }
+    }
+}

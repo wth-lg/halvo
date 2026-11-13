@@ -1057,3 +1057,54 @@ fn the_serde_reader_of_a_reply_counts_the_text_of_the_value_and_is_given_no_byte
     );
     assert!(serde_json::from_str::<RunnerReply>(&stored).is_ok());
 }
+
+#[test]
+fn a_reply_is_counted_in_bytes_and_every_carriage_return_counts() {
+    let wide = |len: usize| {
+        with_copy(len, |n| {
+            format!("{}{}", "c".repeat(n % 2), "\u{e9}".repeat(n / 2))
+        })
+    };
+    let at = wide(copy_at_the_bound());
+    assert_eq!(at.len(), CHECKPOINTS_REPLY_MAX);
+    assert!(CheckpointsReply::parse(at.as_bytes()).is_ok());
+    let over = wide(copy_at_the_bound() + 1);
+    assert_eq!(over.len(), CHECKPOINTS_REPLY_MAX + 1);
+    assert!(over.chars().count() < CHECKPOINTS_REPLY_MAX / 2 + 1_000);
+    refused_by_its_own_bound(
+        CheckpointsReply::parse(over.as_bytes()),
+        "CheckpointsReply",
+        over.len(),
+    );
+    refused_by_the_bound(over.as_bytes());
+    let stored = r#"{"stored":1}"#;
+    let returns = |len: usize| format!("{stored}{}", "\r".repeat(len - stored.len()));
+    let at = returns(CHECKPOINTS_REPLY_MAX);
+    assert!(Stored::parse(at.as_bytes()).is_ok());
+    assert!(CoordinatorReply::parse(at.as_bytes()).is_ok());
+    assert!(RunnerReply::parse(at.as_bytes()).is_ok());
+    let over = returns(CHECKPOINTS_REPLY_MAX + 1);
+    assert_eq!(over.len(), CHECKPOINTS_REPLY_MAX + 1);
+    refused_by_its_own_bound(Stored::parse(over.as_bytes()), "Stored", over.len());
+    refused_by_the_bound(over.as_bytes());
+    refused_by_its_own_bound(
+        RunnerReply::parse(over.as_bytes()),
+        "RunnerReply",
+        over.len(),
+    );
+    let wide_tail = format!(
+        "{stored}{}",
+        "\u{e9}".repeat((CHECKPOINTS_REPLY_MAX + 1 - stored.len()) / 2)
+    );
+    let wide_tail = format!(
+        "{wide_tail}{}",
+        " ".repeat(CHECKPOINTS_REPLY_MAX + 1 - wide_tail.len())
+    );
+    assert_eq!(wide_tail.len(), CHECKPOINTS_REPLY_MAX + 1);
+    refused_by_the_bound(wide_tail.as_bytes());
+    refused_by_its_own_bound(
+        RunnerReply::parse(wide_tail.as_bytes()),
+        "RunnerReply",
+        wide_tail.len(),
+    );
+}

@@ -1695,3 +1695,92 @@ fn every_reply_frame_is_counted_on_the_bytes_given_by_its_own_parse() {
     }
     assert_eq!(read, 14);
 }
+
+fn refused_with(
+    result: Result<impl std::fmt::Debug, Refusal>,
+    cause: RefusalCause,
+    type_name: &str,
+    rule: &str,
+) {
+    let refusal = result.expect_err(type_name);
+    assert_eq!(
+        (refusal.cause(), refusal.type_name(), refusal.rule()),
+        (cause, type_name, rule)
+    );
+}
+
+#[test]
+fn a_secret_reply_one_byte_over_the_frame_bound_is_refused_before_any_byte_of_it_is_read() {
+    let text = r#"{"t":"secret_reply","answer":"none"}"#;
+    let fill = |len: usize| " ".repeat(len - text.len() - 1);
+    for len in [FRAME_JSON_MAX, FRAME_JSON_MAX + 1] {
+        let not_json_at_first = format!("x{}{text}", fill(len));
+        let broken_at_last = format!("{text}{}x", fill(len));
+        for input in [not_json_at_first, broken_at_last] {
+            assert_eq!(input.len(), len);
+            let parsed = SecretReply::parse(input.as_bytes());
+            if len > FRAME_JSON_MAX {
+                refused_with(parsed, RefusalCause::Length, "SecretReply", "frame_length");
+            } else {
+                refused_with(parsed, RefusalCause::Malformed, "SecretReply", "json");
+            }
+        }
+    }
+}
+
+#[test]
+fn a_reply_frame_is_counted_in_bytes_and_every_carriage_return_counts() {
+    let head = r#"{"t":"secret_reply","answer":"stored","value":""#;
+    let wide = |len: usize| {
+        let room = len - head.len() - 2;
+        format!(
+            "{head}{}{}\"}}",
+            "c".repeat(room % 2),
+            "\u{e9}".repeat(room / 2)
+        )
+    };
+    let at = wide(FRAME_JSON_MAX);
+    assert_eq!(at.len(), FRAME_JSON_MAX);
+    assert!(SecretReply::parse(at.as_bytes()).is_ok());
+    let over = wide(FRAME_JSON_MAX + 1);
+    assert_eq!(over.len(), FRAME_JSON_MAX + 1);
+    assert!(over.chars().count() <= FRAME_JSON_MAX / 2 + head.len());
+    refused_with(
+        SecretReply::parse(over.as_bytes()),
+        RefusalCause::Length,
+        "SecretReply",
+        "frame_length",
+    );
+    refused_with(
+        ToRunner::parse(over.as_bytes()),
+        RefusalCause::Length,
+        "ToRunner",
+        "frame_length",
+    );
+    let browser = r#"{"t":"browser_reply"}"#;
+    let returns = |len: usize| format!("{browser}{}", "\r".repeat(len - browser.len()));
+    assert!(BrowserReply::parse(returns(FRAME_JSON_MAX).as_bytes()).is_ok());
+    assert!(ToRunner::parse(returns(FRAME_JSON_MAX).as_bytes()).is_ok());
+    let over = returns(FRAME_JSON_MAX + 1);
+    assert_eq!(over.len(), FRAME_JSON_MAX + 1);
+    refused_with(
+        BrowserReply::parse(over.as_bytes()),
+        RefusalCause::Length,
+        "BrowserReply",
+        "frame_length",
+    );
+    refused_with(
+        ToRunner::parse(over.as_bytes()),
+        RefusalCause::Length,
+        "ToRunner",
+        "frame_length",
+    );
+    let secret = r#"{"t":"secret_reply","answer":"none"}"#;
+    let over = format!("{secret}{}", "\r".repeat(FRAME_JSON_MAX + 1 - secret.len()));
+    refused_with(
+        SecretReply::parse(over.as_bytes()),
+        RefusalCause::Length,
+        "SecretReply",
+        "frame_length",
+    );
+}
