@@ -1553,6 +1553,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-derived"
+version = "0.0.0"
+dependencies = [
+ "halvo-derived",
+ "halvo-schema-core",
+ "halvo-sqlcipher",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "halvo-learn"
 version = "0.0.0"
 dependencies = [
