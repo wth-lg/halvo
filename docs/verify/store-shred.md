@@ -16,9 +16,9 @@ compile only under `cfg(test)`, and need only the `proptest` dev-dependency.
 
 Run the checks when a change touches `crates/halvo-capture/src/store/`,
 `crates/halvo-capture/src/custody/` or `crates/halvo-sqlcipher/`. The crate
-`halvo-sqlcipher` builds SQLCipher for the store: the page layout, the AES
-code and the entropy hook that the store and the page reader of check 1
-link come from it. A change elsewhere in the workspace does not need them.
+`halvo-sqlcipher` builds SQLCipher for the store: the page layout, the zeroing of the gap of
+a rebuilt page (ADR 0013), the AES code and the entropy hook that the store and the page
+reader of check 1 link come from it. A change elsewhere in the workspace does not need them.
 
 ## The properties
 

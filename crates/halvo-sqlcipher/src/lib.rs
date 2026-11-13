@@ -1,6 +1,8 @@
-//! SQLCipher, compiled by this crate's build script from the pinned source, and
-//! the rusqlite binding that links it. A crate that opens an encrypted database
-//! takes rusqlite from here, so one manifest holds the pin and the binding.
+//! SQLCipher, compiled by this crate's build script from a copy of the pinned
+//! source with one change of Halvo's own (under secure delete, the gap of a page
+//! that the database builds again is zeroed; docs/adr/0013), and the rusqlite
+//! binding that links it. A crate that opens an encrypted database takes
+//! rusqlite from here, so one manifest holds the pin and the binding.
 
 use std::ffi::c_int;
 use std::sync::OnceLock;
