@@ -323,7 +323,6 @@ impl Drop for ScreenSource {
 trait Session: Send + 'static {
     fn finished(&self) -> bool;
     fn end(self) -> Result<(), CaptureError>;
-    #[allow(dead_code)]
     fn ask_to_end(self);
 }
 
@@ -491,6 +490,9 @@ impl<S: Session> ScreenLife<S> {
             return;
         }
         let _ = self.shutdown(deadline);
+        if let Some(session) = self.session.take() {
+            session.ask_to_end();
+        }
     }
 
     fn state(&self, item_closed: bool, writer_gone: bool) -> SourceState {
