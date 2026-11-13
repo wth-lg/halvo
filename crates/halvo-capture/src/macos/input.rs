@@ -941,6 +941,149 @@ mod tests {
     }
 
     #[test]
+    fn the_callback_reads_the_secure_state_again_for_every_event() {
+        static READS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        fn off_then_on() -> SecureInputState {
+            if READS.fetch_add(1, Ordering::SeqCst) == 0 {
+                SecureInputState::Inactive
+            } else {
+                SecureInputState::Active
+            }
+        }
+        let (ctx, writer) = context(off_then_on);
+        for _ in 0..3 {
+            on_tap_event(&ctx, CGEventType::KeyDown);
+        }
+        let suppressed = ctx.counters.suppressed_keys();
+        drop(ctx);
+        let recorded = events_until_the_sink_closes(&writer);
+        assert_eq!(
+            (recorded.len(), suppressed),
+            (1, 2),
+            "three key-downs read as off, on, on: (recorded, suppressed)"
+        );
+        assert_eq!(READS.load(Ordering::SeqCst), 3, "reads of the secure state");
+    }
+
+    #[test]
+    fn a_new_source_with_a_hold_plan_holds_secure_input_through_the_system_while_it_runs() {
+        let _one = one_hold_at_a_time();
+        let limit = Duration::from_secs(2);
+        let on = || crate::secure_input_macos::secure_input_active();
+        let before = agreed_reading(on, limit);
+        let (handle, _writer) = sink::channel(8);
+        let (_fg_writer, reader) = foreground_state_for_test();
+        let mut source = InputSource::new(
+            reader,
+            InputCounters::new(),
+            HoldPlan::After(Duration::ZERO),
+        );
+        let (ended_tx, _ended_rx) = channel();
+        source
+            .begin_with(handle, FakeMaker(ended_tx), || {})
+            .expect("the source starts with a stand-in tap");
+        if let Some(refused) = source.hold_refusal() {
+            let _ = source.shutdown();
+            eprintln!(
+                "SKIP a_new_source_with_a_hold_plan_holds_secure_input_through_the_system_while_it_runs: \
+                 the system refused the hold with status {}",
+                refused.0
+            );
+            return;
+        }
+        let during = reads_on_within(on, limit);
+        let shut = source.shutdown();
+        let after = agreed_reading(on, limit);
+        assert!(!before.0, "secure input read on before begin");
+        assert!(during, "on while the source runs");
+        assert_eq!(shut, Ok(()));
+        assert!(!after.0, "secure input still read on after shutdown");
+    }
+
+    static STAND_IN_HELD: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+    static STAND_IN_RELEASED_ON: Mutex<Option<String>> = Mutex::new(None);
+
+    fn stand_in_take() -> i32 {
+        STAND_IN_HELD.fetch_add(1, Ordering::SeqCst);
+        0
+    }
+
+    fn stand_in_give_back() -> i32 {
+        STAND_IN_HELD.fetch_sub(1, Ordering::SeqCst);
+        *STAND_IN_RELEASED_ON
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) =
+            std::thread::current().name().map(str::to_owned);
+        0
+    }
+
+    fn stand_in_hold() -> Result<SecureInputHold, SecureInputRefused> {
+        crate::secure_input_macos::hold_with(stand_in_take, stand_in_give_back)
+    }
+
+    #[test]
+    fn a_hold_under_a_blocked_emit_outlives_a_timed_out_shutdown_and_the_drop_until_the_sink_is_read(
+    ) {
+        let (handle, writer) = sink::channel(0);
+        let (_fg_writer, reader) = foreground_state_for_test();
+        let mut source = InputSource::new(
+            reader,
+            InputCounters::new(),
+            HoldPlan::After(Duration::ZERO),
+        );
+        source.hold = stand_in_hold;
+        let blocked = handle.clone();
+        let (in_emit_tx, in_emit_rx) = channel::<()>();
+        let (ended_tx, _ended_rx) = channel();
+        source
+            .begin_with(handle, FakeMaker(ended_tx), move || {
+                let _ = in_emit_tx.send(());
+                let _ = emit_metadata_only(&blocked, Modality::Keystroke, None, Unpersisted::EMPTY);
+            })
+            .expect("the source starts with a stand-in tap");
+        in_emit_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the tap thread reached its emit");
+        let shut = source.shutdown();
+        drop(source);
+        let held_after_the_drop = STAND_IN_HELD.load(Ordering::SeqCst);
+        let read = writer
+            .recv_timeout(Duration::from_secs(5))
+            .map(|received| received.event().modality);
+        let started = Instant::now();
+        while STAND_IN_HELD.load(Ordering::SeqCst) != 0 {
+            assert!(
+                started.elapsed() < Duration::from_secs(5),
+                "the hold was not given back after the sink was read"
+            );
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let released_on = STAND_IN_RELEASED_ON
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        assert_eq!(
+            shut,
+            Err(CaptureError::Timeout {
+                stage: "input_tap_join",
+                ms: 1000
+            })
+        );
+        assert_eq!(read, Ok(Modality::Keystroke));
+        assert_eq!(
+            released_on.as_deref(),
+            Some("halvo-input-tap"),
+            "(a), kept by every reading: the tap thread gives the hold back once the emit returns"
+        );
+        assert_eq!(
+            held_after_the_drop, 1,
+            "(b), what the head does until the ruling of \
+             evidence/eng-manager/draft-ruling-macos2-secure-hold.md: the hold is still taken \
+             after a timed-out shutdown and the drop, while the emit is blocked"
+        );
+    }
+
+    #[test]
     fn the_production_reader_reads_off_on_during_a_hold_and_off_again() {
         let one = one_hold_at_a_time();
         let limit = Duration::from_secs(2);
