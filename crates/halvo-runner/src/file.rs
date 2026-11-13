@@ -60,15 +60,14 @@ fn folder_at(dir: &Path, data_dir: Option<&DataDir>) -> Result<Folder, Failure> 
     Folder::new(dir, locks).map_err(|e| Failure::Step(sheet_cause(&e)))
 }
 
-/// The workbook of the slot `workbook` and its directory, under the permission `user_files` of `loaded`.
-fn workbook_of(loaded: &LoadReply) -> Result<(PathBuf, PathBuf), Failure> {
+/// The workbook of the slot `slot` and its directory, under the permission `user_files` of `loaded`: a write step
+/// names its slot in `target.file`, the one slot that `digest_of` reads too (CP-166 E4 (d)); a read step takes the
+/// folder of the slot `workbook` (A9.4).
+fn workbook_of(loaded: &LoadReply, slot: &Name) -> Result<(PathBuf, PathBuf), Failure> {
     if !loaded.config.permissions.contains(&Permission::UserFiles) {
         return Err(Failure::Step(Cause::StepFailed));
     }
-    let workbook = slot_path(
-        loaded,
-        &Name::parse("workbook").map_err(|_| Failure::Step(Cause::StepFailed))?,
-    )?;
+    let workbook = slot_path(loaded, slot)?;
     let dir = workbook.parent().unwrap_or(Path::new("")).to_path_buf();
     Ok((workbook, dir))
 }
@@ -117,7 +116,7 @@ fn refused(config: &AgentConfig) -> Stop {
 #[derive(Debug)]
 pub(crate) struct ReadUnder {
     slot: Name,
-    source: PathBuf,
+    source: String,
     folder: PathBuf,
 }
 
@@ -134,7 +133,8 @@ impl Runner {
             .first()
             .and_then(|a| a.value.as_ref())
             .ok_or(Failure::Step(Cause::StepFailed))?;
-        let (_, dir) = workbook_of(loaded)?;
+        let slot = Name::parse("workbook").map_err(|_| Failure::Step(Cause::StepFailed))?;
+        let (_, dir) = workbook_of(loaded, &slot)?;
         let folder = folder_at(&dir, self.args.data_dir.as_ref())?;
         let source = slot_path(loaded, &target.file)?;
         let rows = folder
@@ -143,7 +143,7 @@ impl Runner {
         self.kept.insert(name.as_str().to_string(), rows);
         self.read_under = Some(ReadUnder {
             slot: target.file.clone(),
-            source,
+            source: source.to_string_lossy().into_owned(),
             folder: dir,
         });
         Ok(())
@@ -190,9 +190,9 @@ impl Runner {
         let mut loaded = self.load()?;
         let mut renewed = 0;
         loop {
-            let (workbook, dir) = workbook_of(&loaded)?;
+            let (workbook, dir) = workbook_of(&loaded, &target.file)?;
             if let Some(read) = &self.read_under {
-                let source = slot_path(&loaded, &read.slot)?;
+                let source = slot_text(&loaded, Some(&read.slot))?;
                 if source != read.source || dir != read.folder {
                     return Err(Stop::End(Outcome::Failed, Some(Cause::Changed)).into());
                 }
@@ -232,10 +232,9 @@ impl Runner {
             let decision = decide(&again.config, step.class, Checkpoint::Yes).decision();
             let rebuilt = digest_of(&again, target);
             let same_sheet = slot_text(&again, target.sheet.as_ref()).ok() == Some(sheet.clone());
-            let same_source = self
-                .read_under
-                .as_ref()
-                .is_none_or(|read| slot_path(&again, &read.slot).ok() == Some(read.source.clone()));
+            let same_source = self.read_under.as_ref().is_none_or(|read| {
+                slot_text(&again, Some(&read.slot)).ok().as_ref() == Some(&read.source)
+            });
             if held
                 && decision == Decision::Run
                 && rebuilt.as_ref() == Some(self.effects[at].digest())

@@ -5,7 +5,7 @@ use std::path::Path;
 use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::frame::{Cancel, SecretReply, StoreReply, StoreReplyFrame};
 use halvo_schema::executable::names::{
-    Autonomy, FieldName, HandbackOutcome, HandbackReason, LogEvent, Source,
+    Autonomy, FieldName, HandbackOutcome, HandbackReason, LogEvent, Runtime, Source,
 };
 use halvo_schema::executable::text::{OwnValue, SecretText};
 use halvo_schema::executable::{
@@ -813,5 +813,163 @@ fn a_source_changed_at_the_load_before_the_begin_ends_the_effect_and_the_run_cha
             "source.csv".to_string()
         ],
         "no prepared copy is left"
+    );
+}
+
+/// CP-166 E4 (a), the verifier's v5: no permission and another source at the load before the `begin` end as no
+/// permission alone does, after the effect's `ended` row: no permission comes first.
+#[test]
+fn no_permission_and_another_source_end_as_no_permission_alone() {
+    let files = FillFiles::new("order-perm-source", 1);
+    let before = files.workbook_bytes();
+    let other = files.dir.join("other.csv");
+    std::fs::copy(&files.source, &other).expect("a second source");
+    let sup = fill(162, &files);
+    let other_text = other.to_string_lossy().into_owned();
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                l.config.permissions.clear();
+                set_slot(l, "source", &other_text);
+            }
+        },
+        |_| {},
+    );
+    assert_eq!(seen.states(), [EffectState::Cleared, EffectState::Rejected]);
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::StepFailed)))
+    );
+    assert_eq!(files.workbook_bytes(), before);
+}
+
+/// CP-166 E4 (a), the verifier's v6: `observe` and another source at the load before the `begin` end `refused`
+/// with `autonomy`: the decision comes before another source.
+#[test]
+fn observe_and_another_source_end_refused_with_autonomy() {
+    let files = FillFiles::new("order-observe-source", 2);
+    let before = files.workbook_bytes();
+    let other = files.dir.join("other.csv");
+    std::fs::copy(&files.source, &other).expect("a second source");
+    let sup = fill(163, &files);
+    let other_text = other.to_string_lossy().into_owned();
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                l.config.autonomy = Autonomy::Observe;
+                set_slot(l, "source", &other_text);
+            }
+        },
+        |_| {},
+    );
+    assert_eq!(seen.states(), [EffectState::Cleared, EffectState::Rejected]);
+    assert_eq!(seen.done(), Some(Outcome::Refused), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::Autonomy)))
+    );
+    assert_eq!(files.workbook_bytes(), before);
+}
+
+/// CP-166 E4 (b), the verifier's v8: the slot of the source holds a text that is no absolute path at the load
+/// before the `begin`; that is another source, and the run ends `failed` with `changed`, not with `step_failed`.
+#[test]
+fn a_source_that_is_no_absolute_path_at_the_load_before_the_begin_ends_changed() {
+    let files = FillFiles::new("source-relative", 3);
+    let before = files.workbook_bytes();
+    let sup = fill(164, &files);
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                set_slot(l, "source", "source.csv");
+            }
+        },
+        |_| {},
+    );
+    assert_eq!(seen.states(), [EffectState::Cleared, EffectState::Rejected]);
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::Changed)))
+    );
+    assert_eq!(files.workbook_bytes(), before);
+}
+
+/// CP-166 E4 (c), the review's item 3: the read step's source is held as a text, so the same file under another
+/// spelling at the load before the `begin` is another source and the run ends `failed` with `changed`.
+#[test]
+fn the_same_source_under_another_spelling_ends_changed() {
+    let files = FillFiles::new("source-spelling", 1);
+    let before = files.workbook_bytes();
+    let sup = fill(165, &files);
+    let spelled = files.dir.join(".").join("source.csv");
+    let spelled_text = spelled.to_string_lossy().into_owned();
+    assert_ne!(
+        spelled_text,
+        files.source.to_string_lossy(),
+        "another spelling"
+    );
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                set_slot(l, "source", &spelled_text);
+            }
+        },
+        |_| {},
+    );
+    assert_eq!(seen.states(), [EffectState::Cleared, EffectState::Rejected]);
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::Changed)))
+    );
+    assert_eq!(files.workbook_bytes(), before);
+}
+
+/// CP-166 E4 (d), the review's item 4: a stored write step whose `file` names the slot `dest`, while the slot
+/// `workbook` names another file. The edit is prepared, bound and replaced in the file that the step names, at both
+/// loads, and no byte beside the other file is written.
+#[test]
+fn a_write_step_whose_file_names_another_slot_edits_that_file_alone() {
+    let files = FillFiles::new("dest-slot", 2);
+    let before = files.workbook_bytes();
+    let dest = files.dir.join("other.xlsx");
+    std::fs::copy(&files.workbook, &dest).expect("a second workbook");
+    let dest_before = std::fs::read(&dest).expect("read");
+    let mut sup = fill(166, &files);
+    sup.config.runtime = Runtime::Web;
+    let dest_text = dest.to_string_lossy().into_owned();
+    sup.slots.push(slot("dest", &dest_text));
+    let read = r#"{"v":1,"n":1,"kind":"file","verb":"read","target":{"file":"source","sheet":null,"range":null},"args":[{"name":"as","from":"const","value":"rows","key":null}],"pre":[],"post":[],"effect":"none","class":"read"}"#;
+    let write = r#"{"v":1,"n":2,"kind":"file","verb":"write","target":{"file":"dest","sheet":"sheet","range":"range"},"args":[{"name":"values","from":"extract","value":null,"key":"rows"}],"pre":[],"post":[],"effect":"none","class":"local_edit"}"#;
+    sup.steps = vec![
+        ExecutableStep::parse(read.as_bytes()).expect("the read step"),
+        ExecutableStep::parse(write.as_bytes()).expect("the write step"),
+    ];
+    let seen = sup.serve(|_, _| Act::Answer, LONG);
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    assert_eq!(
+        kept(&seen.effects()[0])[0],
+        (FieldName::File, dest_text.clone())
+    );
+    assert_eq!(
+        files.workbook_bytes(),
+        before,
+        "the slot workbook's file is untouched"
+    );
+    assert!(
+        !files.names().contains(&checkpoint_of(&sup, "formulas")),
+        "nothing beside the file that the step does not name: {:?}",
+        files.names()
+    );
+    assert_ne!(
+        std::fs::read(&dest).expect("read"),
+        dest_before,
+        "the step's file is edited"
     );
 }
