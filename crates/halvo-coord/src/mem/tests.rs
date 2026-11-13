@@ -217,6 +217,24 @@ fn a_stamp_takes_the_day_of_the_instant_that_it_read() {
     assert_eq!(Stamp::read(&p), Err(PortError::NoService));
 }
 
+/// A clock whose day answers for every instant.
+struct Far;
+
+impl Clock for Far {
+    fn now(&self) -> Result<u64, PortError> {
+        Ok(u64::MAX)
+    }
+
+    fn day(&self, _at: u64) -> Result<u32, PortError> {
+        Ok(0)
+    }
+}
+
+#[test]
+fn a_stamp_of_an_instant_past_the_largest_at_gives_the_largest_at() {
+    assert_eq!(Stamp::read(&Far).map(Stamp::at), Ok(i64::MAX));
+}
+
 fn spec() -> RunSpec {
     RunSpec {
         run: id(RunId::parse, 14),
