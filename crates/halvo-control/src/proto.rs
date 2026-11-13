@@ -2107,12 +2107,8 @@ mod tests {
     fn version_2_nested(levels: usize) -> Vec<u8> {
         let arrays = levels - 2;
         let mut frame = br#"{"v":2,"body":{"x":"#.to_vec();
-        for _ in 0..arrays {
-            frame.push(b'[');
-        }
-        for _ in 0..arrays {
-            frame.push(b']');
-        }
+        frame.extend(std::iter::repeat_n(b'[', arrays));
+        frame.extend(std::iter::repeat_n(b']', arrays));
         frame.extend_from_slice(b"}}");
         frame
     }
