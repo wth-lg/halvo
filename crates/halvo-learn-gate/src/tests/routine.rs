@@ -318,3 +318,55 @@ fn routine_usage_refusals_name_routine_among_the_commands() {
         "REFUSED usage: an unknown command; commands: drift, delete, routine"
     );
 }
+
+fn with_event(train: &Train, event: Event) -> Train {
+    let mut changed = train.clone();
+    assert!(changed.events.iter().all(|e| e.day != event.day));
+    changed.events.push(event);
+    changed.events.sort_by_key(|e| e.day);
+    changed
+}
+
+#[test]
+fn routine_a_figure_changed_on_a_quiet_day_alone_differs_on_that_day_in_both_streams() {
+    let train = sample().remove(0);
+    let quiet = 300;
+    assert!(!train.days.contains(&quiet));
+    let (mark, period) = train.figures_on(quiet);
+    assert_eq!(train.figures_on(quiet + 1), (mark, period));
+    let changed = with_event(
+        &with_event(
+            &train,
+            Event {
+                day: quiet,
+                mark,
+                period: Some(period.map_or(1, |p| p + 1)),
+            },
+        ),
+        Event {
+            day: quiet + 1,
+            mark,
+            period,
+        },
+    );
+    for stream in Stream::BOTH {
+        assert_eq!(differs_on(&changed, stream), Some(quiet), "{stream:?}");
+    }
+}
+
+#[test]
+fn routine_a_figure_changed_on_day_730_alone_differs_on_day_730_in_both_streams() {
+    let train = sample().remove(0);
+    let (mark, period) = train.figures_on(LAST_DAY);
+    let changed = with_event(
+        &train,
+        Event {
+            day: LAST_DAY,
+            mark,
+            period: Some(period.map_or(1, |p| p + 1)),
+        },
+    );
+    for stream in Stream::BOTH {
+        assert_eq!(differs_on(&changed, stream), Some(LAST_DAY), "{stream:?}");
+    }
+}
