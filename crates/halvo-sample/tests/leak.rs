@@ -9,7 +9,7 @@ const CANARIES: &str = r#"["c-one.test","c-three.test","c-two.test"]"#;
 
 fn layer_text() -> String {
     [
-        "g-agenda-clear", "g-agenda-week", "g-budget-sheet", "g-cart-basket", "g-cart-confirm", "g-cart-pay",
+        "g-agenda-clear", "g-agenda-week", "g-budget-sheet", "g-canary-news", "g-cart-basket", "g-cart-confirm", "g-cart-pay",
         "g-cart-receipt", "g-cart-signin", "g-power-bill", "g-power-signin", "g-rides-fares", "g-rides-signin",
     ]
     .iter()
@@ -17,9 +17,10 @@ fn layer_text() -> String {
     .collect()
 }
 
-/// The golden script built as a sealed tier with three canaries in its header.
+/// The golden script built as a sealed tier with three canaries in its header and one noise item on a canary.
 fn sealed(dir: &Path, tier: &str, sites: &str) -> PathBuf {
     let g = golden();
+    let noise = "{\"line\":\"step\",\"step\":\"g-canary-news\",\"app\":\"org.chromium.Chromium\",\"site\":\"c-one.test\",\"titles\":[\"Morning paper\"],\"paths\":[\"/home\"],\"password_input\":false,\"card_title\":false}\n{\"line\":\"noise\",\"stream\":\"golden\",\"day\":60,\"item\":{\"step\":\"g-canary-news\",\"title\":0,\"start\":36000000000000,\"end\":36030000000000,\"keys\":0,\"clicks\":1,\"scrolls\":0}}\n";
     let fix = |t: String| {
         t.replace("\"seen\"", &format!("\"{sites}\""))
             .replace("\"canaries\":[]", &format!("\"canaries\":{CANARIES}"))
@@ -28,7 +29,10 @@ fn sealed(dir: &Path, tier: &str, sites: &str) -> PathBuf {
     let b = dir.join(format!("{tier}-marked.jsonl"));
     write(
         &a,
-        &fix(fs::read_to_string(g.join("script.jsonl")).expect("g")),
+        &format!(
+            "{}{noise}",
+            fix(fs::read_to_string(g.join("script.jsonl")).expect("g"))
+        ),
     );
     write(
         &b,
@@ -88,8 +92,15 @@ fn a_site_name_in_a_file_and_a_development_body_fail() {
     );
     write(&dir.join("repo/target/skip.txt"), "goldfinch-power\n");
     write(&dir.join("repo/.git/skip.txt"), "goldfinch-power\n");
+    write(&dir.join("repo/b/target"), "goldfinch-rides\n");
     let o = run(&["leak", &s(&t), &s(&dir.join("repo"))]);
     assert_eq!(o.code, 1);
+    assert!(
+        o.stdout
+            .contains(&format!("HIT site {}/b/target 1\n", s(&dir.join("repo")))),
+        "a file named target is searched: {}",
+        o.stdout
+    );
     assert!(
         o.stdout
             .contains(&format!("HIT site {}/a/notes.md 1\n", s(&dir.join("repo")))),
@@ -98,7 +109,7 @@ fn a_site_name_in_a_file_and_a_development_body_fail() {
     );
     assert!(
         o.stdout
-            .contains("shared streams=0 sites=1 templates=0 canaries=0\n"),
+            .contains("shared streams=0 sites=2 templates=0 canaries=0\n"),
         "{}",
         o.stdout
     );
@@ -108,7 +119,7 @@ fn a_site_name_in_a_file_and_a_development_body_fail() {
     assert!(o.stdout.contains(" bodies=1 "), "{}", o.stdout);
     assert!(
         o.stdout
-            .contains("shared streams=1 sites=4 templates=5 canaries=0\n"),
+            .contains("shared streams=0 sites=4 templates=5 canaries=0\n"),
         "{}",
         o.stdout
     );
@@ -123,6 +134,11 @@ fn the_canaries_of_a_body_of_the_same_author_are_left_out() {
     let o = run(&["leak", &s(&t), &s(&h)]);
     assert!(o.stdout.contains("canaries=0\n"), "{}", o.stdout);
     assert!(!o.stdout.contains("HIT canary"));
+    assert!(
+        !o.stdout.contains("/manifest.toml "),
+        "the canary names in the body's own manifest are left out: {}",
+        o.stdout
+    );
     write(&dir.join("stray/c.txt"), "c-two\n");
     let o = run(&["leak", &s(&t), &s(&h), &s(&dir.join("stray"))]);
     assert!(

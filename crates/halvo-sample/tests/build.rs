@@ -400,3 +400,57 @@ fn a_sealed_tier_copies_its_layer_records() {
     assert!(m.files.iter().any(|f| f.0 == "layers/steps.jsonl"));
     assert_eq!(m.counts.marked[7], 1);
 }
+
+#[test]
+fn a_click_comes_before_a_scroll_on_the_same_second() {
+    let dir = scratch("same-second");
+    let lines = [
+        HEADER.to_owned(),
+        r#"{"line":"stream","stream":"s1","sites":"seen"}"#.to_owned(),
+        common::step_line("pa", "alpha-one.test", "Bills - Alpha", false),
+        common::episode(
+            "s1",
+            "e1",
+            "t1",
+            "email",
+            "one_off",
+            1,
+            &[common::item("pa", 0, 2 * SEC, 0, 1, 1)],
+        ),
+    ];
+    write(
+        &dir.join("s.jsonl"),
+        &lines.iter().map(|l| format!("{l}\n")).collect::<String>(),
+    );
+    let o = run(&[
+        "build",
+        "--seed",
+        "1",
+        "--out",
+        &s(&dir.join("o")),
+        &s(&dir.join("s.jsonl")),
+    ]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    let day = fs::read_to_string(dir.join("o/streams/s1/day-001.jsonl")).expect("day");
+    let kinds: Vec<&str> = day
+        .lines()
+        .map(|l| {
+            if l.contains("\"class\":\"click\"") {
+                "click"
+            } else if l.contains("\"class\":\"scroll\"") {
+                "scroll"
+            } else {
+                "other"
+            }
+        })
+        .collect();
+    assert_eq!(kinds, vec!["other", "other", "click", "scroll"]);
+    assert!(day
+        .lines()
+        .nth(2)
+        .is_some_and(|l| l.contains("\"at\":1767225601000000000")));
+    assert!(day
+        .lines()
+        .nth(3)
+        .is_some_and(|l| l.contains("\"at\":1767225601000000000")));
+}

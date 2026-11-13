@@ -177,9 +177,6 @@ fn walk(arg: &str, path: &Path, shown: String, skip: &Path, out: &mut Walk) -> R
     }
     names.sort();
     for name in names {
-        if name == ".git" || name == "target" {
-            continue;
-        }
         let child = path.join(&name);
         let child_shown = format!("{shown}/{name}");
         let is_dir = fs::symlink_metadata(&child).is_ok_and(|m| m.is_dir());

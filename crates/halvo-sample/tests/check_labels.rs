@@ -214,3 +214,43 @@ fn check_labels_refusals() {
     fs::write(dir.join("script-manifest.jsonl"), "").expect("w");
     refused(&run(&["check-labels", &s(&dir)]), "batches");
 }
+
+#[test]
+fn a_range_with_two_title_events_fails_the_generated_rule_alone() {
+    let dir = copy_golden("two-titles");
+    edit_labels(
+        &dir,
+        r#""step":"g-rides-signin","start":1767787200000000000,"end":1767787215000000000"#,
+        r#""step":"g-rides-signin","start":1767787200000000000,"end":1767787216000000000"#,
+    );
+    let o = run(&["check-labels", &s(&dir)]);
+    assert!(
+        o.stdout.contains(
+            "FAIL range golden golden-e07 g-rides-signin 1767787200000000000 1767787216000000000 titles=2 own=1\n"
+        ),
+        "{}",
+        o.stdout
+    );
+    let r = run(&["check-labels", "--rule", "recorded", &s(&dir)]);
+    assert!(!r.stdout.contains("FAIL range"), "{}", r.stdout);
+}
+
+#[test]
+fn a_task_id_in_two_streams_breaks_rule_five() {
+    let dir = copy_golden("task-twice");
+    copy_dir(&dir.join("streams/golden"), &dir.join("streams/other"));
+    let p = dir.join("streams/other/labels.jsonl");
+    let text = fs::read_to_string(&p).expect("labels");
+    fs::write(
+        &p,
+        text.replace("\"episode\":\"golden-e", "\"episode\":\"other-e"),
+    )
+    .expect("write");
+    let o = run(&["check-labels", "--rule", "recorded", &s(&dir)]);
+    assert!(
+        o.stdout.contains("FAIL row other 1 reference\n"),
+        "{}",
+        o.stdout
+    );
+    assert!(!o.stdout.contains("FAIL row golden"), "{}", o.stdout);
+}

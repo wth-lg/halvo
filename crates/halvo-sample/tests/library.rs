@@ -440,3 +440,31 @@ fn the_twice_rule_reads_sites_and_native_apps() {
         Some("S5")
     );
 }
+
+#[test]
+fn a_range_of_another_task_between_the_marks_is_refused() {
+    let other = |a: &mut Vec<String>| {
+        a.push(episode(
+            "s1",
+            "x1",
+            "t9",
+            "email",
+            "one_off",
+            5,
+            &[item("pb", DAY9 + 100 * SEC, DAY9 + 110 * SEC, 0, 0, 0)],
+        ))
+    };
+    assert_eq!(with(|a, _| other(a)).err(), Some("S5"));
+    let after = |a: &mut Vec<String>| {
+        a.push(episode(
+            "s1",
+            "x1",
+            "t9",
+            "email",
+            "one_off",
+            5,
+            &[item("pb", DAY9 + 600 * SEC, DAY9 + 610 * SEC, 0, 0, 0)],
+        ))
+    };
+    assert!(with(|a, _| after(a)).is_ok());
+}

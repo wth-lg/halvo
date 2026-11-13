@@ -181,6 +181,11 @@ fn compose_split_build_and_check_labels_agree() {
         );
     }
     let names = files_under(&dir.join("c"));
+    let joined: String = names
+        .iter()
+        .map(|f| fs::read_to_string(dir.join("c").join(f)).expect("script"))
+        .collect();
+    assert!(joined.contains("\"paths\":[\"/main?thing=two%20%26%20three\"]"));
     assert_eq!(
         names
             .iter()
@@ -1179,4 +1184,29 @@ fn a_template_on_both_halves_is_short_with_its_category() {
     let o = compose(&dir, &rates(20, 4).write(), &sites, "o");
     refused(&o, "short");
     assert_eq!(o.stderr, "REFUSED short: email\n");
+}
+
+#[test]
+fn a_native_twice_task_takes_the_other_service_of_its_app_out_of_its_stream() {
+    let dir = scratch("twice-native");
+    let mut sites = services(&dir.join("sites"));
+    for (i, p) in sites.clone().iter().take(20).enumerate() {
+        let mut svc =
+            halvo_sample::site_data::parse_service(&fs::read(p).expect("service")).expect("parse");
+        svc.service = format!("zz-dup-{i}");
+        if svc.web {
+            svc.host = Some(format!("zz-dup-{i}.test"));
+        }
+        for page in &mut svc.pages {
+            page.title = page.title.replace("quill", "grebe");
+        }
+        let q = dir.join(format!("sites/zz-dup-{i}.json"));
+        write(&q, &svc.write());
+        sites.push(q);
+    }
+    let o = compose(&dir, &rates(20, 26).write(), &sites, "full");
+    refused(&o, "short");
+    assert_eq!(o.stderr, "REFUSED short: spreadsheet_fill\n");
+    let o = compose(&dir, &rates(20, 24).write(), &sites, "room");
+    assert_eq!(o.code, 0, "{}", o.stderr);
 }
