@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Nothing of a model request can leave the machine in this build: the ruling file of the commit reads ruling=none, no row of the policy or of the recorded table names a hosted tier, cargo tree of the run's three crates names no network package, the egress lists hold no entry, cargo test of halvo-route in the debug and the release profile prints the ok lines of no_grant_in_release and pinned_files_hold_their_hashes under the target tests/no_grant_in_release.rs, a program of another crate built with --cfg test set from outside stops with E0624 where it names Ruling::test_hosted while its control compiles and answers ruling, and no cargo command leaves the tree changed.
+# rule: Nothing of a model request can leave the machine in this build: the ruling file of the commit reads ruling=none, no row of the policy or of the recorded table names a hosted tier, cargo tree of the run's three crates names no network package, the egress lists hold no entry, cargo test of halvo-route in the debug and the release profile prints the ok lines of no_grant_in_release and pinned_files_hold_their_hashes under the target tests/no_grant_in_release.rs, a program of another crate built with --cfg test set from outside stops with E0624 where it names Ruling::test_hosted while its control compiles and answers ruling, and no cargo command leaves the tree changed; 40-r6-policy holds this script by the blob id of its content.
 set -u
 name=80-r6-absent
 case $0 in
