@@ -317,8 +317,14 @@ fn fetch_shareable_content() -> Result<Retained<SCShareableContent>, CaptureErro
     // a queue of its own, possibly after the wait below gave up. It holds
     // nothing but `tx`; a send to a receiver that is gone returns an error,
     // which the handler ignores, and the retained content drops with it. The
-    // content it sends crosses to the waiting thread, although neither objc2
-    // nor SCShareableContent.h marks the class as safe to share between threads.
+    // content is retained on ScreenCaptureKit's queue, handed over once through
+    // the channel, and used by one thread at a time. That rests on what is
+    // assumed: one owner at a time, no use on two threads at once, and no
+    // documented tie of the object to the queue that delivered it. The SDK
+    // marks nothing: neither objc2 nor SCShareableContent.h nor the
+    // framework's Swift interface says that the class may be sent between
+    // threads. This is a named limit and not a proof; macos-3 takes the
+    // hand-over away.
     unsafe { SCShareableContent::getShareableContentWithCompletionHandler(&handler) };
     match rx.recv_timeout(SHAREABLE_CONTENT_WAIT) {
         Ok(Ok(content)) => Ok(content),
