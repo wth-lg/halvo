@@ -320,3 +320,45 @@ proof that the system reaches the thing.
   an ended task in its list admits less and breaks no invariant here.
 - More than two runs, more than two requests a task, amounts above 2, a cap above 3, and more
   than one stop.
+
+## The check 55-r6-formal.sh
+
+`scripts/r6/ci.d/55-r6-formal.sh` runs in CI's macos job, and by hand with
+`sh scripts/ci/run-ci-d.sh macos 55-r6-formal`. It checks `Spend.cfg`, replays `traces.jsonl`
+through `Replay.tla`, replays traces of its own as a control of the replay, and runs the two
+controls. `--self-test` runs the two controls, the replay control against two weakened copies
+of `Replay.tla`, and a failing fixture for each of its guards.
+
+The script holds these beside the model, and a change of any of them changes the script in the
+same pull request:
+
+- The configuration of `Spend.cfg` and of the two controls: the constants `Runs = {r1, r2}`,
+  `MaxRequests = 2`, `MaxAdmissions = 2`, `MaxCapChanges = 2`, `MaxOtherSpends = 2`,
+  `MaxLostAnswers = 1`, `MaxStops = 1`, `Hurry = TRUE`, `TraceMoves = 12` and `Null = Null`, and the
+  lines `SYMMETRY RunSymmetry`, `INIT Init`, `NEXT Next` and `CHECK_DEADLOCK FALSE`. `Spend.cfg`
+  sets `Fault = "none"` and lists S1 to S11. `ControlRuling.cfg` sets
+  `Fault = "grant_without_ruling"` and lists S1 alone. `ControlResend.cfg` sets
+  `Fault = "resend_new_id"` and lists S5 alone.
+- `Replay.cfg`: the two lines `CONSTANTS` and `Null = Null`.
+- The jar: the address, the size and the SHA-256 of the line `tlc url=...` at the top of this file.
+- The form of a trace: the line forms above, the ranges of `Export.cfg`, five moves for each of
+  the six directed traces and twelve for each drawn one, at least 206 traces, and a header whose
+  count equals the number of traces.
+- The banner of TLC 2.19, which every TLC run must print once.
+- The replay control: two traces that the machine gives and 26 copies of them that it does not.
+
+The check reads the committed files, as blobs of `HEAD`, and not the work tree. Commit a change
+of the model before you run the check on it.
+
+What the check does not see:
+
+- An invariant weakened in `Spend.tla`. Run the rows of "Each invariant can fail" by hand.
+- `Hold.tla`'s `Step` changed with the traces exported again. The test `formal_traces` of the
+  routing run's U2.2 holds the traces against `spend::step` once it lands; until then nothing
+  holds them.
+- A trace replaced by another one that the machine gives, a directed one among them. The six
+  directed traces are not compared with `Directed`.
+- The seed of the header line.
+- A change of `Replay.tla` that the replay control does not catch. The control catches a replay
+  that skips a position of a trace or a field of a move, not every way to weaken `Walk`.
+- The `java` and the `curl` that the job's environment names. The check trusts both.
