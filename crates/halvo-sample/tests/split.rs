@@ -229,7 +229,7 @@ fn a_canary_site_links_no_streams_and_counts_in_no_side() {
 #[test]
 fn the_check_and_heldout_pair_names_its_two_sides() {
     let dir = scratch("split-sealed");
-    let files = vec![
+    let files = [
         stream_file(&dir, "a1", "one-a.test", Some("hub-a.test"), "One A"),
         stream_file(&dir, "a2", "two-a.test", Some("hub-a.test"), "Two A"),
         stream_file(
