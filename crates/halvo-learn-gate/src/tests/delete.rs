@@ -156,6 +156,21 @@ fn delete_line_misses_a_cascade_that_takes_a_row_of_the_other_workflow() {
 }
 
 #[test]
+fn delete_line_reads_other_served_no_when_the_other_workflow_s_reverted_row_is_taken() {
+    let second = id('3', 2);
+    let (text, ok) = line(&mut |store, id| {
+        let stored = store.delete_workflow(id);
+        remove_first(store, "learn_edit", |r| {
+            names(r, &second) && r.contains("\"state\":\"reverted\"")
+        });
+        stored
+    });
+    assert!(!ok, "{text}");
+    assert!(text.contains(" other_served=no "), "{text}");
+    assert!(text.ends_with(" result=miss"), "{text}");
+}
+
+#[test]
 fn delete_line_misses_a_cascade_that_rewrites_a_row_of_the_other_workflow() {
     let second = id('3', 2);
     miss(
