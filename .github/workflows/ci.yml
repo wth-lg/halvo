@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -82,28 +71,9 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -115,7 +85,7 @@ jobs:
 
   windows:
     runs-on: windows-2025
-    timeout-minutes: 60
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -140,21 +110,92 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-windows-functional
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 50-windows-functional
+      - name: win-3 failing-first runs at the test-first commits
+        if: ${{ !cancelled() }}
+        continue-on-error: true
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
+        run: |
+          set +e +o pipefail
+          set -u
+          export CARGO_INCREMENTAL=1
+          git fetch --quiet --deepen=60 origin "$GITHUB_REF" || true
+          logs="$RUNNER_TEMP/w3-proof"
+          mkdir -p "$logs"
+          lib() {
+            label=$1; commit=$2; shift 2
+            git checkout --quiet --detach "$commit" || { echo "PROOF $label commit=$commit checkout=failed"; return; }
+            cargo test --locked -p halvo-capture --lib -- "$@" >"$logs/$label-lib.log" 2>&1
+            echo "PROOF $label commit=$(git rev-parse --short=8 HEAD) kind=lib exit=$?"
+            tr -d '\r' <"$logs/$label-lib.log" | grep -E '^test .* \.\.\. |^test result|^error' | head -60
+          }
+          fc() {
+            label=$1; commit=$2; shift 2
+            git checkout --quiet --detach "$commit" || { echo "PROOF $label commit=$commit checkout=failed"; return; }
+            for name in "$@"; do
+              timeout 400 cargo test --locked -p halvo-capture --test windows_functional -- --ignored --exact "$name" --nocapture >"$logs/$label-fc.log" 2>&1
+              echo "PROOF $label commit=$(git rev-parse --short=8 HEAD) kind=functional test=$name exit=$?"
+              tr -d '\r' <"$logs/$label-fc.log" | grep -E '^TF |KNOWN-DEFECT|panicked at|^test result' | head -40
+            done
+          }
+          lib pl2 aea6743a --exact windows::tests::a_source_whose_writer_is_gone_reads_failed_with_the_reason_writer_gone windows::screen::tests::a_closed_capture_item_reads_as_failed_health
+          lib rr10 95a7fc03 --exact windows::foreground::tests::a_lookup_that_fails_after_a_success_leaves_the_cell_none windows::foreground::tests::a_new_process_whose_path_cannot_be_read_gives_a_record_with_no_app windows::foreground::tests::a_frame_host_window_names_the_process_that_it_hosts windows::foreground::tests::a_path_of_2000_bytes_keeps_at_most_1024_bytes_that_end_in_the_executable_name
+          lib rr23 2e6953d5 --exact windows::foreground::tests::two_events_for_one_app_give_one_foreground_record_and_two_title_reads windows::foreground::tests::two_hosted_apps_under_one_frame_host_give_two_foreground_records
+          lib rr08 14dd7eec --exact windows::window_title::tests::only_the_foreground_windows_own_name_change_is_a_title windows::window_title::tests::a_title_of_100000_units_is_read_up_to_the_cap windows::window_title::tests::a_title_with_an_unpaired_surrogate_is_read_without_a_panic
+          lib rr16 7593344b --exact windows::input::tests::map_keystroke_gives_the_events_of_the_shared_list windows::input::tests::a_packet_of_vkey_255_is_no_event_and_changes_no_state
+          lib rr27 d840d268 --exact windows::input::tests::decode_rejects_a_buffer_of_exactly_the_header_or_one_byte_short_of_its_record
+          lib pl3 dca4a1f0 --exact windows::input::tests::a_raw_input_source_whose_removal_is_refused_answers_the_os_error_of_the_removal windows::foreground::tests::a_foreground_source_whose_unhook_fails_answers_the_os_error_of_the_unhook windows::window_title::tests::a_title_source_whose_unhook_fails_answers_the_os_error_of_the_unhook windows::screen::tests::a_session_whose_end_is_refused_answers_its_os_error_and_reads_failed
+          fc pl3 dca4a1f0 a_timed_out_stop_reads_no_input_posted_after_its_answer
+          lib gate fc24f3af secure_input::windows::tests::
+          lib gate-review b718ab79 secure_input::windows::tests::
+          fc gate fc24f3af c1_raw_input_delivers_keystrokes_and_pointer_events known_defect::x1_keystrokes_typed_into_a_password_field
+          fc base 164a15ff known_defect::x1_keystrokes_typed_into_a_password_field known_defect::x3_attribution_before_the_first_foreground_change known_defect::x14_foreground_app_of_a_hosted_app known_defect::x2_window_title_events_for_other_windows_and_controls known_defect::title_event_on_a_switch_to_a_window_with_a_fixed_title known_defect::x15_a_held_key
+          git checkout --quiet --detach "$GITHUB_SHA"
+          echo "PROOF restored commit=$(git rev-parse --short=8 HEAD)"
+      - name: win-3 one-rule changes at the head
+        if: ${{ !cancelled() }}
+        continue-on-error: true
         shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e +o pipefail
+          set -u
+          export CARGO_INCREMENTAL=1
+          git checkout --quiet --detach "$GITHUB_SHA"
+          rows="$RUNNER_TEMP/w3-mutants.tsv"
+          echo "bTAxLXN0aWNreS1wYXNzd29yZC1pZ25vcmVkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NlY3VyZV9pbnB1dC5ycwlzLyAgICBpZiBzYW1lX3Bhc3N3b3JkX2VsZW1lbnQgXHtccj9cbiAgICAgICAgcmV0dXJuIEZpZWxkU3RhdGU6OlBhc3N3b3JkO1xyP1xuICAgIFx9XHI/XG4vLwlsaWIJc2VjdXJlX2lucHV0Ojp3aW5kb3dzOjp0ZXN0czo6b25seV9hbl9hbnN3ZXJfdGhhdF90aGVfZmllbGRfaXNfbm9fcGFzc3dvcmRfZmllbGRfcmVhZHNfY2xlYXIKbTAyLWZpcmVmb3gtcmVhZHMtY2xlYXIJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2VjdXJlX2lucHV0LnJzCXMvRm9jdXNSZWFkOjpBbnN3ZXJlZCBceyBmaXJlZm94OiB0cnVlLCBcLlwuIFx9ID0+IEZpZWxkU3RhdGU6OlVua25vd24sL0ZvY3VzUmVhZDo6QW5zd2VyZWQgeyBmaXJlZm94OiB0cnVlLCAuLiB9ID0+IEZpZWxkU3RhdGU6OkNsZWFyLC8JbGliCXNlY3VyZV9pbnB1dDo6d2luZG93czo6dGVzdHM6Om9ubHlfYW5fYW5zd2VyX3RoYXRfdGhlX2ZpZWxkX2lzX25vX3Bhc3N3b3JkX2ZpZWxkX3JlYWRzX2NsZWFyCm0wMy1uby1hbnN3ZXItcmVhZHMtY2xlYXIJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2VjdXJlX2lucHV0LnJzCXMvRm9jdXNSZWFkOjpOb0Fuc3dlciBceyBwcm90ZWN0ZWQ6IGZhbHNlIFx9IFx8IEZvY3VzUmVhZDo6VW5yZWFkYWJsZSA9PiBGaWVsZFN0YXRlOjpVbmtub3duLC9Gb2N1c1JlYWQ6Ok5vQW5zd2VyIHsgcHJvdGVjdGVkOiBmYWxzZSB9IHwgRm9jdXNSZWFkOjpVbnJlYWRhYmxlID0+IEZpZWxkU3RhdGU6OkNsZWFyLC8JbGliCXNlY3VyZV9pbnB1dDo6d2luZG93czo6dGVzdHM6Om9ubHlfYW5fYW5zd2VyX3RoYXRfdGhlX2ZpZWxkX2lzX25vX3Bhc3N3b3JkX2ZpZWxkX3JlYWRzX2NsZWFyCm0wNC1wYXNzd29yZC1lZGl0LWlnbm9yZWQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2VjdXJlX2lucHV0LnJzCXMvICAgIGlmIGtleVwucGFzc3dvcmRfZWRpdCBcey8gICAgaWYgZmFsc2Ugey8JbGliCXNlY3VyZV9pbnB1dDo6d2luZG93czo6dGVzdHM6OmFfcGFzc3dvcmRfZWRpdF91bmRlcl90aGVfZm9jdXNfd2l0aGhvbGRzX3RoZV9rZXlfd2hhdGV2ZXJfdGhlX2RldGVjdG9yX3JlYWQKbTA1LW5vLWxvb2stYWhlYWQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2VjdXJlX2lucHV0LnJzCXMvTWFyazo6RmllbGRcKGxhdGVyXCkgXHwgTWFyazo6UmVhZFwobGF0ZXJcKSA9PiBzdGF0ZSA9IG1vc3RfcmVzdHJpY3RpdmVcKHN0YXRlLCBsYXRlclwpLC9NYXJrOjpGaWVsZChfbGF0ZXIpIHwgTWFyazo6UmVhZChfbGF0ZXIpID0+IHt9LwlsaWIJc2VjdXJlX2lucHV0Ojp3aW5kb3dzOjp0ZXN0czo6YV9mb2N1c19ldmVudF90aGF0X2Fycml2ZXNfYWZ0ZXJfdGhlX2tleV93aXRoaW5faXRzX2hvbGRfZGVjaWRlc19hZ2FpbnN0X2l0Cm0wNi1uby1ob2xkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NlY3VyZV9pbnB1dC5ycwlzLyAgICAgICAgRmllbGRTdGF0ZTo6Q2xlYXIgaWYgbm93XC53cmFwcGluZ19zdWJcKGtleVwudGlja1wpIDwgbXNcKEtFWV9IT0xEXCkgPT4gSnVkZ21lbnQ6OldhaXQsXHI/XG4vLwlsaWIJc2VjdXJlX2lucHV0Ojp3aW5kb3dzOjp0ZXN0czo6YV9rZXlfaW5fYV9jbGVhcl9maWVsZF93YWl0c19pdHNfaG9sZF9hbmRfdGhlbl9nZXRzX2FfY2xlYXJhbmNlCm0wNy1sYXRjaC1kb2VzLW5vdC13YWl0CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NlY3VyZV9pbnB1dC5ycwlzLyAgICAgICAgICAgICAgICBOb25lID0+IHJldHVybiBKdWRnbWVudDo6V2FpdCwvICAgICAgICAgICAgICAgIE5vbmUgPT4gKEZpZWxkU3RhdGU6OkNsZWFyLCBrZXkuc2VlbiksLwlsaWIJc2VjdXJlX2lucHV0Ojp3aW5kb3dzOjp0ZXN0czo6YV9rZXlfYWZ0ZXJfYV9sYXRjaF93YWl0c19mb3JfdGhlX25leHRfZmllbGRfbWFyawptMDgtbG9vay1haGVhZC1jcm9zc2VzLWEtbGF0Y2gJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2VjdXJlX2lucHV0LnJzCXMvICAgICAgICAgICAgTWFyazo6TGF0Y2ggXHsgb3JkZXJlZDogdHJ1ZSBcfSA9PiBicmVhaywvICAgICAgICAgICAgTWFyazo6TGF0Y2ggeyBvcmRlcmVkOiB0cnVlIH0gPT4ge30vCWxpYglzZWN1cmVfaW5wdXQ6OndpbmRvd3M6OnRlc3RzOjphX2tleV9hZnRlcl9hX2xhdGNoX3dhaXRzX2Zvcl90aGVfbmV4dF9maWVsZF9tYXJrCm0wOS1wYXNzd29yZC1yZWFkcy11bmtub3duCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NlY3VyZV9pbnB1dC5ycwlzL1woRmllbGRTdGF0ZTo6UGFzc3dvcmQsIF9cKSBcfCBcKF8sIEZpZWxkU3RhdGU6OlBhc3N3b3JkXCkgPT4gRmllbGRTdGF0ZTo6UGFzc3dvcmQsLyhGaWVsZFN0YXRlOjpQYXNzd29yZCwgXykgfCAoXywgRmllbGRTdGF0ZTo6UGFzc3dvcmQpID0+IEZpZWxkU3RhdGU6OlVua25vd24sLwlsaWIJc2VjdXJlX2lucHV0Ojp3aW5kb3dzOjp0ZXN0czo6YV9mb2N1c19ldmVudF90aGF0X2Fycml2ZXNfYWZ0ZXJfdGhlX2tleV93aXRoaW5faXRzX2hvbGRfZGVjaWRlc19hZ2FpbnN0X2l0Cm0xMC13YWl0aW5nLWtleS1uZXZlci1sYXRlCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NlY3VyZV9pbnB1dC5ycwlzLyAgICAgICAgICAgIEp1ZGdtZW50OjpXYWl0IGlmIGFnZSA+IHN1cGVyOjpMQVRFX0tFWV9NQVggPT4gU2VjdXJlSW5wdXRSZWFkaW5nOjpVbmtub3duLFxyP1xuLy8JbGliCXNlY3VyZV9pbnB1dDo6d2luZG93czo6dGVzdHM6OmFfa2V5X3RoYXRfd2FpdHNfcGFzdF90aGVfbGF0ZV9ib3VuZF9pc19sYXRlCm0xMS10YWItbW92ZXMtbm8tZm9jdXMJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2VjdXJlX2lucHV0LnJzCXMvbWF0Y2hlcyFcKHZrZXksIDB4MDkgXHwgMHgwRC9tYXRjaGVzISh2a2V5LCAweDBELwlsaWIJc2VjdXJlX2lucHV0Ojp3aW5kb3dzOjp0ZXN0czo6a2V5c190YWJfZW50ZXJfZXNjYXBlX2FuZF90aGVfd2luZG93c19rZXlzX21vdmVfdGhlX2ZvY3VzCm0xMi1ob2xkLXplcm8JY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2VjdXJlX2lucHV0LnJzCXMvcHViIGNvbnN0IEtFWV9IT0xEOiBEdXJhdGlvbiA9IER1cmF0aW9uOjpmcm9tX21pbGxpc1woMTIwXCk7L3B1YiBjb25zdCBLRVlfSE9MRDogRHVyYXRpb24gPSBEdXJhdGlvbjo6ZnJvbV9taWxsaXMoMCk7LwlsaWIJc2VjdXJlX2lucHV0Ojp3aW5kb3dzOjp0ZXN0czo6YV9rZXlfaW5fYV9jbGVhcl9maWVsZF93YWl0c19pdHNfaG9sZF9hbmRfdGhlbl9nZXRzX2FfY2xlYXJhbmNlCm0xMy1yZWxlYXNlLWtlZXBzLXRoZS1rZXktZG93bgljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9pbnB1dC5ycwlzLyAgICAgICAgXCpkb3duID0gZmFsc2U7XHI/XG4gICAgICAgIHJldHVybiBOb25lOy8gICAgICAgIHJldHVybiBOb25lOy8JbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6bWFwX2tleXN0cm9rZV9naXZlc190aGVfZXZlbnRzX29mX3RoZV9zaGFyZWRfbGlzdAptMTQtbm8tc2hvcnRjdXQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvaW5wdXQucnMJcy8gICAgICAgIHJldHVybiBTb21lXChLZXlDbGFzczo6U2hvcnRjdXRcKTsvICAgICAgICByZXR1cm4gU29tZShjbGFzc19vZihrZXkudmtleSkpOy8JbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6bWFwX2tleXN0cm9rZV9naXZlc190aGVfZXZlbnRzX29mX3RoZV9zaGFyZWRfbGlzdAptMTUtZW50ZXItaXMtb3RoZXIJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvaW5wdXQucnMJcy8gICAgICAgIDB4MEQgPT4gS2V5Q2xhc3M6OkVudGVyLC8gICAgICAgIDB4MEQgPT4gS2V5Q2xhc3M6Ok90aGVyLC8JbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6bWFwX2tleXN0cm9rZV9naXZlc190aGVfZXZlbnRzX29mX3RoZV9zaGFyZWRfbGlzdAptMTYtYWx0LW1ha2VzLW5vLWNob3JkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2lucHV0LnJzCXMvY29uc3QgQ0hPUkRfS0VZUzogXFt1MTY7IDhcXSA9IFxbMHgxMSwgMHhBMiwgMHhBMywgMHgxMiwgMHhBNCwgMHhBNSwgMHg1QiwgMHg1Q1xdOy9jb25zdCBDSE9SRF9LRVlTOiBbdTE2OyA4XSA9IFsweDExLCAweEEyLCAweEEzLCAweDExLCAweEEyLCAweEEzLCAweDVCLCAweDVDXTsvCWxpYgl3aW5kb3dzOjppbnB1dDo6dGVzdHM6Om1hcF9rZXlzdHJva2VfZ2l2ZXNfdGhlX2V2ZW50c19vZl90aGVfc2hhcmVkX2xpc3QKbTE3LXZrZXktMjU1LWlzLWEta2V5CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2lucHV0LnJzCXMvICAgIGlmIGtleVwudmtleSA+PSBOT19LRVkgXHsvICAgIGlmIGtleS52a2V5ID4gTk9fS0VZIHsvCWxpYgl3aW5kb3dzOjppbnB1dDo6dGVzdHM6OmFfcGFja2V0X29mX3ZrZXlfMjU1X2lzX25vX2V2ZW50X2FuZF9jaGFuZ2VzX25vX3N0YXRlCm0xOC1yZW1vdmFsLW5vdC1yZXBvcnRlZAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9pbnB1dC5ycwlzLyAgICAgICAgc2VsZlwuc2lnbmFsXC5yZXBvcnRfcmVtb3ZhbFwoUkVNT1ZFX1NUQUdFLCByZW1vdmVkXCk7LyAgICAgICAgbGV0IF8gPSByZW1vdmVkOy8JbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6YV9yYXdfaW5wdXRfc291cmNlX3dob3NlX3JlbW92YWxfaXNfcmVmdXNlZF9hbnN3ZXJzX3RoZV9vc19lcnJvcl9vZl90aGVfcmVtb3ZhbAptMTktbm8tcmVtb3ZhbC1iZWZvcmUtdGltZW91dAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9pbnB1dC5ycwlzLyAgICAgICAgICAgIGxldCBfID0gcmVtb3ZlX29uY2VcKCZzZWxmXC5yZW1vdmVkLCBzZWxmXC5kZXZpY2UsIHNlbGZcLmNhbGxzXC5yZW1vdmVfZGV2aWNlXCk7LyAgICAgICAgICAgIGxldCBfID0gJnNlbGYucmVtb3ZlZDsvCWZjCWFfdGltZWRfb3V0X3N0b3BfcmVhZHNfbm9faW5wdXRfcG9zdGVkX2FmdGVyX2l0c19hbnN3ZXIKbTIwLXN0b3AtaWdub3Jlcy1yZW1vdmFsCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzLyAgICAgICAgbWF0Y2ggc2VsZlwuc2lnbmFsXC5yZW1vdmFsX2ZhaWx1cmVcKFwpIFx7LyAgICAgICAgbWF0Y2ggTm9uZTo6PENhcHR1cmVFcnJvcj4gey8JbGliCXdpbmRvd3M6OmZvcmVncm91bmQ6OnRlc3RzOjphX2ZvcmVncm91bmRfc291cmNlX3dob3NlX3VuaG9va19mYWlsc19hbnN3ZXJzX3RoZV9vc19lcnJvcl9vZl90aGVfdW5ob29rCm0yMS1oZWFsdGgtaWdub3Jlcy1yZW1vdmFsCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzLyAgICAgICAgaWYgbGV0IFNvbWVcKGVycm9yXCkgPSAmc2VsZlwucmVtb3ZhbF9mYWlsZWQgXHtccj9cbiAgICAgICAgICAgIHJldHVybiBTb3VyY2VIZWFsdGggXHsvICAgICAgICBpZiBsZXQgU29tZShlcnJvcikgPSBOb25lOjo8JkNhcHR1cmVFcnJvcj4ge1xuICAgICAgICAgICAgcmV0dXJuIFNvdXJjZUhlYWx0aCB7LwlsaWIJd2luZG93czo6Zm9yZWdyb3VuZDo6dGVzdHM6OmFfZm9yZWdyb3VuZF9zb3VyY2Vfd2hvc2VfdW5ob29rX2ZhaWxzX2Fuc3dlcnNfdGhlX29zX2Vycm9yX29mX3RoZV91bmhvb2sKbTIyLWJlZ2luLWFmdGVyLXJlbW92YWwtZmFpbHVyZQljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9tb2QucnMJcy8gICAgICAgIGlmIHNlbGZcLnB1bXBcLmlzX3NvbWVcKFwpIFx8XHwgc2VsZlwucmVtb3ZhbF9mYWlsZWRcLmlzX3NvbWVcKFwpIFx7LyAgICAgICAgaWYgc2VsZi5wdW1wLmlzX3NvbWUoKSB7LwlsaWIJd2luZG93czo6aW5wdXQ6OnRlc3RzOjphX3Jhd19pbnB1dF9zb3VyY2Vfd2hvc2VfcmVtb3ZhbF9pc19yZWZ1c2VkX2Fuc3dlcnNfdGhlX29zX2Vycm9yX29mX3RoZV9yZW1vdmFsCm0yMy13cml0ZXItZ29uZS1yZWFkcy10aHJlYWQtZW5kZWQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCXMvXChTb21lXChfXCksIE5vbmVcKSBpZiB3cml0ZXJfZ29uZSA9PiBmYWlsZWRfd2l0aFwoSGVhbHRoUmVhc29uOjpXcml0ZXJHb25lXCksLyhTb21lKF8pLCBOb25lKSBpZiB3cml0ZXJfZ29uZSA9PiBmYWlsZWRfd2l0aChIZWFsdGhSZWFzb246OlRocmVhZEVuZGVkKSwvCWxpYgl3aW5kb3dzOjp0ZXN0czo6YV9zb3VyY2Vfd2hvc2Vfd3JpdGVyX2lzX2dvbmVfcmVhZHNfZmFpbGVkX3dpdGhfdGhlX3JlYXNvbl93cml0ZXJfZ29uZQptMjQtc3RhbGUtYXBwLWtlcHQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvZm9yZWdyb3VuZC5ycwlzLyAgICAgICAgICAgIFwqbGFzdCA9IGZyb250XC5hc19yZWZcKFwpXC5hbmRfdGhlblwoXHxmcm9udFx8IGZyb250XC5wYXRoXC5jbG9uZVwoXClcKTsvICAgICAgICAgICAgaWYgbGV0IFNvbWUocGF0aCkgPSBmcm9udC5hc19yZWYoKS5hbmRfdGhlbih8ZnJvbnR8IGZyb250LnBhdGguY2xvbmUoKSkgeyAqbGFzdCA9IFNvbWUocGF0aCk7IH0vCWxpYgl3aW5kb3dzOjpmb3JlZ3JvdW5kOjp0ZXN0czo6YV9sb29rdXBfdGhhdF9mYWlsc19hZnRlcl9hX3N1Y2Nlc3NfbGVhdmVzX3RoZV9jZWxsX25vbmUKbTI1LWVtaXQtb24tZXZlcnktZXZlbnQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvZm9yZWdyb3VuZC5ycwlzLyAgICAgICAgaWYgc2VsZlwubGFzdF9waWQgPT0gU29tZVwoZnJvbnRcLnBpZFwpIFx7LyAgICAgICAgaWYgZmFsc2Ugey8JbGliCXdpbmRvd3M6OmZvcmVncm91bmQ6OnRlc3RzOjp0d29fZXZlbnRzX2Zvcl9vbmVfYXBwX2dpdmVfb25lX2ZvcmVncm91bmRfcmVjb3JkX2FuZF90d29fdGl0bGVfcmVhZHMKbTI2LWZyYW1lLWhvc3QtbmFtZXMtaXRzZWxmCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2ZvcmVncm91bmQucnMJcy9cLmZpbmRcKFx8JnBpZFx8IHBpZCAhPSAwICYmIHBpZCAhPSBmcmFtZV9waWRcKS8uZmluZCh8JnBpZHwgcGlkICE9IDApLwlsaWIJd2luZG93czo6Zm9yZWdyb3VuZDo6dGVzdHM6OmFfZnJhbWVfaG9zdF93aW5kb3dfbmFtZXNfdGhlX3Byb2Nlc3NfdGhhdF9pdF9ob3N0cwptMjctY2FwLWtlZXBzLXRoZS1oZWFkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2ZvcmVncm91bmQucnMJcy8gICAgcGF0aFwuZHJhaW5cKFwuXC5zdGFydFwpOy8gICAgcGF0aC50cnVuY2F0ZShwYXRoLmxlbigpIC0gc3RhcnQpOy8JbGliCXdpbmRvd3M6OmZvcmVncm91bmQ6OnRlc3RzOjphX3BhdGhfb2ZfMjAwMF9ieXRlc19rZWVwc19hdF9tb3N0XzEwMjRfYnl0ZXNfdGhhdF9lbmRfaW5fdGhlX2V4ZWN1dGFibGVfbmFtZQptMjgtbm8tc2Vjb25kLXJlYWQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvZm9yZWdyb3VuZC5ycwlzLyAgICAgICAgICAgIEVyclwoZXJyb3JcKSBpZiBlcnJvclwuY29kZVwoXCkgPT0gRVJST1JfSU5TVUZGSUNJRU5UX0JVRkZFUlwudG9faHJlc3VsdFwoXCkgPT4gY29udGludWUsLyAgICAgICAgICAgIEVycihlcnJvcikgaWYgZXJyb3IuY29kZSgpID09IEVSUk9SX0lOU1VGRklDSUVOVF9CVUZGRVIudG9faHJlc3VsdCgpID0+IHJldHVybiBOb25lLC8JbGliCXdpbmRvd3M6OmZvcmVncm91bmQ6OnRlc3RzOjphX3BhdGhfbG9uZ2VyX3RoYW5fbWF4X3BhdGhfaXNfcmVhZF9hZ2Fpbl93aXRoX3RoZV9sYXJnZXN0X2J1ZmZlcgptMjktZnJhbWUtaG9zdC1uYW1lLXdyb25nCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2ZvcmVncm91bmQucnMJcy9uYW1lXC5lcV9pZ25vcmVfYXNjaWlfY2FzZVwoIkFwcGxpY2F0aW9uRnJhbWVIb3N0XC5leGUiXCkvbmFtZS5lcV9pZ25vcmVfYXNjaWlfY2FzZSgiQXBwbGljYXRpb25GcmFtZUhvc3QiKS8JbGliCXdpbmRvd3M6OmZvcmVncm91bmQ6OnRlc3RzOjphX2ZyYW1lX2hvc3Rfd2luZG93X25hbWVzX3RoZV9wcm9jZXNzX3RoYXRfaXRfaG9zdHMKbTMwLXRpdGxlLW9mLWFueS1vYmplY3QJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvd2luZG93X3RpdGxlLnJzCXMvXHI/XG4gICAgICAgICYmIG9iamVjdCA9PSBPQkpJRF9XSU5ET1dcLjAvLwlsaWIJd2luZG93czo6d2luZG93X3RpdGxlOjp0ZXN0czo6b25seV90aGVfZm9yZWdyb3VuZF93aW5kb3dzX293bl9uYW1lX2NoYW5nZV9pc19hX3RpdGxlCm0zMS10aXRsZS1vZi1hLWNoaWxkLW9iamVjdAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy93aW5kb3dfdGl0bGUucnMJcy9ccj9cbiAgICAgICAgJiYgY2hpbGQgPT0gQ0hJTERJRF9TRUxGIGFzIGkzMi8vCWxpYgl3aW5kb3dzOjp3aW5kb3dfdGl0bGU6OnRlc3RzOjpvbmx5X3RoZV9mb3JlZ3JvdW5kX3dpbmRvd3Nfb3duX25hbWVfY2hhbmdlX2lzX2FfdGl0bGUKbTMyLXJlcGVhdC10aXRsZS1rZXB0CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3dpbmRvd190aXRsZS5ycwlzLyAgICAgICAgaWYgc2VsZlwuMCA9PSBzZWVuIFx7XHI/XG4gICAgICAgICAgICByZXR1cm4gZmFsc2U7XHI/XG4gICAgICAgIFx9XHI/XG4vLwlsaWIJd2luZG93czo6d2luZG93X3RpdGxlOjp0ZXN0czo6YV9yZXBlYXRfb2ZfdGhlX2xhc3RfdGl0bGVfb2ZfYV93aW5kb3dfaXNfZHJvcHBlZAptMzMtcmVmdXNlZC1lbmQtcmVhZHMtdGhyZWFkLWVuZGVkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzLyAgICAgICAgICAgIE9rXChFcnJcKGVycm9yIEAgQ2FwdHVyZUVycm9yOjpPcyBceyBcLlwuIFx9XClcKSA9PiBTb21lXChFcnJcKGVycm9yXClcKSxccj9cbi8vCWxpYgl3aW5kb3dzOjpzY3JlZW46OnRlc3RzOjphX3Nlc3Npb25fd2hvc2VfZW5kX2lzX3JlZnVzZWRfYW5zd2Vyc19pdHNfb3NfZXJyb3JfYW5kX3JlYWRzX2ZhaWxlZAptMzQtY2xvc2VkLWl0ZW0tcmVhZHMtd3JpdGVyLWdvbmUJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2NyZWVuLnJzCXMvU29tZVwoX1wpIGlmIGl0ZW1fY2xvc2VkID0+IHN1cGVyOjpmYWlsZWRfd2l0aFwoSGVhbHRoUmVhc29uOjpJdGVtQ2xvc2VkXCksL1NvbWUoXykgaWYgaXRlbV9jbG9zZWQgPT4gc3VwZXI6OmZhaWxlZF93aXRoKEhlYWx0aFJlYXNvbjo6V3JpdGVyR29uZSksLwlsaWIJd2luZG93czo6c2NyZWVuOjp0ZXN0czo6YV9jbG9zZWRfY2FwdHVyZV9pdGVtX3JlYWRzX2FzX2ZhaWxlZF9oZWFsdGgKbTM1LXJlZnVzZWQtZW5kLW5vdC1idXN5CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzLyBcfFx8IHNlbGZcLmVuZF9yZWZ1c2VkXC5pc19zb21lXChcKS8vCWxpYgl3aW5kb3dzOjpzY3JlZW46OnRlc3RzOjphX3Nlc3Npb25fd2hvc2VfZW5kX2lzX3JlZnVzZWRfYW5zd2Vyc19pdHNfb3NfZXJyb3JfYW5kX3JlYWRzX2ZhaWxlZAptMzYtZmF1bHQtbGluZS1hbGxvY2F0ZXMJY3JhdGVzL2hhbHZvLWNhcHR1cmUvdGVzdHMvd2luZG93c19mdW5jdGlvbmFsLnJzCXMvICAgIGxpbmVcLnRleHRcKGIiXFxuIlwpOy8gICAgbGluZS50ZXh0KGZvcm1hdCEoInt9IiwgIlxcbiIpLmFzX2J5dGVzKCkpOy8JZmMJdGhlX2ZhdWx0X2xpbmVfYWxsb2NhdGVzX25vdGhpbmcKbTM3LWxhdGUtY2xpY2staWdub3JlZAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9zZWN1cmVfaW5wdXQucnMJcy9ccj9cbiAgICAgICAgICAgIFx8XHwgbWF0Y2hlcyFcKGVudHJ5XC5tYXJrLCBNYXJrOjpMYXRjaCBceyBvcmRlcmVkOiBmYWxzZSBcfVwpICYmIG5vdF9hZnRlcl9rZXlcKGVudHJ5XC50aWNrXCkvLwlsaWIJc2VjdXJlX2lucHV0Ojp3aW5kb3dzOjp0ZXN0czo6YV9jbGlja190aGF0X3JlYWNoZXNfdGhlX2dhdGVfYWZ0ZXJfYV9sYXRlcl9rZXlfc3RpbGxfY2xvc2VzX2l0Cm0zOC1zZWNvbmQtbGF0Y2gtd2FpdHMJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2VjdXJlX2lucHV0LnJzCXMvICAgICAgICAgICAgICAgICAgICByZXR1cm4gSnVkZ21lbnQ6OkRlY2lkZWRcKFNlY3VyZUlucHV0UmVhZGluZzo6VW5rbm93blwpLyAgICAgICAgICAgICAgICAgICAgcmV0dXJuIEp1ZGdtZW50OjpXYWl0LwlsaWIJc2VjdXJlX2lucHV0Ojp3aW5kb3dzOjp0ZXN0czo6YV9zZWNvbmRfZm9jdXNfbW92ZV9iZWZvcmVfdGhlX2ZpcnN0X3JlYWRfbGVhdmVzX3RoZV9rZXlfdW5rbm93bgptMzktY2xpY2stYWZ0ZXItdGhlLWtleS1pZ25vcmVkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NlY3VyZV9pbnB1dC5ycwlzL01hcms6OkxhdGNoIFx7IG9yZGVyZWQ6IGZhbHNlIFx9IGlmICFub3RfYWZ0ZXJfa2V5XChlbnRyeVwudGlja1wpID0+IGJyZWFrLC9NYXJrOjpMYXRjaCB7IG9yZGVyZWQ6IGZhbHNlIH0gaWYgIW5vdF9hZnRlcl9rZXkoZW50cnkudGljaykgPT4ge30vCWxpYglzZWN1cmVfaW5wdXQ6OndpbmRvd3M6OnRlc3RzOjphX2NsaWNrX2FmdGVyX3RoZV9rZXlfbGVhdmVzX3RoZV9rZXlfdG9fdGhlX3JlYWRfYmVmb3JlX2l0Cm00MC1yZWFkLWZvcmdldHMtZWFybGllci1ldmVudHMJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2VjdXJlX2lucHV0LnJzCXMvbGV0IGhlbGQgPSBzZWVuXC5tYXBfb3JcKHN0YXRlLCBcfGhlbGRcfCBtb3N0X3Jlc3RyaWN0aXZlXChoZWxkLCBzdGF0ZVwpXCk7L2xldCBoZWxkID0gc3RhdGU7LwlsaWIJc2VjdXJlX2lucHV0Ojp3aW5kb3dzOjp0ZXN0czo6YV9mb2N1c19ldmVudF9hZnRlcl9hX2xhdGNoX2RvZXNfbm90X2RlY2lkZV9iZWZvcmVfdGhlX2RldGVjdG9yX3JlYWRfYWdhaW4KbTQxLWZvY3VzLWV2ZW50LWRlY2lkZXMtYWZ0ZXItYS1sYXRjaAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9zZWN1cmVfaW5wdXQucnMJcy9zZWVuID0gU29tZVwoc2VlblwubWFwX29yXChzdGF0ZSwgXHxoZWxkXHwgbW9zdF9yZXN0cmljdGl2ZVwoaGVsZCwgc3RhdGVcKVwpXCk7L2RlY2lkZWQgPSBTb21lKChzdGF0ZSwga2V5LnNlZW4pKTsgYnJlYWs7LwlsaWIJc2VjdXJlX2lucHV0Ojp3aW5kb3dzOjp0ZXN0czo6YV9mb2N1c19ldmVudF9hZnRlcl9hX2xhdGNoX2RvZXNfbm90X2RlY2lkZV9iZWZvcmVfdGhlX2RldGVjdG9yX3JlYWRfYWdhaW4K" | base64 -d >"$rows"
+          caught=0; survived=0; nobuild=0; unapplied=0; total=0
+          while IFS="$(printf '\t')" read -r name file sub kind test; do
+            [ -n "$name" ] || continue
+            total=$((total + 1))
+            W3_SUB=$sub perl -0777 -i -pe 'BEGIN { $s = $ENV{W3_SUB} } eval $s; die $@ if $@' "$file"
+            if git diff --quiet -- "$file"; then
+              echo "MUTANT $name verdict=not-applied"; unapplied=$((unapplied + 1)); continue
+            fi
+            if [ "$kind" = lib ]; then
+              timeout 600 cargo test --locked -p halvo-capture --lib -- --exact "$test" >"$RUNNER_TEMP/w3-m.log" 2>&1
+            else
+              timeout 600 cargo test --locked -p halvo-capture --test windows_functional -- --ignored --exact "$test" --nocapture >"$RUNNER_TEMP/w3-m.log" 2>&1
+            fi
+            code=$?
+            log=$(tr -d '\r' <"$RUNNER_TEMP/w3-m.log")
+            if printf '%s\n' "$log" | grep -q '^error\(\[E[0-9]*\]\)\{0,1\}: '; then
+              verdict=no-build; nobuild=$((nobuild + 1))
+            elif [ "$code" -ne 0 ] && printf '%s\n' "$log" | grep -q "^test .* \.\.\. FAILED"; then
+              verdict=caught; caught=$((caught + 1))
+            elif [ "$code" -eq 0 ] && printf '%s\n' "$log" | grep -q 'test result: ok. 1 passed'; then
+              verdict=survived; survived=$((survived + 1))
+            else
+              verdict=other-exit-$code
+            fi
+            echo "MUTANT $name test=$test verdict=$verdict"
+            printf '%s\n' "$log" | grep -E 'panicked at|^test .* \.\.\. |^test result' | head -4
+            git checkout --quiet -- "$file"
+          done <"$rows"
+          echo "MUTANTS total=$total caught=$caught survived=$survived no_build=$nobuild not_applied=$unapplied"
+          git status --porcelain
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
