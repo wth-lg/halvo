@@ -34,9 +34,11 @@ on the measuring Mac and in the macos job; its stop is not shown under Git Bash.
   sh scripts/r1-gate/mutation-test.sh [--strict] [--budget SECONDS] [--only NAME]...
       Apply each row, build the mutant and judge it by the row's one verdict
       source. Once the first row on a file that cargo builds is reached, the
-      runner builds the unmutated copy and requires PASS from the store,
-      deletion and no-ll-hook checks; before a test row it requires one passing
-      run of the unmutated test. PASS mutation:<name> names the verdict source.
+      runner builds the unmutated copy and, except under --apply-only,
+      requires PASS from the store, deletion and no-ll-hook checks; a run of
+      rows on other files requires no PASS from them. Before a test row it
+      requires one passing run of the unmutated test. PASS mutation:<name>
+      names the verdict source.
       A mutant that does not build is FAIL mutation:<name> (the mutant does not
       build), never a caught mutant.
       --strict also fails on a pending or transitional row, on a row for the
@@ -1394,7 +1396,7 @@ main_ended() {
   done
   wait "$main_launch_pid"
   main_ended_status=$?
-  main_ended_left=$(ls -A "$main_launch_fx.tmp" | wc -l | tr -d ' ')
+  main_ended_left=$(find "$main_launch_fx.tmp" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')
 }
 
 main_run() {

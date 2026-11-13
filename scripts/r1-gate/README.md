@@ -31,8 +31,18 @@ measured run (`--measure`). The bounds stand in `docs/baseline/r1-gate-bounds.tx
 
 ## Mutant rows
 
-`mutation-test.sh` discovers every tracked file named `mutants.rows` and runs
-its rows. A row file holds rows for files under its own directory. The grammar
+`mutation-test.sh` reads every tracked file named `mutants.rows` of HEAD, from
+git's own list of the tracked paths, and runs its rows. It refuses, with a
+`FAIL mutation:rows (...)` line and exit 1 in every mode, a tracked path named
+`mutants.rows` that is a symbolic link, that the copy of HEAD lacks (as a file
+that an export-ignore attribute keeps out of the archive), or whose path holds
+a tab, a newline, a backslash or a quote. A file that git does not track is
+outside HEAD, and a file named `Mutants.rows` is no rows file. A row file
+holds rows for files under its own directory. The runner is run on macOS, on
+the measuring Mac and in the macos job; its stop is not shown under Git Bash.
+It works in a throwaway copy of HEAD under TMPDIR and removes that copy when
+it ends, on every path; `--keep-scratch` keeps it and prints
+`scratch mutation: <path>`. The grammar
 below is frozen: a change to it is a change to this file, to the runner and to
 the contract that names it.
 
@@ -41,7 +51,8 @@ empty, and a line that is empty is skipped.
 
     name <tab> file <tab> substitution <tab> verdict <tab> state <tab> item
 
-- **name**: one name in the whole repository, compared as text. The only
+- **name**: one name in the whole repository, compared as text, byte for byte,
+  in the rows files and in `mutants.expected`, a backslash too. The only
   repeat allowed is a transitional row of scripts/r1-gate/mutants.rows and the
   row that takes it over in the rows file beside its file. Before it applies any row,
   and under `--list` too, the runner refuses every other repeat, in one rows
@@ -74,7 +85,8 @@ empty, and a line that is empty is skipped.
     needs generated input. Elsewhere it prints
     `NOT-RUN mutation:<name> (needs input; runs on <place>)`, which is no FAIL.
   - `transitional`: a row of the gate's file on code that has no row file yet;
-    a transitional row in any other rows file is refused.
+    a transitional row in any other rows file is refused in the run modes and
+    listed by `--list`.
     It runs while no `mutants.rows` stands in the directory of its file. Once
     that file exists it must hold the name: the gate's copy then prints
     `MOVED mutation:<name> (<file>)`, and otherwise
@@ -98,6 +110,9 @@ unit that adds such a row adds its name in the same change. Under `--strict` a
 FAIL line comes for each name that no row file holds or retires, for each such
 required row whose name the list lacks, with the row file named, and for a
 missing `mutants.expected`. The count line of every run gives both numbers.
+Under `--strict` a row that `--budget` left unrun is a FAIL line too,
+`strict: the budget left the row unrun`; with `--only`, `--strict` says nothing
+of the rows that `--only` leaves out.
 
 ### A stopped run
 
@@ -109,17 +124,37 @@ below it does not end the running test:
 - A cargo test runs with TERM, INT and HUP ignored, because a Rust test has
   no handler for them and would end before its guard. A gate self-test case
   runs with them at their defaults and ends its case by its own trap.
-- On the first signal the runner starts no new row and no new test, sends the
-  running test's process group TERM, and waits up to 60 s, a constant of the
-  runner, for the test to end. Then it prints
-  `STOPPED mutation:<row> (signal <name>; the running case was let end)` and
-  exits with 143 for TERM, 130 for INT and 129 for HUP.
-- A test that is still running after 60 s is killed, and the line ends
-  `the running case did not end within 60 s and was killed`: what that case
-  made may be left. A stop while no test runs ends `no test was running`. A
-  signal that reaches only the runner takes effect when its build, gate check
-  or copy of HEAD ends; a signal that ends such a step gives the STOPPED line
-  and no FAIL line for the step.
+- The stop traps are the runner's first commands. In every mode, from the
+  first signal on, the runner starts no new step of any kind (a row, a test, a
+  build, a gate check, a copy, a read by awk, perl, cp, sort, tar or git),
+  prints exactly one STOPPED line, prints no FAIL, PASS, OPEN, NOT-RUN or count
+  line for a step that the signal ended, and exits with 143 for TERM, 130 for
+  INT and 129 for HUP. Exit 0, 1 and 2 never follow a signal that the runner
+  got, and a later signal changes nothing.
+- The STOPPED line has one of four forms. Before any row, during the copy of
+  HEAD, the read of the rows files and the name check, and under `--list`:
+  `STOPPED mutation (signal <name>; no row had started)`. In a row when no
+  test runs (the unmutated build, a gate check, a short step) and in the tail
+  (the read of mutants.expected and the count line):
+  `STOPPED mutation:<row> (signal <name>; no test was running)`. During a test:
+  `STOPPED mutation:<row> (signal <name>; the running case was let end)`, after
+  the runner sends the test's process group TERM and waits up to 60 s, a
+  constant of the runner, for the test to end; or
+  `... the running case did not end within 60 s and was killed`, and what that
+  case made may be left.
+- A gate check that runs when the signal comes is not shielded: a signal that
+  reaches only the runner lets it end, a signal to the group ends it, and no
+  next check starts. A step whose exit status says that a signal ended it
+  (129, 130, 137 or 143) is never read as an answer: with a signal of the
+  runner's own within 2 s the run ends as a stop, and without one it ends with
+  exit 2 and `FAIL step:<step> (ended by signal <name>; the runner got no signal)`.
+- A signal that comes after a test has started and before the runner waits for
+  it is acted on when the test ends by itself, with the test's own limit as its
+  bound. A runner that was started with a signal ignored, as a shell does for
+  INT in a background job, cannot trap that signal.
+- A test that the runner starts has its standard input from /dev/null and QUIT
+  ignored. A row's test must not stop a child of its own by TERM, INT or HUP:
+  the child of a shielded cargo test ignores them too.
 - KILL cannot be caught. A caller that sends KILL some seconds after its TERM
   lets a case end only when the case ends within those seconds: give a run of
   rows a time limit above the time of its rows.
