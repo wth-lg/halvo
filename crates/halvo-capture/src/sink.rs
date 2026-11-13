@@ -87,7 +87,7 @@ pub struct KindCounts {
 /// handle adds to the same counts, which start at 0 when the sink is built and
 /// only rise. An emit is counted when it returns, so an event can be received
 /// before its emit is counted. The counters are read one after another, not at
-/// one instant: a sum of counters is a value that the total held while it was
+/// one moment: a sum of counters is a value that the total held while it was
 /// read, and a difference or a comparison of two counters is not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SinkCounts {
@@ -1425,7 +1425,22 @@ mod tests {
         assert!(site_at_its_cap < BOUND, "{site_at_its_cap}");
     }
 
-    const EMIT_PATH_WAITS: [&str; 5] = ["timeout", "sleep", "Instant", "deadline", "park"];
+    /// Words of a timed wait or of giving up, read without case.
+    const WAIT_WORDS: [&str; 7] = [
+        "timeout", "sleep", "instant", "deadline", "park", "yield", "spin",
+    ];
+
+    /// The receive-side lines of the product text that may hold a wait word.
+    const RECEIVE_SIDE: [&str; 4] = [
+        "sync_channel, Receiver, RecvTimeoutError, SendError, SyncSender, TryRecvError, TrySendError,",
+        "/// [`SinkWriter::recv_timeout`] or [`SinkWriter::try_recv`]. Numbers rise by",
+        "pub fn recv_timeout(&self, timeout: Duration) -> Result<Received, RecvTimeoutError> {",
+        "self.rx.recv_timeout(timeout).map(|item| self.number(item))",
+    ];
+
+    /// The blocking arm of `send`, whole, with its white space collapsed.
+    const BLOCK_ARM: &str = "Backpressure::Block => match self.tx.send(item) { Ok(()) => self.accepted(kind), Err(SendError(_)) => self.refused(kind), },";
+
     const COUNTER_WRITES: [&str; 5] = [
         ".store(",
         ".swap(",
@@ -1434,23 +1449,50 @@ mod tests {
         ".compare_exchange",
     ];
 
-    fn block<'a>(text: &'a str, opening: &str) -> &'a str {
-        let start = text.find(opening).unwrap_or_else(|| panic!("no {opening}"));
-        let end = text[start..]
-            .find("\n}\n")
-            .map_or(text.len(), |end| start + end + 3);
-        &text[start..end]
+    fn collapsed(text: &str) -> String {
+        text.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
+    /// The name of the function whose body holds the byte at `at`.
+    fn enclosing_fn(text: &str, at: usize) -> &str {
+        let before = &text[..at];
+        let start = before.rfind("fn ").map_or(0, |i| i + 3);
+        let name = &before[start..];
+        &name[..name.find(['(', '<']).unwrap_or(name.len())]
     }
 
     fn rules_broken(product: &str) -> Vec<String> {
         let mut broken = Vec::new();
-        for opening in ["\nimpl SinkHandle {", "\nimpl EventSink for SinkHandle {"] {
-            let emit_path = block(product, opening);
-            for word in EMIT_PATH_WAITS {
-                if emit_path.contains(word) {
-                    broken.push(format!("a timed wait ({word}) on the emit path"));
+        for (number, line) in product.lines().enumerate() {
+            let lower = line.to_lowercase();
+            for word in WAIT_WORDS {
+                if lower.contains(word) && !RECEIVE_SIDE.contains(&line.trim()) {
+                    broken.push(format!("line {}: a word of waiting ({word})", number + 1));
                 }
             }
+        }
+        let arms = product.matches("Backpressure::Block =>").count();
+        let arm = product
+            .find("Backpressure::Block =>")
+            .map(|at| &product[at..])
+            .and_then(|rest| rest.find("},").map(|end| collapsed(&rest[..end + 2])));
+        if arms != 1 || arm.as_deref() != Some(BLOCK_ARM) {
+            broken.push("the blocking arm is not `self.tx.send(item)` whole".to_string());
+        }
+        if product.matches("self.tx.send(").count() != 1 {
+            broken.push("a send other than the blocking arm's".to_string());
+        }
+        let places: Vec<&str> = product
+            .match_indices("try_send")
+            .map(|(at, _)| enclosing_fn(product, at))
+            .collect();
+        if places != ["emit_continuous", "send"] {
+            broken.push(format!(
+                "try_send stands in {places:?}, not in emit_continuous and the drop arm of send"
+            ));
+        }
+        if !product.contains("Backpressure::Drop => match self.tx.try_send(item) {") {
+            broken.push("the drop arm does not try_send".to_string());
         }
         for write in COUNTER_WRITES {
             if product.contains(write) {
@@ -1471,38 +1513,100 @@ mod tests {
         broken
     }
 
+    /// `product` with `added` put in after the first `anchor`.
+    fn inserted(product: &str, anchor: &str, added: &str) -> String {
+        let at = product
+            .find(anchor)
+            .unwrap_or_else(|| panic!("the fixture's anchor is gone: {anchor}"))
+            + anchor.len();
+        format!("{}{added}{}", &product[..at], &product[at..])
+    }
+
+    fn breaks(fixture: &str, rule: &str) -> bool {
+        rules_broken(fixture)
+            .iter()
+            .any(|broken| broken.contains(rule))
+    }
+
     #[test]
     fn the_emit_path_has_no_timed_wait_and_every_counter_changes_by_fetch_add_alone() {
         let source = include_str!("sink.rs").replace("\r\n", "\n");
         let product = &source[..source.find("#[cfg(test)]\nmod tests {").unwrap()];
         assert!(product.contains("pub fn emit_event("));
         assert_eq!(rules_broken(product), Vec::<String>::new());
-        let m8 = product.replacen(
-            "Backpressure::Block => match self.tx.send(item) {",
-            "Backpressure::Block => match self.tx.send_timeout(item, Duration::from_secs(2)) {",
+
+        let block = "Backpressure::Block => ";
+        let m8 = inserted(
+            product,
+            block,
+            "{ let deadline = std::time::Instant::now() + Duration::from_secs(2); let mut item = item; loop { match self.tx.try_send(item) { Ok(()) => break self.accepted(kind), Err(TrySendError::Full(back)) if std::time::Instant::now() < deadline => { item = back; std::thread::sleep(Duration::from_millis(1)); } Err(_) => break self.dropped(kind), } } } ",
+        );
+        for rule in [
+            "(sleep)",
+            "(instant)",
+            "(deadline)",
+            "blocking arm",
+            "try_send stands",
+        ] {
+            assert!(
+                breaks(&m8, rule),
+                "the 2 s form in the blocking arm: {rule}"
+            );
+        }
+        let yields = inserted(
+            product,
+            block,
+            "{ let mut item = item; let mut tries = 0u32; loop { match self.tx.try_send(item) { Ok(()) => break self.accepted(kind), Err(TrySendError::Full(back)) if tries < 2_000_000 => { item = back; tries += 1; } Err(_) => break self.dropped(kind), } } } ",
+        );
+        assert!(
+            breaks(&yields, "blocking arm"),
+            "a count of tries with no clock word"
+        );
+        assert!(
+            breaks(&yields, "try_send stands"),
+            "a count of tries with no clock word"
+        );
+        let yielded = yields.replacen(
+            "tries += 1;",
+            "tries += 1; std::thread::yield_now(); std::hint::spin_loop();",
             1,
         );
-        assert_ne!(m8, product);
-        assert!(rules_broken(&m8)
-            .iter()
-            .any(|rule| rule.contains("timeout")));
-        let slept = product.replacen(
-            "Backpressure::Block => match self.tx.send(item) {",
-            "Backpressure::Block => match { std::thread::sleep(Duration::from_secs(2)); self.tx.try_send(item) } {",
-            1,
+        assert!(breaks(&yielded, "(yield)") && breaks(&yielded, "(spin)"));
+        let helper = "\nfn wait_for_room(tx: &SyncSender<Item>, mut item: Item) -> bool {\n    let deadline = std::time::Instant::now() + Duration::from_secs(2);\n    loop {\n        match tx.try_send(item) {\n            Ok(()) => return true,\n            Err(TrySendError::Full(back)) if std::time::Instant::now() < deadline => {\n                item = back;\n                std::thread::sleep(Duration::from_millis(1));\n            }\n            Err(_) => return false,\n        }\n    }\n}\n";
+        let outside = inserted(product, "\nfn handed_back(", helper);
+        let outside = inserted(
+            &outside,
+            block,
+            "if wait_for_room(&self.tx, item) { self.accepted(kind) } else { self.dropped(kind) } } fn _unused(&self, kind: Modality, item: Item) -> Result<EmitOutcome, SinkError> { match backpressure(kind) { Backpressure::Drop => self.dropped(kind), ",
         );
-        assert!(rules_broken(&slept)
-            .iter()
-            .any(|rule| rule.contains("sleep")));
+        for rule in ["(sleep)", "(instant)", "(deadline)", "try_send stands"] {
+            assert!(
+                breaks(&outside, rule),
+                "the 2 s wait outside the impl blocks: {rule}"
+            );
+        }
+        let keystrokes = inserted(
+            product,
+            "    fn send(&self, kind: Modality, item: Item) -> Result<EmitOutcome, SinkError> {\n",
+            "        if kind == Modality::Keystroke {\n            return if wait_for_room(&self.tx, item) { self.accepted(kind) } else { self.dropped(kind) };\n        }\n",
+        );
+        let keystrokes = inserted(&keystrokes, "\nfn handed_back(", helper);
+        assert!(keystrokes.contains("Backpressure::Block => match self.tx.send(item) {"));
+        assert!(!breaks(&keystrokes, "blocking arm"));
+        for rule in ["(sleep)", "(instant)", "(deadline)", "try_send stands"] {
+            assert!(
+                breaks(&keystrokes, rule),
+                "keystrokes alone, the arm left in place: {rule}"
+            );
+        }
+
         let lost = product.replacen(
             "self.counters(kind).accepted.fetch_add(1, Ordering::Relaxed);\n        Ok(",
             "let c = &self.counters(kind).accepted;\n        c.store(c.load(Ordering::Relaxed) + 1, Ordering::Relaxed);\n        Ok(",
             1,
         );
         assert_ne!(lost, product);
-        assert!(rules_broken(&lost)
-            .iter()
-            .any(|rule| rule.contains(".store(")));
+        assert!(breaks(&lost, ".store("));
         let swapped = product.replacen(
             "kind.dropped.load(Ordering::Relaxed)",
             "kind.dropped.swap(0, Ordering::Relaxed)",
