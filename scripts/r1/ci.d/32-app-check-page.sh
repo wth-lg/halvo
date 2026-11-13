@@ -52,11 +52,13 @@ verdict() {
   lines=$(grep -c '' "$out")
   content=$(cat "$out") || fail "the output of halvo --check-page cannot be read"
   expected="page=loaded commands_ok=$expected_commands_ok version=$version"
+  first=$(head -n 1 "$out" | cut -c1-120 | LC_ALL=C tr -c 'A-Za-z0-9=._ \n-' '?') || fail "the first line of halvo --check-page cannot be read"
+  [ -n "$first" ] || first='(none)'
   matched=false
   if [ "$lines" -eq 1 ] && [ "$content" = "$expected" ]; then
     matched=true
   fi
-  printf 'check-page exit: %s, lines: %s, line matched: %s\n' "$code" "$lines" "$matched"
+  printf 'check-page exit: %s, lines: %s, line matched: %s, first line: %s\n' "$code" "$lines" "$matched" "$first"
   [ "$code" -eq 0 ] || fail "halvo --check-page exited $code"
   [ "$lines" -eq 1 ] || fail "halvo --check-page printed $lines lines"
   [ "$matched" = true ] || fail "halvo --check-page printed another line than page=loaded commands_ok=$expected_commands_ok version=<the version>"
@@ -104,6 +106,12 @@ check() {
     *"$3"*) ;;
     *) got=$got-without-the-text ;;
   esac
+  if [ $# -ge 4 ]; then
+    case $out in
+      *"first line: $4"*) ;;
+      *) got=$got-without-the-first-line ;;
+    esac
+  fi
   printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$2" "$got"
   if [ "$got" != "$2" ]; then
     wrong="$wrong $1"
@@ -125,6 +133,7 @@ case $STUB_MODE in
   two-commands) printf 'page=loaded commands_ok=2 version=0.0.0\n' ;;
   other-version) printf 'page=loaded commands_ok=3 version=9.9.9\n' ;;
   extra-word) printf 'page=loaded commands_ok=3 version=0.0.0 extra\n' ;;
+  odd-bytes) printf 'page=loaded\033[31m commands_ok=3 version=0.0.0\r\n' ;;
   two-lines) printf 'page=loaded commands_ok=3 version=0.0.0\npage=loaded commands_ok=3 version=0.0.0\n' ;;
   no-line) ;;
   times-out)
@@ -141,14 +150,24 @@ EOF
   chmod +x "$work/bin/halvo"
   rejected=0
   wrong=
-  check loaded PASS 'check-page exit: 0, lines: 1, line matched: true'
-  check two-commands FAIL 'printed another line than'
-  check other-version FAIL 'printed another line than'
-  check extra-word FAIL 'printed another line than'
-  check two-lines FAIL 'printed 2 lines)'
-  check no-line FAIL 'printed 0 lines)'
-  check times-out FAIL 'halvo --check-page exited 1)'
-  check setup-fails FAIL 'halvo --check-page exited 101)'
+  check loaded PASS 'check-page exit: 0, lines: 1, line matched: true' 'page=loaded commands_ok=3 version=0.0.0
+'
+  check two-commands FAIL 'printed another line than' 'page=loaded commands_ok=2 version=0.0.0
+'
+  check other-version FAIL 'printed another line than' 'page=loaded commands_ok=3 version=9.9.9
+'
+  check extra-word FAIL 'printed another line than' 'page=loaded commands_ok=3 version=0.0.0 extra
+'
+  check odd-bytes FAIL 'printed another line than' 'page=loaded??31m commands_ok=3 version=0.0.0?
+'
+  check two-lines FAIL 'printed 2 lines)' 'page=loaded commands_ok=3 version=0.0.0
+'
+  check no-line FAIL 'printed 0 lines)' '(none)
+'
+  check times-out FAIL 'halvo --check-page exited 1)' '(none)
+'
+  check setup-fails FAIL 'halvo --check-page exited 101)' 'page=loaded commands_ok=3 version=0.0.0
+'
   check hangs FAIL 'ran past 4 s and was ended)'
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
