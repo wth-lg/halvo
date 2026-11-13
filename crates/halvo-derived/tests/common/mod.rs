@@ -15,7 +15,9 @@ use halvo_schema_core::record::{
     RecurrenceStep, Summary, SummaryRead, Tagged, Text, Trigger,
 };
 use halvo_schema_core::request::{self, Decoded, RawRequest};
-use halvo_schema_core::site::{AppId, Domain, ObservedSite, SiteToken};
+use halvo_schema_core::site::{
+    AppId, Domain, DomainSource, ObservedSite, SiteDomain, SiteToken, SiteValue,
+};
 use halvo_sqlcipher::rusqlite::Connection;
 
 pub const DAY_NS: i64 = 86_400_000_000_000;
@@ -145,33 +147,104 @@ pub struct Grouping {
 
 impl RecurrenceStep for Grouping {
     fn propose(&self, summaries: &dyn SummaryRead) -> Vec<Proposal> {
+        group_by_key(summaries, self.min, &[])
+    }
+}
+
+/// The test proposer that leaves out the summaries whose ids the test put in its list.
+pub struct GroupingExcept {
+    pub min: usize,
+    pub except: Rc<RefCell<Vec<SummaryId>>>,
+}
+
+impl RecurrenceStep for GroupingExcept {
+    fn propose(&self, summaries: &dyn SummaryRead) -> Vec<Proposal> {
+        group_by_key(summaries, self.min, &self.except.borrow())
+    }
+}
+
+/// A recurrence step that proposes, for each domain seen in the address field on `min` or more summaries of one
+/// category, one workflow under that domain with the source `sign_in`: a proposal whose key its summaries do not
+/// hold.
+pub struct SignInGroup {
+    pub min: usize,
+}
+
+impl RecurrenceStep for SignInGroup {
+    fn propose(&self, summaries: &dyn SummaryRead) -> Vec<Proposal> {
         let mut groups: BTreeMap<String, Vec<Summary>> = BTreeMap::new();
         summaries.for_each(&mut |s| {
-            let key = match &s.site {
-                Some(site) => format!("{} {}", s.category, serde_json::to_string(site).unwrap()),
-                None => format!("{} app {}", s.category, s.app),
-            };
-            groups.entry(key).or_default().push(s.clone());
+            if let Some(SiteValue::Domain {
+                key,
+                source: DomainSource::AddressField,
+            }) = &s.site
+            {
+                groups
+                    .entry(format!("{} {}", s.category, key.as_str()))
+                    .or_default()
+                    .push(s.clone());
+            }
         });
         groups
             .into_values()
-            .filter(|group| group.len() >= self.min)
-            .map(|group| Proposal {
-                category: group[0].category,
-                site: group[0].site.clone(),
-                app: group[group.len() - 1].app.clone(),
-                trigger: Trigger::Schedule,
-                recurrence: Recurrence {
-                    count: group.len() as u32,
-                    period: None,
-                    first: group[0].day,
-                    last: group[group.len() - 1].day,
-                },
-                confidence: Confidence(80),
-                summaries: group.iter().map(|s| s.id.clone()).collect(),
+            .filter(|g| g.len() >= self.min)
+            .map(|g| {
+                let key = match &g[0].site {
+                    Some(SiteValue::Domain { key, .. }) => key.clone(),
+                    _ => SiteDomain::parse("unreachable.test").unwrap(),
+                };
+                Proposal {
+                    category: g[0].category,
+                    site: Some(SiteValue::Domain {
+                        key,
+                        source: DomainSource::SignIn,
+                    }),
+                    app: g[0].app.clone(),
+                    trigger: Trigger::Schedule,
+                    recurrence: Recurrence {
+                        count: g.len() as u32,
+                        period: None,
+                        first: g[0].day,
+                        last: g[g.len() - 1].day,
+                    },
+                    confidence: Confidence(80),
+                    summaries: g.iter().map(|s| s.id.clone()).collect(),
+                }
             })
             .collect()
     }
+}
+
+fn group_by_key(summaries: &dyn SummaryRead, min: usize, except: &[SummaryId]) -> Vec<Proposal> {
+    let mut groups: BTreeMap<String, Vec<Summary>> = BTreeMap::new();
+    summaries.for_each(&mut |s| {
+        if except.contains(&s.id) {
+            return;
+        }
+        let key = match &s.site {
+            Some(site) => format!("{} {}", s.category, serde_json::to_string(site).unwrap()),
+            None => format!("{} app {}", s.category, s.app),
+        };
+        groups.entry(key).or_default().push(s.clone());
+    });
+    groups
+        .into_values()
+        .filter(|group| group.len() >= min)
+        .map(|group| Proposal {
+            category: group[0].category,
+            site: group[0].site.clone(),
+            app: group[group.len() - 1].app.clone(),
+            trigger: Trigger::Schedule,
+            recurrence: Recurrence {
+                count: group.len() as u32,
+                period: None,
+                first: group[0].day,
+                last: group[group.len() - 1].day,
+            },
+            confidence: Confidence(80),
+            summaries: group.iter().map(|s| s.id.clone()).collect(),
+        })
+        .collect()
 }
 
 /// A recurrence step that returns the proposals that the test put in its list.

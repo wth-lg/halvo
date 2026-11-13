@@ -39,11 +39,24 @@ fn proposal(category: SeedCategory, site: &str, ids: &[u64]) -> Proposal {
 fn stream_store(scratch: &Scratch, proposals: Vec<Proposal>, episodes: &[u64]) -> Store {
     let clock = TestClock::at_day(DAY);
     let fixed = Rc::new(RefCell::new(proposals));
-    let host = Host::new(Box::new(clock), Box::new(Fixed(fixed)));
+    let host = Host::new(Box::new(clock), Box::new(Fixed(Rc::clone(&fixed))));
     let mut store = open_host(scratch, host).unwrap();
     let episodes: Vec<_> = episodes
         .iter()
-        .map(|n| episode(*n, DAY, domain(&format!("s{n}.test"))))
+        .map(|n| {
+            let mut e = episode(*n, DAY, domain(&format!("s{n}.test")));
+            if let Some(p) = fixed
+                .borrow()
+                .iter()
+                .find(|p| p.summaries.contains(&summary_id(*n)))
+            {
+                e.category = p.category;
+                if let Some(SiteValue::Domain { key, .. }) = &p.site {
+                    e.site = domain(key.as_str());
+                }
+            }
+            e
+        })
         .collect();
     store
         .commit_batch(&store_id(1), &episodes, position(1, 0), &mut Seq(1))

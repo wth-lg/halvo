@@ -85,19 +85,19 @@ fn check(tx: &Tx<'_>, now: Now, proposal: Proposal) -> Result<Option<Checked>, F
     if serde_json::to_string(&probe).is_err() || proposal.summaries.is_empty() {
         return Ok(None);
     }
+    let key = key_of(proposal.category, &proposal.site, &proposal.app);
     let mut summaries = BTreeMap::new();
     for id in &proposal.summaries {
-        let day = one(tx.conn, sql::SUMMARY_DAY, [id.as_str()], |r| {
-            r.get::<_, u32>(0)
+        let stored = one(tx.conn, sql::SUMMARY_DAY_KEY, [id.as_str()], |r| {
+            Ok((r.get::<_, u32>(0)?, r.get::<_, String>(1)?))
         })?;
-        match day {
-            Some(day) if now.keeps_day(days, day) => {
+        match stored {
+            Some((day, summary_key)) if now.keeps_day(days, day) && summary_key == key => {
                 summaries.insert(id.clone(), day);
             }
             _ => return Ok(None),
         }
     }
-    let key = key_of(proposal.category, &proposal.site, &proposal.app);
     Ok(Some(Checked {
         proposal,
         summaries,
@@ -181,7 +181,9 @@ pub(crate) fn set_support(
 /// key no stored workflow holds is stored as a new workflow in the state `proposed`; one whose key a dismissed
 /// workflow holds is dropped; one whose key a workflow in another state holds changes that row, which keeps its id,
 /// its state and its agent and takes the proposal's app, trigger, recurrence and confidence, and its support rows
-/// become those of the proposal's summaries. Of proposals with one key the last stands. The ids of the new
+/// become those of the proposal's summaries. A proposal that names a summary stored under another key than its own
+/// is refused, so every summary that supports a workflow, or once did, holds the workflow's key. Of the proposals
+/// with one key that are not refused, the last stands. The ids of the new
 /// workflows are drawn from `ids` in the order of their category and then of their lowest supporting summary id.
 pub(crate) fn apply(
     tx: &Tx<'_>,

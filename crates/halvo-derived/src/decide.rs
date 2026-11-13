@@ -64,8 +64,9 @@ fn dismiss(tx: &Tx<'_>, id: &WorkflowId) -> Result<(), Error> {
 }
 
 /// The delete cascade: every row of every kind that names the workflow under its workflow key, every stored
-/// summary whose key is the workflow's key or that stands in its support set, and every row that names one of those
-/// summaries (their evidence and the support rows of any workflow).
+/// summary whose key is the workflow's key, and every row that names one of those summaries (their evidence and
+/// their support rows). Every summary that supports a workflow, or once did, holds its key, because a proposal that
+/// names a summary of another key is refused.
 pub(crate) fn delete(tx: &Tx<'_>, id: &WorkflowId) -> Result<u64, Fault> {
     let Some(key) = one(tx.conn, sql::WORKFLOW_KEY, [id.as_str()], |r| {
         r.get::<_, String>(0)
@@ -73,9 +74,8 @@ pub(crate) fn delete(tx: &Tx<'_>, id: &WorkflowId) -> Result<u64, Fault> {
     else {
         return Ok(0);
     };
-    let mut summaries: Vec<String> = rows(tx.conn, sql::SUPPORT_OF, [id.as_str()], |r| r.get(1))?;
     let mut removed = tx.remove(sql::REMOVE_NAMING, [id.as_str()])?;
-    summaries.extend(rows(tx.conn, sql::KEY_SUMMARIES, [&key], |r| r.get(0))?);
+    let summaries: Vec<String> = rows(tx.conn, sql::KEY_SUMMARIES, [&key], |r| r.get(0))?;
     for summary in &summaries {
         removed += tx.remove(sql::REMOVE_OF_SUMMARY, [summary])?;
     }
@@ -90,8 +90,8 @@ impl Store {
     /// one that is neither `proposed` nor already in the state asked for, and changes nothing for a workflow that is
     /// in that state already. `delete` removes the workflow by the delete cascade: every row of every kind that names
     /// it under its workflow key, the kinds of later runs included, every stored summary whose key is its key, in
-    /// its support set or not, every summary of its support set whatever its key, the evidence of those summaries,
-    /// and every support row that names one of them; a
+    /// its support set or not, the evidence of those summaries, and every support row that names one of them; that
+    /// is all that ever supported it, because the store refuses a proposal that names a summary of another key; a
     /// workflow that is not stored changes nothing. Each raises the revision of every family that gained, changed or
     /// lost a row. The truncating checkpoint runs after a dismissal and after a deletion.
     pub fn decide(&mut self, decision: &InterfaceDecision) -> Result<(), Error> {

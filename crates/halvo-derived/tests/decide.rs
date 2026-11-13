@@ -4,14 +4,18 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use common::{
-    bodies, count, domain, episode, open_host, position, raw, store_id, summary_id, Fixed,
-    Grouping, Scratch, Seq, TestClock,
+    bodies, count, domain, episode, open_entries, open_host, position, raw, raw_request, store_id,
+    summary_id, Fixed, Grouping, GroupingExcept, Scratch, Seq, SignInGroup, TestClock, NOTE,
 };
-use halvo_derived::{Error, Host, Store};
-use halvo_schema_core::ids::{RequestId, WorkflowId};
-use halvo_schema_core::record::{Proposal, RecurrenceStep, Summary, Workflow, WorkflowState};
-use halvo_schema_core::request::{ErrorName, InterfaceDecision, InterfaceRole};
-use halvo_schema_core::site::AppId;
+use halvo_derived::{Error, Handler, HandlerCx, Host, MoveTo, Store, Takes};
+use halvo_schema_core::ids::{AgentId, RequestId, WorkflowId};
+use halvo_schema_core::record::{
+    Proposal, RecurrenceStep, RowRead, Summary, SummaryRead, TypedRecord, Workflow, WorkflowState,
+    WriterStep,
+};
+use halvo_schema_core::request::{ErrorName, InterfaceDecision, InterfaceRole, RawRequest};
+use halvo_schema_core::site::{AppId, DomainSource, SiteDomain, SiteValue};
+use serde_json::value::RawValue;
 
 const DAY: u32 = 20_767;
 
@@ -229,7 +233,7 @@ fn delete_removes_every_row_that_names_the_workflow_and_every_summary_of_its_key
         .unwrap();
     let mut w = common_proposal(&[1, 2]);
     w.app = AppId::parse("com.example.browser").unwrap();
-    let mut x = common_proposal(&[9, 3]);
+    let mut x = common_proposal(&[9]);
     x.site = Some(halvo_schema_core::site::SiteValue::Domain {
         key: halvo_schema_core::site::SiteDomain::parse("northwind-power.test").unwrap(),
         source: halvo_schema_core::site::DomainSource::AddressField,
@@ -327,18 +331,43 @@ fn common_proposal(ids: &[u64]) -> Proposal {
     }
 }
 
-#[test]
-fn delete_removes_each_summary_of_the_support_set_whatever_its_key() {
-    let scratch = Scratch::new("delete-support-set");
-    let clock = TestClock::at_day(DAY);
-    let mut signed = common_proposal(&[1, 2]);
-    signed.site = Some(halvo_schema_core::site::SiteValue::Domain {
-        key: halvo_schema_core::site::SiteDomain::parse("northwind-power.test").unwrap(),
-        source: halvo_schema_core::site::DomainSource::SignIn,
+fn summary_ids(scratch: &Scratch) -> Vec<String> {
+    let mut ids: Vec<String> = bodies(scratch, "summary")
+        .iter()
+        .map(|b| {
+            serde_json::from_str::<Summary>(b)
+                .unwrap()
+                .id
+                .as_str()
+                .to_owned()
+        })
+        .collect();
+    ids.sort();
+    ids
+}
+
+fn sid(n: u64) -> String {
+    summary_id(n).as_str().to_owned()
+}
+
+/// A proposal under the sign-in key of northwind-power.test that names the given summaries.
+fn signed(ids: &[u64]) -> Proposal {
+    let mut proposal = common_proposal(ids);
+    proposal.app = AppId::parse("com.example.browser").unwrap();
+    proposal.site = Some(SiteValue::Domain {
+        key: SiteDomain::parse("northwind-power.test").unwrap(),
+        source: DomainSource::SignIn,
     });
-    let fixed: Rc<RefCell<Vec<Proposal>>> = Rc::new(RefCell::new(vec![signed]));
+    proposal
+}
+
+#[test]
+fn the_summaries_of_a_proposal_under_another_key_never_support_a_workflow_to_dismiss_and_delete() {
+    let scratch = Scratch::new("refused-other-key");
+    let clock = TestClock::at_day(DAY);
+    let fixed = Rc::new(RefCell::new(vec![signed(&[1, 2])]));
     let mut store = open_host(&scratch, host(&clock, Fixed(Rc::clone(&fixed)))).unwrap();
-    store
+    let first = store
         .commit_batch(
             &store_id(1),
             &[
@@ -350,25 +379,306 @@ fn delete_removes_each_summary_of_the_support_set_whatever_its_key() {
             &mut Seq(100),
         )
         .unwrap();
-    fixed.borrow_mut().clear();
-    let id = {
-        drop(store);
-        workflows(&scratch)[0].id().clone()
-    };
-    let mut store = open_host(&scratch, host(&clock, Fixed(Rc::clone(&fixed)))).unwrap();
-    assert_eq!(delete(&mut store, &id), Ok(()));
+    assert_eq!((first.proposals.refused, first.proposals.stored), (1, 0));
+    let later = store
+        .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(200))
+        .unwrap();
+    assert_eq!(later.proposals.stored, 0);
     drop(store);
-    let left: Vec<String> = bodies(&scratch, "summary")
-        .iter()
-        .map(|b| {
-            serde_json::from_str::<Summary>(b)
-                .unwrap()
-                .id
-                .as_str()
-                .to_owned()
-        })
-        .collect();
-    assert_eq!(left, vec![summary_id(3).as_str().to_owned()]);
-    assert_eq!(bodies(&scratch, "evidence").len(), 1);
+    assert_eq!(workflows(&scratch).len(), 0);
+    assert_eq!(summary_ids(&scratch), vec![sid(1), sid(2), sid(3)]);
+    assert_eq!(bodies(&scratch, "evidence").len(), 3);
     assert_eq!(bodies(&scratch, "support").len(), 0);
+}
+
+#[test]
+fn after_a_refused_proposal_under_another_key_a_batch_with_no_episode_stores_no_workflow() {
+    let scratch = Scratch::new("refused-sign-in");
+    let clock = TestClock::at_day(DAY);
+    let mut store = open_host(&scratch, host(&clock, SignInGroup { min: 2 })).unwrap();
+    let first = store
+        .commit_batch(
+            &store_id(1),
+            &[
+                episode(1, DAY, domain("northwind-power.test")),
+                episode(2, DAY, domain("northwind-power.test")),
+            ],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    assert_eq!((first.proposals.refused, first.proposals.stored), (1, 0));
+    for at in 2..4 {
+        let later = store
+            .commit_batch(&store_id(1), &[], position(at, 0), &mut Seq(100 * at))
+            .unwrap();
+        assert_eq!(later.proposals.stored, 0);
+    }
+    drop(store);
+    assert_eq!(workflows(&scratch).len(), 0);
+    assert_eq!(summary_ids(&scratch), vec![sid(1), sid(2)]);
+    assert_eq!(bodies(&scratch, "evidence").len(), 2);
+    assert_eq!(bodies(&scratch, "support").len(), 0);
+}
+
+/// A handler that makes the state call that its body names:
+/// `{"op":"set_state","workflow":<id>,"state":"approved"|"active"|"paused","agent":<id>|null}`.
+struct SetState;
+
+impl Handler for SetState {
+    fn handle(
+        &self,
+        request: &RawRequest,
+        cx: &mut HandlerCx<'_>,
+    ) -> Result<Box<RawValue>, ErrorName> {
+        let body: serde_json::Value = serde_json::from_str(request.body().get()).unwrap();
+        let workflow = WorkflowId::parse(body["workflow"].as_str().unwrap()).unwrap();
+        let to = match body["state"].as_str().unwrap() {
+            "approved" => MoveTo::Approved,
+            "active" => MoveTo::Active,
+            _ => MoveTo::Paused,
+        };
+        let agent = body["agent"].as_str().map(|a| AgentId::parse(a).unwrap());
+        cx.state(&workflow, to, agent).map_err(|e| match e {
+            Error::Refused(name) => name,
+            Error::Fault(_) => ErrorName::Internal,
+        })?;
+        Ok(RawValue::from_string("null".to_owned()).unwrap())
+    }
+}
+
+struct Emit(Rc<RefCell<Vec<TypedRecord>>>);
+
+impl WriterStep for Emit {
+    fn after_commit(&self, _summaries: &dyn SummaryRead, _rows: &dyn RowRead) -> Vec<TypedRecord> {
+        self.0.borrow_mut().drain(..).collect()
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum StateAt {
+    Proposed,
+    Approved,
+    Active,
+    Paused,
+    Dismissed,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Before {
+    AsProposed,
+    OneLeftTheSet,
+    OneExpired,
+}
+
+fn set_state(store: &mut Store, id: &WorkflowId, state: &str) {
+    let body = format!(
+        r#"{{"op":"set_state","workflow":"{}","state":"{state}","agent":"{}"}}"#,
+        id.as_str(),
+        "4".repeat(32)
+    );
+    store
+        .handle(&raw_request("coordinator_write", &body))
+        .unwrap();
+}
+
+fn families(scratch: &Scratch) -> Vec<(String, i64)> {
+    let conn = raw(scratch);
+    let mut statement = conn
+        .prepare("SELECT family, n FROM revisions ORDER BY family")
+        .unwrap();
+    statement
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+}
+
+fn strings(scratch: &Scratch, sql: &str, param: &str) -> Vec<String> {
+    let conn = raw(scratch);
+    let mut statement = conn.prepare(sql).unwrap();
+    statement
+        .query_map([param], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+}
+
+/// One case of the sweep: W, of the site key northwind-power.test, with three summaries of its key, a row of the
+/// test kind that names it, and one summary of another key; its support set first changed as `before` says and W
+/// moved to `state`; then W is deleted.
+fn sweep_case(state: StateAt, before: Before) {
+    let scratch = Scratch::new(&format!("sweep-{state:?}-{before:?}").to_lowercase());
+    let clock = TestClock::at_day(DAY);
+    let except: Rc<RefCell<Vec<halvo_schema_core::ids::SummaryId>>> =
+        Rc::new(RefCell::new(Vec::new()));
+    let emitted: Rc<RefCell<Vec<TypedRecord>>> = Rc::new(RefCell::new(Vec::new()));
+    let host = || {
+        Host::new(
+            Box::new(clock.clone()),
+            Box::new(GroupingExcept {
+                min: 2,
+                except: Rc::clone(&except),
+            }),
+        )
+        .step("test", Box::new(Emit(Rc::clone(&emitted))))
+        .handler(
+            "agent",
+            Takes::Coordinator(&["set_state"]),
+            Box::new(SetState),
+        )
+    };
+    let mut store = open_entries(&scratch, host(), &[&NOTE]).unwrap();
+    let first_day = match before {
+        Before::OneExpired => DAY - 92,
+        Before::AsProposed | Before::OneLeftTheSet => DAY,
+    };
+    store
+        .commit_batch(
+            &store_id(1),
+            &[
+                episode(1, first_day, domain("northwind-power.test")),
+                episode(2, DAY, domain("northwind-power.test")),
+                episode(3, DAY, domain("northwind-power.test")),
+                episode(9, DAY, domain("other.test")),
+            ],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    drop(store);
+    let stored = workflows(&scratch);
+    assert_eq!(stored.len(), 1, "{state:?} {before:?}");
+    let w = stored[0].id().clone();
+    emitted.borrow_mut().push(TypedRecord {
+        kind: "test_note",
+        json: format!(r#"{{"v":1,"workflow":"{}","day":{DAY},"n":1}}"#, w.as_str()),
+    });
+    let mut store = open_entries(&scratch, host(), &[&NOTE]).unwrap();
+    store
+        .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(200))
+        .unwrap();
+    match before {
+        Before::AsProposed => {}
+        Before::OneLeftTheSet => {
+            except.borrow_mut().push(summary_id(1));
+            let outcome = store
+                .commit_batch(&store_id(1), &[], position(3, 0), &mut Seq(300))
+                .unwrap();
+            assert_eq!(outcome.proposals.updated, 1);
+        }
+        Before::OneExpired => {
+            clock.set_day(DAY + 1);
+            assert!(store.expire().unwrap() >= 3);
+        }
+    }
+    match state {
+        StateAt::Proposed => {}
+        StateAt::Approved => approve(&mut store, &w).unwrap(),
+        StateAt::Active => {
+            approve(&mut store, &w).unwrap();
+            set_state(&mut store, &w, "active");
+        }
+        StateAt::Paused => {
+            approve(&mut store, &w).unwrap();
+            set_state(&mut store, &w, "active");
+            set_state(&mut store, &w, "paused");
+        }
+        StateAt::Dismissed => dismiss(&mut store, &w).unwrap(),
+    }
+    drop(store);
+    let key = strings(
+        &scratch,
+        "SELECT wkey FROM rows WHERE workflow = ?1 AND kind = 'workflow'",
+        w.as_str(),
+    )
+    .remove(0);
+    let removed = strings(
+        &scratch,
+        "SELECT summary FROM rows WHERE wkey = ?1 AND kind = 'summary'",
+        &key,
+    );
+    let expect_removed = match before {
+        Before::OneExpired => 2,
+        Before::AsProposed | Before::OneLeftTheSet => 3,
+    };
+    assert_eq!(removed.len(), expect_removed, "{state:?} {before:?}");
+    let revisions_before = families(&scratch);
+    let mut store = open_entries(&scratch, host(), &[&NOTE]).unwrap();
+    assert_eq!(delete(&mut store, &w), Ok(()));
+    except.borrow_mut().clear();
+    let after = store
+        .commit_batch(&store_id(1), &[], position(9, 0), &mut Seq(900))
+        .unwrap();
+    assert_eq!(after.proposals.stored, 0, "{state:?} {before:?}");
+    drop(store);
+    let case = format!("{state:?} {before:?}");
+    assert_eq!(
+        count(
+            &scratch,
+            &format!(
+                "SELECT count(*) FROM rows WHERE workflow = '{}'",
+                w.as_str()
+            )
+        ),
+        0,
+        "{case}: a row names W"
+    );
+    assert_eq!(
+        strings(&scratch, "SELECT kind FROM rows WHERE wkey = ?1", &key).len(),
+        0,
+        "{case}: a summary or a workflow holds W's key"
+    );
+    for summary in &removed {
+        assert_eq!(
+            strings(
+                &scratch,
+                "SELECT kind FROM rows WHERE summary = ?1 AND kind IN ('evidence', 'support', 'summary')",
+                summary
+            )
+            .len(),
+            0,
+            "{case}: a row names a removed summary"
+        );
+    }
+    assert_eq!(summary_ids(&scratch), vec![sid(9)], "{case}");
+    assert_eq!(
+        strings(
+            &scratch,
+            "SELECT kind FROM rows WHERE summary = ?1 AND kind = 'evidence'",
+            &sid(9)
+        )
+        .len(),
+        1,
+        "{case}"
+    );
+    let revisions_after = families(&scratch);
+    for ((family, was), (_, now)) in revisions_before.iter().zip(&revisions_after) {
+        let lost = family == "workflow" || family == "test";
+        assert_eq!(
+            now > was,
+            lost,
+            "{case}: the revision of {family} went from {was} to {now}"
+        );
+    }
+}
+
+#[test]
+fn the_delete_removes_all_that_supported_a_workflow_in_every_state_and_every_history_of_its_support_set(
+) {
+    for state in [
+        StateAt::Proposed,
+        StateAt::Approved,
+        StateAt::Active,
+        StateAt::Paused,
+        StateAt::Dismissed,
+    ] {
+        for before in [
+            Before::AsProposed,
+            Before::OneLeftTheSet,
+            Before::OneExpired,
+        ] {
+            sweep_case(state, before);
+        }
+    }
 }

@@ -4,16 +4,17 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use common::{
-    bodies, count, domain, episode, open_host, position, store_id, summary_id, Fixed, Grouping,
-    Recorder, Scratch, Seq, TestClock,
+    bodies, count, domain, episode, open_host, position, store_id, summary_id, token, Fixed,
+    Grouping, Recorder, Scratch, Seq, SignInGroup, TestClock,
 };
-use halvo_derived::{Host, IdSource};
+use halvo_derived::{Host, IdSource, ProposalOutcome};
 use halvo_schema_core::category::SeedCategory;
 use halvo_schema_core::ids::WorkflowId;
 use halvo_schema_core::record::{
-    Confidence, Proposal, Recurrence, Support, Trigger, Workflow, WorkflowState,
+    Confidence, Episode, Proposal, Recurrence, RecurrenceStep, SummaryRead, Support, Trigger,
+    Workflow, WorkflowState,
 };
-use halvo_schema_core::site::AppId;
+use halvo_schema_core::site::{AppId, DomainSource, ObservedSite, SiteDomain, SiteValue};
 
 const DAY: u32 = 20_767;
 
@@ -222,13 +223,15 @@ fn a_proposal_that_its_reader_would_refuse_or_that_names_no_stored_summary_is_no
     long.recurrence.period = Some(94);
     let mut none = base.clone();
     none.recurrence.count = 0;
-    let mut valid = proposal(SeedCategory::Email, &[1]);
-    valid.summaries = vec![summary_id(1), summary_id(1)];
+    let mut valid = proposal(SeedCategory::Email, &[2]);
+    valid.summaries = vec![summary_id(2), summary_id(2)];
+    let mut email = episode(2, DAY, None);
+    email.category = SeedCategory::Email;
     *fixed.borrow_mut() = vec![confident, backwards, empty, unknown, long, none, valid];
     let outcome = store
         .commit_batch(
             &store_id(1),
-            &[episode(1, DAY, None)],
+            &[episode(1, DAY, None), email],
             position(1, 0),
             &mut Seq(1),
         )
@@ -275,4 +278,154 @@ fn the_recurrence_step_reads_the_summaries_inside_their_bound_by_day_and_then_id
         *seen.borrow(),
         vec![(DAY - 1, id(7)), (DAY, id(1)), (DAY, id(3))]
     );
+}
+
+fn keyed(category: SeedCategory, site: Option<SiteValue>, app: &str, ids: &[u64]) -> Proposal {
+    Proposal {
+        category,
+        site,
+        app: AppId::parse(app).unwrap(),
+        trigger: Trigger::Manual,
+        recurrence: Recurrence {
+            count: ids.len() as u32,
+            period: None,
+            first: DAY,
+            last: DAY,
+        },
+        confidence: Confidence(50),
+        summaries: ids.iter().map(|n| summary_id(*n)).collect(),
+    }
+}
+
+fn address(name: &str) -> Option<SiteValue> {
+    Some(SiteValue::Domain {
+        key: SiteDomain::parse(name).unwrap(),
+        source: DomainSource::AddressField,
+    })
+}
+
+/// Commits `episodes` in one batch under `step` and returns what the store did with the step's proposals, with the
+/// number of workflow rows and of support rows that stand after it.
+fn proposed_over(
+    name: &str,
+    episodes: Vec<Episode>,
+    step: impl RecurrenceStep + 'static,
+) -> (ProposalOutcome, usize, usize) {
+    let scratch = Scratch::new(name);
+    let clock = TestClock::at_day(DAY);
+    let mut store = open_host(&scratch, Host::new(Box::new(clock), Box::new(step))).unwrap();
+    let outcome = store
+        .commit_batch(&store_id(1), &episodes, position(1, 0), &mut Seq(100))
+        .unwrap();
+    drop(store);
+    (
+        outcome.proposals,
+        workflows(&scratch).len(),
+        supports(&scratch).len(),
+    )
+}
+
+fn fixed(proposal: Proposal) -> Fixed {
+    Fixed(Rc::new(RefCell::new(vec![proposal])))
+}
+
+#[test]
+fn a_proposal_that_names_a_summary_of_another_key_is_refused_and_stores_nothing() {
+    let other_app = |n: u64, site: Option<ObservedSite>| {
+        let mut e = episode(n, DAY, site);
+        e.app = AppId::parse("com.example.other").unwrap();
+        e
+    };
+    let browser = "com.example.browser";
+    let cases: Vec<(&str, Vec<Episode>, Box<dyn RecurrenceStep>)> = vec![
+        (
+            "the-other-source-of-one-domain",
+            vec![
+                episode(1, DAY, domain("northwind-power.test")),
+                episode(2, DAY, domain("northwind-power.test")),
+            ],
+            Box::new(SignInGroup { min: 2 }),
+        ),
+        (
+            "another-domain",
+            vec![episode(1, DAY, domain("a-power.test"))],
+            Box::new(fixed(keyed(
+                SeedCategory::UtilityBillPayment,
+                address("b-power.test"),
+                browser,
+                &[1],
+            ))),
+        ),
+        (
+            "another-category",
+            vec![episode(1, DAY, None)],
+            Box::new(fixed(keyed(SeedCategory::ShopOrder, None, browser, &[1]))),
+        ),
+        (
+            "a-title-key-against-a-domain-key",
+            vec![episode(1, DAY, token("northwind-power"))],
+            Box::new(fixed(keyed(
+                SeedCategory::UtilityBillPayment,
+                address("northwind-power.test"),
+                browser,
+                &[1],
+            ))),
+        ),
+        (
+            "an-app-key-against-a-site-key",
+            vec![episode(1, DAY, domain("northwind-power.test"))],
+            Box::new(fixed(keyed(
+                SeedCategory::UtilityBillPayment,
+                None,
+                browser,
+                &[1],
+            ))),
+        ),
+        (
+            "another-app-under-an-app-key",
+            vec![other_app(1, None)],
+            Box::new(fixed(keyed(
+                SeedCategory::UtilityBillPayment,
+                None,
+                browser,
+                &[1],
+            ))),
+        ),
+    ];
+    let mut seen = Vec::new();
+    for (name, episodes, step) in cases {
+        let (outcome, workflows, supports) = proposed_over(name, episodes, BoxedStep(step));
+        seen.push((name, (outcome.refused, outcome.stored, workflows, supports)));
+    }
+    let want: Vec<_> = seen.iter().map(|(name, _)| (*name, (1, 0, 0, 0))).collect();
+    assert_eq!(
+        seen, want,
+        "(refused, stored, workflow rows, support rows) per case"
+    );
+    let (outcome, workflows, supports) = proposed_over(
+        "one-site-key-from-two-apps",
+        vec![
+            episode(1, DAY, domain("shop.test")),
+            other_app(2, domain("shop.test")),
+        ],
+        fixed(keyed(
+            SeedCategory::UtilityBillPayment,
+            address("shop.test"),
+            "com.example.other",
+            &[1, 2],
+        )),
+    );
+    assert_eq!(
+        (outcome.refused, outcome.stored, workflows, supports),
+        (0, 1, 1, 2),
+        "{outcome:?}"
+    );
+}
+
+struct BoxedStep(Box<dyn RecurrenceStep>);
+
+impl RecurrenceStep for BoxedStep {
+    fn propose(&self, summaries: &dyn SummaryRead) -> Vec<Proposal> {
+        self.0.propose(summaries)
+    }
 }
