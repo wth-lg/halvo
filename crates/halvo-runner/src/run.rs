@@ -81,25 +81,30 @@ pub(crate) struct Runner {
 /// Carries out one run on the link and returns the exit status: 0 once `done` is written after a stored
 /// `finish`, 1 when the link closed or the `finish` was not stored, 2 for a frame that breaks the form of A6.2.
 pub(crate) fn run(args: Args, link: Link) -> i32 {
-    let mut runner = Runner {
-        args,
-        link,
-        role: RunnerRole::claim(),
-        started: Clock::now(),
-        waited: Duration::ZERO,
-        log_seq: 0,
-        steps: 0,
-        handbacks: 0,
-        confirmations: 0,
-        playbook: None,
-        effects: Vec::new(),
-        kept: HashMap::new(),
-    };
+    let mut runner = Runner::new(args, link);
     let end = runner.carry_out();
     runner.close(end)
 }
 
 impl Runner {
+    /// A runner of `args` on `link`, before its run.
+    fn new(args: Args, link: Link) -> Runner {
+        Runner {
+            args,
+            link,
+            role: RunnerRole::claim(),
+            started: Clock::now(),
+            waited: Duration::ZERO,
+            log_seq: 0,
+            steps: 0,
+            handbacks: 0,
+            confirmations: 0,
+            playbook: None,
+            effects: Vec::new(),
+            kept: HashMap::new(),
+        }
+    }
+
     fn carry_out(&mut self) -> Result<Outcome, Stop> {
         self.link.send(&FromRunner::Hello(Hello {
             run: self.args.run.clone(),
@@ -214,7 +219,7 @@ impl Runner {
         call: RunnerCall,
     ) -> Result<Result<RunnerReply, ReplyError>, Broken> {
         let request = RunnerRequest::new(&self.role, RequestId::from_random(random16()), call);
-        self.send_store(&request, false)
+        self.send_store(&request)
     }
 
     /// The role that builds the runner's requests.
@@ -222,14 +227,18 @@ impl Runner {
         &self.role
     }
 
-    /// Writes the `store` frame of a request and returns the store's reply, which must answer it; the frame of a
-    /// row that proposes or begins an effect goes as `Link::ask_effect` lets it.
+    /// Writes the `store` frame of a request and returns the store's reply, which must answer it. The frame of a
+    /// row that proposes or begins an effect (the call `effect` with a state other than `committed`) goes as
+    /// `Link::ask_effect` lets it; every other frame goes as `Link::ask` lets it.
     pub(crate) fn send_store(
         &mut self,
         request: &RunnerRequest<RunnerCall>,
-        effect: bool,
     ) -> Result<Result<RunnerReply, ReplyError>, Broken> {
         let id = request.id();
+        let effect = matches!(
+            request.body(),
+            RunnerCall::Effect(put) if put.record.state != EffectState::Committed
+        );
         let envelope = StoreRequest::new(request).map_err(|_| Broken::Frame("own_body"))?;
         let frame = FromRunner::Store(Store { request: envelope });
         let reply = if effect {
@@ -400,5 +409,186 @@ fn ended(broken: Broken) -> i32 {
             crate::line(&format!("REFUSED frame: {rule}"));
             2
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::link::EndLater;
+    use halvo_schema::executable::body::PutEffect;
+    use halvo_schema::executable::names::{FieldName, Source};
+    use halvo_schema::executable::text::OwnValue;
+    use halvo_schema::executable::{AgentEffect, Bound, BoundField, EffectId, KeptField};
+    use std::ffi::OsString;
+    use std::io::Write;
+    use std::sync::{mpsc, Arc, Mutex};
+
+    struct Out(Arc<Mutex<Vec<u8>>>);
+
+    impl Write for Out {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().expect("lock").extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Whether `seen` holds within `bound`, asked every 5 ms.
+    fn within(bound: Duration, seen: impl Fn() -> bool) -> bool {
+        let until = Clock::now() + bound;
+        while Clock::now() < until {
+            if seen() {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        seen()
+    }
+
+    /// A runner whose link reads an end of file alone, with its reader held between the return of that read and
+    /// its note until the test lets it go; the runner's output, the receiver that hears that the reader got the
+    /// end of file, and the sender that lets it go.
+    struct HeldRunner {
+        runner: Runner,
+        out: Arc<Mutex<Vec<u8>>>,
+        got: mpsc::Receiver<()>,
+        go: mpsc::Sender<()>,
+    }
+
+    fn held_runner() -> HeldRunner {
+        let (got, heard) = mpsc::channel();
+        let (go, gone) = mpsc::channel::<()>();
+        let end: EndLater = Box::new(move || {
+            let _ = got.send(());
+            let _ = gone.recv();
+        });
+        let out = Arc::new(Mutex::new(Vec::new()));
+        let input = std::io::Cursor::new(Vec::new());
+        let link = Link::start(Box::new(input), Box::new(Out(Arc::clone(&out))), end);
+        let run = "0a".repeat(16);
+        let agent = "08".repeat(16);
+        let workflow = "09".repeat(16);
+        let words = [
+            "--run",
+            &run,
+            "--agent",
+            &agent,
+            "--workflow",
+            &workflow,
+            "--mode",
+            "replay",
+            "--browser",
+            "none",
+        ];
+        let words: Vec<OsString> = words.iter().map(|w| OsString::from(*w)).collect();
+        let args = crate::args::parse(&words).expect("the arguments");
+        HeldRunner {
+            runner: Runner::new(args, link),
+            out,
+            got: heard,
+            go,
+        }
+    }
+
+    /// The request of a row in `state` of a file edit's effect, as `store_row` builds it.
+    fn row(runner: &Runner, state: EffectState) -> RunnerRequest<RunnerCall> {
+        let field = |name: FieldName, value: &str| BoundField {
+            name,
+            from: Source::Slot,
+            origin: None,
+            value: OwnValue::new(value),
+        };
+        let bound = Bound::new(
+            ActionClass::LocalEdit,
+            vec![
+                field(FieldName::File, "/f.xlsx"),
+                field(FieldName::Range, "B2:D6"),
+            ],
+        )
+        .expect("a bound object");
+        let names = bound.class().kept_fields();
+        let kept = bound
+            .fields()
+            .iter()
+            .filter(|f| names.iter().any(|(name, _)| *name == f.name))
+            .map(|f| KeptField {
+                name: f.name,
+                value: f.value.clone(),
+            })
+            .collect();
+        let at = now();
+        let record = AgentEffect {
+            v: V1,
+            workflow: runner.args.workflow.clone(),
+            agent: runner.args.agent.clone(),
+            run: runner.args.run.clone(),
+            effect: EffectId::from_random(random16()),
+            seq: NonZeroU32::MIN,
+            day: day(at),
+            at,
+            state,
+            class: bound.class(),
+            digest: halvo_policy::digest(&bound).expect("a digest"),
+            kept,
+            fields: bound.fields().len() as u32,
+            approval: None,
+            cause: None,
+        };
+        let call = RunnerCall::Effect(PutEffect {
+            agent: runner.args.agent.clone(),
+            run: runner.args.run.clone(),
+            record,
+        });
+        RunnerRequest::new(runner.role(), RequestId::from_random(random16()), call)
+    }
+
+    #[test]
+    fn a_cleared_row_waits_for_a_held_reader_and_a_committed_row_does_not() {
+        let HeldRunner {
+            mut runner,
+            out,
+            got,
+            go,
+        } = held_runner();
+        got.recv().expect("the reader got the end of file");
+        let request = row(&runner, EffectState::Cleared);
+        std::thread::scope(|s| {
+            let sent = s.spawn(|| runner.send_store(&request).map(|_| ()));
+            let written = within(Duration::from_millis(500), || {
+                !out.lock().expect("lock").is_empty()
+            });
+            go.send(()).expect("the reader goes on");
+            assert_eq!(sent.join().expect("the row's thread"), Err(Broken::Closed));
+            assert!(
+                !written,
+                "no cleared row while the reader holds the end of file"
+            );
+        });
+        assert!(out.lock().expect("lock").is_empty(), "no cleared row");
+
+        let HeldRunner {
+            mut runner,
+            out,
+            got,
+            go,
+        } = held_runner();
+        got.recv().expect("the reader got the end of file");
+        let request = row(&runner, EffectState::Committed);
+        std::thread::scope(|s| {
+            let sent = s.spawn(|| runner.send_store(&request).map(|_| ()));
+            let written = within(Duration::from_secs(5), || {
+                !out.lock().expect("lock").is_empty()
+            });
+            go.send(()).expect("the reader goes on");
+            assert_eq!(sent.join().expect("the row's thread"), Err(Broken::Closed));
+            assert!(
+                written,
+                "the committed row is written while the reader holds the end of file"
+            );
+        });
     }
 }

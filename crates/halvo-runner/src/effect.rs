@@ -124,7 +124,7 @@ impl Runner {
         let mut faulted = false;
         let cause = loop {
             sends += 1;
-            match self.send_store(&request, state != EffectState::Committed)? {
+            match self.send_store(&request)? {
                 Ok(RunnerReply::Stored(Stored { stored: 1 })) => break None,
                 Ok(_) => break Some(Cause::Effect),
                 Err(error) => {
