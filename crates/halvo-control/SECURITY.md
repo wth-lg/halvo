@@ -45,6 +45,12 @@ such integer is answered `invalid_argument`. Expiry, cap eviction and delete-all
 after a lapse capture reads `no_indicator`, and the lapse writes nothing to the state
 file.
 
+One decode of a request frame of at most 4,096 bytes holds at most 524,288 bytes live at
+once (`REQUEST_DECODE_PEAK_BYTES`), and the worst shape that the crate's test measures,
+objects of the empty key nested side by side, holds 471,098. One decode of a reply frame of
+at most 262,144 bytes holds at most 33,554,432 bytes live at once (`REPLY_DECODE_PEAK_BYTES`),
+and the same shape holds 33,009,946.
+
 ## What never crosses the channel
 
 No request or reply carries an app id, a window title, a site, a segment id or a

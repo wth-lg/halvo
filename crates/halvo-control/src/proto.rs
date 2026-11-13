@@ -266,6 +266,17 @@ impl<'de> Deserialize<'de> for Unique {
     }
 }
 
+/// The most bytes that one call of [`decode_request`] holds live at once for a frame of at most
+/// [`crate::wire::REQUEST_MAX_BYTES`]: 128 for each byte. The call parses the whole frame into
+/// a tree before it reads the shape; the worst shape that the test of wire.rs measures, objects
+/// of the empty key nested side by side, holds 471,098.
+pub const REQUEST_DECODE_PEAK_BYTES: usize = 524_288;
+
+/// The most bytes that one call of [`decode_reply`] holds live at once for a frame of at most
+/// [`crate::wire::REPLY_MAX_BYTES`]: 128 for each byte. The worst shape that the test of
+/// wire.rs measures, objects of the empty key nested side by side, holds 33,009,946.
+pub const REPLY_DECODE_PEAK_BYTES: usize = 33_554_432;
+
 /// The version of a frame that is one JSON object whose key `v` holds an integer from 0 to
 /// 18446744073709551615, and its body when the object holds `v` and an object `body` alone.
 fn read_envelope(frame: &[u8]) -> Option<(u64, Option<Object>)> {
