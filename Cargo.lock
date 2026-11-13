@@ -1449,6 +1449,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-agent-gate"
+version = "0.0.0"
+dependencies = [
+ "halvo-agent-store",
+ "halvo-policy",
+ "halvo-schema",
+ "serde_json",
+]
+
+[[package]]
 name = "halvo-agent-store"
 version = "0.0.0"
 dependencies = [
@@ -1486,7 +1496,9 @@ dependencies = [
  "objc2-core-media",
  "objc2-foundation",
  "objc2-screen-capture-kit",
+ "proc-macro2",
  "proptest",
+ "psl",
  "security-framework",
  "security-framework-sys",
  "serde",
@@ -1557,6 +1569,7 @@ version = "0.0.0"
 name = "halvo-route"
 version = "0.0.0"
 dependencies = [
+ "serde_json",
  "sha2",
 ]
 
