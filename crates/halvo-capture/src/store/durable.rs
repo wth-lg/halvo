@@ -229,6 +229,13 @@ mod unix_dir {
             Ok(Dir { fd, path })
         }
 
+        pub(crate) fn try_clone(&self) -> io::Result<Dir> {
+            Ok(Dir {
+                fd: self.fd.try_clone()?,
+                path: self.path.clone(),
+            })
+        }
+
         pub(crate) fn open_dir(&self, name: &OsStr) -> io::Result<Dir> {
             let c = c_name(name)?;
             let at = self.fd.as_raw_fd();
@@ -461,6 +468,13 @@ mod windows_dir {
             let held = held_dir(&path)?;
             drop(given);
             Ok(Dir { _held: held, path })
+        }
+
+        pub(crate) fn try_clone(&self) -> io::Result<Dir> {
+            Ok(Dir {
+                _held: self._held.try_clone()?,
+                path: self.path.clone(),
+            })
         }
 
         pub(crate) fn open_dir(&self, name: &OsStr) -> io::Result<Dir> {

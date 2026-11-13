@@ -5016,6 +5016,32 @@ fn the_unwrap_time_of_an_open_holds_no_time_of_the_custody_rebuild() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn a_shred_reads_no_size_through_a_link_at_the_log_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    store
+        .write_segment_with_expiry(&mut Cursor::new(b"expired"), 1, 2)
+        .unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let target = outside.path().join("big");
+    std::fs::write(&target, vec![7u8; 100]).unwrap();
+    let wal = store_dir.join("store.db-wal");
+    std::fs::rename(&wal, dir.path().join("log-moved-aside")).unwrap();
+    std::os::unix::fs::symlink(&target, &wal).unwrap();
+
+    let shred = store.crypto_shred_expired().map(drop);
+
+    assert!(
+        matches!(&shred, Err(StoreError::Corrupt(text))
+            if text == "a file beside the database of the store is a link"),
+        "a shred with a link at store.db-wal answered {shred:?}"
+    );
+    assert_eq!(std::fs::read(&target).unwrap(), vec![7u8; 100]);
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_reads_what_sqlite_does_with_a_file_link_at_store_db_wal() {

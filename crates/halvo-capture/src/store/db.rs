@@ -32,6 +32,7 @@ const DATABASE_FILE: &str = "store.db";
 const DATABASE_LOG: &str = "store.db-wal";
 const LINKED_DATABASE: &str = "the database file of the store is a link";
 const STORE_DIR_MOVED: &str = "the store directory no longer stands at its name";
+const LINKED_SIDE_FILE: &str = "a file beside the database of the store is a link";
 
 #[derive(Deserialize)]
 struct KeyFileVersion {
@@ -327,7 +328,8 @@ pub(crate) struct Checkpoint {
 
 pub(crate) struct Db {
     conn: Connection,
-    wal_path: PathBuf,
+    store_dir: Dir,
+    log_name: std::ffi::OsString,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -467,7 +469,8 @@ impl Db {
         require_pinned_cipher(&conn)?;
         let db = Self {
             conn,
-            wal_path: path.with_extension("db-wal"),
+            store_dir: store_dir.try_clone().map_err(io_error)?,
+            log_name: DATABASE_LOG.into(),
         };
         match database {
             Database::New => {
@@ -656,8 +659,12 @@ impl Db {
     }
 
     pub(crate) fn wal_bytes(&self) -> StoreResult<u64> {
-        match std::fs::metadata(&self.wal_path) {
-            Ok(metadata) => Ok(metadata.len()),
+        match self.store_dir.entry(&self.log_name) {
+            Ok(entry) if entry.kind == EntryKind::File => Ok(entry.len),
+            Ok(entry) if entry.kind == EntryKind::Link => {
+                Err(StoreError::Corrupt(LINKED_SIDE_FILE.to_string()))
+            }
+            Ok(_) => Err(StoreError::Io(ErrorKind::InvalidData)),
             Err(e) if e.kind() == ErrorKind::NotFound => Ok(0),
             Err(e) => Err(io_error(e)),
         }
@@ -1215,14 +1222,14 @@ mod tests {
     fn a_write_ahead_log_that_cannot_be_read_fails_the_checkpoint() {
         let dir = tempfile::tempdir().unwrap();
         let mut db = Db::open(&Dir::open(dir.path()).unwrap(), &[7u8; 32]).unwrap();
-        db.wal_path = dir.path().join("no-such-wal");
+        db.log_name = "no-such-wal".into();
         assert!(
             db.checkpoint_truncate().is_ok(),
             "a missing write-ahead log is not an empty one"
         );
         let looping = dir.path().join("looping-wal");
         std::os::unix::fs::symlink(&looping, &looping).unwrap();
-        db.wal_path = looping;
+        db.log_name = "looping-wal".into();
         let checkpoint = db.checkpoint_truncate();
         assert!(
             checkpoint.is_err(),
@@ -1296,7 +1303,7 @@ mod tests {
         let mut db = Db::open(&Dir::open(dir.path()).unwrap(), &[7u8; 32]).unwrap();
         let wal = dir.path().join("a-wal-that-keeps-bytes");
         std::fs::write(&wal, [1u8; 100]).unwrap();
-        db.wal_path = wal;
+        db.log_name = "a-wal-that-keeps-bytes".into();
         let checkpoint = db.checkpoint_truncate();
         assert!(
             matches!(
