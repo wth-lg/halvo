@@ -21,7 +21,10 @@
 //!   runners alone: no browser is made to crash on the development Mac.
 //!
 //! - `checks --browser PATH --kind chrome|edge --port N`: the six rules of the start-to-stop check
-//!   with the product's flags, read after the start, during a session and after the stop.
+//!   with the product's flags, read after the start, during a session and after the stop, each line
+//!   naming the six rules and the five keys with `holds=`; a control read while the row's own
+//!   process holds a second listener must read `holds=no`; ok when the three hold, the control
+//!   reads no and the stop removed both directories (CP-170 E4 (a), (b)).
 //!
 //! `start_only` and `foreign_connect` are the children of those rows.
 
@@ -242,12 +245,12 @@ async fn checks_row(argv: &[String]) -> (usize, usize) {
     let browser = std::path::absolute(&browser).unwrap_or(PathBuf::from(&browser));
     let machine = if cfg!(windows) { "windows" } else { "macos" };
     let Ok(relay) = Relay::start(Names::Fixture).await else {
-        return (0, 3);
+        return (0, 1);
     };
     relay.handle().allow("utility.agent.test", port);
     let profile = dir.join("p");
     let Some(opts) = options(&browser, profile.clone(), &relay) else {
-        return (0, 3);
+        return (0, 1);
     };
     let mut ex = match Executor::start(&opts).await {
         Ok(ex) => ex,
@@ -256,7 +259,7 @@ async fn checks_row(argv: &[String]) -> (usize, usize) {
                 "row checks machine={machine} browser={kind} result=notrun cause={}",
                 f.cause
             );
-            return (0, 3);
+            return (0, 1);
         }
     };
     let root = ex.root().clone();
@@ -267,22 +270,35 @@ async fn checks_row(argv: &[String]) -> (usize, usize) {
         pipe: Some(&ids),
         relay_port: Some(relay.port),
     };
-    let mut ok = usize::from(check_line(machine, &kind, "start", &subject));
+    let start = check_line(machine, &kind, "start", &subject);
     let _ = ex
         .open(&format!("http://utility.agent.test:{port}/signin"))
         .await;
-    ok += usize::from(check_line(machine, &kind, "session", &subject));
+    let session = check_line(machine, &kind, "session", &subject);
+    let second = {
+        let _held = halvo_web::start::lock();
+        std::net::TcpListener::bind(("127.0.0.1", 0))
+    };
+    let control_read = check_line(machine, &kind, "control", &subject);
+    let control = second.is_ok() && !control_read;
+    println!(
+        "row checks machine={machine} browser={kind} control=executor_listener result={}",
+        if control { "ok" } else { "miss" }
+    );
+    drop(second);
     let kept = ex.keep_pipe();
     let stopped = ex.stop_and_remove().await;
-    ok += usize::from(check_line(machine, &kind, "end", &subject));
+    let end = check_line(machine, &kind, "end", &subject);
     drop(kept);
     relay.stop();
+    let fine = start && session && end && control && stopped.removed;
     println!(
-        "row checks machine={machine} browser={kind} removed={}",
-        if stopped.removed { "yes" } else { "no" }
+        "row checks machine={machine} browser={kind} removed={} result={}",
+        if stopped.removed { "yes" } else { "no" },
+        if fine { "ok" } else { "miss" }
     );
     let _ = std::fs::remove_dir(&dir);
-    (ok, 3)
+    (usize::from(fine), 1)
 }
 
 /// The crash row (CP-165 (2), CP-167 E1 to E4) for one browser: a start and stop with no crash,

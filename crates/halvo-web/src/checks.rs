@@ -429,23 +429,29 @@ impl NamedProc {
     }
 }
 
-/// Whether a read holds: each of the two followed rules counts nothing less its passing and open
-/// processes and has none open, the table was read, and each other rule counts 0.
+/// Whether a read holds: every rule and the key `table_unread` are counted (a missing one reads
+/// false), each of the two followed rules counts nothing less its passing and open processes and
+/// has none open, the table was read, and each other rule counts 0.
 pub fn read_holds(counts: &[Count]) -> bool {
-    let n = |rule: &str| {
-        counts
-            .iter()
-            .find(|c| c.rule == rule)
-            .map_or(0, |c| c.count)
-    };
-    RULES.iter().all(|r| match *r {
-        "port_flag" | "pipe_holder" => {
-            let passing = n(&format!("{r}_passing"));
-            let open = n(&format!("{r}_open"));
-            n(r).saturating_sub(passing + open) == 0 && open == 0
-        }
-        _ => n(r) == 0,
-    }) && n("table_unread") == 0
+    let n = |rule: &str| counts.iter().find(|c| c.rule == rule).map(|c| c.count);
+    let all_there = RULES.iter().all(|r| n(r).is_some()) && n("table_unread").is_some();
+    let n = |rule: &str| n(rule).unwrap_or(0);
+    all_there
+        && RULES.iter().all(|r| match *r {
+            "port_flag" | "pipe_holder" => {
+                let passing = n(&format!("{r}_passing"));
+                let open = n(&format!("{r}_open"));
+                n(r).saturating_sub(passing + open) == 0 && open == 0
+            }
+            _ => n(r) == 0,
+        })
+        && n("table_unread") == 0
+}
+
+/// The ends of the pipe whose identity could not be read at the start (a handle of 0): each
+/// counts as `pipe_holder_open` at every read, never as an end that nobody holds (CP-170 E4 (d)).
+pub fn unread_ends(ids: &PipeIds) -> usize {
+    ids.handles.iter().filter(|h| **h == 0).count()
 }
 
 /// Reads every rule once. A rule whose read the system refused counts each unread process as one.
@@ -682,7 +688,10 @@ pub fn check_detail(
         ("port_flag_passing", of("port_flag", Class::Passing)),
         ("port_flag_open", of("port_flag", Class::Open)),
         ("pipe_holder_passing", of("pipe_holder", Class::Passing)),
-        ("pipe_holder_open", of("pipe_holder", Class::Open)),
+        (
+            "pipe_holder_open",
+            of("pipe_holder", Class::Open) + s.pipe.map_or(0, unread_ends),
+        ),
         ("table_unread", table_unread),
     ] {
         counts.push(Count { rule, count });
@@ -1049,6 +1058,141 @@ mod tests {
             .find(|p| p.pid == root.id())
             .expect("row of the root");
         (on, root, row)
+    }
+
+    fn count(rule: &'static str, count: usize) -> Count {
+        Count { rule, count }
+    }
+
+    fn all_zero() -> Vec<Count> {
+        RULES
+            .iter()
+            .chain(KEYS.iter())
+            .map(|r| count(r, 0))
+            .collect()
+    }
+
+    /// CP-170 E4 (c): a read that lacks a rule or the key `table_unread` does not hold.
+    #[test]
+    fn a_read_with_a_missing_count_does_not_hold() {
+        assert!(read_holds(&all_zero()));
+        assert!(!read_holds(&[]));
+        for gone in RULES.iter().copied().chain(["table_unread"]) {
+            let lacking: Vec<Count> = all_zero().into_iter().filter(|c| c.rule != gone).collect();
+            assert!(!read_holds(&lacking), "{gone}");
+        }
+    }
+
+    /// CP-170 E4 (d): an end of the pipe whose identity could not be read counts as open at every
+    /// read, so the read does not hold.
+    #[test]
+    fn an_unread_end_of_the_pipe_counts_as_open() {
+        #[cfg(target_os = "macos")]
+        let ids = PipeIds {
+            handles: [0, 5, 6, 7],
+        };
+        #[cfg(windows)]
+        let ids = PipeIds {
+            handles: [0, 8, 12, 16],
+        };
+        assert_eq!(unread_ends(&ids), 1);
+        let me = procs::own().unwrap();
+        let (counts, _) = check_detail(
+            &Subject {
+                root: &me,
+                profile: std::path::Path::new("/nonexistent-profile"),
+                pipe: Some(&ids),
+                relay_port: None,
+            },
+            Some(vec![me.clone()]),
+            &|_| Some(String::new()),
+            std::time::Duration::ZERO,
+        );
+        let open = counts
+            .iter()
+            .find(|c| c.rule == "pipe_holder_open")
+            .unwrap();
+        assert!(open.count >= 1, "{counts:?}");
+        assert!(!read_holds(&counts));
+    }
+
+    fn sleeper() -> (std::path::PathBuf, Vec<std::ffi::OsString>) {
+        if cfg!(windows) {
+            (
+                crate::start::system_dir().unwrap().join("PING.EXE"),
+                vec!["-n".into(), "10".into(), "127.0.0.1".into()],
+            )
+        } else {
+            (std::path::PathBuf::from("/bin/sleep"), vec!["5".into()])
+        }
+    }
+
+    /// CP-170 E4 (e), on both systems: a state that the test makes itself breaks each of
+    /// `tcp_listen`, `udp_wide`, `active_port_file` and `pipe_holder`, and the check counts it;
+    /// the test's own process stands for the browser's first process for the first three, and a
+    /// child that holds the pipe's ends beside a root that began before it for the fourth.
+    #[test]
+    fn the_four_rules_count_what_breaks_them_on_this_system() {
+        use crate::start::Start;
+        let dir = crate::child::scratch("four-rules");
+        let me = procs::own().unwrap();
+        let of = |c: &[Count], rule: &str| c.iter().find(|x| x.rule == rule).unwrap().count;
+        let quiet = check(&Subject {
+            root: &me,
+            profile: &dir,
+            pipe: None,
+            relay_port: None,
+        });
+        assert_eq!(of(&quiet, "active_port_file"), 0);
+        let held = crate::start::lock();
+        let tcp = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let udp = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
+        drop(held);
+        std::fs::write(dir.join("DevToolsActivePort"), b"0\n").unwrap();
+        let loud = check(&Subject {
+            root: &me,
+            profile: &dir,
+            pipe: None,
+            relay_port: None,
+        });
+        drop((tcp, udp));
+        assert!(of(&loud, "tcp_listen") >= 1, "{loud:?}");
+        assert!(of(&loud, "udp_wide") >= 1, "{loud:?}");
+        assert_eq!(of(&loud, "active_port_file"), 1);
+        let (program, args) = sleeper();
+        let mut root = std::process::Command::new(&program)
+            .args(&args)
+            .stdout(std::process::Stdio::null())
+            .start()
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let work = crate::start::system_dir().unwrap();
+        let spec = crate::start::Spec {
+            program: &program,
+            args: args.clone(),
+            env: crate::start::guard_env().unwrap(),
+            dir: &work,
+        };
+        let mut on = {
+            let held = crate::start::lock();
+            crate::start::start_on_pipe(&held, &spec).expect("start")
+        };
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let row = procs::table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == root.id())
+            .unwrap();
+        let held = check(&Subject {
+            root: &row,
+            profile: &dir,
+            pipe: Some(&on.ids),
+            relay_port: None,
+        });
+        on.child.kill();
+        let _ = root.kill();
+        let _ = root.wait();
+        assert!(of(&held, "pipe_holder") >= 1, "{held:?}");
     }
 
     /// CP-126 E5 T1: `check()` with the pipe's ids counts a second process that holds an end of the
