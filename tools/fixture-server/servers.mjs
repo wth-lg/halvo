@@ -80,18 +80,21 @@ export function startServer(args, { input = 'pipe' } = {}) {
 }
 
 /**
- * Ends a server that `startServer` started: sends `signal`, waits up to END_MS for its exit, then sends SIGKILL and
- * waits for that exit. Resolves to `{ code, signal, killed }`, `killed` true when SIGKILL was needed.
+ * Ends a server that `startServer` started: sends `signal` (none when it is null), waits up to END_MS for its exit,
+ * then sends SIGKILL and waits for that exit. Resolves to `{ code, signal, killed, gone }`: `killed` is true when
+ * SIGKILL was needed, `gone` is whether the server's process id is no longer alive at the end.
  */
 export async function stopServer(server, signal = 'SIGTERM') {
   const { child } = server;
-  if (child.exitCode !== null || child.signalCode !== null) return { code: child.exitCode, signal: child.signalCode, killed: false };
-  child.kill(signal);
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return { code: child.exitCode, signal: child.signalCode, killed: false, gone: !alive(child.pid) };
+  }
+  if (signal !== null) child.kill(signal);
   const ended = await exitWithin(child, END_MS);
-  if (ended !== null) return { ...ended, killed: false };
+  if (ended !== null) return { ...ended, killed: false, gone: !alive(child.pid) };
   child.kill('SIGKILL');
   const killed = await exitWithin(child, END_MS);
-  return { code: killed?.code ?? null, signal: killed?.signal ?? null, killed: true };
+  return { code: killed?.code ?? null, signal: killed?.signal ?? null, killed: true, gone: !alive(child.pid) };
 }
 
 /** A new directory under the system's temporary directory, removed by the returned function. */

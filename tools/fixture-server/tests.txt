@@ -11,6 +11,7 @@ all lifetime.test.mjs lifetime: a test that throws before its cleanup ends its r
 all lifetime.test.mjs lifetime: a server whose input ends while a request is in flight ends with status 0
 macos lifetime.test.mjs lifetime: a server whose input fails ends with status 0
 all lifetime.test.mjs lifetime: a server with a null input serves on until the test ends it
+all lifetime.test.mjs control: a server that gets no signal is still running at the bound, and the check of a signalled end refuses it
 all lifetime.test.mjs shutdown: SIGTERM ends the server with status 0 while a client holds a listed GET with an upgrade offer
 all lifetime.test.mjs shutdown: SIGTERM ends the server with status 0 while a client holds CONNECT
 all lifetime.test.mjs shutdown: SIGTERM ends the server with status 0 while a client holds an unlisted GET with an upgrade offer

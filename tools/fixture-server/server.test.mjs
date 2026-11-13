@@ -272,8 +272,8 @@ test('server: ends on SIGTERM and on SIGINT, with status 0 where a process can h
       await get(server.port, '/home', `acorn-news.test:${server.port}`, 'GET', '');
       const ended = await stopServer(server, signal);
       console.log(`signal ${signal}: code=${ended.code} killed=${ended.killed}`);
-      if (process.platform === 'win32') assert.equal(ended.killed, false);
-      else assert.deepEqual(ended, { code: 0, signal: null, killed: false });
+      if (process.platform === 'win32') assert.deepEqual({ killed: ended.killed, gone: ended.gone }, { killed: false, gone: true });
+      else assert.deepEqual(ended, { code: 0, signal: null, killed: false, gone: true });
     } finally {
       await stopServer(server);
     }

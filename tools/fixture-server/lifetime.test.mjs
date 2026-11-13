@@ -28,8 +28,8 @@ writeFileSync(SITE, `${JSON.stringify({
 })}\n`);
 
 function assertEndedBySignal(ended) {
-  if (process.platform === 'win32') assert.equal(ended.killed, false);
-  else assert.deepEqual(ended, { code: 0, signal: null, killed: false });
+  if (process.platform === 'win32') assert.deepEqual({ killed: ended.killed, gone: ended.gone }, { killed: false, gone: true });
+  else assert.deepEqual(ended, { code: 0, signal: null, killed: false, gone: true });
 }
 
 function sleep(ms) {
@@ -202,8 +202,21 @@ test('lifetime: a server with a null input serves on until the test ends it', as
     assert.equal(await get(server.port), 200);
   } finally {
     const ended = await stopServer(server);
-    console.log(`lifetime null-input recorded=1 ended_by_test=${!ended.killed} alive_after=${alive(server.pid) ? 1 : 0}`);
+    console.log(`lifetime null-input recorded=1 killed=${ended.killed} alive_after=${ended.gone ? 0 : 1}`);
     assertEndedBySignal(ended);
+  }
+});
+
+test('control: a server that gets no signal is still running at the bound, and the check of a signalled end refuses it', async () => {
+  const server = await startServer(['--port', '0', SITE]);
+  try {
+    const ended = await stopServer(server, null);
+    console.log(`control no-signal recorded=1 killed=${ended.killed} alive_after=${ended.gone ? 0 : 1}`);
+    assert.equal(ended.killed, true);
+    assert.equal(ended.gone, true);
+    assert.throws(() => assertEndedBySignal(ended), assert.AssertionError);
+  } finally {
+    await stopServer(server);
   }
 });
 
@@ -221,7 +234,7 @@ for (const [kind, text] of HELD) {
     try {
       held = await hold(server.port, text(server.port));
       const ended = await stopServer(server);
-      console.log(`shutdown held=${kind.replaceAll(' ', '-')} exit=${ended.code} killed=${ended.killed}`);
+      console.log(`shutdown held=${kind.replaceAll(' ', '-')} exit=${ended.code} killed=${ended.killed} alive_after=${ended.gone ? 0 : 1}`);
       assertEndedBySignal(ended);
     } finally {
       held?.destroy();
