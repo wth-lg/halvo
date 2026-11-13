@@ -4,7 +4,9 @@ use halvo_schema::executable::body::{
 };
 use halvo_schema::executable::frame::{StoreReply, StoreReplyFrame, ToRunner, FRAME_JSON_MAX};
 use halvo_schema::executable::names::{Cause, LogEvent, ReplyState};
-use halvo_schema::executable::record::{AgentEffect, AgentLog, AgentReply, AgentStart};
+use halvo_schema::executable::record::{
+    AgentEffect, AgentLog, AgentReply, AgentRun, AgentStart, RUN_LIST_KEYS,
+};
 use halvo_schema::executable::text::ProviderId;
 use halvo_schema::executable::{self, Refusal, RefusalCause};
 use halvo_schema::kinds::{
@@ -1064,4 +1066,196 @@ fn twenty_five_rows_at_their_largest_fit_a_frame_and_with_25_bare_ids_beside_the
     );
     let split = replies_text(&rows, &listed[..12], &listed[12..]);
     assert_eq!(split.len(), with_ids.len() - 1);
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Form {
+    Count,
+    YesNo,
+}
+
+fn list_keys() -> Vec<(&'static str, Form)> {
+    let entry = kind("agent_run");
+    RUN_LIST_KEYS
+        .iter()
+        .map(|key| {
+            let types: Vec<FieldType> = entry
+                .fields
+                .iter()
+                .filter(|(k, _)| k == key)
+                .map(|(_, t)| *t)
+                .collect();
+            let form = match types[..] {
+                [FieldType::Count] => Form::Count,
+                [FieldType::Name] => Form::YesNo,
+                _ => panic!("{key}: {types:?}"),
+            };
+            (*key, form)
+        })
+        .collect()
+}
+
+#[test]
+fn the_keys_of_the_run_s_list_are_the_eleven_of_a7_4_in_their_order_and_two_are_yes_or_no() {
+    assert_eq!(
+        RUN_LIST_KEYS,
+        [
+            "before_start",
+            "cut",
+            "no_key",
+            "not_to_account",
+            "incomplete",
+            "reply_to_other",
+            "more_pages",
+            "held_recipient",
+            "organized",
+            "other_task",
+            "held_earlier",
+        ]
+    );
+    let yes_no: Vec<&str> = list_keys()
+        .into_iter()
+        .filter(|(_, form)| *form == Form::YesNo)
+        .map(|(key, _)| key)
+        .collect();
+    assert_eq!(yes_no, ["cut", "more_pages"]);
+}
+
+const RUN_HEAD: &str = r#""day":20768,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":1,"handbacks":0,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":14,"model":null"#;
+
+fn run_with(value: impl Fn(&str, Form) -> String) -> String {
+    let list: Vec<String> = list_keys()
+        .into_iter()
+        .map(|(key, form)| format!(r#""{key}":{}"#, value(key, form)))
+        .collect();
+    of_run(&format!("{RUN_HEAD},{}", list.join(",")))
+}
+
+fn list_values(run: &AgentRun) -> Vec<String> {
+    let v: serde_json::Value = serde_json::from_str(&run.to_json().unwrap()).unwrap();
+    RUN_LIST_KEYS
+        .iter()
+        .map(|key| v[*key].to_string())
+        .collect()
+}
+
+#[test]
+fn a_run_record_holds_each_key_of_the_run_s_list_in_its_order_as_a_count_a_yes_or_no_or_null() {
+    let nulls = run_with(|_, _| "null".to_owned());
+    let read = AgentRun::parse(nulls.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(read.to_json().unwrap(), nulls);
+    assert!(list_values(&read).iter().all(|v| v == "null"));
+    for (count, yes_no) in [("0", "no"), ("7", "yes"), ("4294967295", "no")] {
+        let text = run_with(|_, form| match form {
+            Form::Count => count.to_owned(),
+            Form::YesNo => format!("\"{yes_no}\""),
+        });
+        let read = AgentRun::parse(text.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(read.to_json().unwrap(), text);
+    }
+    let keys: Vec<String> =
+        serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&nulls)
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+    assert_eq!(keys.len(), 19 + RUN_LIST_KEYS.len());
+    for (key, form) in list_keys() {
+        let one = |text: &str| {
+            run_with(|k, _| {
+                if k == key {
+                    text.to_owned()
+                } else {
+                    "null".to_owned()
+                }
+            })
+        };
+        let dropped = nulls.replacen(&format!(r#","{key}":null"#), "", 1);
+        assert_eq!(dropped.len() + key.len() + 8, nulls.len(), "{key}");
+        expect(
+            AgentRun::parse(dropped.as_bytes()),
+            "AgentRun",
+            "missing_key",
+            key,
+        );
+        let refused: &[(&str, &str, &str)] = match form {
+            Form::Count => &[
+                ("\"yes\"", "count", "not_a_count"),
+                ("\"3\"", "count", "not_a_count"),
+                ("-1", "count", "not_a_count"),
+                ("1.5", "count", "not_a_count"),
+                ("true", "count", "not_a_count"),
+                ("[]", "count", "not_a_count"),
+                ("4294967296", "count", "range"),
+            ],
+            Form::YesNo => &[
+                ("\"maybe\"", "YesNo", "unknown_name"),
+                ("\"Yes\"", "YesNo", "unknown_name"),
+                ("0", "YesNo", "not_a_string"),
+                ("1", "YesNo", "not_a_string"),
+                ("true", "YesNo", "not_a_string"),
+                ("[\"yes\"]", "YesNo", "not_a_string"),
+            ],
+        };
+        for (value, type_name, rule) in refused {
+            expect(AgentRun::parse(one(value).as_bytes()), type_name, rule, key);
+        }
+    }
+}
+
+#[test]
+fn the_entry_of_agent_run_lists_the_keys_of_the_run_s_list_after_model_with_their_types() {
+    let entry = kind("agent_run");
+    let at = entry
+        .fields
+        .iter()
+        .position(|(key, _)| *key == "model")
+        .unwrap();
+    let after: Vec<&str> = entry.fields[at + 1..].iter().map(|(key, _)| *key).collect();
+    assert_eq!(after, RUN_LIST_KEYS);
+    assert_eq!(list_keys().len(), RUN_LIST_KEYS.len());
+    assert_eq!(check_entries(&[entry]), Vec::<String>::new());
+    let read = AgentRun::parse(entry.example.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(read.to_json().unwrap(), entry.example);
+    let nulls = run_with(|_, _| "null".to_owned());
+    assert_eq!(check_record(entry, &nulls), Ok(()));
+    for key in RUN_LIST_KEYS {
+        let dropped = nulls.replacen(&format!(r#","{key}":null"#), "", 1);
+        assert_eq!(
+            check_record(entry, &dropped),
+            Err(format!("agent_run: {key}: missing_key"))
+        );
+    }
+}
+
+#[test]
+fn the_names_of_the_run_s_list_stand_in_names_and_in_the_names_file() {
+    let file = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/names.txt"),
+    )
+    .unwrap();
+    let lines: Vec<&str> = file.lines().collect();
+    for key in RUN_LIST_KEYS {
+        assert!(executable::NAMES.contains(key), "{key}");
+        assert!(lines.contains(&key), "{key}");
+    }
+}
+
+#[test]
+fn a_run_row_with_every_key_at_its_largest_is_measured_in_bytes() {
+    let largest = format!(
+        r#"{{"v":1,"workflow":"{W}","agent":"{A}","run":"{R}","day":4294967295,"mode":"compile","outcome":"effect_unknown","playbook":4294967295,"steps":4294967295,"prompts":4294967295,"handbacks":2147483648,"confirmations":2147483647,"effects":4294967295,"unknown":4294967295,"model_calls":4294967295,"tokens_in":4294967295,"tokens_out":4294967295,"wall_s":4294967295,"model":"{}",{}}}"#,
+        "m".repeat(32),
+        list_keys()
+            .into_iter()
+            .map(|(key, form)| match form {
+                Form::Count => format!(r#""{key}":4294967295"#),
+                Form::YesNo => format!(r#""{key}":"yes""#),
+            })
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+    let read = AgentRun::parse(largest.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(read.to_json().unwrap(), largest);
+    assert_eq!(largest.len(), 745);
 }

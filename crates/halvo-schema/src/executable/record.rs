@@ -7,7 +7,7 @@ use super::bound::{check_kept, KeptField};
 use super::json::{self, each_once, from_json, list, object_type, opt};
 use super::names::{
     ActionClass, Cause, CheckpointState, EffectState, LeftReason, LogEvent, Mode, Outcome,
-    ReplyState,
+    ReplyState, YesNo,
 };
 use super::step::ExecutableStep;
 use super::text::{
@@ -18,50 +18,83 @@ use super::Refusal;
 /// The most parts of the stored session of one origin.
 pub const SESSION_PARTS_MAX: u32 = 64;
 
-object_type! {
-    /// One finished run, kind `agent_run`. `prompts` is the sum of `handbacks` and `confirmations`, `unknown` is at
-    /// most `effects`, and a run that is `completed` has no unknown effect. The key `mode` always stands: `compile`,
-    /// `replay`, or null in the record that the handler of `end_run` stores, whose outcome is `failed`; a null mode
-    /// beside the outcome of a `finish` is refused.
-    #[derive(Clone, Debug, PartialEq, Eq)]
-    pub struct AgentRun {
-        pub v: V1 = "v" => from_json,
-        pub workflow: WorkflowId = "workflow" => json::workflow_id,
-        pub agent: AgentId = "agent" => json::agent_id,
-        pub run: RunId = "run" => from_json,
-        pub day: u32 = "day" => from_json,
-        pub mode: Option<Mode> = "mode" => opt(from_json),
-        pub outcome: Outcome = "outcome" => from_json,
-        pub playbook: Option<NonZeroU32> = "playbook" => opt(from_json),
-        pub steps: u32 = "steps" => from_json,
-        pub prompts: u32 = "prompts" => from_json,
-        pub handbacks: u32 = "handbacks" => from_json,
-        pub confirmations: u32 = "confirmations" => from_json,
-        pub effects: u32 = "effects" => from_json,
-        pub unknown: u32 = "unknown" => from_json,
-        pub model_calls: u32 = "model_calls" => from_json,
-        pub tokens_in: u32 = "tokens_in" => from_json,
-        pub tokens_out: u32 = "tokens_out" => from_json,
-        pub wall_s: u32 = "wall_s" => from_json,
-        pub model: Option<Name> = "model" => opt(from_json),
-    }
-    rules(r) {
-        let fail = |key, rule| Err(Refusal::malformed("AgentRun", rule).at(key));
-        if r.mode.is_none() && r.outcome != Outcome::Failed {
-            return fail("mode", "mode_null_after_finish");
+macro_rules! run_list {
+    ($then:ident $($pass:tt)*) => {
+        $then! {
+            [$($pass)*]
+            before_start: Option<u32> = "before_start" => opt(from_json),
+            cut: Option<YesNo> = "cut" => opt(from_json),
+            no_key: Option<u32> = "no_key" => opt(from_json),
+            not_to_account: Option<u32> = "not_to_account" => opt(from_json),
+            incomplete: Option<u32> = "incomplete" => opt(from_json),
+            reply_to_other: Option<u32> = "reply_to_other" => opt(from_json),
+            more_pages: Option<YesNo> = "more_pages" => opt(from_json),
+            held_recipient: Option<u32> = "held_recipient" => opt(from_json),
+            organized: Option<u32> = "organized" => opt(from_json),
+            other_task: Option<u32> = "other_task" => opt(from_json),
+            held_earlier: Option<u32> = "held_earlier" => opt(from_json),
         }
-        if u64::from(r.prompts) != u64::from(r.handbacks) + u64::from(r.confirmations) {
-            return fail("prompts", "prompts_sum");
-        }
-        if r.unknown > r.effects {
-            return fail("unknown", "unknown_above_effects");
-        }
-        if r.outcome == Outcome::Completed && r.unknown > 0 {
-            return fail("unknown", "completed_with_unknown");
-        }
-        Ok(())
-    }
+    };
 }
+
+pub(in crate::executable) use run_list;
+
+macro_rules! agent_run {
+    ([] $( $field:ident : $ty:ty = $key:literal => $read:expr ),* $(,)?) => {
+        /// The keys of the run's list of `agent_run`, in their order after `model`: each a count or null, but `cut`
+        /// and `more_pages`, each `yes`, `no` or null.
+        pub const RUN_LIST_KEYS: &[&str] = &[$($key),*];
+
+        object_type! {
+            /// One finished run, kind `agent_run`. `prompts` is the sum of `handbacks` and `confirmations`, `unknown`
+            /// is at most `effects`, and a run that is `completed` has no unknown effect. The key `mode` always
+            /// stands: `compile`, `replay`, or null in the record that the handler of `end_run` stores, whose outcome
+            /// is `failed`; a null mode beside the outcome of a `finish` is refused. The keys of `RUN_LIST_KEYS`
+            /// follow `model`, each always present with its value or null and held to its type alone.
+            #[derive(Clone, Debug, PartialEq, Eq)]
+            pub struct AgentRun {
+                pub v: V1 = "v" => from_json,
+                pub workflow: WorkflowId = "workflow" => json::workflow_id,
+                pub agent: AgentId = "agent" => json::agent_id,
+                pub run: RunId = "run" => from_json,
+                pub day: u32 = "day" => from_json,
+                pub mode: Option<Mode> = "mode" => opt(from_json),
+                pub outcome: Outcome = "outcome" => from_json,
+                pub playbook: Option<NonZeroU32> = "playbook" => opt(from_json),
+                pub steps: u32 = "steps" => from_json,
+                pub prompts: u32 = "prompts" => from_json,
+                pub handbacks: u32 = "handbacks" => from_json,
+                pub confirmations: u32 = "confirmations" => from_json,
+                pub effects: u32 = "effects" => from_json,
+                pub unknown: u32 = "unknown" => from_json,
+                pub model_calls: u32 = "model_calls" => from_json,
+                pub tokens_in: u32 = "tokens_in" => from_json,
+                pub tokens_out: u32 = "tokens_out" => from_json,
+                pub wall_s: u32 = "wall_s" => from_json,
+                pub model: Option<Name> = "model" => opt(from_json),
+                $( pub $field: $ty = $key => $read, )*
+            }
+            rules(r) {
+                let fail = |key, rule| Err(Refusal::malformed("AgentRun", rule).at(key));
+                if r.mode.is_none() && r.outcome != Outcome::Failed {
+                    return fail("mode", "mode_null_after_finish");
+                }
+                if u64::from(r.prompts) != u64::from(r.handbacks) + u64::from(r.confirmations) {
+                    return fail("prompts", "prompts_sum");
+                }
+                if r.unknown > r.effects {
+                    return fail("unknown", "unknown_above_effects");
+                }
+                if r.outcome == Outcome::Completed && r.unknown > 0 {
+                    return fail("unknown", "completed_with_unknown");
+                }
+                Ok(())
+            }
+        }
+    };
+}
+
+run_list!(agent_run);
 
 object_type! {
     /// One step of one playbook, kind `agent_playbook`: the playbook's number, the step's number and the step,

@@ -189,6 +189,17 @@ fn agent_run(outcome: Outcome, mode: Mode, unknown: u32) -> AgentRun {
         tokens_out: 120,
         wall_s: 41,
         model: Some(name("qwen3_1_7b")),
+        before_start: None,
+        cut: None,
+        no_key: None,
+        not_to_account: None,
+        incomplete: None,
+        reply_to_other: None,
+        more_pages: None,
+        held_recipient: None,
+        organized: None,
+        other_task: None,
+        held_earlier: None,
     }
 }
 
@@ -210,11 +221,23 @@ fn runs() -> Vec<AgentRun> {
     ended.tokens_out = 0;
     ended.wall_s = 0;
     ended.model = None;
+    let mut replied = agent_run(Outcome::Completed, Mode::Replay, 0);
+    replied.before_start = Some(2);
+    replied.cut = Some(YesNo::Yes);
+    replied.no_key = Some(0);
+    replied.not_to_account = Some(1);
+    replied.incomplete = Some(0);
+    replied.reply_to_other = Some(1);
+    replied.more_pages = Some(YesNo::No);
+    replied.held_recipient = Some(1);
+    replied.other_task = Some(0);
+    replied.held_earlier = Some(3);
     vec![
         replay,
         agent_run(Outcome::Failed, Mode::Compile, 1),
         agent_run(Outcome::EffectUnknown, Mode::Replay, 1),
         ended,
+        replied,
     ]
 }
 

@@ -1,3 +1,4 @@
+use halvo_schema::executable::record::RUN_LIST_KEYS;
 use halvo_schema::executable::{self, AgentConfig, AgentRun};
 use halvo_schema::kinds::{
     check_entries, check_record, check_registry, registry, FieldType, KindEntry, Origin,
@@ -111,7 +112,9 @@ fn the_fields_of_each_entry_are_the_keys_of_its_record_with_their_types() {
         expected.push((key, Count));
     }
     expected.push(("model", Name));
-    assert_eq!(run, expected);
+    assert_eq!(run[..expected.len()], expected);
+    let list: Vec<&str> = run[expected.len()..].iter().map(|(key, _)| *key).collect();
+    assert_eq!(list, RUN_LIST_KEYS);
     let own_fields: [(&str, &[(&str, FieldType)]); 8] = [
         (
             "agent_playbook",
@@ -279,7 +282,7 @@ fn each_example_is_one_record_that_the_store_and_the_strict_reader_take_alike() 
             .unwrap(),
         run.example
     );
-    assert_eq!(keys(run).len(), 19);
+    assert_eq!(keys(run).len(), 19 + RUN_LIST_KEYS.len());
 }
 
 #[test]
