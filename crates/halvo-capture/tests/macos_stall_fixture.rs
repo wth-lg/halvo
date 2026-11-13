@@ -14,9 +14,7 @@ use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant, SystemTime};
 
-use core_graphics::event::{CGEvent, CGEventTapLocation, CGEventType, CGMouseButton};
-use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
-use core_graphics::geometry::CGPoint;
+use core_graphics::event::{CGEvent, CGEventTapLocation, CGEventType};
 use halvo_capture::event::Modality;
 use halvo_capture::macos::foreground::ForegroundReader;
 use halvo_capture::macos::input::{HoldPlan, InputCounters, InputSource};
@@ -211,6 +209,9 @@ impl Fixture {
     }
 
     fn reply(&mut self, prefix: &str, within: Duration) -> String {
+        if let Some(at) = self.notes.iter().position(|note| note.starts_with(prefix)) {
+            return self.notes.remove(at);
+        }
         let deadline = Instant::now() + within;
         loop {
             let left = deadline.saturating_duration_since(Instant::now());
@@ -250,6 +251,16 @@ impl Fixture {
 
     fn focus(&mut self, field: &str) {
         self.ask(field, "focus=");
+    }
+
+    fn keys(&mut self, step: Duration, keys: &str) {
+        self.send(&format!("keys {} {keys}", step.as_millis()));
+        self.reply("posted=", Duration::from_secs(20));
+    }
+
+    fn click(&mut self, at: &str) {
+        self.send(&format!("click {at}"));
+        self.reply("clicked", Duration::from_secs(10));
     }
 
     fn ended(&mut self) -> bool {
@@ -336,46 +347,25 @@ fn activate_from_here(pid: i32) -> bool {
         .is_some_and(|app| app.activateWithOptions(NSApplicationActivationOptions::empty()))
 }
 
-fn post(event: CGEvent) {
-    event.post(CGEventTapLocation::HID);
+fn codes(codes: &[u16]) -> String {
+    codes
+        .iter()
+        .map(u16::to_string)
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
-fn source() -> CGEventSource {
-    CGEventSource::new(CGEventSourceStateID::HIDSystemState).expect("an event source")
-}
-
-fn key(code: u16, down: bool) {
-    post(CGEvent::new_keyboard_event(source(), code, down).expect("a key event"));
-}
-
-fn press(code: u16, step: Duration) {
-    key(code, true);
-    std::thread::sleep(Duration::from_millis(3));
-    key(code, false);
-    std::thread::sleep(step.saturating_sub(Duration::from_millis(3)));
-}
-
-fn click(at: CGPoint) {
-    for etype in [CGEventType::LeftMouseDown, CGEventType::LeftMouseUp] {
-        post(
-            CGEvent::new_mouse_event(source(), etype, at, CGMouseButton::Left)
-                .expect("a mouse event"),
-        );
-        std::thread::sleep(Duration::from_millis(5));
-    }
-}
-
-fn secure_field_centre(fixture: &mut Fixture) -> CGPoint {
+fn secure_field_centre(fixture: &mut Fixture) -> String {
     let line = fixture.ask("where", "x=");
-    let mut point = CGPoint::new(0.0, 0.0);
+    let mut point = (String::new(), String::new());
     for word in line.split(' ') {
         match word.split_once('=') {
-            Some(("x", v)) => point.x = v.parse().expect("x is a number"),
-            Some(("y", v)) => point.y = v.parse().expect("y is a number"),
+            Some(("x", v)) => point.0 = v.to_owned(),
+            Some(("y", v)) => point.1 = v.to_owned(),
             _ => {}
         }
     }
-    point
+    format!("{} {}", point.0, point.1)
 }
 
 fn until(within: Duration, mut done: impl FnMut() -> bool) -> bool {
@@ -534,19 +524,19 @@ fn round(
     };
     fixture.send(&command);
     fixture.reply("waiting", Duration::from_secs(5));
+    let letters = codes(&LETTERS);
     match how {
-        Move::Tab | Move::LeavingKeyUp | Move::WholePassword => press(TAB, step),
-        Move::Click => click(centre.expect("the centre of the secure field")),
+        Move::Tab | Move::LeavingKeyUp => fixture.keys(step, &format!("{TAB} {letters}")),
+        Move::WholePassword => fixture.keys(step, &format!("{TAB} {letters} {RETURN}")),
+        Move::Click => {
+            fixture.click(&centre.expect("the centre of the secure field"));
+            fixture.keys(step, &letters);
+        }
         Move::Return => {
             activate_from_here(fixture.pid);
+            fixture.keys(step, &letters);
         }
-        Move::Itself => {}
-    }
-    for &letter in &LETTERS {
-        press(letter, step);
-    }
-    if how == Move::WholePassword {
-        press(RETURN, step);
+        Move::Itself => fixture.keys(step, &letters),
     }
     fixture.reply(
         "woke",
@@ -562,13 +552,13 @@ fn round(
         return round;
     }
     if how == Move::LeavingKeyUp {
-        key(RETURN, true);
+        fixture.keys(Duration::ZERO, &format!("{RETURN}d"));
         fixture.reply("left_secure", Duration::from_secs(3));
         if !state_reads(false, Duration::from_secs(2)) {
             round.why_not = "secure input did not read off after the leaving key";
             return round;
         }
-        key(RETURN, false);
+        fixture.keys(Duration::ZERO, &format!("{RETURN}u"));
     } else if how != Move::WholePassword {
         fixture.focus("plain");
     }
@@ -577,9 +567,7 @@ fn round(
         return round;
     }
     let markers_from = SystemTime::now();
-    for &marker in &MARKERS {
-        press(marker, Duration::from_millis(30));
-    }
+    fixture.keys(Duration::from_millis(30), &codes(&MARKERS));
     std::thread::sleep(bound + MARGIN);
     let state = fixture.state();
     round.plain = state.plain;
@@ -595,8 +583,8 @@ fn round(
     round
 }
 
-fn phase(name: &str, how: Move, waits: &[(u64, Duration)]) -> Vec<Round> {
-    let (mut fixture, front) = Fixture::start();
+fn started_fixture(name: &str) -> Fixture {
+    let (fixture, front) = Fixture::start();
     println!(
         "{name} fixture={} front_by={}",
         fixture.by,
@@ -606,12 +594,27 @@ fn phase(name: &str, how: Move, waits: &[(u64, Duration)]) -> Vec<Round> {
         front.is_some(),
         "refused: the fixture's window is not in front, so no key was posted"
     );
-    let bound = waits.iter().map(|&(_, bound)| bound).max();
-    let recorder = Recorder::start(source_for(bound.unwrap_or(SHORT_BOUND)));
+    fixture
+}
+
+fn phase_with(
+    name: &str,
+    how: Move,
+    waits: &[(u64, Duration)],
+    source: fn(Duration) -> InputSource,
+    count: usize,
+) -> Vec<Round> {
+    let mut fixture = started_fixture(name);
     let mut rounds = Vec::new();
+    let mut running: Option<(Duration, Recorder)> = None;
     for &(wait_ms, bound) in waits {
-        for number in 0..ROUNDS {
-            let round = round(&mut fixture, &recorder, how, wait_ms, bound);
+        if running.as_ref().map(|(at, _)| *at) != Some(bound) {
+            drop(running.take());
+            running = Some((bound, Recorder::start(source(bound))));
+        }
+        let recorder = &running.as_ref().expect("a source for the bound").1;
+        for number in 0..count {
+            let round = round(&mut fixture, recorder, how, wait_ms, bound);
             println!(
                 "{name} round={number} wait_ms={wait_ms} bound_ms={} counted={} ahead={} \
                  markers={} plain={} secure={}",
@@ -626,6 +629,10 @@ fn phase(name: &str, how: Move, waits: &[(u64, Duration)]) -> Vec<Round> {
         }
     }
     rounds
+}
+
+fn phase(name: &str, how: Move, waits: &[(u64, Duration)]) -> Vec<Round> {
+    phase_with(name, how, waits, source_for, ROUNDS)
 }
 
 fn judge(name: &str, rounds: &[Round]) {
@@ -693,6 +700,152 @@ fn known_fault_a_password_typed_whole_ahead_of_a_stall_is_not_recorded() {
         name,
         &phase(name, Move::WholePassword, &[(300, SHORT_BOUND)]),
     );
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn a_key_typed_ahead_of_a_click_into_a_secure_field_is_not_recorded() {
+    let name = "a_key_typed_ahead_of_a_click_into_a_secure_field_is_not_recorded";
+    judge(name, &phase(name, Move::Click, &stall_waits()));
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn a_key_typed_ahead_of_a_focus_move_by_the_program_is_not_recorded() {
+    let name = "a_key_typed_ahead_of_a_focus_move_by_the_program_is_not_recorded";
+    judge(name, &phase(name, Move::Itself, &stall_waits()));
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn a_key_typed_on_a_return_to_a_secure_field_is_not_recorded() {
+    let name = "a_key_typed_on_a_return_to_a_secure_field_is_not_recorded";
+    judge(name, &phase(name, Move::Return, &stall_waits()));
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn the_up_of_the_key_that_leaves_a_secure_field_is_not_recorded() {
+    let name = "the_up_of_the_key_that_leaves_a_secure_field_is_not_recorded";
+    judge(name, &phase(name, Move::LeavingKeyUp, &stall_waits()));
+}
+
+#[derive(Debug)]
+struct Control {
+    counted: bool,
+    why_not: &'static str,
+    plain: usize,
+    secure: usize,
+    after: usize,
+}
+
+fn control_round(fixture: &mut Fixture, recorder: &Recorder, bound: Duration) -> Control {
+    let mut control = Control {
+        counted: false,
+        why_not: "",
+        plain: 0,
+        secure: 0,
+        after: 0,
+    };
+    fixture.ask("clear", "cleared");
+    fixture.focus("plain");
+    if !state_reads(false, Duration::from_secs(2)) || !fixture.in_front() {
+        control.why_not = "the fixture was not in front with secure input off";
+        return control;
+    }
+    let plain_from = SystemTime::now();
+    fixture.keys(Duration::from_millis(30), &codes(&LETTERS[..5]));
+    std::thread::sleep(bound + MARGIN);
+    let secure_from = SystemTime::now();
+    control.plain = recorder.between(plain_from, secure_from);
+    fixture.focus("secure");
+    if !state_reads(true, Duration::from_secs(2)) {
+        control.why_not = "the secure field did not turn secure input on";
+        return control;
+    }
+    fixture.keys(Duration::from_millis(30), &codes(&LETTERS[5..]));
+    fixture.focus("plain");
+    if !state_reads(false, Duration::from_secs(2)) {
+        control.why_not = "secure input did not read off after the secure field";
+        return control;
+    }
+    let after_from = SystemTime::now();
+    fixture.keys(Duration::from_millis(30), &codes(&LETTERS[..3]));
+    std::thread::sleep(bound + MARGIN);
+    control.secure = recorder.between(secure_from, after_from);
+    control.after = recorder.between(after_from, SystemTime::now());
+    let state = fixture.state();
+    if state.plain != 8 || state.secure != 3 {
+        control.why_not = "the letters did not land where they were typed";
+        return control;
+    }
+    control.counted = true;
+    control
+}
+
+fn control_phase(name: &str, bound: Duration, source: InputSource, count: usize) {
+    let mut fixture = started_fixture(name);
+    let recorder = Recorder::start(source);
+    let mut rounds = Vec::new();
+    for number in 0..count {
+        let control = control_round(&mut fixture, &recorder, bound);
+        println!(
+            "{name} control={number} bound_ms={} counted={} plain_records={} secure_records={} \
+             after_records={}",
+            bound.as_millis(),
+            u8::from(control.counted),
+            control.plain,
+            control.secure,
+            control.after
+        );
+        rounds.push(control);
+    }
+    let not_counted: Vec<&str> = rounds
+        .iter()
+        .filter(|control| !control.counted)
+        .map(|control| control.why_not)
+        .collect();
+    assert!(
+        not_counted.is_empty(),
+        "{name}: control rounds that did not count: {}",
+        not_counted.join(", ")
+    );
+    for control in &rounds {
+        assert_eq!(
+            (control.plain, control.secure, control.after),
+            (5, 0, 3),
+            "{name}: records of five letters in the plain field, three in the secure field and \
+             three after it"
+        );
+    }
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_field() {
+    let name = "the_control_records_the_keys_typed_in_the_plain_field_and_none_of_the_secure_field";
+    control_phase(name, SHORT_BOUND, source_for(SHORT_BOUND), ROUNDS);
+}
+
+fn product_source(_bound: Duration) -> InputSource {
+    InputSource::new(
+        ForegroundReader::nothing_in_front(),
+        InputCounters::new(),
+        HoldPlan::Never,
+    )
+}
+
+#[test]
+#[ignore = "posts keys and shows a window: the hosted step alone runs it"]
+fn at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys() {
+    let name =
+        "at_the_bound_of_the_product_a_stall_records_nothing_and_the_control_records_its_keys";
+    let bound = halvo_capture::secure_input_macos::hold::HOLD_BOUND;
+    judge(
+        name,
+        &phase_with(name, Move::Tab, &[(300, bound)], product_source, 1),
+    );
+    control_phase(name, bound, product_source(bound), 1);
 }
 
 type Seen = Arc<Mutex<Vec<(u32, u64, u64, u64)>>>;
@@ -882,9 +1035,7 @@ fn the_probe_reports_what_the_stall_phases_rest_on() {
     println!("probe tap made={}", u8::from(tap.is_some()));
 
     fixture.focus("plain");
-    for &letter in &LETTERS[..3] {
-        press(letter, Duration::from_millis(20));
-    }
+    fixture.keys(Duration::from_millis(20), &codes(&LETTERS[..3]));
     std::thread::sleep(Duration::from_millis(300));
     let state = fixture.state();
     println!(
@@ -917,9 +1068,7 @@ fn the_probe_reports_what_the_stall_phases_rest_on() {
         state_reads(false, Duration::from_secs(2));
         let at = reply_time(&fixture.ask("secure", "focus="));
         let on_after = first_on_after(at, Duration::from_secs(2));
-        for &letter in &LETTERS[..3] {
-            press(letter, Duration::from_millis(20));
-        }
+        fixture.keys(Duration::from_millis(20), &codes(&LETTERS[..3]));
         std::thread::sleep(Duration::from_millis(300));
         let state = fixture.state();
         let leave = reply_time(&fixture.ask("plain", "focus="));
@@ -957,17 +1106,19 @@ fn the_probe_reports_what_the_stall_phases_rest_on() {
         };
         fixture.send(command);
         let waiting = reply_time(&fixture.reply("waiting", Duration::from_secs(5)));
+        let letters = codes(&LETTERS[..3]);
         match how {
-            Move::Tab => press(TAB, Duration::from_millis(10)),
-            Move::Click => click(centre),
+            Move::Tab => fixture.keys(Duration::from_millis(10), &format!("{TAB} {letters}")),
+            Move::Click => {
+                fixture.click(&centre);
+                fixture.keys(Duration::from_millis(10), &letters);
+            }
             Move::Return => {
                 let asked = activate_from_here(fixture.pid);
                 println!("probe return activate_asked={}", u8::from(asked));
+                fixture.keys(Duration::from_millis(10), &letters);
             }
-            _ => {}
-        }
-        for &letter in &LETTERS[..3] {
-            press(letter, Duration::from_millis(10));
+            _ => fixture.keys(Duration::from_millis(10), &letters),
         }
         let woke = reply_time(&fixture.reply("woke", Duration::from_secs(5)));
         let on_after_wake = first_on_after(woke, Duration::from_secs(2));
@@ -994,11 +1145,10 @@ fn the_probe_reports_what_the_stall_phases_rest_on() {
         let intervals = on_intervals(Duration::from_millis(1_500), || {
             fixture.send("stall 300");
             fixture.reply("waiting", Duration::from_secs(5));
-            press(TAB, Duration::from_millis(2));
-            for &letter in &LETTERS {
-                press(letter, Duration::from_millis(2));
-            }
-            press(RETURN, Duration::from_millis(2));
+            fixture.keys(
+                Duration::from_millis(2),
+                &format!("{TAB} {} {RETURN}", codes(&LETTERS)),
+            );
         });
         let state = fixture.state();
         let shortest = intervals.iter().min().copied();

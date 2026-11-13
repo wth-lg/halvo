@@ -13,6 +13,12 @@
 //                    answers woke at=<ns>
 //   hide             hides the app; answers hidden
 //   activate         asks to be the app in front; answers asked
+//   keys <ms> <k>... posts keys at the HID level from the thread that reads
+//                    the commands, so also while the main thread waits; each
+//                    <k> is a key code, pressed and let go, or a key code with
+//                    d or u for its down or its up alone; <ms> lies between two
+//                    of them; answers posted=<n> at=<ns>
+//   click <x> <y>    posts a click of the left button there; answers clicked at=<ns>
 //   quit             ends the program
 // Return in the secure field moves the focus to the plain field and writes
 // left_secure at=<ns>.
@@ -33,6 +39,49 @@ static unsigned long long uptime_ns(void) {
 static void say(NSString *line) {
     printf("%s\n", line.UTF8String);
     fflush(stdout);
+}
+
+static void post_key(CGKeyCode code, bool down) {
+    CGEventRef event = CGEventCreateKeyboardEvent(NULL, code, down);
+    if (event) {
+        CGEventPost(kCGHIDEventTap, event);
+        CFRelease(event);
+    }
+}
+
+static void post_keys(NSArray<NSString *> *words) {
+    useconds_t step = (useconds_t)words[1].intValue * 1000;
+    int posted = 0;
+    for (NSUInteger i = 2; i < words.count; i++) {
+        NSString *word = words[i];
+        CGKeyCode code = (CGKeyCode)word.intValue;
+        if ([word hasSuffix:@"d"]) {
+            post_key(code, true);
+        } else if ([word hasSuffix:@"u"]) {
+            post_key(code, false);
+        } else {
+            post_key(code, true);
+            usleep(3000);
+            post_key(code, false);
+        }
+        posted++;
+        if (i + 1 < words.count) usleep(step);
+    }
+    say([NSString stringWithFormat:@"posted=%d at=%llu", posted, uptime_ns()]);
+}
+
+static void post_click(NSArray<NSString *> *words) {
+    CGPoint at = CGPointMake(words[1].doubleValue, words[2].doubleValue);
+    CGEventType types[2] = {kCGEventLeftMouseDown, kCGEventLeftMouseUp};
+    for (int i = 0; i < 2; i++) {
+        CGEventRef event = CGEventCreateMouseEvent(NULL, types[i], at, kCGMouseButtonLeft);
+        if (event) {
+            CGEventPost(kCGHIDEventTap, event);
+            CFRelease(event);
+        }
+        usleep(5000);
+    }
+    say([NSString stringWithFormat:@"clicked at=%llu", uptime_ns()]);
 }
 
 static NSString *focusName(void) {
@@ -134,7 +183,14 @@ int main(void) {
             while (fgets(buffer, sizeof buffer, stdin)) {
                 buffer[strcspn(buffer, "\r\n")] = 0;
                 NSString *line = [NSString stringWithUTF8String:buffer];
-                dispatch_async(dispatch_get_main_queue(), ^{ handle(line); });
+                NSArray<NSString *> *words = [line componentsSeparatedByString:@" "];
+                if ([words.firstObject isEqualToString:@"keys"] && words.count >= 3) {
+                    post_keys(words);
+                } else if ([words.firstObject isEqualToString:@"click"] && words.count == 3) {
+                    post_click(words);
+                } else {
+                    dispatch_async(dispatch_get_main_queue(), ^{ handle(line); });
+                }
             }
             dispatch_async(dispatch_get_main_queue(), ^{ exit(0); });
         }];
