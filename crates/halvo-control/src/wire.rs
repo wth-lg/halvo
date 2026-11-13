@@ -316,15 +316,15 @@ mod tests {
             bytes.extend((0..body).map(|_| draw.next() as u8));
             inputs.push(bytes);
         }
-        TRACKED.with(|t| t.set(true));
         for bytes in &inputs {
+            TRACKED.with(|t| t.set(true));
             let _ = read_one_frame(&mut &bytes[..], REQUEST_MAX_BYTES);
+            TRACKED.with(|t| t.set(false));
+            let largest = LARGEST.load(Ordering::Relaxed);
+            assert!(
+                largest <= REQUEST_MAX_BYTES,
+                "the decoder allocated {largest} bytes for a frame of at most {REQUEST_MAX_BYTES}"
+            );
         }
-        TRACKED.with(|t| t.set(false));
-        let largest = LARGEST.load(Ordering::Relaxed);
-        assert!(
-            largest <= REQUEST_MAX_BYTES,
-            "the decoder allocated {largest} bytes for a frame of at most {REQUEST_MAX_BYTES}"
-        );
     }
 }
