@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,21 +78,44 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 20-r3-policy
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 20-r3-policy
+      - name: Loop the tests of U1.7 rounds 2 and 3 and the join
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          fail=0
+          while read -r pkg target name; do
+            exe=$(cargo test --locked -p "$pkg" --test "$target" --no-run </dev/null 2>&1 | sed -n 's/.*(\(target[^)]*\)).*/\1/p' | tail -n 1 | tr '\\' '/')
+            if [ -z "$exe" ]; then
+              echo "loop $pkg $target $name no binary"
+              fail=1
+              continue
+            fi
+            pass=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              out=$("$exe" --exact "$name" </dev/null 2>&1 || true)
+              case "$out" in
+                *"test result: ok. 1 passed"*) pass=$((pass + 1)) ;;
+              esac
+              i=$((i + 1))
+            done
+            echo "loop $pkg $target $name passes=$pass of 200"
+            if [ "$pass" -ne 200 ]; then fail=1; fi
+          done <<'EOF'
+          halvo-schema r3_replies a_page_of_25_rows_with_their_25_ids_blocked_fits_with_ids_of_775_bytes_and_not_with_776
+          halvo-schema r3_replies the_keys_of_the_run_s_list_are_the_twelve_of_a7_4_in_their_order_and_two_are_yes_or_no
+          halvo-schema r3_replies no_reply_of_another_form_answers_load_replies_and_its_reply_answers_no_other_call
+          halvo-schema r3_replies the_debug_form_of_a_provider_id_is_its_type_and_length_and_holds_no_part_of_the_id
+          halvo-schema r3_replies a_load_reply_with_no_start_row_answers_only_the_load_of_its_config_s_agent
+          halvo-schema r3_replies the_bound_of_a_load_replies_reply_decides_before_a_row_is_read_and_after_the_json_read
+          halvo-schema r3_replies the_775_bytes_of_an_id_are_the_bytes_that_compact_json_writes_backslashes_counted_twice
+          halvo-agent-store runner the_bodies_reply_row_and_load_replies_are_answered_malformed_and_store_nothing
+          halvo-runner frames the_finish_record_of_a_run_holds_each_key_of_the_run_s_list_as_null
+          EOF
+          exit "$fail"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -140,21 +152,44 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 20-r3-policy 20-schema
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 20-r3-policy 20-schema
+      - name: Loop the tests of U1.7 rounds 2 and 3 and the join
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          fail=0
+          while read -r pkg target name; do
+            exe=$(cargo test --locked -p "$pkg" --test "$target" --no-run </dev/null 2>&1 | sed -n 's/.*(\(target[^)]*\)).*/\1/p' | tail -n 1 | tr '\\' '/')
+            if [ -z "$exe" ]; then
+              echo "loop $pkg $target $name no binary"
+              fail=1
+              continue
+            fi
+            pass=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              out=$("$exe" --exact "$name" </dev/null 2>&1 || true)
+              case "$out" in
+                *"test result: ok. 1 passed"*) pass=$((pass + 1)) ;;
+              esac
+              i=$((i + 1))
+            done
+            echo "loop $pkg $target $name passes=$pass of 200"
+            if [ "$pass" -ne 200 ]; then fail=1; fi
+          done <<'EOF'
+          halvo-schema r3_replies a_page_of_25_rows_with_their_25_ids_blocked_fits_with_ids_of_775_bytes_and_not_with_776
+          halvo-schema r3_replies the_keys_of_the_run_s_list_are_the_twelve_of_a7_4_in_their_order_and_two_are_yes_or_no
+          halvo-schema r3_replies no_reply_of_another_form_answers_load_replies_and_its_reply_answers_no_other_call
+          halvo-schema r3_replies the_debug_form_of_a_provider_id_is_its_type_and_length_and_holds_no_part_of_the_id
+          halvo-schema r3_replies a_load_reply_with_no_start_row_answers_only_the_load_of_its_config_s_agent
+          halvo-schema r3_replies the_bound_of_a_load_replies_reply_decides_before_a_row_is_read_and_after_the_json_read
+          halvo-schema r3_replies the_775_bytes_of_an_id_are_the_bytes_that_compact_json_writes_backslashes_counted_twice
+          halvo-agent-store runner the_bodies_reply_row_and_load_replies_are_answered_malformed_and_store_nothing
+          halvo-runner frames the_finish_record_of_a_run_holds_each_key_of_the_run_s_list_as_null
+          EOF
+          exit "$fail"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
