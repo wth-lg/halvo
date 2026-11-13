@@ -277,3 +277,38 @@ fn a_next_with_no_change_answers_after_next_wait_and_not_later() {
     );
     assert_eq!(reply, fixture("reply-next-same"));
 }
+
+const PIN: &str =
+    "draft-rulings-u41-gates.md waits for a ruling; this test pins what the head does today";
+
+#[test]
+fn pin_point_2_a_next_whose_arguments_do_not_fit_answers_the_whole_state_at_once() {
+    let hub = hub(1, 4_000, 2_000);
+    let (_app, main, _other) = app(hub.clone());
+    let state = serde_json::to_string(&hub.coordinator().snapshot()).unwrap();
+    hub.hidden();
+    for _ in 0..2 {
+        let start = Instant::now();
+        let reply = invoke(&main, "agents_next", json!({"after": "x"}));
+        let took = start.elapsed();
+        assert_eq!(
+            reply,
+            Ok(state.clone()),
+            "point 2 of {PIN}: the whole state, also while the window is hidden"
+        );
+        assert!(
+            took < ms(1_000),
+            "point 2 of {PIN}: at once, with no coalescing: {took:?}"
+        );
+    }
+}
+
+#[test]
+fn pin_point_4_a_next_whose_after_is_above_the_seq_answers_the_whole_state_at_once() {
+    let hub = hub(1, 4_000, 2_000);
+    let (_app, main, _other) = app(hub.clone());
+    let seq = hub.coordinator().snapshot().seq;
+    let (reply, took) = wait_next(&main, seq + 5).join().unwrap();
+    assert_eq!(seq_of(&reply), u64::from(seq), "point 4 of {PIN}");
+    assert!(took < ms(1_000), "point 4 of {PIN}: at once: {took:?}");
+}

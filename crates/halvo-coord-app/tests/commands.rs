@@ -475,3 +475,33 @@ fn every_name_of_the_list_with_arguments_that_fit_is_answered_other_than_malform
         "a name of LIST with arguments that fit falls to malformed: {malformed:?}"
     );
 }
+
+const PIN: &str =
+    "draft-rulings-u41-gates.md waits for a ruling; this test pins what the head does today";
+
+#[test]
+fn pin_point_3_main_before_agents_is_managed_is_refused_and_a_fresh_hub_answers_seq_1() {
+    let bare = tauri::test::mock_builder()
+        .invoke_handler(halvo_coord_app::handler())
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+    let main = tauri::WebviewWindowBuilder::new(&bare, "main", Default::default())
+        .build()
+        .unwrap();
+    assert_eq!(
+        invoke(&main, "agents_snapshot", json!({})),
+        Err(json!(REFUSED)),
+        "point 3 of {PIN}: rejected with the text REFUSED"
+    );
+    let fresh = Hub::new(
+        world(1, Limits::PRODUCT),
+        Limits::PRODUCT,
+        Counts::default().sink(),
+        Dialogs::default().boxed(),
+    );
+    assert_eq!(
+        serde_json::to_string(&Core::call(&*fresh, "agents_snapshot", Some(&json!({})))).unwrap(),
+        r#"{"seq":1,"rows":[],"items":[],"note":null}"#,
+        "point 3 of {PIN}: before the first tick"
+    );
+}
