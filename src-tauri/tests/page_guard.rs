@@ -1,10 +1,9 @@
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
-use halvo_capture::consent::onboarding::{GrantState, Permission, PermissionProbe, RequestOutcome};
-use halvo_capture::consent::status::{Inventory, StoreInventory, UtcDay};
-use halvo_capture::store::{SegmentExpiry, ShredReport, StoreResult};
+use halvo_control::onboarding::Permission;
+use halvo_control::proto::{Platform, Request};
+use halvo_control::testing::{sample_status, ScriptedConnector, ScriptedDaemon};
 use serde_json::Value;
 use tauri::http::{HeaderMap, HeaderValue};
 use tauri::ipc::{CallbackFn, InvokeBody};
@@ -29,6 +28,8 @@ mod app;
 )]
 #[path = "../src/commands/mod.rs"]
 mod commands;
+#[path = "../src/engine.rs"]
+mod engine;
 #[expect(
     dead_code,
     reason = "this test crate compiles the app's launch.rs by path, because tray.rs names its exit codes: \
@@ -36,6 +37,8 @@ mod commands;
 )]
 #[path = "../src/launch.rs"]
 mod launch;
+#[path = "../src/poller.rs"]
+mod poller;
 #[expect(
     dead_code,
     reason = "this test crate compiles the app's tray.rs by path, because the capture commands refresh the tray: \
@@ -44,6 +47,13 @@ mod launch;
 )]
 #[path = "../src/tray.rs"]
 mod tray;
+#[expect(
+    dead_code,
+    reason = "this test crate compiles the app's view_state.rs by path, because the commands and the tray read the view: \
+              the parts of the view that no command of these tests returns stay unused here; the app's own build lints the whole module"
+)]
+#[path = "../src/view_state.rs"]
+mod view_state;
 
 const OTHER_LABELS: [&str; 2] = ["helper", "zq-label-of-this-test"];
 
@@ -69,61 +79,16 @@ fn scratch(name: &str) -> PathBuf {
     unreachable!("a free scratch name below u32::MAX")
 }
 
-#[derive(Clone, Default)]
-struct CountingStore {
-    shreds: Arc<AtomicU32>,
-}
-
-const NOTHING: ShredReport = ShredReport {
-    segments_shredded: 0,
-    keys_destroyed: 0,
-};
-
-impl SegmentExpiry for CountingStore {
-    fn crypto_shred_expired(&mut self) -> StoreResult<ShredReport> {
-        Ok(NOTHING)
-    }
-
-    fn crypto_shred_all(&mut self) -> StoreResult<ShredReport> {
-        self.shreds.fetch_add(1, Ordering::SeqCst);
-        Ok(ShredReport {
-            segments_shredded: 1,
-            keys_destroyed: 1,
-        })
-    }
-}
-
-impl StoreInventory for CountingStore {
-    fn inventory(&self) -> StoreResult<Inventory> {
-        Ok(Inventory::default())
-    }
-
-    fn crypto_shred_before(&mut self, _day: UtcDay) -> StoreResult<ShredReport> {
-        Ok(NOTHING)
-    }
-}
-
-struct GrantedProbe;
-
-impl PermissionProbe for GrantedProbe {
-    fn check(&self, _permission: Permission) -> GrantState {
-        GrantState::Granted
-    }
-
-    fn request(&self, _permission: Permission) -> RequestOutcome {
-        RequestOutcome::AlreadyGranted
-    }
-
-    fn macos_major_version(&self) -> Option<u32> {
-        Some(26)
-    }
+/// Whether a request of the control channel is of a kind that deletes: the delete of
+/// everything, and the cap, which evicts the oldest capture.
+fn deletes(request: &Request) -> bool {
+    matches!(
+        request,
+        Request::DeleteAll { .. } | Request::SetStorageCap { .. }
+    )
 }
 
 fn no_pane(_permission: Permission) -> Result<(), String> {
-    Ok(())
-}
-
-fn no_tray(_app: &tauri::AppHandle<MockRuntime>) -> tauri::Result<()> {
     Ok(())
 }
 
@@ -134,30 +99,31 @@ fn first_iteration_runs_the_set_up(app: &mut App<MockRuntime>) {
 
 struct Guarded {
     app: App<MockRuntime>,
-    shreds: Arc<AtomicU32>,
+    daemon: ScriptedConnector,
 }
 
 impl Guarded {
     fn new(name: &str, context: Context<MockRuntime>) -> Self {
-        let dir = scratch(name);
-        let store = CountingStore::default();
-        let shreds = store.shreds.clone();
+        #[cfg(not(windows))]
+        let _ = scratch(name);
+        let daemon = ScriptedConnector::new(ScriptedDaemon::new(sample_status(Platform::Macos)));
         let parts = app::Parts {
             #[cfg(windows)]
-            webview_data_dir: Some(dir.join("webview")),
-            config_dir: Some(dir),
-            store: Box::new(store),
-            store_backend: "the counting store of the guard tests",
-            probe: Box::new(GrantedProbe),
-            open_pane: no_pane,
-            tray: no_tray,
+            webview_data_dir: Some(scratch(name).join("webview")),
+            state: commands::capture::AppState::with_control(
+                Arc::new(commands::control::Gated::new(daemon.clone())),
+                None,
+                no_pane,
+            ),
+            tray: None,
+            poll: false,
             window_visible: false,
         };
         let mut app = app::build(mock_builder(), parts)
             .build(context)
             .expect("the app builds on the mock runtime");
         first_iteration_runs_the_set_up(&mut app);
-        Self { app, shreds }
+        Self { app, daemon }
     }
 
     fn main(&self) -> WebviewWindow<MockRuntime> {
@@ -179,8 +145,9 @@ impl Guarded {
             .expect("a window builds on the mock runtime")
     }
 
-    fn shreds(&self) -> u32 {
-        self.shreds.load(Ordering::SeqCst)
+    /// The requests of a kind that deletes that reached the scripted daemon.
+    fn shreds(&self) -> usize {
+        self.daemon.requests().iter().filter(|r| deletes(r)).count()
     }
 }
 
