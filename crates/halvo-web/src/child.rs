@@ -3,6 +3,38 @@ use std::path::{Path, PathBuf};
 pub const VAR: &str = "HALVO_WEB_CHILD";
 pub const ENTRY: &str = "child::entry";
 
+/// The child that a test starts on the pipe and that holds it for up to 10 s: on Windows the
+/// start adds `--remote-debugging-io-pipes=…` to its arguments, which a system program refuses at
+/// once (runs 43474813792 and 43498989750: `PING.EXE` ended before the test's read), so the child
+/// is this test binary running `pipe_child_entry` alone, with the start's argument after `--`,
+/// where the harness takes it as a filter that names no test. On macOS the start places the pipe
+/// at descriptors 3 and 4 and adds no argument, and the child is `/bin/sleep`.
+pub fn pipe_child() -> (PathBuf, Vec<std::ffi::OsString>) {
+    if cfg!(windows) {
+        (
+            std::env::current_exe().unwrap(),
+            vec![
+                "--exact".into(),
+                "--test-threads=1".into(),
+                "--quiet".into(),
+                "child::pipe_child_entry".into(),
+                "--".into(),
+            ],
+        )
+    } else {
+        (PathBuf::from("/bin/sleep"), vec!["10".into()])
+    }
+}
+
+/// The child of `pipe_child` on Windows: with the start's pipe argument it holds the pipe's ends
+/// for up to 10 s; in a run of the tests, with no such argument, it returns at once.
+#[test]
+fn pipe_child_entry() {
+    if std::env::args().any(|a| a.starts_with("--remote-debugging-io-pipes=")) {
+        std::thread::sleep(std::time::Duration::from_secs(10));
+    }
+}
+
 pub fn scratch(name: &str) -> PathBuf {
     let exe = std::env::current_exe().unwrap();
     let target = exe.ancestors().nth(3).unwrap().to_path_buf();

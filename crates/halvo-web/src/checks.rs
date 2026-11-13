@@ -1123,37 +1123,6 @@ mod tests {
         assert!(!read_holds(&counts));
     }
 
-    /// The child that the four rules' test starts on the pipe. On Windows the start adds
-    /// `--remote-debugging-io-pipes=…` to its arguments, which `PING.EXE` refuses at once (run
-    /// 43474813792), so the child is this test binary running `pipe_child_entry` alone, with the
-    /// start's argument after `--`, where the harness takes it as a filter that names no test. On
-    /// macOS the start places the pipe at descriptors 3 and 4 and adds no argument.
-    fn pipe_child() -> (std::path::PathBuf, Vec<std::ffi::OsString>) {
-        if cfg!(windows) {
-            (
-                std::env::current_exe().unwrap(),
-                vec![
-                    "--exact".into(),
-                    "--test-threads=1".into(),
-                    "--quiet".into(),
-                    "checks::tests::pipe_child_entry".into(),
-                    "--".into(),
-                ],
-            )
-        } else {
-            sleeper()
-        }
-    }
-
-    /// The child of `pipe_child` on Windows: with the start's pipe argument it holds the pipe's
-    /// ends for up to 10 s; in a run of the tests, with no such argument, it returns at once.
-    #[test]
-    fn pipe_child_entry() {
-        if std::env::args().any(|a| a.starts_with("--remote-debugging-io-pipes=")) {
-            std::thread::sleep(std::time::Duration::from_secs(10));
-        }
-    }
-
     fn sleeper() -> (std::path::PathBuf, Vec<std::ffi::OsString>) {
         if cfg!(windows) {
             (
@@ -1205,7 +1174,7 @@ mod tests {
             .unwrap();
         std::thread::sleep(std::time::Duration::from_millis(200));
         let work = crate::start::system_dir().unwrap();
-        let (child_program, child_args) = pipe_child();
+        let (child_program, child_args) = crate::child::pipe_child();
         let spec = crate::start::Spec {
             program: &child_program,
             args: child_args,

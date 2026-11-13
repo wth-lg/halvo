@@ -1081,22 +1081,11 @@ mod tests {
         );
     }
 
-    fn sleeper() -> (PathBuf, Vec<OsString>) {
-        if cfg!(windows) {
-            (
-                system_dir().unwrap().join("PING.EXE"),
-                vec!["-n".into(), "30".into(), "127.0.0.1".into()],
-            )
-        } else {
-            (PathBuf::from("/bin/sleep"), vec!["30".into()])
-        }
-    }
-
     /// M14: the kill of a started child waits for its end and reaps it, so its number names no
     /// process when `kill` returns.
     #[test]
     fn a_killed_child_is_reaped_when_kill_returns() {
-        let (program, args) = sleeper();
+        let (program, args) = crate::child::pipe_child();
         let work = system_dir().unwrap();
         let spec = Spec {
             program: &program,
@@ -1313,6 +1302,8 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn an_inheritable_handle_outside_the_list_is_not_open_in_the_child() {
+        // The child on the pipe is `child::pipe_child`, which holds the pipe until the test's
+        // reads (run 43498989750: `PING.EXE` ended before them).
         use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
         use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
         use windows_sys::Win32::System::Pipes::CreatePipe;
@@ -1327,7 +1318,7 @@ mod tests {
             // SAFETY: CreatePipe writes two new inheritable handles into the two locals.
             assert_ne!(unsafe { CreatePipe(&mut read, &mut write, &sa, 0) }, 0);
         }
-        let (program, args) = sleeper();
+        let (program, args) = crate::child::pipe_child();
         let work = system_dir().unwrap();
         let spec = Spec {
             program: &program,
