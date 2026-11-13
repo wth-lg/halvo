@@ -918,6 +918,45 @@ mod tests {
         assert!(decode_raw_input(&[0u8; 2]).is_none());
     }
 
+    #[cfg(target_os = "windows")]
+    fn header_of(kind: u32) -> Vec<u8> {
+        use windows::Win32::UI::Input::RAWINPUTHEADER;
+        let header = RAWINPUTHEADER {
+            dwType: kind,
+            dwSize: core::mem::size_of::<RAWINPUTHEADER>() as u32,
+            ..Default::default()
+        };
+        // SAFETY: `header` is a live, initialized RAWINPUTHEADER, and the slice
+        // covers exactly its bytes while `header` lives.
+        unsafe {
+            core::slice::from_raw_parts(
+                &header as *const RAWINPUTHEADER as *const u8,
+                core::mem::size_of::<RAWINPUTHEADER>(),
+            )
+        }
+        .to_vec()
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn decode_rejects_a_buffer_of_exactly_the_header_or_one_byte_short_of_its_record() {
+        use windows::Win32::UI::Input::{RAWINPUTHEADER, RAWKEYBOARD, RAWMOUSE};
+        let keyboard = header_of(RIM_TYPEKEYBOARD.0);
+        let mouse = header_of(RIM_TYPEMOUSE.0);
+        assert_eq!(keyboard.len(), core::mem::size_of::<RAWINPUTHEADER>());
+        assert_eq!(decode_raw_input(&keyboard), None);
+        assert_eq!(decode_raw_input(&mouse), None);
+        let mut short_key = keyboard.clone();
+        short_key.resize(keyboard.len() + core::mem::size_of::<RAWKEYBOARD>() - 1, 0);
+        assert_eq!(decode_raw_input(&short_key), None);
+        let mut short_mouse = mouse.clone();
+        short_mouse.resize(mouse.len() + core::mem::size_of::<RAWMOUSE>() - 1, 0);
+        assert_eq!(decode_raw_input(&short_mouse), None);
+        let mut whole_key = keyboard;
+        whole_key.resize(short_key.len() + 1, 0);
+        assert!(decode_raw_input(&whole_key).is_some());
+    }
+
     #[test]
     fn a_keyboard_source_refuses_a_second_begin_and_starts_again_after_its_stop() {
         use crate::source::{SourceContext, SourceState, Started};
