@@ -116,9 +116,10 @@ below it does not end the running test:
   exits with 143 for TERM, 130 for INT and 129 for HUP.
 - A test that is still running after 60 s is killed, and the line ends
   `the running case did not end within 60 s and was killed`: what that case
-  made may be left. A stop while no test runs ends
-  `no test was running`; a signal during a build or a gate check takes effect
-  when that command ends.
+  made may be left. A stop while no test runs ends `no test was running`. A
+  signal that reaches only the runner takes effect when its build, gate check
+  or copy of HEAD ends; a signal that ends such a step gives the STOPPED line
+  and no FAIL line for the step.
 - KILL cannot be caught. A caller that sends KILL some seconds after its TERM
   lets a case end only when the case ends within those seconds: give a run of
   rows a time limit above the time of its rows.

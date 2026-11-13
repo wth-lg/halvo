@@ -155,6 +155,10 @@ stop_on() {
   stop_signal=$1; stop_status=$2
 }
 
+stop_if_signalled() {
+  [ -z "$stop_signal" ] || stop_now "$1" "no test was running"
+}
+
 stop_now() {
   if [ -n "$1" ]; then say STOPPED "$1" "signal $stop_signal; $2"
   else printf 'STOPPED mutation (signal %s; no row had started)\n' "$stop_signal"; fi
@@ -168,7 +172,7 @@ test_ended() {
 
 test_wait() {
   test_kind=$1; test_limit=$2; shift 2
-  [ -z "$stop_signal" ] || stop_now "$row_name" "no test was running"
+  stop_if_signalled "$row_name"
   case $test_kind in
     cargo) ( cd "$tree" && trap '' TERM INT HUP && exec perl "$GATE_LIMIT" "$test_limit" "$@" ) > "$work/test.out" 2>&1 & ;;
     *) ( trap '' TERM INT HUP && exec perl "$GATE_LIMIT" "$test_limit" perl -e '$SIG{$_} = "DEFAULT" for qw(TERM INT HUP); exec { $ARGV[0] } @ARGV or exit 127' "$@" ) > "$work/test.out" 2>&1 & ;;
@@ -177,11 +181,14 @@ test_wait() {
   wait "$test_pid"
   test_status=$?
   [ -n "$stop_signal" ] || return 0
-  test_group=$(pgrep -P "$test_pid")
-  [ -z "$test_group" ] || kill -s TERM -- "-$test_group" 2> /dev/null
+  test_group=''
   stop_deadline=$(date +%s)
   stop_deadline=$((stop_deadline + stop_wait_s))
   until test_ended "$test_pid"; do
+    if [ -z "$test_group" ]; then
+      test_group=$(pgrep -P "$test_pid")
+      [ -z "$test_group" ] || kill -s TERM -- "-$test_group" 2> /dev/null
+    fi
     stop_clock=$(date +%s)
     if [ "$stop_clock" -ge "$stop_deadline" ]; then
       [ -z "$test_group" ] || kill -s KILL -- "-$test_group" 2> /dev/null
@@ -251,7 +258,7 @@ run_rows() {
   fi
   budget_start=''; timed_name=''; last_row=''
   while IFS="$TAB" read -r rows_file row_line row_name row_file row_subst row_verdict row_state _ <&3; do
-    [ -z "$stop_signal" ] || stop_now "$last_row" "no test was running"
+    stop_if_signalled "$last_row"
     last_row=$row_name
     if ! defect=$(row_defect); then
       say FAIL "$row_name" "$defect"; failures=$((failures + 1)); continue
@@ -298,12 +305,14 @@ run_rows() {
     if ! buildable "$mutated"; then say FAIL "$row_name" "the runner has no build for $mutated: a row mutates a file that cargo builds, or a .sh, .c, .pl or .swift file"; failures=$((failures + 1)); continue; fi
     if needs_cargo "$mutated" && [ "$built_unmutated" = no ]; then
       if ! tree_build > "$work/unmutated.out" 2>&1; then
+        stop_if_signalled "$row_name"
         first=$(head -1 "$work/unmutated.out")
         printf 'FAIL unmutated:build (%s)\n' "$first"; return 1
       fi
       built_unmutated=yes
       if [ "$apply_only" = no ]; then
         gate_lines
+        stop_if_signalled "$row_name"
         for gate_check in store deletion no-ll-hook; do
           gate_line=$(grep -E "^[A-Z-]+ $gate_check( |\$)" "$work/gate.out")
           case $gate_line in
@@ -330,6 +339,7 @@ run_rows() {
       say FAIL "$row_name" "the substitution did not apply"; failures=$((failures + 1)); continue
     fi
     if mutant_builds "$mutated"; then builds=yes; else builds=no; fi
+    stop_if_signalled "$row_name"
     if [ "$row_state" = control ]; then
       if [ "$builds" = no ]; then say PASS "$row_name" "control: the mutant does not build, and the runner did not count it as caught"
       else say FAIL "$row_name" "control: the mutant built, so the build step proves nothing"; failures=$((failures + 1)); fi
@@ -345,6 +355,7 @@ run_rows() {
           else say FAIL "$row_name" "$row_verdict: $outcome"; failures=$((failures + 1)); fi ;;
         *)
           gate_lines
+          stop_if_signalled "$row_name"
           if gate_line=$(mutant_verdict "$row_verdict" "$work/gate.out"); then say PASS "$row_name" "$row_verdict: gate said: $gate_line"; caught=$((caught + 1))
           else
             gate_line=$(tr '\n' ' ' < "$work/gate.out")
@@ -354,7 +365,7 @@ run_rows() {
     fi
     cp "$work/pristine" "$tree/$mutated" || return 2
   done 3< "$work/rows.loop"
-  [ -z "$stop_signal" ] || stop_now "$last_row" "no test was running"
+  stop_if_signalled "$last_row"
   if [ -n "$budget" ]; then
     row_now=$(date +%s)
     row_seconds
@@ -554,6 +565,8 @@ stopped_by() {
   [ "$stop_ended" = "$stop_ended_wanted" ] || stop_defects="$stop_defects; the stand-in ended by $stop_ended, not by $stop_ended_wanted"
   [ "$stop_starts" -eq "$stop_starts_wanted" ] || stop_defects="$stop_defects; the stand-ins started $stop_starts times, not $stop_starts_wanted"
   [ "$stop_left" -eq 0 ] || stop_defects="$stop_defects; $stop_left processes of the stand-ins are left"
+  stop_fail=$(grep -m 1 '^FAIL ' "$stop_fixture.out")
+  [ -z "$stop_fail" ] || stop_defects="$stop_defects; the runner printed $stop_fail"
   [ -n "$stop_defects" ] || return 0
   printf '%s\n' "${stop_defects#; }"
   return 1
@@ -914,6 +927,24 @@ cases() {
   t stop-during-a-build-starts-no-test PASS stopped_by stop-build TERM runner 60 run 143 gone itself 2 'STOPPED mutation:held (signal TERM; no test was running)'
   t stop-during-a-build-starts-no-new-row PASS stopped_by stop-build-apply TERM runner 60 apply-only 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
   t stop-during-the-last-build-prints-no-count PASS stopped_by stop-build-last TERM runner 60 apply-only 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  fixture_tree stop-build-group
+  stub_cc stop-build-group
+  row stop-build-group/scripts/r1-gate/mutants.rows held x.c 's/1/2/' leak required X-1
+  t stop-by-term-to-the-group-during-a-build-reports-no-build-failure PASS stopped_by stop-build-group TERM group 60 apply-only 143 left none 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  fixture_tree stop-unmutated
+  mkdir -p "$gate_scratch/stop-unmutated/crates/x/src"
+  printf 'pub fn f() -> i32 { 1 }\n' > "$gate_scratch/stop-unmutated/crates/x/src/lib.rs"
+  cp "$DIR/lib.sh" "$gate_scratch/stop-unmutated/scripts/r1-gate/lib.sh"
+  stub_cargo stop-unmutated 30
+  row stop-unmutated/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
+  t stop-by-term-to-the-group-during-the-unmutated-build-reports-no-build-failure PASS with_cargo_home stop-unmutated stopped_by stop-unmutated TERM group 60 apply-only 143 left none 1 'STOPPED mutation:held (signal TERM; no test was running)'
+}
+
+with_cargo_home() {
+  CARGO_HOME=$gate_scratch/$1
+  export CARGO_HOME
+  shift
+  "$@"
 }
 
 under_ci() {
@@ -950,8 +981,8 @@ main() {
   scratch_root
   work=$gate_scratch/work; tree=$gate_scratch/tree
   mkdir "$work" "$tree" || return 2
-  git -C "$GATE_ROOT" archive -o "$work/head.tar" HEAD || { say FAIL copy "git archive of HEAD failed"; return 2; }
-  tar -xmf "$work/head.tar" -C "$tree" || { say FAIL copy "the archive of HEAD could not be unpacked"; return 2; }
+  git -C "$GATE_ROOT" archive -o "$work/head.tar" HEAD || { stop_if_signalled ''; say FAIL copy "git archive of HEAD failed"; return 2; }
+  tar -xmf "$work/head.tar" -C "$tree" || { stop_if_signalled ''; say FAIL copy "the archive of HEAD could not be unpacked"; return 2; }
   if [ -d "$GATE_TARGET" ]; then
     mkdir "$tree/target" || return 2
     cp -Rpc "$GATE_TARGET" "$tree/target/r1-gate" 2> /dev/null || cp -Rp "$GATE_TARGET" "$tree/target/r1-gate" || return 2
