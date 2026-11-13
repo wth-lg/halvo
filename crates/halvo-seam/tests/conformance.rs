@@ -37,6 +37,7 @@ enum Fault {
     FilteredStopRepeats,
     FilteredStopRepeatsInTheNextBatch,
     FilteredStopSkipsARecord,
+    NextInTheFirstSegmentAtAStop,
 }
 
 use Fault::*;
@@ -311,6 +312,16 @@ impl Wrong {
         for x in &mut b.expiry {
             x.at = Instant(x.at.0.saturating_add(shift * 1_000_000_000));
         }
+        if self.fault == NextInTheFirstSegmentAtAStop && b.next != b.watermark {
+            if let (Some(first), Some(last)) = (b.records.first(), b.records.last()) {
+                if first.pos.seg != last.pos.seg {
+                    b.next = Position {
+                        seg: first.pos.seg,
+                        idx: first.pos.idx + b.records.len() as u64,
+                    };
+                }
+            }
+        }
         self.at_watermark = b.next == b.watermark;
         let Some(open) = self
             .last
@@ -537,6 +548,7 @@ fn conformance_check_filtered_stops() {
             (FilteredStopRepeats, [None, None, None, check]),
             (FilteredStopRepeatsInTheNextBatch, [None, None, None, check]),
             (FilteredStopSkipsARecord, [None, None, None, check]),
+            (NextInTheFirstSegmentAtAStop, [None, None, None, check]),
         ],
     );
 }

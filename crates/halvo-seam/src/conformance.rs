@@ -51,11 +51,13 @@ pub const CASES: [&str; 4] = ["resume", "shredded", "filters", "store_changed"];
 /// S at W, and at the highest watermark of the replies after the shred where that is above W, is no error,
 /// and its read serves no entry; after further calls of `shred_oldest` until every segment of the reference
 /// read is shredded, an `open_cursor` with S at W is no error, serves no entry and gets no watermark below W.
-/// `filtered_stops`, in the
-/// case `store_changed` after its read of set C: reads of set C under four filters (`window_title`, the range
-/// from the `at` of its 101st entry to that of its 401st, both, and `keystroke`), from the zero position and
-/// from its 151st entry, in which the 262,144 bytes of C5.7 item 5 stop Batches; each Batch holds every entry
-/// of C that passes the filter from the cursor's position up to its `next`, at its position, and no other.
+/// `filtered_stops`, in the case `store_changed` after its read of set C: `load` of the fourth text of set A
+/// and the text of set C, two batch files, whose read from the zero position must serve their records of a
+/// served kind in order; then reads of that store under four filters (`window_title`, the range from the `at`
+/// of its 101st entry to that of its 401st, both, and `keystroke`), from the zero position and from its 151st
+/// entry, in which the 262,144 bytes of C5.7 item 5 stop Batches (a server that takes as many lines as the
+/// bound allows crosses from the first file into the second before its first stop); each Batch holds every entry of that store that passes the filter from the cursor's
+/// position up to its `next`, at its position, and no other.
 /// `one_expiry_instant`, in every case: each `expiry` entry for a segment of one store id holds the instant
 /// that the first entry for that segment held in the case, in every reply to `read_batch`, on every cursor and
 /// connection and after a restart, among them a second connection of the case `filters` to the store that its
@@ -1158,11 +1160,30 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
             data_c.len()
         ));
     }
-    filtered_stops(&mut conn, &c).map_err(|e| format!("check {}: {e}", CHECKS[3]))
+    filtered_stops(subject, conn).map_err(|e| format!("check {}: {e}", CHECKS[3]))
 }
 
-fn filtered_stops<S: Subject>(conn: &mut Conn<S>, c: &Reading) -> Result<(), String> {
-    let entry = |i: usize| c.entries.get(i).ok_or("set C served too few entries");
+fn filtered_stops<S: Subject>(subject: &mut S, conn: Conn<S>) -> Result<(), String> {
+    let texts = [SET_A[3], SET_C[0]];
+    let instants = conn.end();
+    subject.load(&texts)?;
+    let mut conn = connect(subject, instants)?;
+    let what = "the read of the fourth text of set A and set C";
+    let c = read(&mut conn, None, ZERO, None, None).map_err(|e| format!("{what}: {e}"))?;
+    let data = records_of(&texts)?;
+    let matches = c.entries.len() == data.len()
+        && c.entries
+            .iter()
+            .zip(&data)
+            .all(|(e, d)| alike(&e.record, d));
+    if !matches {
+        return Err(format!(
+            "{what} served {} entries; want the {} records of a served kind in order",
+            c.entries.len(),
+            data.len()
+        ));
+    }
+    let entry = |i: usize| c.entries.get(i).ok_or("the store served too few entries");
     let range = (entry(100)?.record.at(), entry(400)?.record.at());
     let filters: [Filter; 4] = [
         ("window_title", Some(&["window_title"]), None),
@@ -1176,7 +1197,10 @@ fn filtered_stops<S: Subject>(conn: &mut Conn<S>, c: &Reading) -> Result<(), Str
     ];
     for start in [ZERO, entry(150)?.pos] {
         for (name, kinds, range) in filters {
-            let name = format!("the filter {name} on set C from {}", show(start));
+            let name = format!(
+                "the filter {name} on the fourth text of set A and set C from {}",
+                show(start)
+            );
             let want: Vec<Entry> = c
                 .entries
                 .iter()
@@ -1184,7 +1208,7 @@ fn filtered_stops<S: Subject>(conn: &mut Conn<S>, c: &Reading) -> Result<(), Str
                 .filter(|e| range.is_none_or(|(a, b)| e.record.at() >= a && e.record.at() < b))
                 .cloned()
                 .collect();
-            let reading = read(conn, Some(&c.store), start, kinds, range)
+            let reading = read(&mut conn, Some(&c.store), start, kinds, range)
                 .map_err(|e| format!("{name}: {e}"))?;
             let mut from = 0;
             for &(cursor, next, n) in &reading.spans {
@@ -1200,7 +1224,7 @@ fn filtered_stops<S: Subject>(conn: &mut Conn<S>, c: &Reading) -> Result<(), Str
                     .collect();
                 if !same(got, &due) {
                     return Err(format!(
-                        "{name}: the Batch from {} to next {} served {} entries; want the {} records of C that pass the filter from its position up to next, each once",
+                        "{name}: the Batch from {} to next {} served {} entries; want the {} records of that store that pass the filter from its position up to next, each once",
                         show(cursor),
                         show(next),
                         got.len(),
