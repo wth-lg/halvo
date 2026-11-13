@@ -290,7 +290,11 @@ impl<'c> Play<'c> {
         })
     }
 
-    /// The workflow, the agent and the compile of the case from the page of its first occurrence (L10.3).
+    /// The workflow, the agent and the compile of the case from the page of its first occurrence (L10.3). It
+    /// stores the workflow, then sends, in order: `create_agent`, a `start_run` of the mode `compile`, a `load`,
+    /// the `put_playbook` of the compiled playbook under number 1, `finish`, and `set_state` to `active`. That the
+    /// stub sends these "as the runner does" is shown by code for the `load` alone (the product's runner loads
+    /// straight after its hello in every run); the runner's compile path is not built.
     pub fn compile(&mut self) -> Result<(), String> {
         let first = &self.case.occurrences[0].page;
         let mut steps = Vec::new();

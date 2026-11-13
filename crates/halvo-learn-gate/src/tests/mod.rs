@@ -1,4 +1,5 @@
 mod admission;
+mod compile;
 mod delete;
 mod drift;
 mod limits;
