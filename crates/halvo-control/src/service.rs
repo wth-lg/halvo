@@ -425,8 +425,7 @@ mod registry {
         ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, ERROR_UNSUPPORTED_TYPE, WIN32_ERROR,
     };
     use windows::Win32::System::Registry::{
-        RegCloseKey, RegCreateKeyExW, RegDeleteKeyValueW, RegGetValueW, RegSetValueExW, HKEY,
-        HKEY_CURRENT_USER, KEY_SET_VALUE, REG_OPTION_NON_VOLATILE, REG_SZ, RRF_RT_REG_SZ,
+        RegDeleteKeyValueW, RegGetValueW, RegSetValueExW, HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_SZ,
     };
 
     use super::{InstallOutcome, RemoveOutcome, StartValueSpec};
@@ -439,13 +438,55 @@ mod registry {
         std::io::Error::from_raw_os_error(code.0 as i32)
     }
 
-    struct Key(HKEY);
+    mod key {
+        use windows::core::PCWSTR;
+        use windows::Win32::Foundation::ERROR_SUCCESS;
+        use windows::Win32::System::Registry::{
+            RegCloseKey, RegCreateKeyExW, HKEY, HKEY_CURRENT_USER, KEY_SET_VALUE,
+            REG_OPTION_NON_VOLATILE,
+        };
 
-    impl Drop for Key {
-        fn drop(&mut self) {
-            // SAFETY: a Key holds the handle that RegCreateKeyExW opened, and this drop closes it
-            // once.
-            let _ = unsafe { RegCloseKey(self.0) };
+        use super::{os_error, wide, StartValueSpec};
+
+        /// The open key of a start value's spec under HKEY_CURRENT_USER; only `create` makes one.
+        pub(super) struct Key(HKEY);
+
+        impl Key {
+            pub(super) fn create(spec: &StartValueSpec) -> std::io::Result<Key> {
+                let key = wide(spec.key());
+                let mut handle = HKEY::default();
+                // SAFETY: `key` is a NUL-terminated wide string that lives across the call, the
+                // class is null, and `handle` is a live HKEY that the call writes.
+                let created = unsafe {
+                    RegCreateKeyExW(
+                        HKEY_CURRENT_USER,
+                        PCWSTR(key.as_ptr()),
+                        None,
+                        PCWSTR::null(),
+                        REG_OPTION_NON_VOLATILE,
+                        KEY_SET_VALUE,
+                        None,
+                        &mut handle,
+                        None,
+                    )
+                };
+                if created != ERROR_SUCCESS {
+                    return Err(os_error(created));
+                }
+                Ok(Key(handle))
+            }
+
+            pub(super) fn handle(&self) -> HKEY {
+                self.0
+            }
+        }
+
+        impl Drop for Key {
+            fn drop(&mut self) {
+                // SAFETY: only `create` makes a Key, from a handle that RegCreateKeyExW opened,
+                // and this drop closes it once.
+                let _ = unsafe { RegCloseKey(self.0) };
+            }
         }
     }
 
@@ -508,35 +549,23 @@ mod registry {
         if stored.as_deref() == Some(data.as_str()) {
             return Ok(InstallOutcome::Unchanged);
         }
-        let (key, name) = (wide(spec.key()), wide(spec.value_name()));
-        let mut handle = HKEY::default();
-        // SAFETY: `key` is a NUL-terminated wide string that lives across the call, the class is
-        // null, and `handle` is a live HKEY that the call writes.
-        let created = unsafe {
-            RegCreateKeyExW(
-                HKEY_CURRENT_USER,
-                PCWSTR(key.as_ptr()),
-                None,
-                PCWSTR::null(),
-                REG_OPTION_NON_VOLATILE,
-                KEY_SET_VALUE,
-                None,
-                &mut handle,
-                None,
-            )
-        };
-        if created != ERROR_SUCCESS {
-            return Err(os_error(created));
-        }
-        let handle = Key(handle);
+        let name = wide(spec.value_name());
+        let handle = key::Key::create(spec)?;
         let bytes: Vec<u8> = wide(&data)
             .iter()
             .flat_map(|unit| unit.to_le_bytes())
             .collect();
-        // SAFETY: `handle.0` is the key that RegCreateKeyExW opened, `name` ends in a NUL, and
-        // `name` and `bytes` live across the call.
-        let set =
-            unsafe { RegSetValueExW(handle.0, PCWSTR(name.as_ptr()), None, REG_SZ, Some(&bytes)) };
+        // SAFETY: `handle` holds the key that RegCreateKeyExW opened with KEY_SET_VALUE, `name`
+        // ends in a NUL, and `name` and `bytes` live across the call.
+        let set = unsafe {
+            RegSetValueExW(
+                handle.handle(),
+                PCWSTR(name.as_ptr()),
+                None,
+                REG_SZ,
+                Some(&bytes),
+            )
+        };
         if set != ERROR_SUCCESS {
             return Err(os_error(set));
         }

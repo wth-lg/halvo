@@ -664,21 +664,46 @@ mod system {
     use std::os::windows::ffi::OsStringExt;
 
     use windows::core::{GUID, HRESULT, PWSTR};
-    use windows::Win32::Foundation::{CloseHandle, HANDLE};
-    use windows::Win32::Security::{TOKEN_IMPERSONATE, TOKEN_QUERY};
+    use windows::Win32::Foundation::{E_POINTER, HANDLE};
     use windows::Win32::System::Com::CoTaskMemFree;
-    use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
     use windows::Win32::UI::Shell::{FOLDERID_LocalAppData, KF_FLAG_DEFAULT};
 
     use super::PathError;
 
-    struct Token(HANDLE);
+    mod token {
+        use windows::Win32::Foundation::{CloseHandle, HANDLE};
+        use windows::Win32::Security::{TOKEN_IMPERSONATE, TOKEN_QUERY};
+        use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
-    impl Drop for Token {
-        fn drop(&mut self) {
-            // SAFETY: a Token holds the handle that OpenProcessToken opened, and this drop closes
-            // it once.
-            let _ = unsafe { CloseHandle(self.0) };
+        /// The access token of the current process; only `open` makes one.
+        pub(super) struct Token(HANDLE);
+
+        impl Token {
+            pub(super) fn open() -> windows::core::Result<Token> {
+                let mut handle = HANDLE::default();
+                // SAFETY: GetCurrentProcess returns a pseudo-handle that needs no closing, and
+                // `handle` is a live HANDLE that the call writes.
+                unsafe {
+                    OpenProcessToken(
+                        GetCurrentProcess(),
+                        TOKEN_QUERY | TOKEN_IMPERSONATE,
+                        &mut handle,
+                    )
+                }?;
+                Ok(Token(handle))
+            }
+
+            pub(super) fn handle(&self) -> HANDLE {
+                self.0
+            }
+        }
+
+        impl Drop for Token {
+            fn drop(&mut self) {
+                // SAFETY: only `open` makes a Token, from a handle that OpenProcessToken opened,
+                // and this drop closes it once.
+                let _ = unsafe { CloseHandle(self.0) };
+            }
         }
     }
 
@@ -692,41 +717,41 @@ mod system {
                     tests::FREED.with(|freed| freed.set(freed.get() + 1));
                 }
             }
-            // SAFETY: the pointer is null or the buffer that SHGetKnownFolderPath allocated for its
-            // caller to free, and this drop frees it once; CoTaskMemFree of a null pointer does
+            // SAFETY: the pointer is null, or a buffer of the COM task allocator that this value
+            // alone owns, and this drop frees it once; CoTaskMemFree of a null pointer does
             // nothing.
             unsafe { CoTaskMemFree(Some(self.0 .0 as *const _)) };
         }
     }
 
-    fn known_folder(
+    /// Runs `call` with the out pointer of a buffer that is freed on every path, and copies the
+    /// string out of it on success. A success that left the pointer null is a lookup error.
+    ///
+    /// # Safety
+    ///
+    /// On success `call` has set the out pointer to a NUL-terminated string in a buffer of the
+    /// COM task allocator that nothing else frees; on failure it has left it null or set it to
+    /// such a buffer.
+    unsafe fn known_folder(
         call: impl FnOnce(*mut PWSTR) -> HRESULT,
     ) -> Result<Option<OsString>, PathError> {
         let mut path = TaskMem(PWSTR::null());
         call(&mut path.0)
             .ok()
             .map_err(|e| PathError::Lookup(e.code().0))?;
-        // SAFETY: the call succeeded, so `path.0` points to a NUL-terminated string, which
-        // `path` frees only after this copy.
+        if path.0.is_null() {
+            return Err(PathError::Lookup(E_POINTER.0));
+        }
+        // SAFETY: the call succeeded and set the pointer, so by the condition of this function
+        // it points to a NUL-terminated string, which `path` frees only after this copy.
         let wide = unsafe { path.0.as_wide() };
         Ok(Some(OsString::from_wide(wide)))
     }
 
     pub fn base_dir() -> Result<Option<OsString>, PathError> {
-        let mut token = HANDLE::default();
-        // SAFETY: GetCurrentProcess returns a pseudo-handle that needs no closing, and `token` is a
-        // live HANDLE that the call writes.
-        unsafe {
-            OpenProcessToken(
-                GetCurrentProcess(),
-                TOKEN_QUERY | TOKEN_IMPERSONATE,
-                &mut token,
-            )
-        }
-        .map_err(|e| PathError::Lookup(e.code().0))?;
-        let token = Token(token);
+        let token = token::Token::open().map_err(|e| PathError::Lookup(e.code().0))?;
         windows::core::link!("shell32.dll" "system" fn SHGetKnownFolderPath(rfid: *const GUID, dwflags: u32, htoken: HANDLE, ppszpath: *mut PWSTR) -> HRESULT);
-        known_folder(|path| {
+        let lookup = |path: *mut PWSTR| {
             // SAFETY: the folder id is a static GUID, the token is open with the TOKEN_QUERY and
             // TOKEN_IMPERSONATE rights that the function asks for, and `path` is the live out
             // pointer of a PWSTR that the call writes.
@@ -734,11 +759,15 @@ mod system {
                 SHGetKnownFolderPath(
                     &FOLDERID_LocalAppData,
                     KF_FLAG_DEFAULT.0 as u32,
-                    token.0,
+                    token.handle(),
                     path,
                 )
             }
-        })
+        };
+        // SAFETY: SHGetKnownFolderPath sets the out pointer to a string that the COM task
+        // allocator holds for its caller to free, on success and on failure alike, or leaves it
+        // null; nothing else frees it, so the condition of known_folder holds.
+        unsafe { known_folder(lookup) }
     }
 
     pub fn user_temp_dir() -> Result<Option<super::DarwinUserTempDir>, PathError> {
@@ -750,7 +779,7 @@ mod system {
         use std::cell::Cell;
 
         use windows::core::{HRESULT, PWSTR};
-        use windows::Win32::Foundation::E_FAIL;
+        use windows::Win32::Foundation::{E_FAIL, E_POINTER};
         use windows::Win32::System::Com::CoTaskMemAlloc;
 
         use super::{known_folder, PathError};
@@ -776,20 +805,35 @@ mod system {
         #[test]
         fn a_failed_lookup_that_hands_back_a_buffer_frees_it_and_answers_its_code() {
             let before = FREED.with(Cell::get);
-            assert_eq!(
-                known_folder(|path| stand_in(path, E_FAIL)),
-                Err(PathError::Lookup(E_FAIL.0))
-            );
+            // SAFETY: stand_in sets the out pointer to a NUL-terminated string in a buffer of
+            // the COM task allocator that nothing else frees.
+            let failed = unsafe { known_folder(|path| stand_in(path, E_FAIL)) };
+            assert_eq!(failed, Err(PathError::Lookup(E_FAIL.0)));
             assert_eq!(
                 FREED.with(Cell::get),
                 before + 1,
                 "the buffer was not freed"
             );
-            let ok = known_folder(|path| stand_in(path, HRESULT(0)))
+            // SAFETY: as above, stand_in sets the out pointer to such a buffer.
+            let ok = unsafe { known_folder(|path| stand_in(path, HRESULT(0))) }
                 .unwrap()
                 .unwrap();
             assert_eq!(ok, "C:\\stand-in");
             assert_eq!(FREED.with(Cell::get), before + 2);
+        }
+
+        #[test]
+        fn a_success_that_left_the_pointer_null_is_a_lookup_error_and_is_never_read() {
+            let before = FREED.with(Cell::get);
+            // SAFETY: the call writes nothing, so the out pointer stays null and no buffer is
+            // handed out; known_folder reads no string on that path.
+            let empty = unsafe { known_folder(|_| HRESULT(0)) };
+            assert_eq!(empty, Err(PathError::Lookup(E_POINTER.0)));
+            assert_eq!(
+                FREED.with(Cell::get),
+                before,
+                "a null pointer was counted as a buffer"
+            );
         }
     }
 }
