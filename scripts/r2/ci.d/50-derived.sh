@@ -167,6 +167,9 @@ esac
 #= src/lib.rs tests::two_unit_directories_of_one_name_in_one_process_get_two_paths
 #= tests/past_bound.rs a_dropped_fixture_leaves_no_directory
 #= tests/privacy.rs the_keyless_open_refuses_a_keyed_database_and_the_keyed_open_a_keyless_one
+#= tests/privacy.rs the_expiry_of_an_open_leaves_no_marker_of_the_rows_that_it_removed
+#= tests/privacy.rs every_place_that_removes_or_checkpoints_stands_on_a_list_with_its_search
+#= tests/privacy.rs a_removed_row_on_a_page_that_the_database_built_again_leaves_no_marker
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"

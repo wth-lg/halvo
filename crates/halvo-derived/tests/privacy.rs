@@ -1047,7 +1047,17 @@ fn the_ciphertext_check_finds_no_planted_marker_in_the_raw_file_bytes() {
 const SECOND: &str = "HALVO_DERIVED_SECOND_PROCESS_DIR";
 const SECOND_TEST: &str = "a_second_process_is_refused_also_with_the_lock_file_unlinked";
 const SECOND_TOKEN: &str = "HALVO_DERIVED_SECOND_PROCESS_TOKEN";
+/// The file in the parent's scratch directory that holds the token of the second-process test. The child branch runs
+/// only where the token in the child's environment equals the one that the parent wrote into this file, so that a
+/// variable set from outside cannot turn a run of the binary into the child: a run with a token that the parent did not
+/// write runs the test as a parent, which skips the test's last step.
 const TOKEN_FILE: &str = "second-process-token";
+/// How long the test waits for a child that runs as the second process.
+const CHILD_BOUND: Duration = Duration::from_secs(120);
+/// How long the test waits for the child that runs the whole test as a parent. Such a run starts three children of its
+/// own one after another and waits up to `CHILD_BOUND` for each, so this bound is longer than the three together, and
+/// the outer wait never ends while the inner run may still pass.
+const PARENT_RUN_BOUND: Duration = Duration::from_secs(480);
 const LOCKED: i32 = 40;
 const OPENED: i32 = 41;
 const OTHER: i32 = 42;
@@ -1073,10 +1083,10 @@ impl Second {
         Second(child)
     }
 
-    /// The exit code of the second process, waited for at most 120 seconds.
-    fn code(mut self) -> Option<i32> {
+    /// The exit code of the second process, waited for at most `bound`.
+    fn code(mut self, bound: Duration) -> Option<i32> {
         let start = std::time::Instant::now();
-        while start.elapsed() < Duration::from_secs(120) {
+        while start.elapsed() < bound {
             if let Some(status) = self.0.try_wait().unwrap() {
                 return status.code();
             }
@@ -1095,9 +1105,6 @@ impl Drop for Second {
     }
 }
 
-/// The child branch runs only where the token in the child's environment equals the one that the parent wrote into its
-/// own scratch directory, so that a variable set from outside cannot turn a run of the binary into the child: a run
-/// with a token that the parent did not write runs the test as a parent, which skips this last step.
 /// A second process is refused while a store holds the derived database: with the writer lock file in place, and
 /// again after the lock file is unlinked, when the second process takes a new lock file and the database's exclusive
 /// lock refuses it. The control: after the store is closed, a second process opens it.
@@ -1120,6 +1127,10 @@ fn a_second_process_is_refused_also_with_the_lock_file_unlinked() {
             Err(_) => OTHER,
         });
     }
+    assert!(
+        PARENT_RUN_BOUND > CHILD_BOUND * 3,
+        "the bound of the child that runs as a parent exceeds the bounds of its three children"
+    );
     let scratch = Scratch::new("second-process");
     let token = format!(
         "{}-{}",
@@ -1139,26 +1150,26 @@ fn a_second_process_is_refused_also_with_the_lock_file_unlinked() {
     let lock = scratch.path().join("derived").join("writer.lock");
     assert!(lock.exists(), "the lock file of the open store");
     assert_eq!(
-        Second::start(scratch.path(), &token).code(),
+        Second::start(scratch.path(), &token).code(CHILD_BOUND),
         Some(LOCKED),
         "a second process with the lock file in place"
     );
     std::fs::remove_file(&lock).unwrap();
     assert!(!lock.exists(), "the lock file after it is unlinked");
     assert_eq!(
-        Second::start(scratch.path(), &token).code(),
+        Second::start(scratch.path(), &token).code(CHILD_BOUND),
         Some(LOCKED),
         "a second process with the lock file unlinked"
     );
     drop(store);
     assert_eq!(
-        Second::start(scratch.path(), &token).code(),
+        Second::start(scratch.path(), &token).code(CHILD_BOUND),
         Some(OPENED),
         "the control: a second process after the store is closed"
     );
     if outside.is_none() {
         assert_eq!(
-            Second::start(scratch.path(), "a token that the parent did not write").code(),
+            Second::start(scratch.path(), "a token that the parent did not write").code(PARENT_RUN_BOUND),
             Some(0),
             "a run with the directory set from outside and no matching token runs the test as a parent and passes"
         );
@@ -1426,5 +1437,450 @@ fn the_keyless_open_refuses_a_keyed_database_and_the_keyed_open_a_keyless_one() 
         fingerprint(&plain_made),
         before,
         "the entries of a keyless database after the refused keyed open"
+    );
+}
+
+const OPEN_BY_BOUND: &str = "qzopenexp70701";
+const OPEN_BY_SWEEP: &str = "qzopenswp70702";
+const OPEN_KEPT: &str = "qzopenkpt70703";
+
+/// The expiry of an open, searched right after it (ruling S-81, F1): a keyless store holds three evidence rows with a
+/// marker each in their observed titles: one whose window ends the next day, which the open's expiry removes by its own
+/// bound; one whose summary passes its bound of 93 days at the open, which the open removes with that summary by the
+/// sweep of every evidence row whose summary is not stored; and one that stays. Every marker is found while its row is
+/// stored, also after the store is closed. Two days later by the host's clock the store is opened again, and right
+/// after that open, with the store open and before any other call, the two removed markers are in no entry of
+/// `derived/` and the staying one is found. The test's own connection then shows which path each row went.
+#[test]
+fn the_expiry_of_an_open_leaves_no_marker_of_the_rows_that_it_removed() {
+    let scratch = Scratch::new("open-expiry");
+    let clock = TestClock::at_day(DAY);
+    let host = || Host::new(Box::new(clock.clone()), Box::new(NoProposals));
+    let mut store = keyless(&scratch, &registry(), host());
+    let mut by_bound = titled(
+        1,
+        DAY,
+        "com.example.window",
+        &format!("Pay {OPEN_BY_BOUND}"),
+    );
+    by_bound.expires = Instant(i64::from(DAY + 1) * DAY_NS);
+    let by_sweep = titled(
+        2,
+        DAY - 92,
+        "com.example.swept",
+        &format!("Pay {OPEN_BY_SWEEP}"),
+    );
+    let kept = titled(3, DAY, "com.example.kept", &format!("Pay {OPEN_KEPT}"));
+    let outcome = store
+        .commit_batch(
+            &store_id(1),
+            &[by_bound, by_sweep, kept],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    assert_eq!((outcome.summaries, outcome.evidence), (3, 3));
+    drop(store);
+    for marker in [OPEN_BY_BOUND, OPEN_BY_SWEEP, OPEN_KEPT] {
+        assert!(
+            !holding(&scratch, marker).is_empty(),
+            "after the close, the search finds {marker}, whose row is stored"
+        );
+    }
+    clock.set_day(DAY + 2);
+    let store = keyless(&scratch, &registry(), host());
+    for (marker, path) in [
+        (OPEN_BY_BOUND, "its own bound"),
+        (OPEN_BY_SWEEP, "the sweep"),
+    ] {
+        assert_eq!(
+            holding(&scratch, marker),
+            Vec::<&str>::new(),
+            "right after the open's expiry, the entries that hold {marker}, whose row the open removed by {path}"
+        );
+    }
+    assert!(
+        !holding(&scratch, OPEN_KEPT).is_empty(),
+        "right after the open's expiry, the search finds {OPEN_KEPT}, whose row is stored"
+    );
+    drop(store);
+    let conn = plain(&scratch);
+    let ids = |kind: &str| -> Vec<String> {
+        let mut statement = conn
+            .prepare("SELECT summary FROM rows WHERE kind = ?1 ORDER BY summary")
+            .unwrap();
+        statement
+            .query_map([kind], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    };
+    let (first, third) = (
+        summary_id(1).as_str().to_owned(),
+        summary_id(3).as_str().to_owned(),
+    );
+    assert_eq!(
+        (ids("summary"), ids("evidence")),
+        (vec![first, third.clone()], vec![third]),
+        "(summaries, evidence rows) after the open: the window row went with its summary stored, by its own bound, and \
+         the other went with its summary, by the sweep"
+    );
+}
+
+/// The files under `src/` that hold test code, which the lists of the next test do not read as the store's code.
+const TEST_CODE: &[&str] = &["src/tests.rs", "src/test_host.rs"];
+
+/// Every call of the checkpointed write in the store's code: the file, the function that holds the call, and the test
+/// of this file that searches every entry of `derived/` right after that call. In the order of the files' names and of
+/// the lines.
+const CHECKPOINTED_WRITES: &[(&str, &str, &str)] = &[
+    (
+        "src/db.rs",
+        "reconcile",
+        "the_expiry_of_an_open_leaves_no_marker_of_the_rows_that_it_removed",
+    ),
+    ("src/decide.rs", "decide", "privacy_listed"),
+    ("src/decide.rs", "decide", "privacy_scrub"),
+    ("src/purge.rs", "purge", "privacy_scrub"),
+    ("src/purge.rs", "purge_below", "privacy_scrub"),
+    ("src/report.rs", "expire", "privacy_scrub"),
+];
+
+/// Every place of the store's code that removes a row: a call of the transaction's `remove`, or a run of a statement
+/// of `src/sql.rs` whose text begins with `DELETE`. The file, the function that holds it, what it calls, and the
+/// checkpointed write under which it runs, or the sentence of the contract that allows it outside one. In the order of
+/// the files' names and of the lines.
+const REMOVALS: &[(&str, &str, &str, &str)] = &[
+    ("src/db.rs", "remove", "sql::ROW_DELETE", "under the write of each remove below"),
+    ("src/db.rs", "raise_mark", "sql::PURGED_BELOW_DELETE", "purge and purge_below; the purged ordinals hold no text (C2.7)"),
+    ("src/db.rs", "raise_mark", "sql::PURGED_BELOW_DELETE", "purge and purge_below; the purged ordinals hold no text (C2.7)"),
+    ("src/db.rs", "expire", "remove", "the expiry: src/report.rs expire and src/db.rs reconcile"),
+    ("src/db.rs", "expire", "remove", "the expiry: src/report.rs expire and src/db.rs reconcile"),
+    ("src/db.rs", "expire", "remove", "the expiry: src/report.rs expire and src/db.rs reconcile"),
+    ("src/db.rs", "expire", "remove", "the expiry: src/report.rs expire and src/db.rs reconcile"),
+    ("src/db.rs", "sweep", "remove", "the expiry and the open: src/report.rs expire and src/db.rs reconcile"),
+    ("src/db.rs", "sweep", "remove", "the expiry and the open: src/report.rs expire and src/db.rs reconcile"),
+    ("src/decide.rs", "dismiss", "remove", "src/decide.rs decide, the dismissal"),
+    ("src/decide.rs", "delete", "remove", "src/decide.rs decide, the delete"),
+    ("src/decide.rs", "delete", "remove", "src/decide.rs decide, the delete"),
+    (
+        "src/propose.rs",
+        "set_support",
+        "sql::ROW_DELETE",
+        "outside a checkpointed write: C2.4, ruling S-80, a support row that a new proposal drops lies in the files \
+         until the next checkpointed call",
+    ),
+    ("src/purge.rs", "purge", "remove", "src/purge.rs purge"),
+    ("src/purge.rs", "purge_below", "remove", "src/purge.rs purge_below"),
+];
+
+/// The name of the function that a line of Rust declares, if it declares one.
+fn declared(line: &str) -> Option<String> {
+    let mut rest = line.trim_start();
+    for prefix in ["pub(crate) ", "pub ", "const ", "unsafe ", "async "] {
+        rest = rest.strip_prefix(prefix).unwrap_or(rest);
+    }
+    let rest = rest.strip_prefix("fn ")?;
+    let end = rest.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))?;
+    Some(rest[..end].to_owned())
+}
+
+/// The places of the store's code, read from its source at run time: every call of the checkpointed write, and every
+/// removal, each with the function that holds it.
+/// A call of the checkpointed write: the file and the function that holds it.
+type WritePlace = (String, String);
+/// A removal: the file, the function that holds it and what it calls.
+type RemovalPlace = (String, String, String);
+
+fn places() -> (Vec<WritePlace>, Vec<RemovalPlace>) {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let sql = std::fs::read_to_string(root.join("src").join("sql.rs")).unwrap();
+    let deleting: Vec<String> = sql
+        .lines()
+        .filter_map(|line| {
+            let (name, text) = line.trim_start().split_once(" = ")?;
+            text.starts_with("\"DELETE").then(|| format!("sql::{name}"))
+        })
+        .collect();
+    assert!(
+        !deleting.is_empty(),
+        "the removing statements of src/sql.rs"
+    );
+    let mut files: Vec<String> = std::fs::read_dir(root.join("src"))
+        .unwrap()
+        .map(|entry| format!("src/{}", entry.unwrap().file_name().to_string_lossy()))
+        .filter(|name| !TEST_CODE.contains(&name.as_str()))
+        .collect();
+    files.sort();
+    let (mut writes, mut removals) = (Vec::new(), Vec::new());
+    for file in files {
+        let text = std::fs::read_to_string(root.join(&file))
+            .unwrap_or_else(|e| panic!("{file} cannot be read: {e}"));
+        let mut function = String::new();
+        for line in text.lines() {
+            if line.trim_start().starts_with("//") {
+                continue;
+            }
+            if let Some(name) = declared(line) {
+                function = name;
+            }
+            if !line.contains("fn write_checkpointed") {
+                for _ in line.matches("write_checkpointed(") {
+                    writes.push((file.clone(), function.clone()));
+                }
+            }
+            for pattern in ["tx.remove(", "self.remove("] {
+                for _ in line.matches(pattern) {
+                    removals.push((file.clone(), function.clone(), "remove".to_owned()));
+                }
+            }
+            for statement in &deleting {
+                for (at, _) in line.match_indices(statement.as_str()) {
+                    let after = line[at + statement.len()..].chars().next();
+                    if !after.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_') {
+                        removals.push((file.clone(), function.clone(), statement.clone()));
+                    }
+                }
+            }
+        }
+    }
+    (writes, removals)
+}
+
+/// The places of the store's code that remove what a person wrote, read from the crate's source at run time and held
+/// as two closed lists (ruling S-81, F2). Every call of the checkpointed write: `Store::expire` (src/report.rs), the
+/// reconcile step of every open (src/db.rs), `Store::purge` and `Store::purge_below` (src/purge.rs), and the dismissal
+/// and the delete of `Store::decide` (src/decide.rs), each beside the test of this file that searches every entry of
+/// `derived/` right after it. Every removal: the transaction's `remove` in the expiry and the sweep (src/db.rs), the
+/// dismissal and the delete (src/decide.rs) and the two purges (src/purge.rs), the statement that `remove` runs, the
+/// purged ordinals of `raise_mark`, and the support row that a new proposal drops in `set_support` (src/propose.rs),
+/// each beside the checkpointed write under which it runs or the sentence of the contract that allows it outside one.
+/// The test fails when a place appears that a list does not hold, when a listed place is gone, and when a listed test
+/// is no test of this file: a new place needs its search right after it before a list may gain it. Its limit: it
+/// reads text, so a removal written as a statement that does not begin with `DELETE`, or behind a macro or a built
+/// string, is not seen.
+#[test]
+fn every_place_that_removes_or_checkpoints_stands_on_a_list_with_its_search() {
+    let (writes, removals) = places();
+    let listed_writes: Vec<WritePlace> = CHECKPOINTED_WRITES
+        .iter()
+        .map(|(file, function, _)| (file.to_string(), function.to_string()))
+        .collect();
+    assert_eq!(writes, listed_writes, "the calls of the checkpointed write");
+    let listed_removals: Vec<RemovalPlace> = REMOVALS
+        .iter()
+        .map(|(file, function, what, _)| (file.to_string(), function.to_string(), what.to_string()))
+        .collect();
+    assert_eq!(removals, listed_removals, "the removals");
+    let own = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("privacy.rs"),
+    )
+    .unwrap()
+    .replace("\r\n", "\n");
+    for (_, _, test) in CHECKPOINTED_WRITES {
+        assert!(
+            own.contains(&format!("#[test]\nfn {test}(")),
+            "{test} is a test of tests/privacy.rs"
+        );
+    }
+}
+
+const REBUILT_EXPIRY: &str = "qzrebuiltexp81";
+const REBUILT_PURGE: &str = "qzrebuiltpur82";
+const REBUILT_DELETE: &str = "qzrebuiltdel83";
+const REBUILT_OPEN: &str = "qzrebuiltopn84";
+const REBUILT_ALL: &str = "qzrebuiltall85";
+
+/// The byte offsets in `derived.db` under `scratch` at which `marker` stands in UTF-8.
+fn offsets(scratch: &Scratch, marker: &str) -> Vec<usize> {
+    let bytes = std::fs::read(scratch.path().join("derived").join("derived.db")).unwrap();
+    bytes
+        .windows(marker.len())
+        .enumerate()
+        .filter(|(_, w)| *w == marker.as_bytes())
+        .map(|(at, _)| at)
+        .collect()
+}
+
+/// The id of the stored workflow whose app is `app`.
+fn workflow_of(store: &Store, app: &str) -> String {
+    listed(store)
+        .into_iter()
+        .find(|item| matches!(&item.workflow, Workflow::Full(full) if full.app.as_str() == app))
+        .map(|item| item.workflow.id().as_str().to_owned())
+        .unwrap()
+}
+
+/// A removed row on a page that the database built again (rulings S-80, item 5, and S-81, F3). In a keyless store,
+/// five rows that hold a marker each (an evidence row past its window at the next expiry, an evidence row whose
+/// segment is purged, a row of origin own of a workflow that is deleted, an evidence row past its window at the next
+/// open, and an evidence row that stays until the delete of everything) stand among about a hundred rows of another
+/// workflow, of origin own, with made-up text of mixed lengths. The delete of that workflow removes those rows, and the
+/// database rebalances the pages that held them and builds them again: the byte offset of every marker in
+/// `derived.db` moves, which shows that its row's page was built again. Then each removal runs in turn (the expiry, the
+/// purge, the delete of a workflow, the expiry of an open, the delete of everything), and right after each the marker
+/// of the row that it took is in no entry of `derived/`, while every marker whose row stands is still found.
+#[test]
+fn a_removed_row_on_a_page_that_the_database_built_again_leaves_no_marker() {
+    let scratch = Scratch::new("rebuilt-page");
+    let clock = TestClock::at_day(DAY);
+    let host = || {
+        Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 })).handler(
+            "test",
+            Takes::Runner,
+            Box::new(OwnNote),
+        )
+    };
+    let entries = with(&[&OWN]);
+    let mut store = keyless(&scratch, &entries, host());
+    let mut at = 1;
+    let mut batch = |store: &mut Store, episodes: &[Episode]| {
+        at += 1;
+        store
+            .commit_batch(&store_id(1), episodes, position(at, 0), &mut Seq(100 * at))
+            .unwrap()
+    };
+    batch(
+        &mut store,
+        &[
+            titled(1, DAY, "com.example.fill", "Fill"),
+            titled(2, DAY, "com.example.gone", "Gone"),
+        ],
+    );
+    let (fill, gone) = (
+        workflow_of(&store, "com.example.fill"),
+        workflow_of(&store, "com.example.gone"),
+    );
+    let mark = |n: u64, marker: &str, expires_day: Option<u32>| {
+        let mut episode = titled(n, DAY, "com.example.mark", &format!("Pay {marker}"));
+        if let Some(day) = expires_day {
+            episode.expires = Instant(i64::from(day) * DAY_NS);
+        }
+        episode
+    };
+    for i in 0..48u64 {
+        for k in 0..2u64 {
+            let len = 40 + ((i * 2 + k) * 137 % 700) as usize;
+            let note = format!("fill {i:03} {k} {}", "x".repeat(len));
+            store
+                .handle(&raw_request("runner", &own_note_body(&fill, &note)))
+                .unwrap();
+        }
+        match i {
+            12 => {
+                batch(&mut store, &[mark(10, REBUILT_EXPIRY, Some(DAY + 1))]);
+            }
+            20 => {
+                batch(&mut store, &[mark(11, REBUILT_PURGE, None)]);
+            }
+            28 => {
+                store
+                    .handle(&raw_request(
+                        "runner",
+                        &own_note_body(&gone, &format!("Note {REBUILT_DELETE}")),
+                    ))
+                    .unwrap();
+            }
+            36 => {
+                batch(&mut store, &[mark(12, REBUILT_OPEN, Some(DAY + 3))]);
+            }
+            44 => {
+                batch(&mut store, &[mark(13, REBUILT_ALL, None)]);
+            }
+            _ => {}
+        }
+    }
+    let markers = [
+        REBUILT_EXPIRY,
+        REBUILT_PURGE,
+        REBUILT_DELETE,
+        REBUILT_OPEN,
+        REBUILT_ALL,
+    ];
+    assert_eq!(
+        store.expire().unwrap(),
+        0,
+        "a checkpoint that removes nothing"
+    );
+    let before: Vec<Vec<usize>> = markers.iter().map(|m| offsets(&scratch, m)).collect();
+    let pages_before = std::fs::metadata(scratch.db()).unwrap().len() / 4096;
+    store
+        .decide(&InterfaceDecision::delete(
+            &InterfaceRole::claim(),
+            RequestId::from_random([5; 16]),
+            WorkflowId::parse(&fill).unwrap(),
+        ))
+        .unwrap();
+    let after: Vec<Vec<usize>> = markers.iter().map(|m| offsets(&scratch, m)).collect();
+    let pages_after = std::fs::metadata(scratch.db()).unwrap().len() / 4096;
+    println!("rebuilt-page: pages of derived.db before {pages_before}, after {pages_after}");
+    for (marker, (b, a)) in markers.iter().zip(before.iter().zip(after.iter())) {
+        println!(
+            "rebuilt-page: {marker}: offsets before {b:?} (pages {:?}), after {a:?} (pages {:?})",
+            b.iter().map(|o| o / 4096).collect::<Vec<_>>(),
+            a.iter().map(|o| o / 4096).collect::<Vec<_>>()
+        );
+        assert!(
+            !a.is_empty(),
+            "{marker} stands in derived.db while its row is stored"
+        );
+        assert_ne!(
+            b, a,
+            "the offsets of {marker} move when the database builds its page again"
+        );
+    }
+    let after_each = |removal: &str, gone_markers: &[&str]| {
+        for marker in markers {
+            let found = holding(&scratch, marker);
+            if gone_markers.contains(&marker) {
+                assert_eq!(
+                    found,
+                    Vec::<&str>::new(),
+                    "right after {removal} on a page built again, the entries that hold {marker}, whose row is removed"
+                );
+            } else {
+                assert!(
+                    !found.is_empty(),
+                    "right after {removal} on a page built again, the search finds {marker}, whose row is stored"
+                );
+            }
+        }
+    };
+    clock.set_day(DAY + 2);
+    assert!(
+        store.expire().unwrap() >= 1,
+        "the expiry removes the window row"
+    );
+    after_each("the expiry", &[REBUILT_EXPIRY]);
+    assert_eq!(
+        store.purge(&[ord(11)]).unwrap(),
+        1,
+        "the purge removes one row"
+    );
+    after_each("the purge", &[REBUILT_EXPIRY, REBUILT_PURGE]);
+    store
+        .decide(&InterfaceDecision::delete(
+            &InterfaceRole::claim(),
+            RequestId::from_random([6; 16]),
+            WorkflowId::parse(&gone).unwrap(),
+        ))
+        .unwrap();
+    after_each(
+        "the delete of a workflow",
+        &[REBUILT_EXPIRY, REBUILT_PURGE, REBUILT_DELETE],
+    );
+    drop(store);
+    clock.set_day(DAY + 4);
+    let store = keyless(&scratch, &entries, host());
+    after_each(
+        "the expiry of an open",
+        &[REBUILT_EXPIRY, REBUILT_PURGE, REBUILT_DELETE, REBUILT_OPEN],
+    );
+    delete_all(store).unwrap();
+    assert!(
+        !scratch.path().join("derived").exists(),
+        "right after the delete of everything, derived/ with every entry that could hold {REBUILT_ALL}"
     );
 }
