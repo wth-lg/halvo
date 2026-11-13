@@ -134,10 +134,29 @@ fn left(deadline: Instant) -> std::io::Result<Duration> {
     }
 }
 
+impl<T: Transport> Timed<'_, T> {
+    fn end_request(&mut self) -> std::io::Result<()> {
+        self.transport.set_timeout(left(self.deadline)?)?;
+        self.transport.end_request()
+    }
+}
+
 impl<T: Transport> Read for Timed<'_, T> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.transport.set_timeout(left(self.deadline)?)?;
         self.transport.read(buf)
+    }
+}
+
+impl<T: Transport> Write for Timed<'_, T> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.transport.set_timeout(left(self.deadline)?)?;
+        self.transport.write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.transport.set_timeout(left(self.deadline)?)?;
+        self.transport.flush()
     }
 }
 
@@ -182,26 +201,20 @@ impl<C: Connector> Client<C> {
             Err(ClientError::Deadline { .. }) => return Err(timed_out()),
             other => other?,
         };
-        transport
-            .set_timeout(left(deadline).map_err(|_| timed_out())?)
-            .map_err(ClientError::Io)?;
-        write_frame(&mut transport, &encode_request(request), REQUEST_MAX_BYTES)
+        let mut timed = Timed {
+            transport: &mut transport,
+            deadline,
+        };
+        write_frame(&mut timed, &encode_request(request), REQUEST_MAX_BYTES)
             .map_err(frame_error)?;
-        transport.end_request().map_err(|e| {
+        timed.end_request().map_err(|e| {
             if is_timeout(&e) {
                 timed_out()
             } else {
                 ClientError::Io(e)
             }
         })?;
-        let frame = read_one_frame(
-            &mut Timed {
-                transport: &mut transport,
-                deadline,
-            },
-            REPLY_MAX_BYTES,
-        )
-        .map_err(frame_error)?;
+        let frame = read_one_frame(&mut timed, REPLY_MAX_BYTES).map_err(frame_error)?;
         let reply = decode_reply(&frame).map_err(|e| ClientError::Protocol(e.to_string()))?;
         #[cfg(feature = "r2")]
         let reply = crate::r2::decode_sections(reply)?;
