@@ -24,9 +24,8 @@ const CEILING: Duration = Duration::from_secs(45);
 
 /// An address that no one answers on this Mac: 127.0.0.2 stands on no interface here, so a
 /// connect to it gets neither an accept nor a refusal (evidence/verifier-20/i-connect-probe.txt
-/// of the run). On Windows the whole of 127.0.0.0/8 is loopback, and a connect to a port where
-/// nothing listens may be refused; the connect test then shows nothing about the limit there,
-/// and its line says what the control connect gave.
+/// of the run). On Windows the whole of 127.0.0.0/8 is loopback, and the hosted windows runner
+/// refuses this connect after 2 s (run 43342878441: `ConnectionRefused`, os error 10061).
 const SILENT: &str = "127.0.0.2:9";
 
 /// A store that holds one sign-in, for `status`, which reads it and nothing more.
@@ -201,6 +200,9 @@ fn a_call_whose_answer_is_held_fails_after_the_call_limit() {
     );
 }
 
+/// On macOS the control connect must stay silent. On the hosted windows runner it is refused
+/// (see `SILENT`), so there the test prints the control's line and shows nothing about the
+/// connect limit; the limit is shown on macOS alone.
 #[test]
 fn a_connect_that_is_not_answered_fails_after_the_connect_limit() {
     let address: SocketAddr = SILENT.parse().expect("an address");
