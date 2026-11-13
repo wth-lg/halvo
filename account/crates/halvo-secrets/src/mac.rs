@@ -14,11 +14,16 @@ pub(crate) trait FileSide {
     fn write(&self, secret: &Secret) -> Write;
     fn delete(&self) -> Delete;
     fn remove_if_holds(&self, bytes: &[u8]) -> Claim;
+    fn settle(&self, keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>>;
 }
 
 impl<F: Fs, C: Codec> FileSide for Item<F, C> {
     fn remove_if_holds(&self, bytes: &[u8]) -> Claim {
         Item::remove_if_holds(self, bytes)
+    }
+
+    fn settle(&self, keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>> {
+        Item::settle_claimed(self, keychain)
     }
 
     fn read(&self) -> Read {
@@ -54,14 +59,14 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
 
     fn look_and_move(&self, again: bool) -> Read {
         match self.keychain.read() {
-            Read::Found(secret) => match self.file.read() {
+            Read::Found(secret) => match self.settled_file(Some(secret.expose())) {
                 Read::Found(other) if other.expose() == secret.expose() => {
                     self.remove_the_file(secret)
                 }
                 Read::Found(_) => Read::Locked(Locked::OtherStore),
                 _ => Read::Found(secret),
             },
-            Read::NotStored => match self.file.read() {
+            Read::NotStored => match self.settled_file(None) {
                 Read::Found(secret) => self.move_in(secret, again),
                 Read::NotStored => self.keychain.read(),
                 answer => answer,
@@ -102,9 +107,17 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
         if matches!(self.keychain_beside(), Read::Locked(Locked::OtherStore)) {
             return Read::Locked(Locked::OtherStore);
         }
-        match self.file.read() {
+        match self.settled_file(None) {
             Read::NotStored => self.keychain_beside(),
             answer => answer,
+        }
+    }
+
+    fn settled_file(&self, keychain: Option<&[u8]>) -> Read {
+        match self.file.settle(keychain) {
+            Ok(()) => self.file.read(),
+            Err(Ok(locked)) => Read::Locked(locked),
+            Err(Err(fault)) => Read::Fault(fault),
         }
     }
 

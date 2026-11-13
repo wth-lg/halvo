@@ -63,6 +63,10 @@ impl FileSide for MovedUnderTheRead {
         Delete::NotStored
     }
 
+    fn settle(&self, _keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>> {
+        Ok(())
+    }
+
     fn remove_if_holds(&self, _bytes: &[u8]) -> Claim {
         Claim::Absent
     }
@@ -181,6 +185,10 @@ impl FileSide for File {
             Some(_) => Delete::Deleted,
             None => Delete::NotStored,
         }
+    }
+
+    fn settle(&self, _keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>> {
+        Ok(())
     }
 
     fn remove_if_holds(&self, bytes: &[u8]) -> Claim {
@@ -925,6 +933,10 @@ impl FileSide for MovedUnderTheDelete {
         }
     }
 
+    fn settle(&self, _keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>> {
+        Ok(())
+    }
+
     fn remove_if_holds(&self, _bytes: &[u8]) -> Claim {
         Claim::Absent
     }
@@ -1218,6 +1230,10 @@ mod real_files {
             self.inner.delete()
         }
 
+        fn settle(&self, keychain: Option<&[u8]>) -> Result<(), Result<Locked, Fault>> {
+            self.inner.settle_claimed(keychain)
+        }
+
         fn remove_if_holds(&self, bytes: &[u8]) -> Claim {
             if let Some(hook) = self.hook.borrow_mut().take() {
                 hook();
@@ -1295,5 +1311,112 @@ mod real_files {
         assert_eq!(found(file_item(label).read()), y);
         assert_eq!(*items.borrow(), [x.to_vec()]);
         assert_eq!(names_in(label), ["account"]);
+    }
+
+    const X: &[u8] = b"credential X of an earlier build";
+
+    fn stopped_after_the_claim(label: &str, bytes: &[u8], pid: u32) {
+        assert_eq!(file_item(label).write(&secret(bytes)), Write::Stored);
+        let store = parent(label).join("store");
+        std::fs::rename(
+            store.join("account"),
+            store.join(format!(".account.{pid}.0.claim")),
+        )
+        .expect("the claim of a move that was stopped");
+    }
+
+    fn signed(label: &str, keychain: Keys) -> Mac<Item<UnixFs, Plain>, Keys> {
+        Mac {
+            keeps: Keeps::Keychain,
+            file: file_item(label),
+            keychain: keys(keychain),
+        }
+    }
+
+    #[test]
+    fn a_move_stopped_after_its_claim_is_ended_by_the_next_operation() {
+        let mut other = X.to_vec();
+        other[0] ^= 1;
+        let none: &[&[u8]] = &[];
+        for (held, keychain) in [
+            ("same", vec![X]),
+            ("other", vec![&other[..]]),
+            ("none", none.to_vec()),
+        ] {
+            for op in ["read", "write", "delete", "move"] {
+                let label = format!("claimed-{held}-{op}");
+                stopped_after_the_claim(&label, X, 4241);
+                let store = signed(&label, Keys::holding(&keychain));
+                let answer = match op {
+                    "read" | "move" => format!("{:?}", store.read()),
+                    "write" => format!("{:?}", store.write(&secret(b"a new sign-in"))),
+                    _ => format!("{:?}", store.delete()),
+                };
+                let names = names_in(&label);
+                assert!(
+                    !names.iter().any(|name| name.ends_with(".claim")),
+                    "{held} {op}: {names:?}"
+                );
+                let items = store.keychain.keychain.items();
+                let (want, file, kept) = match (held, op) {
+                    ("same" | "none", "read" | "move") => ("Found(..)", false, vec![X.to_vec()]),
+                    ("same" | "none", "write") => ("Occupied", false, vec![X.to_vec()]),
+                    ("same" | "none", _) => ("Deleted", false, Vec::new()),
+                    ("other", "write") => ("Locked(OtherStore)", true, vec![other.clone()]),
+                    ("other", _) => ("Locked(OtherStore)", true, vec![other.clone()]),
+                    _ => unreachable!(),
+                };
+                assert_eq!(answer, want, "{held} {op}");
+                assert_eq!(names == ["account"], file, "{held} {op}: {names:?}");
+                assert_eq!(items, kept, "{held} {op}");
+                if file {
+                    assert_eq!(found(file_item(&label).read()), X, "{held} {op}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_claimed_file_beside_other_bytes_or_no_item_is_put_back_under_its_name() {
+        let mut other = X.to_vec();
+        other[0] ^= 1;
+        let label = "claimed-other";
+        stopped_after_the_claim(label, X, 4241);
+        let store = signed(label, Keys::holding(&[&other]));
+        let read = store.read();
+        assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+        assert_eq!(names_in(label), ["account"]);
+        assert_eq!(found(file_item(label).read()), X);
+
+        let label = "claimed-unsigned";
+        stopped_after_the_claim(label, X, 4241);
+        let unsigned = Mac {
+            keeps: Keeps::File,
+            file: file_item(label),
+            keychain: keys(Keys::empty()),
+        };
+        assert_eq!(found(unsigned.read()), X);
+        assert_eq!(names_in(label), ["account"]);
+    }
+
+    #[test]
+    fn two_claimed_files_are_settled_one_by_one_and_other_names_stay() {
+        let label = "claimed-two";
+        let y = b"credential Y of a later sign-in.";
+        stopped_after_the_claim(label, X, 4241);
+        stopped_after_the_claim(label, y, 4242);
+        let store_dir = parent(label).join("store");
+        std::fs::write(
+            store_dir.join(".account.4243.0.tmp"),
+            b"a write that was stopped",
+        )
+        .expect("a temporary file of a write");
+        std::fs::write(store_dir.join("notes"), b"not of the store").expect("another file");
+        let store = signed(label, Keys::holding(&[X]));
+        let read = store.read();
+        assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+        assert_eq!(names_in(label), [".account.4243.0.tmp", "account", "notes"]);
+        assert_eq!(found(file_item(label).read()), y);
+        assert_eq!(store.keychain.keychain.items(), [X.to_vec()]);
     }
 }

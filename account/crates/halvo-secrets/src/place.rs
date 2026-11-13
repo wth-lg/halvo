@@ -106,6 +106,8 @@ pub(crate) trait Fs {
     fn publish(&self, dir: &Self::Dir, from: &str, to: &str) -> io::Result<Published>;
     fn remove(&self, dir: &Self::Dir, name: &str) -> io::Result<()>;
     fn sync_dir(&self, dir: &Self::Dir) -> io::Result<()>;
+    /// The names in the store directory that are text, read through the handle.
+    fn names(&self, dir: &Self::Dir) -> io::Result<Vec<String>>;
 }
 
 pub(crate) enum Sealed<'a> {
@@ -515,7 +517,7 @@ impl<F: Fs, C: Codec> Item<F, C> {
         let name = self.name.as_str();
         let pid = std::process::id();
         for n in 0..TEMP_TRIES {
-            let private = format!(".{name}.{pid}.{n}.tmp");
+            let private = format!(".{name}.{pid}.{n}.{CLAIMED}");
             match self.fs.publish(dir, name, &private) {
                 Ok(Published::Done) => return Ok(Some(private)),
                 Ok(Published::Exists) => {}
@@ -533,6 +535,82 @@ impl<F: Fs, C: Codec> Item<F, C> {
             Ok(Published::Exists) | Err(_) => Claim::Stranded,
         }
     }
+
+    #[cfg_attr(windows, allow(dead_code))]
+    fn is_claimed(&self, entry: &str) -> bool {
+        let Some(middle) = entry
+            .strip_prefix('.')
+            .and_then(|rest| rest.strip_prefix(self.name.as_str()))
+            .and_then(|rest| rest.strip_prefix('.'))
+            .and_then(|rest| rest.strip_suffix(CLAIMED))
+            .and_then(|rest| rest.strip_suffix('.'))
+        else {
+            return false;
+        };
+        let mut parts = middle.split('.');
+        let numbers = [parts.next(), parts.next()];
+        parts.next().is_none()
+            && numbers.iter().all(|part| {
+                part.is_some_and(|digits| {
+                    !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+                })
+            })
+    }
+
+    /// Ends what a move that was stopped after its claim left: each file of the claim's
+    /// private name in the store directory is removed when it holds `keychain`, the bytes
+    /// of the Keychain item, and is put back under the store's name otherwise. A file that
+    /// cannot be read or removed, or that cannot be put back because the name is taken,
+    /// answers the failure.
+    #[cfg_attr(windows, allow(dead_code))]
+    pub(crate) fn settle_claimed(
+        &self,
+        keychain: Option<&[u8]>,
+    ) -> Result<(), Result<Locked, Fault>> {
+        let dir = match self.place() {
+            Ok(Reached::Dir(dir)) => dir,
+            Ok(Reached::Absent(_)) => return Ok(()),
+            Err(stop) => return Err(stop.into()),
+        };
+        let names = self.fs.names(&dir).map_err(|error| stopped(&error))?;
+        for private in names.iter().filter(|entry| self.is_claimed(entry)) {
+            match self.read_at(&dir, private) {
+                Read::Found(held) if keychain == Some(held.expose()) => {
+                    self.fs
+                        .remove(&dir, private)
+                        .map_err(|error| stopped(&error))?;
+                    self.fs
+                        .sync_dir(&dir)
+                        .map_err(|error| Err(Stop::fault(&error)))?;
+                }
+                Read::Found(_) => match self.fs.publish(&dir, private, self.name.as_str()) {
+                    Ok(Published::Done) => {}
+                    Ok(Published::Exists) => return Err(Err(Fault { code: -1 })),
+                    Err(error) => return Err(stopped(&error)),
+                },
+                Read::NotStored => {}
+                Read::Locked(locked) => return Err(Ok(locked)),
+                Read::Fault(fault) => return Err(Err(fault)),
+            }
+        }
+        Ok(())
+    }
+}
+
+const CLAIMED: &str = "claim";
+
+impl From<Stop> for Result<Locked, Fault> {
+    fn from(stop: Stop) -> Result<Locked, Fault> {
+        match stop {
+            Stop::Locked(locked) => Ok(locked),
+            Stop::Fault(fault) => Err(fault),
+        }
+    }
+}
+
+#[cfg_attr(windows, allow(dead_code))]
+fn stopped(error: &io::Error) -> Result<Locked, Fault> {
+    Stop::of(error).into()
 }
 
 #[cfg(test)]
