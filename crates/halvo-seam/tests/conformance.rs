@@ -3,7 +3,7 @@ use std::io::{self, PipeReader, PipeWriter};
 use std::path::{Path, PathBuf};
 use std::thread::JoinHandle;
 
-use halvo_schema::{Instant, StoreId};
+use halvo_schema::{Instant, Position, StoreId};
 use halvo_seam::conformance::{self, Subject};
 use halvo_seam::fixture::{FixtureTransport, Replace};
 use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
@@ -20,6 +20,9 @@ enum Fault {
     WatermarkRefusedAfterAShred,
     ExpiryMovesFromReadToRead,
     ExpiryMovesFromConnectionToConnection,
+    FilteredStopRepeats,
+    FilteredStopRepeatsInTheNextBatch,
+    FilteredStopSkipsARecord,
 }
 
 use Fault::*;
@@ -120,6 +123,7 @@ impl Subject for Fixture {
                         shredded,
                         connection,
                         reads: 0,
+                        last: None,
                     };
                     wrong.serve(&mut transport, requests_in, replies_out);
                 }
@@ -163,9 +167,24 @@ struct Wrong {
     shredded: bool,
     connection: i64,
     reads: i64,
+    last: Option<OpenCursor>,
 }
 
 impl Wrong {
+    fn open(&mut self, t: &mut FixtureTransport, open: &OpenCursor) -> ServerMessage {
+        if self.fault == WatermarkRefusedAfterAShred
+            && self.shredded
+            && open.position() == t.watermark()
+        {
+            return error(Cause::BadPosition);
+        }
+        let reply = open_reply(t, self.fault, open);
+        if matches!(reply, ServerMessage::Batch(_)) {
+            self.last = Some(open.clone());
+        }
+        reply
+    }
+
     fn read(&mut self, t: &mut FixtureTransport) -> ServerMessage {
         let mut b = match read_reply(t, self.fault) {
             ServerMessage::Batch(b) => b,
@@ -180,17 +199,34 @@ impl Wrong {
         for x in &mut b.expiry {
             x.at = Instant(x.at.0.saturating_add(shift * 1_000_000_000));
         }
-        ServerMessage::Batch(b)
-    }
-
-    fn open(&mut self, t: &mut FixtureTransport, open: &OpenCursor) -> ServerMessage {
-        if self.fault == WatermarkRefusedAfterAShred
-            && self.shredded
-            && open.position() == t.watermark()
-        {
-            return error(Cause::BadPosition);
+        let Some(open) = self
+            .last
+            .as_ref()
+            .filter(|o| o.kinds().is_some() || o.range().is_some())
+        else {
+            return ServerMessage::Batch(b);
+        };
+        if let (true, Some(last)) = (b.next != b.watermark, b.records.last()) {
+            let at = match self.fault {
+                FilteredStopRepeats | FilteredStopRepeatsInTheNextBatch => Some(last.pos),
+                FilteredStopSkipsARecord => Some(Position {
+                    seg: b.next.seg,
+                    idx: b.next.idx + 1,
+                }),
+                _ => None,
+            };
+            if let Some(at) = at {
+                let again =
+                    OpenCursor::at(b.store.clone(), at, open.kinds().cloned(), open.range())
+                        .unwrap();
+                t.handle(&ClientMessage::Close);
+                t.handle(&ClientMessage::OpenCursor(again));
+                if self.fault == FilteredStopRepeats {
+                    b.next = at;
+                }
+            }
         }
-        open_reply(t, self.fault, open)
+        ServerMessage::Batch(b)
     }
 
     fn serve(&mut self, t: &mut FixtureTransport, mut input: PipeReader, mut output: PipeWriter) {
@@ -331,6 +367,19 @@ fn conformance_check_one_expiry_instant() {
                 ExpiryMovesFromConnectionToConnection,
                 [check, check, None, None],
             ),
+        ],
+    );
+}
+
+#[test]
+fn conformance_check_filtered_stops() {
+    let check = Some("filtered_stops");
+    wrong(
+        "conformance_check_filtered_stops",
+        &[
+            (FilteredStopRepeats, [None, None, None, check]),
+            (FilteredStopRepeatsInTheNextBatch, [None, None, None, check]),
+            (FilteredStopSkipsARecord, [None, None, None, check]),
         ],
     );
 }

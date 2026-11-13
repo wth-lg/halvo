@@ -46,14 +46,19 @@ pub const CASES: [&str; 4] = ["resume", "shredded", "filters", "store_changed"];
 /// sent while a cursor is open, without the `close` that C5.6 asks for, gets `bad-request`, and the cursor
 /// that was open then serves the whole reference read. `open_at_the_watermark_after_a_shred`, in the case
 /// `shredded`: after `shred_oldest`, an `open_cursor` with S at W, and at the highest watermark of the replies
-/// after the shred where that is above W, is no error, and its read serves no entry. `one_expiry_instant`, in
-/// every case: each `expiry` entry for a segment of one store id holds the instant that the first entry for
-/// that segment held in the case, in every reply to `read_batch`, on every cursor and connection and after a
-/// restart; the check makes no claim across two cases.
-pub const CHECKS: [&str; 4] = [
+/// after the shred where that is above W, is no error, and its read serves no entry. `filtered_stops`, in the
+/// case `store_changed` after its read of set C: reads of set C under four filters (`window_title`, the range
+/// from the `at` of its 101st entry to that of its 401st, both, and `keystroke`), from the zero position and
+/// from its 151st entry, in which the 262,144 bytes of C5.7 item 5 stop Batches; each Batch holds every entry
+/// of C that passes the filter from the cursor's position up to its `next`, at its position, and no other.
+/// `one_expiry_instant`, in every case: each `expiry` entry for a segment of one store id holds the instant
+/// that the first entry for that segment held in the case, in every reply to `read_batch`, on every cursor and
+/// connection and after a restart; the check makes no claim across two cases.
+pub const CHECKS: [&str; 5] = [
     "store_changed_names_the_current_id",
     "open_while_open",
     "open_at_the_watermark_after_a_shred",
+    "filtered_stops",
     "one_expiry_instant",
 ];
 
@@ -237,7 +242,7 @@ impl<S: Subject> Conn<S> {
                 Some((_, _, at)) if *at != x.at => {
                     return Err(format!(
                         "check {}: segment {} of one store got the expiry instant {} in one reply and {} in another",
-                        CHECKS[3], x.seg, at.0, x.at.0
+                        CHECKS[4], x.seg, at.0, x.at.0
                     ))
                 }
                 Some(_) => {}
@@ -315,6 +320,7 @@ struct Reading {
     first_full_next: Option<Position>,
     tail: Option<(Position, Position)>,
     batches: Vec<(Option<Position>, Position, Position)>,
+    spans: Vec<(Position, Position, usize)>,
     expiry_segs: Vec<u64>,
 }
 
@@ -438,6 +444,7 @@ fn drain<S: Subject>(
         first_full_next: None,
         tail: None,
         batches: Vec::new(),
+        spans: Vec::new(),
         expiry_segs: Vec::new(),
     };
     let mut cursor = position;
@@ -462,6 +469,7 @@ fn drain<S: Subject>(
         reading
             .batches
             .push((b.records.first().map(|e| e.pos), b.next, b.watermark));
+        reading.spans.push((cursor, b.next, b.records.len()));
         last = b.records.last().map(|e| e.pos).or(last);
         cursor = b.next;
         watermark = b.watermark;
@@ -877,7 +885,8 @@ fn old_store<S: Subject>(
 /// non-zero position gets `bad-request`, and the new
 /// store serves the records of set B from the zero position, with a null store and with its new id. Last,
 /// after `load(C)`, a read from the zero position serves the records of set C in order, each once; at least
-/// two of its Batches end before the store ends, and the Batch after each such stop starts at its `next`.
+/// two of its Batches end before the store ends, and the Batch after each such stop starts at its `next`;
+/// then the check `filtered_stops` of `CHECKS`.
 pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (mut conn, rf) = reference(subject)?;
     let opened = open(&mut conn, Some(&rf.s), ZERO, None, None)
@@ -1030,6 +1039,58 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
             c.entries.len(),
             data_c.len()
         ));
+    }
+    filtered_stops(&mut conn, &c).map_err(|e| format!("check {}: {e}", CHECKS[3]))
+}
+
+fn filtered_stops<S: Subject>(conn: &mut Conn<S>, c: &Reading) -> Result<(), String> {
+    let entry = |i: usize| c.entries.get(i).ok_or("set C served too few entries");
+    let range = (entry(100)?.record.at(), entry(400)?.record.at());
+    let filters: [Filter; 4] = [
+        ("window_title", Some(&["window_title"]), None),
+        ("the range", None, Some(range)),
+        (
+            "the range with window_title",
+            Some(&["window_title"]),
+            Some(range),
+        ),
+        ("keystroke", Some(&["keystroke"]), None),
+    ];
+    for start in [ZERO, entry(150)?.pos] {
+        for (name, kinds, range) in filters {
+            let name = format!("the filter {name} on set C from {}", show(start));
+            let want: Vec<Entry> = c
+                .entries
+                .iter()
+                .filter(|e| kinds.is_none_or(|k| k.contains(&e.record.kind().as_str())))
+                .filter(|e| range.is_none_or(|(a, b)| e.record.at() >= a && e.record.at() < b))
+                .cloned()
+                .collect();
+            let reading = read(conn, Some(&c.store), start, kinds, range)
+                .map_err(|e| format!("{name}: {e}"))?;
+            let mut from = 0;
+            for &(cursor, next, n) in &reading.spans {
+                let got = reading
+                    .entries
+                    .get(from..from + n)
+                    .ok_or("the read lost count of its entries")?;
+                from += n;
+                let due: Vec<Entry> = want
+                    .iter()
+                    .filter(|e| e.pos >= cursor && e.pos < next)
+                    .cloned()
+                    .collect();
+                if !same(got, &due) {
+                    return Err(format!(
+                        "{name}: the Batch from {} to next {} served {} entries; want the {} records of C that pass the filter from its position up to next, each once",
+                        show(cursor),
+                        show(next),
+                        got.len(),
+                        due.len()
+                    ));
+                }
+            }
+        }
     }
     Ok(())
 }

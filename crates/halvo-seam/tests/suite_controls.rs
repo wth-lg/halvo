@@ -753,11 +753,21 @@ fn run_passes_a_conforming_server_and_fails_each_broken_one_in_the_case_that_sho
     check(ShredNothing, [Pass, Fail(shown), Pass, Pass]);
     check(
         IgnoreKinds,
-        [Pass, Pass, Fail("the filter foreground_app: "), Pass],
+        [
+            Pass,
+            Pass,
+            Fail("the filter foreground_app: "),
+            Fail("check filtered_stops: "),
+        ],
     );
     check(
         IgnoreRange,
-        [Pass, Pass, Fail("the filter the range: "), Pass],
+        [
+            Pass,
+            Pass,
+            Fail("the filter the range: "),
+            Fail("check filtered_stops: "),
+        ],
     );
     check(
         LoadKeepsTheOldStore,
@@ -805,7 +815,7 @@ fn control_a_next_that_falls() {
             Fail("next fell"),
             Fail("next fell"),
             Fail("the filter foreground_app from {seg 2, idx 10}: next fell"),
-            Pass,
+            Fail("check filtered_stops: "),
         ],
     );
 }
@@ -1144,7 +1154,7 @@ fn control_a_filtered_cursor_opened_past_the_zero_position_that_serves_from_the_
             Pass,
             Pass,
             Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 1, idx 0} does not rise"),
-            Pass,
+            Fail("check filtered_stops: "),
         ],
     );
 }
