@@ -140,6 +140,15 @@ impl Drop for ForegroundWriter {
     }
 }
 
+#[cfg(debug_assertions)]
+impl ForegroundReader {
+    /// A reader with no writer, which reads nothing in front: for tests in a
+    /// process of their own, which cannot claim the main run loop.
+    pub fn nothing_in_front() -> Self {
+        writer_and_reader().1
+    }
+}
+
 impl ForegroundReader {
     /// The app in front, or `None` before the first reading and while nothing is
     /// in front.

@@ -1,0 +1,148 @@
+// The stall fixture of tests/macos_stall_fixture.rs: one window with a plain
+// field and a secure field, driven by lines on standard input. Every reply is
+// one line of names and numbers; no reply holds the text of a field.
+//
+// Commands, each answered on standard output:
+//   state            front=<0|1> key=<0|1> focus=<plain|secure|other> plain=<n> secure=<n>
+//   plain | secure   moves the focus; answers focus=<field> at=<uptime ns>
+//   clear            empties both fields; answers cleared
+//   where            answers x=<n> y=<n>: the centre of the secure field in
+//                    display points, origin at the top left of the main display
+//   stall <ms> [self]  answers waiting at=<ns>, sleeps on the main thread, then,
+//                    with self, moves the focus to the secure field itself;
+//                    answers woke at=<ns>
+//   hide             hides the app; answers hidden
+//   activate         asks to be the app in front; answers asked
+//   quit             ends the program
+// Return in the secure field moves the focus to the plain field and writes
+// left_secure at=<ns>.
+#import <AppKit/AppKit.h>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
+
+static NSWindow *window;
+static NSTextField *plainField;
+static NSSecureTextField *secureField;
+
+static unsigned long long uptime_ns(void) {
+    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+}
+
+static void say(NSString *line) {
+    printf("%s\n", line.UTF8String);
+    fflush(stdout);
+}
+
+static NSString *focusName(void) {
+    NSResponder *first = window.firstResponder;
+    if ([first isKindOfClass:[NSTextView class]]) {
+        id delegate = ((NSTextView *)first).delegate;
+        if (delegate == secureField) return @"secure";
+        if (delegate == plainField) return @"plain";
+    }
+    if (first == secureField) return @"secure";
+    if (first == plainField) return @"plain";
+    return @"other";
+}
+
+static void focus(NSControl *field, NSString *name) {
+    [window makeFirstResponder:field];
+    say([NSString stringWithFormat:@"focus=%@ at=%llu", name, uptime_ns()]);
+}
+
+@interface Leaver : NSObject
+- (void)left:(id)sender;
+@end
+
+@implementation Leaver
+- (void)left:(id)sender {
+    (void)sender;
+    [window makeFirstResponder:plainField];
+    say([NSString stringWithFormat:@"left_secure at=%llu", uptime_ns()]);
+}
+@end
+
+static void handle(NSString *line) {
+    NSArray<NSString *> *words = [line componentsSeparatedByString:@" "];
+    NSString *verb = words.firstObject;
+    if ([verb isEqualToString:@"state"]) {
+        BOOL front = NSApp.isActive &&
+            NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier == getpid();
+        say([NSString stringWithFormat:@"front=%d key=%d focus=%@ plain=%lu secure=%lu",
+             front ? 1 : 0, window.isKeyWindow ? 1 : 0, focusName(),
+             (unsigned long)plainField.stringValue.length,
+             (unsigned long)secureField.stringValue.length]);
+    } else if ([verb isEqualToString:@"plain"]) {
+        focus(plainField, @"plain");
+    } else if ([verb isEqualToString:@"secure"]) {
+        focus(secureField, @"secure");
+    } else if ([verb isEqualToString:@"clear"]) {
+        plainField.stringValue = @"";
+        secureField.stringValue = @"";
+        say(@"cleared");
+    } else if ([verb isEqualToString:@"where"]) {
+        NSRect inWindow = [secureField convertRect:secureField.bounds toView:nil];
+        NSRect onScreen = [window convertRectToScreen:inWindow];
+        CGFloat top = NSScreen.screens.firstObject.frame.size.height;
+        say([NSString stringWithFormat:@"x=%.0f y=%.0f", NSMidX(onScreen),
+             top - NSMidY(onScreen)]);
+    } else if ([verb isEqualToString:@"stall"] && words.count >= 2) {
+        int ms = words[1].intValue;
+        BOOL itself = words.count >= 3 && [words[2] isEqualToString:@"self"];
+        say([NSString stringWithFormat:@"waiting at=%llu", uptime_ns()]);
+        usleep((useconds_t)ms * 1000);
+        if (itself) [window makeFirstResponder:secureField];
+        say([NSString stringWithFormat:@"woke at=%llu", uptime_ns()]);
+    } else if ([verb isEqualToString:@"hide"]) {
+        [NSApp hide:nil];
+        say(@"hidden");
+    } else if ([verb isEqualToString:@"activate"]) {
+        [NSApp activateIgnoringOtherApps:YES];
+        [window makeKeyAndOrderFront:nil];
+        say(@"asked");
+    } else if ([verb isEqualToString:@"quit"]) {
+        exit(0);
+    } else {
+        say(@"unknown");
+    }
+}
+
+int main(void) {
+    @autoreleasepool {
+        [NSApplication sharedApplication];
+        [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+        window = [[NSWindow alloc] initWithContentRect:NSMakeRect(200, 200, 420, 160)
+                                             styleMask:NSWindowStyleMaskTitled
+                                               backing:NSBackingStoreBuffered
+                                                 defer:NO];
+        plainField = [[NSTextField alloc] initWithFrame:NSMakeRect(20, 100, 380, 24)];
+        secureField = [[NSSecureTextField alloc] initWithFrame:NSMakeRect(20, 40, 380, 24)];
+        Leaver *leaver = [Leaver new];
+        secureField.target = leaver;
+        secureField.action = @selector(left:);
+        [window.contentView addSubview:plainField];
+        [window.contentView addSubview:secureField];
+        plainField.nextKeyView = secureField;
+        secureField.nextKeyView = plainField;
+        window.initialFirstResponder = plainField;
+        [window makeKeyAndOrderFront:nil];
+        [NSApp activateIgnoringOtherApps:YES];
+        [NSThread detachNewThreadWithBlock:^{
+            char buffer[256];
+            while (fgets(buffer, sizeof buffer, stdin)) {
+                buffer[strcspn(buffer, "\r\n")] = 0;
+                NSString *line = [NSString stringWithUTF8String:buffer];
+                dispatch_async(dispatch_get_main_queue(), ^{ handle(line); });
+            }
+            dispatch_async(dispatch_get_main_queue(), ^{ exit(0); });
+        }];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [window makeFirstResponder:plainField];
+            say([NSString stringWithFormat:@"ready pid=%d", getpid()]);
+        });
+        [NSApp run];
+    }
+    return 0;
+}
