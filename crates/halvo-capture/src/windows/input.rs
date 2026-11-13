@@ -1674,6 +1674,290 @@ mod tests {
         assert_eq!(sent(&writer), 0);
     }
 
+    static HOLD_THE_REGISTER_MS: AtomicU64 = AtomicU64::new(0);
+    static REGISTER_HELD: AtomicBool = AtomicBool::new(false);
+
+    /// The seam's register call, which holds the keyboard's pump for the
+    /// milliseconds that the test stores, so that the pump takes keys late.
+    fn register_held(device: &RAWINPUTDEVICE) -> windows::core::Result<()> {
+        let hold = HOLD_THE_REGISTER_MS.swap(0, Ordering::SeqCst);
+        if hold > 0 {
+            REGISTER_HELD.store(true, Ordering::SeqCst);
+            std::thread::sleep(std::time::Duration::from_millis(hold));
+            REGISTER_HELD.store(false, Ordering::SeqCst);
+        }
+        register_raw_input_device(device)
+    }
+
+    /// A visible window of the test's own, brought to the front so that the
+    /// keys that a test sends go to it.
+    struct OwnWindow(HWND);
+
+    impl OwnWindow {
+        fn in_front() -> (OwnWindow, bool) {
+            use windows::Win32::UI::Input::KeyboardAndMouse::{
+                SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
+                KEYEVENTF_KEYUP, VK_MENU,
+            };
+            use windows::Win32::UI::WindowsAndMessaging::{
+                CreateWindowExW, GetForegroundWindow, SetForegroundWindow, ShowWindow, SW_SHOW,
+                WINDOW_EX_STYLE, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
+            };
+            let class = windows::core::HSTRING::from("STATIC");
+            // SAFETY: the class name is a live HSTRING; the window belongs to
+            // this thread and is destroyed by the value's Drop.
+            let hwnd = unsafe {
+                CreateWindowExW(
+                    WINDOW_EX_STYLE(0),
+                    windows::core::PCWSTR(class.as_ptr()),
+                    windows::core::PCWSTR::null(),
+                    WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                    80,
+                    80,
+                    240,
+                    120,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+            }
+            .expect("INCONCLUSIVE: the test's own window");
+            let alt = |released: bool| INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_MENU,
+                        wScan: 0,
+                        dwFlags: if released {
+                            KEYEVENTF_KEYUP
+                        } else {
+                            KEYBD_EVENT_FLAGS(0)
+                        },
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            };
+            // SAFETY: the calls take this thread's window handle and a slice
+            // of two live INPUT values with the size of one INPUT.
+            let in_front = unsafe {
+                let _ = ShowWindow(hwnd, SW_SHOW);
+                let _ = SendInput(&[alt(false)], core::mem::size_of::<INPUT>() as i32);
+                let _ = SetForegroundWindow(hwnd);
+                let _ = SendInput(&[alt(true)], core::mem::size_of::<INPUT>() as i32);
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                GetForegroundWindow() == hwnd
+            };
+            (OwnWindow(hwnd), in_front)
+        }
+    }
+
+    impl Drop for OwnWindow {
+        fn drop(&mut self) {
+            // SAFETY: the window belongs to this value and this thread.
+            unsafe {
+                let _ = windows::Win32::UI::WindowsAndMessaging::DestroyWindow(self.0);
+            }
+        }
+    }
+
+    /// K6 of W3-7, from the verify step's probe: a key of a password field
+    /// and a click of the same tick from the pointer pump, with both sources
+    /// running, leave the key withheld, as a click one tick period later does.
+    #[test]
+    #[ignore = "functional: needs an interactive Windows desktop; a step of the windows job names it"]
+    fn a_click_of_the_same_tick_from_the_pointer_pump_leaves_a_password_key_withheld() {
+        use crate::secure_input::windows::FieldState;
+        use windows::Win32::UI::WindowsAndMessaging::RI_MOUSE_LEFT_BUTTON_DOWN;
+        let _serial = crate::windows::tests::serial();
+        let _ = registrations();
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut keyboard = RawInputSource::with_calls(RawDevice::Keyboard, calls_for_tests());
+        let keyboard_started = keyboard.begin(crate::source::SourceContext::new(sink.clone()));
+        let mut pointer = RawInputSource::with_calls(RawDevice::Pointer, calls_for_tests());
+        let pointer_started = pointer.begin(crate::source::SourceContext::new(sink));
+        let gate = clicks().gate.clone();
+        let answer = |click_after_ms: u32| {
+            gate.as_ref().map(|gate| {
+                let tick = super::super::now_tick();
+                gate.field_at(tick, FieldState::Password);
+                let key = gate.hold(tick.wrapping_add(1), false, foreground_thread());
+                click_from_the_pointer_pump(
+                    RI_MOUSE_LEFT_BUTTON_DOWN as u16,
+                    tick.wrapping_add(1 + click_after_ms),
+                );
+                gate.field_at(tick.wrapping_add(40), FieldState::Clear);
+                gate.read_at(tick.wrapping_add(130), FieldState::Clear, Some(true));
+                matches!(gate.clearance(&key, tick.wrapping_add(200)), Some(Err(_)))
+            })
+        };
+        let same_tick = answer(0);
+        let one_period_later = answer(16);
+        let pointer_stopped = pointer.shutdown();
+        let keyboard_stopped = keyboard.shutdown();
+        let _ = registrations();
+        println!(
+            "TF same-tick keyboard_started={} pointer_started={} withheld_with_a_click_of_the_same_tick={same_tick:?} withheld_with_a_click_16_ms_later={one_period_later:?} pointer_stopped={} keyboard_stopped={}",
+            keyboard_started.is_ok(),
+            pointer_started.is_ok(),
+            pointer_stopped.is_ok(),
+            keyboard_stopped.is_ok()
+        );
+        assert!(
+            keyboard_started.is_ok() && pointer_started.is_ok(),
+            "INCONCLUSIVE: a source did not start"
+        );
+        assert_eq!(
+            one_period_later,
+            Some(true),
+            "the control: a click 16 ms later"
+        );
+        assert_eq!(
+            same_tick,
+            Some(true),
+            "a click of the same tick cleared a key of a password field"
+        );
+    }
+
+    /// K5 and Q1 (d) of W3-7, from the verify step's probe: a real key that
+    /// the keyboard's own pump takes late, because the pump is held in the
+    /// register call of the mouse handover, while the gate read Password at
+    /// the key and a focus mark of a later move reaches the gate. No key is
+    /// recorded, and a key taken 300 ms late moves no count.
+    #[test]
+    #[ignore = "functional: needs an interactive Windows desktop; a step of the windows job names it"]
+    fn a_key_that_a_held_pump_takes_late_is_not_recorded_and_moves_no_count() {
+        use crate::secure_input::windows::FieldState;
+        use windows::Win32::UI::Input::KeyboardAndMouse::{
+            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
+            KEYEVENTF_KEYUP, VK_A,
+        };
+        let key = |released: bool| INPUT {
+            r#type: INPUT_KEYBOARD,
+            Anonymous: INPUT_0 {
+                ki: KEYBDINPUT {
+                    wVk: VK_A,
+                    wScan: 0,
+                    dwFlags: if released {
+                        KEYEVENTF_KEYUP
+                    } else {
+                        KEYBD_EVENT_FLAGS(0)
+                    },
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        };
+        let _serial = crate::windows::tests::serial();
+        let (own, in_front) = OwnWindow::in_front();
+        let (sink, writer) = crate::sink::channel(256);
+        let (tx, events) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            while let Some(event) = writer.recv() {
+                let keystroke = event.modality == crate::event::Modality::Keystroke;
+                if tx.send(keystroke).is_err() {
+                    break;
+                }
+            }
+        });
+        let mut keyboard = RawInputSource::with_calls(
+            RawDevice::Keyboard,
+            StartCalls {
+                register_device: register_held,
+                ..SYSTEM_CALLS
+            },
+        );
+        let started = keyboard.begin(crate::source::SourceContext::new(sink));
+        let gate = clicks().gate.clone();
+        let window = clicks().keyboard_window;
+        let mut recorded = Vec::new();
+        let mut late_300 = (0, false);
+        if let (Ok(_), Some(gate), Some(window)) = (&started, gate.as_ref(), window) {
+            let rounds: [(&str, u64); 6] = [
+                ("on-time-1", 0),
+                ("held-150-1", 150),
+                ("on-time-2", 0),
+                ("held-150-2", 150),
+                ("held-180", 180),
+                ("held-300", 300),
+            ];
+            for (name, hold_ms) in rounds {
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                while events.try_recv().is_ok() {}
+                let before = keyboard.health().counters;
+                gate.field_at(super::super::now_tick(), FieldState::Password);
+                let mut held = false;
+                if hold_ms > 0 {
+                    HOLD_THE_REGISTER_MS.store(hold_ms, Ordering::SeqCst);
+                    clicks().owner = None;
+                    // SAFETY: PostMessageW takes a window handle and plain
+                    // values; a window that is gone makes the call fail.
+                    unsafe {
+                        let _ = PostMessageW(
+                            Some(HWND(window as *mut core::ffi::c_void)),
+                            WM_TAKE_MOUSE,
+                            WPARAM(0),
+                            LPARAM(0),
+                        );
+                    }
+                    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+                    while !held && std::time::Instant::now() < deadline {
+                        held = REGISTER_HELD.load(Ordering::SeqCst);
+                        if !held {
+                            std::thread::sleep(std::time::Duration::from_millis(1));
+                        }
+                    }
+                }
+                // SAFETY: the slice holds two live INPUT values and the size
+                // argument is the size of one INPUT.
+                let accepted = unsafe {
+                    SendInput(
+                        &[key(false), key(true)],
+                        core::mem::size_of::<INPUT>() as i32,
+                    )
+                };
+                std::thread::sleep(std::time::Duration::from_millis(30));
+                gate.field_at(super::super::now_tick(), FieldState::Clear);
+                std::thread::sleep(std::time::Duration::from_millis(hold_ms + 500));
+                let keystroke_events = events.try_iter().filter(|keystroke| *keystroke).count();
+                let after = keyboard.health().counters;
+                println!(
+                    "TF held-pump round={name} hold_ms={hold_ms} pump_was_held={held} accepted={accepted} keystroke_events={keystroke_events} late_value_before={} late_value_after={} keys_withheld={}",
+                    before.late_events, after.late_events, after.keys_withheld
+                );
+                if name == "held-300" {
+                    late_300 = (after.late_events, after.keys_withheld);
+                }
+                recorded.push(keystroke_events);
+            }
+        }
+        let stopped = keyboard.shutdown();
+        drop(own);
+        println!(
+            "TF held-pump own_window_in_front={in_front} started={} stopped={} rounds={}",
+            started.is_ok(),
+            stopped.is_ok(),
+            recorded.len()
+        );
+        assert!(
+            started.is_ok(),
+            "INCONCLUSIVE: the keyboard source did not start"
+        );
+        assert_eq!(recorded.len(), 6, "INCONCLUSIVE: the rounds did not run");
+        assert_eq!(
+            recorded.iter().sum::<usize>(),
+            0,
+            "a key typed while the gate read Password was recorded"
+        );
+        assert!(
+            late_300.0 <= 1,
+            "the late value is a yes or no and read {}",
+            late_300.0
+        );
+        assert!(late_300.1, "keys_withheld did not read yes");
+    }
+
     fn vkey_of(key: crate::floor::cases::Key) -> u16 {
         use crate::floor::cases::{Key, Modifier};
         match key {
