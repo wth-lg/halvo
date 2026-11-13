@@ -1,19 +1,19 @@
 use halvo_capture::consent::{CaptureState, ConsentView};
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
-use tauri::{AppHandle, Manager, Wry};
+use tauri::{AppHandle, Manager, Runtime};
 
-use crate::commands::AppState;
+use crate::commands::capture::AppState;
 
 const TRAY_ID: &str = "halvo-status";
 const TOGGLE_ID: &str = "toggle-capture";
 const OPEN_ID: &str = "open-data-view";
 const QUIT_ID: &str = "quit";
 
-pub struct TrayHandles {
-    tray: TrayIcon<Wry>,
-    status_item: MenuItem<Wry>,
-    toggle_item: MenuItem<Wry>,
+pub struct TrayHandles<R: Runtime> {
+    tray: TrayIcon<R>,
+    status_item: MenuItem<R>,
+    toggle_item: MenuItem<R>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,13 +41,13 @@ pub fn labels(state: CaptureState) -> TrayLabels {
     }
 }
 
-fn current_state(app: &AppHandle) -> CaptureState {
+fn current_state<R: Runtime>(app: &AppHandle<R>) -> CaptureState {
     let state = app.state::<AppState>();
     let controller = state.controller.lock().unwrap_or_else(|e| e.into_inner());
     controller.status().state
 }
 
-pub fn install(app: &AppHandle) -> tauri::Result<()> {
+pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let initial = labels(current_state(app));
     let status_item = MenuItem::with_id(app, "status", initial.status_text, false, None::<&str>)?;
     let toggle_item = MenuItem::with_id(app, TOGGLE_ID, initial.toggle_text, true, None::<&str>)?;
@@ -84,8 +84,8 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-pub fn refresh(app: &AppHandle) {
-    let Some(handles) = app.try_state::<TrayHandles>() else {
+pub fn refresh<R: Runtime>(app: &AppHandle<R>) {
+    let Some(handles) = app.try_state::<TrayHandles<R>>() else {
         return;
     };
     let texts = labels(current_state(app));
@@ -95,7 +95,7 @@ pub fn refresh(app: &AppHandle) {
     let _ = handles.toggle_item.set_text(texts.toggle_text);
 }
 
-fn on_menu_event(app: &AppHandle, event: MenuEvent) {
+fn on_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
     match event.id().as_ref() {
         TOGGLE_ID => {
             {
@@ -113,14 +113,15 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
             show_main_window(app);
         }
         OPEN_ID => show_main_window(app),
-        QUIT_ID => app.exit(0),
+        QUIT_ID => app.exit(crate::launch::Exit::Quit.code()),
         _ => {}
     }
 }
 
-pub fn show_main_window(app: &AppHandle) {
+pub fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
+        let _ = window.eval(crate::app::WINDOW_SHOWN);
         let _ = window.unminimize();
         let _ = window.set_focus();
     }
