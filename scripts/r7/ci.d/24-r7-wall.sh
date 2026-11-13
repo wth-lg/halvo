@@ -375,7 +375,60 @@ judge() {
         token(tok, s, pos)
         if (refused[side] + 0 > before) return
       }
+      before = refused[side] + 0
       chains(s)
+      if (refused[side] + 0 > before) return
+      from_top(s)
+    }
+    function top_path(c,   n, sg, i, d, kp, out) {
+      n = split(c, sg, "/")
+      d = 0
+      for (i = 1; i <= n; i++) {
+        if (sg[i] == "" || sg[i] == ".") continue
+        if (i == 1 && substr(sg[i], 1, 1) == "$") continue
+        if (sg[i] == "..") { if (d > 0) d--; continue }
+        kp[++d] = sg[i]
+      }
+      out = ""
+      for (i = 1; i <= d; i++) out = out (i > 1 ? "/" : "") kp[i]
+      return out
+    }
+    function top_hit(c,   r) {
+      if (c ~ /^[A-Za-z]:[\/\\]/) return 0
+      r = top_path(c)
+      if (!(r in known) || !index(r, "/") || path == "backend/scripts/names-v0.sh") return 0
+      if (side == "backend" && tracked("backend/" r)) return 0
+      if (side == "backend" && !inside(r)) problem(where, "names " r ", a tracked file of the app, read from the top of the repository: " c fix_top)
+      else if (side == "app" && inside(r)) problem(where, "names " r ", a tracked file of backend/ or formal/r7-ledger/, read from the top of the repository: " c fix_top)
+      else return 0
+      return 1
+    }
+    function from_top(s,   rest, off, n, i, j, st, en, sv, c) {
+      rest = s
+      while (match(rest, token_chars)) {
+        if (top_hit(substr(rest, RSTART, RLENGTH))) return
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+      n = 0
+      rest = s
+      off = 0
+      while (match(rest, string_re)) {
+        n++
+        st[n] = off + RSTART
+        en[n] = off + RSTART + RLENGTH - 1
+        sv[n] = substr(rest, RSTART + 1, RLENGTH - 2)
+        off += RSTART + RLENGTH - 1
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+      for (i = 1; i <= n; i++) {
+        c = sv[i]
+        if (top_hit(c)) return
+        for (j = i + 1; j <= n; j++) {
+          if (substr(s, en[j - 1] + 1, st[j] - en[j - 1] - 1) !~ sep_gap) break
+          c = c "/" sv[j]
+          if (top_hit(c)) return
+        }
+      }
     }
     function chains(s,   rest, off, n, i, j, st, en, sv, c, last, before) {
       n = 0
@@ -425,6 +478,7 @@ judge() {
       operand = "(^|[;&|(`$ \t])(cat|cp|mv|ln|ls|find|rsync|du)([ \t]+-[A-Za-z0-9-]+)*[ \t]+" bk "([ \t;&|)]|$)"
       archive = "(^|[;&|(`$ \t])(tar|zip)([ \t]+[^ \t;&|]+)*[ \t]+" bk "([ \t;&|)]|$)"
       string_re = "\"[^\"]*\"|" q "[^" q "]*" q "|`[^`]*`"
+      fix_top = "; rename the file, or reword the string so that it spells no path of the other side, or ask for a ruling"
       sep_gap = "^[ \t]*(,|\\)[ \t]*\\.[ \t]*join[ \t]*\\(|/)[ \t]*$"
       defaults = "\\$\\{[a-z_][a-z0-9_]*:?[-=?+][ \t]*" word "\\}"
       braces = "\\{([^{}]*,)?[ \t]*backend[ \t]*(,[^{}]*)?\\}/"
@@ -727,6 +781,19 @@ Readings that refuse an honest line, with the form to write in its place:
   shorter chain of that run (a shorter chain is refused when it names a
   tracked file of the other side), so two unrelated strings that chain into
   a path of the other side are refused: put the strings on two lines;
+- on either side, every token and string of a line, and every run of strings
+  joined by a comma, ").join(" or "/", is also read from the top of the
+  repository, whatever stands before it and whatever the file's own
+  directory is, so a text in a file of one side that spells in full, with at
+  least one slash, a tracked file of the other side from the top is refused:
+  rename the file or reword the text. This reading has three limits, each
+  held by a passing fixture p785-limit-<kind>: a lone name of a top-level
+  file (join(dir, "Cargo.toml")) is not read from the top; a path without its
+  extension (crates/x/src/lib) is not read from the top; a path that the
+  file's own side also tracks is read as its own (scripts/prerequisites.sh in
+  backend/, which is backend/scripts/prerequisites.sh too). A drive-letter
+  path is not read from the top (the limit absolute-path). As part of the
+  limit names-v0, backend/scripts/names-v0.sh is exempt from it;
 - in the app, the word backend assigned to a name, as a label or as an
   attribute value is refused: give it another name.
 
@@ -1439,6 +1506,21 @@ const text = readFileSync(here + "/../crates/halvo-capture/src/lib.rs", "utf8");
   case_with t3-app-tar-to-standard-output scripts/pack3.sh 'tar -cf - backend | gzip > dist/app.tgz' 'scripts/pack3.sh:1: gives backend to tar or zip'
   case_with j1-backend-python-path-pieces backend/scripts/peek_path.py 'TEXT = Path("..", "..", "crates", "halvo-capture", "src", "lib.rs").read_text()' 'backend/scripts/peek_path.py:1: reads crates'
   case_with j2-backend-python-joinpath backend/scripts/peek_joinpath.py 'TEXT = Path(__file__).parent.joinpath("..", "..", "crates", "halvo-capture", "src", "lib.rs").read_text()' 'backend/scripts/peek_joinpath.py:1: reads crates'
+
+  case_with p785-a-backend-joins-the-repository-root-and-app-pieces backend/scripts/root.mjs 'const src = readFileSync(join(execSync("git rev-parse --show-toplevel").toString().trim(), "crates", "halvo-capture", "src", "lib.rs"), "utf8");' 'backend/scripts/root.mjs:1: names crates/halvo-capture/src/lib.rs, a tracked file of the app, read from the top'
+  case_with p785-a-backend-joins-a-root-variable-and-app-pieces backend/scripts/root2.mjs 'const repoRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8" }).trim();
+const src = readFileSync(join(repoRoot, "crates", "halvo-capture", "src", "lib.rs"), "utf8");' 'backend/scripts/root2.mjs:2: names crates/halvo-capture/src/lib.rs, a tracked file of the app, read from the top'
+  case_with p785-b-backend-joins-os-pardir-and-app-pieces backend/scripts/pd.py 'text = open(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, "crates", "halvo-capture", "src", "lib.rs")).read()' 'backend/scripts/pd.py:1: names crates/halvo-capture/src/lib.rs, a tracked file of the app, read from the top'
+  case_with p785-c-backend-cds-up-twice-and-reads-a-plain-app-path backend/scripts/cd2.sh 'cd .. && cd .. && cat crates/halvo-capture/src/lib.rs' 'backend/scripts/cd2.sh:1: names crates/halvo-capture/src/lib.rs, a tracked file of the app, read from the top'
+  case_with p785-a-shell-twin-reads-the-app-after-the-root backend/scripts/top.sh 'TOP=$(git rev-parse --show-toplevel)
+cat "$TOP/crates/halvo-capture/src/lib.rs"' 'backend/scripts/top.sh:2: reads crates/halvo-capture/src/lib.rs, a tracked path of the app'
+  pass_with p785-backend-joins-the-repository-root-and-its-own-pieces backend/scripts/budget.mjs 'const budget = readFileSync(join(execSync("git rev-parse --show-toplevel").toString().trim(), "backend", "gate", "prompt-budget.json"), "utf8");' 'read:backend/scripts/budget.mjs'
+
+  pass_with p785-names-v0-is-exempt-from-the-reading-from-the-top backend/scripts/names-v0.sh 'ENUM_PATH=crates/halvo-capture/src/lib.rs' 'read:backend/scripts/names-v0.sh'
+  case_with p785-a-copy-of-the-names-v0-line-in-another-file backend/scripts/names-v1.sh 'ENUM_PATH=crates/halvo-capture/src/lib.rs' 'backend/scripts/names-v1.sh:1: names crates/halvo-capture/src/lib.rs, a tracked file of the app, read from the top'
+  pass_with p785-limit-a-lone-top-level-file-name backend/gate/lib/manifest.mjs 'const manifest = readFileSync(join(directory, "Cargo.toml"), "utf8");' 'read:backend/gate/lib/manifest.mjs'
+  pass_with p785-limit-a-path-without-its-extension backend/src/peek.ts 'import { x } from "crates/halvo-capture/src/lib";' 'read:backend/src/peek.ts'
+  pass_with p785-limit-a-path-that-backend-also-tracks backend/spikes/s4/run.sh 'echo "packages are missing: run sh scripts/prerequisites.sh first" >&2' 'read:backend/spikes/s4/run.sh'
 
   fixture known-limit-names-v0
   put backend/scripts/names-v0.sh 'APP_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
