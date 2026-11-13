@@ -86,7 +86,7 @@ expect() {
   fi
   status=$?
   case "$kind" in
-    own) line=$(grep -E '^(PASS|FAIL) metering-[a-z]+: ' "$log" | tail -1) ;;
+    own) line=$(grep -E '^(PASS|FAIL) metering-[a-z-]+: ' "$log" | tail -1) ;;
     *) line=$(grep -E "^$prefix(PASS|FAIL) metering: " "$log" | tail -1) ;;
   esac
   line=${line#"$prefix"}

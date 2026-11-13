@@ -257,9 +257,9 @@ function runTests() {
 }
 
 async function plan() {
-  const { searchCases } = await import("./property.ts");
+  const { READ_WIDTH_SECONDS, searchCases } = await import("./property.ts");
   const held = searchCases().length;
-  const text = `seeds=${SEEDS.join(",")} orderings-of-one-seed=${ORDERINGS} settings=${SETTINGS}`;
+  const text = `seeds=${SEEDS.join(",")} orderings-of-one-seed=${ORDERINGS} settings=${SETTINGS} read-width-seconds=${READ_WIDTH_SECONDS}`;
   if (held !== SETTINGS) {
     console.log(`FAIL metering-plan: ${text}; first failure: the search holds ${held} settings, and the plan SETTINGS is ${SETTINGS}`);
     process.exit(1);
