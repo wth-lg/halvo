@@ -126,6 +126,13 @@ mod tests {
     }
 
     #[test]
+    fn a_bundle_one_directory_deeper_is_not_listed() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("Utilities").join("Deep.app")).unwrap();
+        assert!(scan_dir(tmp.path()).is_empty());
+    }
+
+    #[test]
     fn missing_directory_scans_to_empty() {
         assert!(scan_dir(Path::new("/no/such/dir/at/all")).is_empty());
     }

@@ -1819,7 +1819,7 @@ mod granted_tests {
         .expect("the tap starts");
         let live = port.port.load(Ordering::Relaxed);
         // SAFETY: `live` is the mach port of the tap that the tap thread keeps
-        // until `stop` below.
+        // until `stop_within` below.
         let enabled_at_start = unsafe { CGEventTapIsEnabled(live) };
         // SAFETY: as above.
         unsafe { CGEventTapEnable(live, false) };

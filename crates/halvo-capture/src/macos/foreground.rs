@@ -23,7 +23,7 @@ pub const FOREGROUND_POLL: Duration = Duration::from_millis(400);
 
 pub const FOREGROUND_STOP_DEADLINE: Duration = Duration::from_secs(1);
 
-pub const TITLE_RETRY_WINDOW: Duration = Duration::from_millis(2000);
+pub const TITLE_RETRY_WINDOW: Duration = FOREGROUND_POLL.saturating_mul(5);
 
 pub const IDENTITY_CAP_BYTES: usize = 1024;
 

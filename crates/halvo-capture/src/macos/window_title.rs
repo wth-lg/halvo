@@ -24,7 +24,7 @@ const AX_ERROR_ATTRIBUTE_UNSUPPORTED: i32 = -25205;
 
 pub const TITLE_READ_CAP_UNITS: usize = 1024;
 
-pub const TITLE_READ_DEADLINE: Duration = Duration::from_millis(400);
+pub const TITLE_READ_DEADLINE: Duration = crate::macos::foreground::FOREGROUND_POLL;
 
 /// The UTF-8 length of the bounded read of a title, with each unpaired
 /// surrogate counted as the 3 bytes of U+FFFD.
@@ -45,8 +45,12 @@ impl TitleLength {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TitleError {
     NotTrusted,
-    Accessibility { code: i32 },
+    Accessibility {
+        code: i32,
+    },
     NotAnElement,
+    /// The system made no Accessibility element for the process id.
+    NoApplicationElement,
     NotAString,
     ReaderPanicked,
 }
@@ -107,8 +111,18 @@ fn ax_element_type() -> CFTypeID {
     unsafe { AXUIElementGetTypeID() }
 }
 
-fn set_deadline(element: &CFType) {
-    // SAFETY: `element` is a live AXUIElement for the call.
+struct AxElement<'a>(&'a CFType);
+
+impl<'a> AxElement<'a> {
+    fn checked(value: &'a CFType) -> Option<Self> {
+        (value.type_of() == ax_element_type()).then_some(Self(value))
+    }
+}
+
+fn set_deadline(element: AxElement<'_>) {
+    let element = element.0;
+    // SAFETY: `element` is a live AXUIElement for the call: an AxElement is
+    // made only from a value whose type id is AXUIElement's.
     unsafe {
         AXUIElementSetMessagingTimeout(element.as_CFTypeRef(), TITLE_READ_DEADLINE.as_secs_f32())
     };
@@ -139,16 +153,18 @@ pub fn focused_window_title(pid: libc::pid_t) -> Result<Option<TitleLength>, Tit
     // SAFETY: AXUIElementCreateApplication returns a +1 reference or null.
     let app_ref = unsafe { AXUIElementCreateApplication(pid) };
     if app_ref.is_null() {
-        return Err(TitleError::NotAnElement);
+        return Err(TitleError::NoApplicationElement);
     }
     // SAFETY: the Create rule gives a +1 reference.
     let app = unsafe { CFType::wrap_under_create_rule(app_ref) };
-    set_deadline(&app);
+    if let Some(app) = AxElement::checked(&app) {
+        set_deadline(app);
+    }
     let Some(window) = copy_attribute(&app, "AXFocusedWindow")? else {
         return Ok(None);
     };
-    if window.type_of() == ax_element_type() {
-        set_deadline(&window);
+    if let Some(window) = AxElement::checked(&window) {
+        set_deadline(window);
     }
     window_title_length(&window, |window| copy_attribute(window, "AXTitle"))
 }
@@ -156,6 +172,12 @@ pub fn focused_window_title(pid: libc::pid_t) -> Result<Option<TitleLength>, Tit
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_string_is_no_accessibility_element_and_gets_no_deadline() {
+        let not_an_element = CFString::new("AXWindow").as_CFType();
+        assert!(AxElement::checked(&not_an_element).is_none());
+    }
     use core_foundation::base::kCFAllocatorDefault;
     use core_foundation::string::CFStringCreateWithCharacters;
     use std::cell::Cell;

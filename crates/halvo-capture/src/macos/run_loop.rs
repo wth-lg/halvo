@@ -13,7 +13,7 @@ use crate::macos::foreground::{ForegroundReader, ForegroundWriter};
 
 pub const TURN_SLICE: Duration = Duration::from_millis(100);
 
-pub const STALLED_AFTER: Duration = Duration::from_millis(2000);
+pub const STALLED_AFTER: Duration = crate::macos::foreground::FOREGROUND_POLL.saturating_mul(5);
 
 static CLAIMED: AtomicBool = AtomicBool::new(false);
 
