@@ -122,15 +122,53 @@ fn ascending(days: impl Iterator<Item = u32>) -> bool {
     days.windows(2).all(|w| w[0] < w[1])
 }
 
+/// The grid of L7.2: a cell is `<cadence>-<jitter>-<miss_pct>` with each part one of these.
+const CADENCES: [&str; 3] = ["7", "14", "30"];
+const JITTERS: [&str; 3] = ["0", "1", "3"];
+const MISS_PCTS: [&str; 3] = ["0", "10", "20"];
+
+/// The highest train number of a cell (L7.2: each cell has 200 trains).
+const TRAIN_MAX: u64 = 200;
+
+fn in_grid(cell: &str) -> bool {
+    let parts: Vec<&str> = cell.split('-').collect();
+    matches!(parts[..], [cadence, jitter, miss]
+        if CADENCES.contains(&cadence) && JITTERS.contains(&jitter) && MISS_PCTS.contains(&miss))
+}
+
+/// The line of L7.2 that holds these values, byte for byte.
+fn written(cell: &str, train: u64, kind: &str, days: &[u32], events: &[Event]) -> String {
+    let days: Vec<String> = days.iter().map(u32::to_string).collect();
+    let events: Vec<String> = events
+        .iter()
+        .map(|e| {
+            let mark = match e.mark {
+                Mark::None => "none",
+                Mark::Stale => "stale",
+            };
+            let period = e.period.map_or("null".to_owned(), |p| p.to_string());
+            format!(r#"{{"day":{},"mark":"{mark}","period":{period}}}"#, e.day)
+        })
+        .collect();
+    format!(
+        r#"{{"cell":"{cell}","train":{train},"kind":"{kind}","days":[{}],"events":[{}]}}"#,
+        days.join(","),
+        events.join(",")
+    )
+}
+
 fn read_train(line: &str) -> Option<Train> {
     let value: Value = serde_json::from_str(line).ok()?;
-    if !keys_are(&value, &["cell", "train", "kind", "days", "events"])
-        || !value["cell"].is_string()
-        || !value["train"].as_u64().is_some_and(|n| n > 0)
-        || !matches!(value["kind"].as_str(), Some("same" | "stop" | "shift"))
-    {
+    if !keys_are(&value, &["cell", "train", "kind", "days", "events"]) {
         return None;
     }
+    let cell = value["cell"].as_str().filter(|c| in_grid(c))?;
+    let train = value["train"]
+        .as_u64()
+        .filter(|n| (1..=TRAIN_MAX).contains(n))?;
+    let kind = value["kind"]
+        .as_str()
+        .filter(|k| matches!(*k, "same" | "stop" | "shift"))?;
     let days: Vec<u32> = value["days"]
         .as_array()?
         .iter()
@@ -141,13 +179,17 @@ fn read_train(line: &str) -> Option<Train> {
         .iter()
         .map(read_event)
         .collect::<Option<_>>()?;
-    if !ascending(days.iter().copied()) || !ascending(events.iter().map(|e| e.day)) {
+    if !ascending(days.iter().copied())
+        || !ascending(events.iter().map(|e| e.day))
+        || written(cell, train, kind, &days, &events) != line
+    {
         return None;
     }
     Some(Train { days, events })
 }
 
-/// The trains of a sample file: one JSON line per train of the form of L7.2, each line ending in LF.
+/// The trains of a sample file: one line per train, each ending in LF alone and each the line of L7.2 byte for byte:
+/// the keys in L7.2's order and each once, no white space, a cell of L7.2's grid and a train number from 1 to 200.
 pub fn read_sample(bytes: &[u8]) -> Result<Vec<Train>, String> {
     let text = std::str::from_utf8(bytes).map_err(|_| "the sample is not UTF-8".to_owned())?;
     let body = text

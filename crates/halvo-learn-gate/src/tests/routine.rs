@@ -402,3 +402,82 @@ fn routine_newest_row_refuses_a_learn_routine_row_that_its_parser_refuses() {
         );
     }
 }
+
+#[test]
+fn routine_reader_refuses_each_line_that_is_not_l7_2s_form_byte_for_byte() {
+    let one = |text: String| read_sample(text.as_bytes());
+    let with = |from: &str, to: &str| {
+        assert_eq!(TRAIN.matches(from).count(), 1, "{from}");
+        format!("{}\n", TRAIN.replacen(from, to, 1))
+    };
+    for taken in [
+        format!("{TRAIN}\n"),
+        with("\"7-0-0\"", "\"30-3-20\""),
+        with("\"7-0-0\"", "\"14-1-10\""),
+        with("\"train\":1,", "\"train\":200,"),
+    ] {
+        assert!(one(taken.clone()).is_ok(), "{taken}");
+    }
+    let forms = [
+        (
+            "train twice",
+            with("\"train\":1,", "\"train\":1,\"train\":2,"),
+        ),
+        (
+            "a second days",
+            with("\"events\"", "\"days\":[1,8,15],\"events\""),
+        ),
+        ("cell empty", with("\"7-0-0\"", "\"\"")),
+        ("cell not a cell", with("\"7-0-0\"", "\"not a cell\"")),
+        ("cell outside the grid", with("\"7-0-0\"", "\"8-0-0\"")),
+        ("a CR before the LF", format!("{TRAIN}\r\n")),
+        ("a space after a comma", with(",\"train\"", ", \"train\"")),
+        ("a space after a colon", with("\"train\":1", "\"train\": 1")),
+        ("a space before the LF", format!("{TRAIN} \n")),
+        (
+            "the keys in another order",
+            with(
+                "{\"cell\":\"7-0-0\",\"train\":1,",
+                "{\"train\":1,\"cell\":\"7-0-0\",",
+            ),
+        ),
+        (
+            "an event's keys in another order",
+            with(
+                "{\"day\":15,\"mark\":\"none\",\"period\":7}",
+                "{\"mark\":\"none\",\"day\":15,\"period\":7}",
+            ),
+        ),
+        ("train 201", with("\"train\":1,", "\"train\":201,")),
+        (
+            "train 18446744073709551615",
+            with("\"train\":1,", "\"train\":18446744073709551615,"),
+        ),
+    ];
+    let taken: Vec<&str> = forms
+        .into_iter()
+        .filter(|(_, text)| one(text.clone()) != Err("line 1 of the sample is no train".to_owned()))
+        .map(|(form, _)| form)
+        .collect();
+    assert_eq!(taken, Vec::<&str>::new());
+}
+
+#[test]
+fn routine_reader_refuses_the_sample_with_cr_lf_at_the_end_of_line_1() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(SAMPLE_PATH);
+    let bytes = std::fs::read(path).expect("the sample file");
+    let first = bytes
+        .iter()
+        .position(|b| *b == b'\n')
+        .expect("a first line");
+    let mut changed = bytes[..first].to_vec();
+    changed.push(b'\r');
+    changed.extend_from_slice(&bytes[first..]);
+    assert_eq!(read_sample(&bytes).map(|t| t.len()), Ok(TRAINS));
+    assert_eq!(
+        read_sample(&changed),
+        Err("line 1 of the sample is no train".to_owned())
+    );
+}
