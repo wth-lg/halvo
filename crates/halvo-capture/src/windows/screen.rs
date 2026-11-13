@@ -283,7 +283,10 @@ impl CaptureSource for ScreenSource {
 
 impl Drop for ScreenSource {
     fn drop(&mut self) {
-        let _ = self.shutdown();
+        self.life.on_drop(super::SCREEN_STOP_DEADLINE);
+        if let Some(handoff) = &self.handoff {
+            handoff.close();
+        }
     }
 }
 
@@ -385,6 +388,10 @@ impl<S: Session> ScreenLife<S> {
         self.timed_out = None;
         self.stopped = true;
         stopped
+    }
+
+    fn on_drop(&mut self, deadline: Duration) {
+        let _ = self.shutdown(deadline);
     }
 
     fn state(&self, item_closed: bool, writer_gone: bool) -> SourceState {
@@ -600,6 +607,24 @@ mod tests {
         assert_eq!(
             stop(fake(false, false, 0)),
             Some(Err(CaptureError::ThreadEnded))
+        );
+    }
+
+    #[test]
+    fn a_dropped_screen_source_whose_stop_timed_out_waits_no_more() {
+        let mut life = ScreenLife::default();
+        life.started(fake(false, true, 3_000));
+        let first = life.shutdown(Duration::from_millis(300));
+        assert!(
+            matches!(first, Err(CaptureError::Timeout { .. })),
+            "{first:?}"
+        );
+        let began = Instant::now();
+        life.on_drop(Duration::from_millis(300));
+        let waited = began.elapsed();
+        assert!(
+            waited < Duration::from_millis(100),
+            "the drop waited {waited:?}"
         );
     }
 

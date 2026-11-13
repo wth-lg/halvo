@@ -854,6 +854,49 @@ pub(crate) mod tests {
         assert_eq!(handoff.counts().lost, 2);
     }
 
+    fn stuck_source(sink: SinkHandle) -> Lifecycle {
+        let mut life = Lifecycle::default();
+        let started = life.begin(&SourceContext::new(sink), "halvo-test-forward", |_| {
+            spawn_pump("halvo-pump-stuck".to_string(), |ready, _signal| {
+                ready.report(Ok(()));
+                std::thread::sleep(INPUT_STOP_DEADLINE * 3);
+            })
+        });
+        assert_eq!(started, Ok(Started::Running));
+        life
+    }
+
+    #[test]
+    fn a_dropped_source_whose_pump_does_not_end_waits_its_deadline_once() {
+        let (sink, _writer) = crate::sink::channel(4);
+        let life = stuck_source(sink);
+        let began = Instant::now();
+        drop(life);
+        let waited = began.elapsed();
+        assert!(
+            waited < INPUT_STOP_DEADLINE * 3 / 2,
+            "the drop waited {waited:?}"
+        );
+    }
+
+    #[test]
+    fn a_dropped_source_whose_stop_timed_out_waits_no_more() {
+        let (sink, _writer) = crate::sink::channel(4);
+        let mut life = stuck_source(sink);
+        let stopped = life.shutdown();
+        assert!(
+            matches!(stopped, Err(CaptureError::Timeout { .. })),
+            "{stopped:?}"
+        );
+        let began = Instant::now();
+        drop(life);
+        let waited = began.elapsed();
+        assert!(
+            waited < Duration::from_millis(250),
+            "the drop waited {waited:?}"
+        );
+    }
+
     #[test]
     fn a_stop_that_timed_out_keeps_the_pump_known_until_it_ends() {
         let (sink, _writer) = crate::sink::channel(4);
