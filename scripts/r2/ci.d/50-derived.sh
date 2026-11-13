@@ -172,6 +172,7 @@ esac
 #= tests/privacy.rs a_removed_row_on_a_page_that_the_database_built_again_leaves_no_marker
 #= src/lib.rs tests::a_second_making_of_a_unit_leaf_that_exists_fails
 #= src/lib.rs tests::the_unit_leaf_name_differs_for_two_readings_of_the_clock
+#= tests/privacy.rs removed_rows_leave_no_text_in_the_gap_of_a_page_built_again
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
