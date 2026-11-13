@@ -18,8 +18,10 @@ enum Fault {
     OpenWhileOpenServes,
     OpenWhileOpenClosesTheCursor,
     WatermarkRefusedAfterAShred,
+    RisenWatermarkRefusedAfterAShred,
     ExpiryMovesFromReadToRead,
     ExpiryMovesFromConnectionToConnection,
+    ExpiryMovesFromCursorToCursor,
     FilteredStopRepeats,
     FilteredStopRepeatsInTheNextBatch,
     FilteredStopSkipsARecord,
@@ -123,6 +125,7 @@ impl Subject for Fixture {
                         shredded,
                         connection,
                         reads: 0,
+                        opens: 0,
                         last: None,
                     };
                     wrong.serve(&mut transport, requests_in, replies_out);
@@ -141,6 +144,12 @@ impl Subject for Fixture {
     fn shred_oldest(&mut self) -> Result<(), String> {
         self.settle()?;
         self.first_live += 1;
+        if self.fault == Some(RisenWatermarkRefusedAfterAShred) {
+            let first = self.files.first().ok_or("no store is loaded")?;
+            let path = first.with_file_name(format!("day-{:03}.jsonl", self.files.len() + 1));
+            fs::write(&path, "").map_err(|e| format!("write failed: {e}"))?;
+            self.files.push(path);
+        }
         self.reopen()
     }
 
@@ -167,20 +176,23 @@ struct Wrong {
     shredded: bool,
     connection: i64,
     reads: i64,
+    opens: i64,
     last: Option<OpenCursor>,
 }
 
 impl Wrong {
     fn open(&mut self, t: &mut FixtureTransport, open: &OpenCursor) -> ServerMessage {
-        if self.fault == WatermarkRefusedAfterAShred
-            && self.shredded
-            && open.position() == t.watermark()
-        {
+        let refuses = matches!(
+            self.fault,
+            WatermarkRefusedAfterAShred | RisenWatermarkRefusedAfterAShred
+        );
+        if refuses && self.shredded && open.position() == t.watermark() {
             return error(Cause::BadPosition);
         }
         let reply = open_reply(t, self.fault, open);
         if matches!(reply, ServerMessage::Batch(_)) {
             self.last = Some(open.clone());
+            self.opens += 1;
         }
         reply
     }
@@ -194,6 +206,7 @@ impl Wrong {
         let shift = match self.fault {
             ExpiryMovesFromReadToRead => self.reads,
             ExpiryMovesFromConnectionToConnection => self.connection,
+            ExpiryMovesFromCursorToCursor => self.opens,
             _ => 0,
         };
         for x in &mut b.expiry {
@@ -352,7 +365,10 @@ fn conformance_check_open_at_the_watermark_after_a_shred() {
     let check = Some("open_at_the_watermark_after_a_shred");
     wrong(
         "conformance_check_open_at_the_watermark_after_a_shred",
-        &[(WatermarkRefusedAfterAShred, [None, check, None, None])],
+        &[
+            (WatermarkRefusedAfterAShred, [None, check, None, None]),
+            (RisenWatermarkRefusedAfterAShred, [None, check, None, None]),
+        ],
     );
 }
 
@@ -367,6 +383,7 @@ fn conformance_check_one_expiry_instant() {
                 ExpiryMovesFromConnectionToConnection,
                 [check, check, None, None],
             ),
+            (ExpiryMovesFromCursorToCursor, [check, check, check, check]),
         ],
     );
 }
