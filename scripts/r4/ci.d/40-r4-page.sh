@@ -235,6 +235,11 @@ case ${R4_STUB:-} in
     echo 'check result=ok'
     exit 0
     ;;
+  dirty-outside)
+    printf 'x\n' >>"$CI_D_REPO/CHANGELOG.md"
+    echo 'check result=ok'
+    exit 0
+    ;;
   whole-record | push-record)
     case "${R4_STUB%-record} $* " in
       "whole "*" whole "* | "push "*" push "*)
@@ -268,7 +273,7 @@ fixture() {
   head=$(git -C "$repo" rev-parse HEAD 2>/dev/null) || fail setup
   git -C "$fx" update-ref HEAD "$head" || fail setup
   git -C "$fx" config core.sparseCheckout true || fail setup
-  printf '/ui/tests/r4/page/\n' >"$fx/.git/info/sparse-checkout" || fail setup
+  printf '/ui/tests/r4/page/\n/CHANGELOG.md\n' >"$fx/.git/info/sparse-checkout" || fail setup
   git -C "$fx" read-tree -mu HEAD >/dev/null 2>&1 || fail setup
 }
 
@@ -379,6 +384,7 @@ self_test() {
   printf 'x\n' >"$work/dirty/ui/untracked.txt" || fail setup
   fixture fx-pass
   fixture fx-dirty
+  fixture fx-dirty-outside
   fixture fx-record
   fixture fx-record-windows
   me="$here/$name.sh"
@@ -403,6 +409,7 @@ self_test() {
   script_case node-21 FAIL:node env PATH="$work/bin-21:$PATH" CI_D_ARTIFACTS="$work/ok-artifacts" "$shell" "$me"
   script_case a-run-that-passes-on-a-fixture PASS env R4_STUB=pass R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-pass" CI_D_ARTIFACTS="$artifacts" "$shell" "$me"
   script_case a-run-that-changes-a-tracked-file FAIL:dirty env R4_STUB=dirty R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-dirty" CI_D_ARTIFACTS="$artifacts" "$shell" "$me"
+  script_case a-run-that-changes-a-tracked-file-outside-the-inputs FAIL:dirty env R4_STUB=dirty-outside R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-dirty-outside" CI_D_ARTIFACTS="$artifacts" "$shell" "$me"
   script_case a-whole-run-that-fails-on-the-record FAIL:record env R4_STUB=whole-record R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-record" CI_D_ARTIFACTS="$artifacts" "$shell" "$me"
   script_case a-windows-push-that-fails-on-the-record FAIL:record env CI_D_JOB=windows R4_STUB=push-record R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-record-windows" CI_D_ARTIFACTS="$artifacts" "$shell" "$me"
   empty_after a-run-that-passes-leaves-no-temporary-directory pass-tmp R4_STUB=pass R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-pass" CI_D_ARTIFACTS="$artifacts"
