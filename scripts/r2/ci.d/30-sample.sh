@@ -29,7 +29,10 @@ judge() {
         [ "$value" = 0 ] || fail "$key exited $value"
         ;;
       golden-files | gen-*-files)
-        [ "$value" = same ] || fail "$key: the files differ from those of HEAD"
+        if [ "$value" != same ]; then
+          why=$(differing "$value") || why="files that differ from HEAD: unknown"
+          fail "$key: $why"
+        fi
         ;;
       gen-*-manifest-1)
         printf '%s\n' "$value" | grep -Eqx '[0-9a-f]{64}' || fail "$key: no manifest line"
@@ -54,6 +57,20 @@ judge() {
     done
   fi
   return 0
+}
+
+differing() {
+  rest=${1#differ}
+  rest=${rest# }
+  n=${rest%% *}
+  first=${rest#"$n"}
+  first=${first# }
+  printf '%s\n' "$n" | grep -Eqx '[0-9]+' || n=unknown
+  if printf '%s\n' "$first" | grep -Eqx 'streams/[a-z0-9-]{1,48}/(day-[0-9]{3}|labels)\.jsonl|manifest\.toml|script-manifest\.jsonl|layers/steps\.jsonl'; then
+    printf 'files that differ from HEAD: %s, the first %s\n' "$n" "$first"
+  else
+    printf 'files that differ from HEAD: %s\n' "$n"
+  fi
 }
 
 record() {
@@ -83,7 +100,18 @@ same_tree() {
   diff -r -q "$1" "$2" >"$work/diff.txt" 2>&1
   case $? in
     0) echo same ;;
-    1) echo differ ;;
+    1)
+      n=$(grep -c . "$work/diff.txt") || return 1
+      IFS= read -r line <"$work/diff.txt" || return 1
+      case $line in
+        "Files $1/"*) rel=${line#"Files $1/"}; rel=${rel%% and *} ;;
+        "Only in $1: "* | "Only in $2: "*) rel=${line#*: } ;;
+        "Only in $1/"*) rel=${line#"Only in $1/"}; rel="${rel%%: *}/${line#*: }" ;;
+        "Only in $2/"*) rel=${line#"Only in $2/"}; rel="${rel%%: *}/${line#*: }" ;;
+        *) rel= ;;
+      esac
+      echo "differ $n $rel"
+      ;;
     *) return 1 ;;
   esac
 }
