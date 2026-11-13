@@ -62,12 +62,14 @@ names_of() {
       *) rest= ;;
     esac
     if [ "${one%% *}" = "$1" ]; then
-      set -- "$1" $one
-      if [ $# -eq 5 ]; then
-        found="$found $3|$4|$5"
-      else
-        found="$found |$3|$4"
-      fi
+      fields=${one#* }
+      second=${fields%% *}
+      fields=${fields#* }
+      third=${fields%% *}
+      case $fields in
+        *" "*) found="$found $second|$third|${fields#* }" ;;
+        *) found="$found |$second|$third" ;;
+      esac
     fi
   done
   printf '%s\n' "${found# }"
