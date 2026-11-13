@@ -94,6 +94,88 @@ pub fn secure_input_active() -> bool {
     ))
 }
 
+#[path = "secure_input_macos_hold.rs"]
+pub mod hold;
+
+/// One reading of the secure-input state: off, on, or unknown when the session
+/// is not known to be at the console.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Reading {
+    Off,
+    On,
+    Unknown,
+}
+
+/// The login session of this process, as its session dictionary gives it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Session {
+    AtConsole,
+    NotAtConsole,
+    NoDictionary,
+}
+
+/// The session from what its dictionary holds: `None` when there is no
+/// dictionary, else whether its on-console key reads true.
+pub fn session_of(on_console: Option<bool>) -> Session {
+    match on_console {
+        None => Session::NoDictionary,
+        Some(true) => Session::AtConsole,
+        Some(false) => Session::NotAtConsole,
+    }
+}
+
+/// Reads the session dictionary of this process (CGSession.h).
+pub fn read_session() -> Session {
+    session_of(session::on_console())
+}
+
+/// The reading under `session`: unknown unless the session is at the console,
+/// else the state that the one wrapper of the Carbon calls reads.
+pub fn reading_under(session: Session, secure: impl FnOnce() -> bool) -> Reading {
+    match session {
+        Session::AtConsole if secure() => Reading::On,
+        Session::AtConsole => Reading::Off,
+        Session::NotAtConsole | Session::NoDictionary => Reading::Unknown,
+    }
+}
+
+/// The reading of the system under `session`.
+pub fn secure_input_reading(session: Session) -> Reading {
+    reading_under(session, secure_input_active)
+}
+
+mod session {
+    use core_foundation::base::{CFType, TCFType};
+    use core_foundation::boolean::CFBoolean;
+    use core_foundation::dictionary::{CFDictionary, CFDictionaryRef};
+    use core_foundation::string::CFString;
+
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGSessionCopyCurrentDictionary() -> CFDictionaryRef;
+    }
+
+    pub(super) fn on_console() -> Option<bool> {
+        // SAFETY: a parameterless call that returns a dictionary that the caller
+        // owns, or null.
+        let dictionary = unsafe { CGSessionCopyCurrentDictionary() };
+        if dictionary.is_null() {
+            return None;
+        }
+        // SAFETY: `dictionary` is not null and the copy rule gives its one
+        // reference to this wrapper, which releases it.
+        let dictionary: CFDictionary<CFString, CFType> =
+            unsafe { CFDictionary::wrap_under_create_rule(dictionary) };
+        let key = CFString::from_static_string("kCGSSessionOnConsoleKey");
+        Some(
+            dictionary
+                .find(&key)
+                .and_then(|value| value.downcast::<CFBoolean>())
+                .is_some_and(bool::from),
+        )
+    }
+}
+
 #[must_use = "dropping the hold releases secure input immediately"]
 pub struct SecureInputHold {
     #[cfg(test)]
@@ -317,6 +399,38 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
+
+    #[test]
+    fn a_session_is_known_only_at_the_console() {
+        assert_eq!(session_of(None), Session::NoDictionary);
+        assert_eq!(session_of(Some(false)), Session::NotAtConsole);
+        assert_eq!(session_of(Some(true)), Session::AtConsole);
+    }
+
+    #[test]
+    fn a_session_not_at_the_console_or_with_no_dictionary_reads_unknown_and_asks_nothing() {
+        for session in [Session::NotAtConsole, Session::NoDictionary] {
+            for secure in [false, true] {
+                let asked = std::cell::Cell::new(0);
+                let reading = reading_under(session, || {
+                    asked.set(asked.get() + 1);
+                    secure
+                });
+                assert_eq!((reading, asked.get()), (Reading::Unknown, 0), "{session:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_session_at_the_console_reads_the_state() {
+        assert_eq!(reading_under(Session::AtConsole, || false), Reading::Off);
+        assert_eq!(reading_under(Session::AtConsole, || true), Reading::On);
+    }
+
+    #[test]
+    fn the_session_of_this_process_has_a_dictionary() {
+        assert_ne!(read_session(), Session::NoDictionary);
+    }
 
     #[test]
     fn a_refused_hold_gives_its_status_and_no_hold() {
