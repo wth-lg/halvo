@@ -1024,3 +1024,36 @@ fn every_other_reply_of_a_coordinator_body_is_counted_on_the_bytes_given_by_its_
     counted_on_the_bytes_given(r#"{"ok":"yes"}"#, "Accepted", Accepted::parse);
     counted_on_the_bytes_given(r#"{"stored":1}"#, "Stored", Stored::parse);
 }
+
+#[test]
+fn the_serde_reader_of_a_reply_counts_the_text_of_the_value_and_is_given_no_byte_outside_it() {
+    let page = compact_page(260_966);
+    for outside in [
+        format!("{}{page}", " ".repeat(102)),
+        format!("{page}{}", " ".repeat(102)),
+    ] {
+        assert_eq!(outside.len(), CHECKPOINTS_REPLY_MAX + 1);
+        refused_by_the_bound(outside.as_bytes());
+        assert!(serde_json::from_str::<CoordinatorReply>(&outside).is_ok());
+    }
+    let inside = page.replacen(
+        "{\"checkpoints\":",
+        &format!("{{\"checkpoints\":{}", " ".repeat(102)),
+        1,
+    );
+    assert_eq!(inside.len(), CHECKPOINTS_REPLY_MAX + 1);
+    let refusal = serde_json::from_str::<CoordinatorReply>(&inside)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        refusal.contains("length: CoordinatorReply: -: reply_bytes"),
+        "{refusal}"
+    );
+    let stored = format!("{}{{\"stored\":1}}", " ".repeat(CHECKPOINTS_REPLY_MAX));
+    refused_by_its_own_bound(
+        RunnerReply::parse(stored.as_bytes()),
+        "RunnerReply",
+        stored.len(),
+    );
+    assert!(serde_json::from_str::<RunnerReply>(&stored).is_ok());
+}

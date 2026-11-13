@@ -462,6 +462,9 @@ impl Serialize for RunnerReply {
     }
 }
 
+/// The serde reader counts the text of the value that serde gives it, white space and escapes inside the value
+/// included, against `CHECKPOINTS_REPLY_MAX`. Serde gives it no byte outside the value: those bytes are counted by
+/// `parse` or by the reader of the text around the value.
 impl<'de> Deserialize<'de> for RunnerReply {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let raw = json::deserialize_raw("RunnerReply", deserializer)?;
@@ -773,6 +776,9 @@ impl Serialize for CoordinatorReply {
     }
 }
 
+/// The serde reader counts the text of the value that serde gives it, white space and escapes inside the value
+/// included, against `CHECKPOINTS_REPLY_MAX`. Serde gives it no byte outside the value: those bytes are counted by
+/// `parse` or by the reader of the text around the value.
 impl<'de> Deserialize<'de> for CoordinatorReply {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let raw = json::deserialize_raw("CoordinatorReply", deserializer)?;
