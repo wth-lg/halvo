@@ -11,12 +11,14 @@ mod cli;
 mod delete;
 mod drift;
 mod forms;
+mod host;
 mod link;
 mod model;
 mod page;
 mod privacy;
 mod routine;
 mod soak;
+mod store;
 mod targets;
 
 #[cfg(test)]
