@@ -178,6 +178,12 @@ mod tests {
 
     const HOSTED_CELLS: usize = 30;
 
+    const CHECK_ROUNDS: u64 = 100_000;
+
+    const SCRIPT: &str = include_str!("../../../scripts/r6/ci.d/70-r6-memory.sh");
+    const PROBE: &str = include_str!("probe.rs");
+    const MAIN: &str = include_str!("main.rs");
+
     const CHILD: &str = "HALVO_ROUTE_GATE_PROBE_ALLOCATION_CHILD";
 
     struct Counting;
@@ -276,7 +282,7 @@ mod tests {
         let data = Data::release();
         assert!(run(&data, 1).ok);
         let one = allocations(|| run(&data, 1));
-        let many = allocations(|| run(&data, 30_000));
+        let many = allocations(|| run(&data, CHECK_ROUNDS));
         assert_eq!(
             (one.1, many.1),
             (
@@ -285,12 +291,52 @@ mod tests {
                     ok: true
                 },
                 Probe {
-                    rounds: 30_000,
+                    rounds: CHECK_ROUNDS,
                     ok: true
                 }
             )
         );
         assert_eq!(many.0, one.0);
+    }
+
+    #[test]
+    fn the_allocation_test_makes_the_rounds_of_the_check() {
+        let lines: Vec<String> = SCRIPT
+            .lines()
+            .filter(|line| line.starts_with("rounds="))
+            .map(str::to_owned)
+            .collect();
+        assert_eq!(lines, vec![format!("rounds={CHECK_ROUNDS}")]);
+    }
+
+    fn code_of(text: &str) -> String {
+        text.lines()
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn the_probe_names_no_process() {
+        let outside = &PROBE[..PROBE.find("#[cfg(test)]").expect("the test module")];
+        let from = MAIN.find("Some(\"probe\")").expect("the arm of probe");
+        let to = from + MAIN[from..].find("Some(_)").expect("the arm after it");
+        for (part, text) in [("probe.rs", outside), ("the arm of probe", &MAIN[from..to])] {
+            let code = code_of(text);
+            for word in ["process", "Command"] {
+                assert!(!code.contains(word), "{part} names {word}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_probe_runs_on_the_release_data() {
+        let data = Data::release();
+        assert!(std::ptr::eq(data.policy, release::policy()));
+        assert_eq!(*data.policy, *release::policy());
+        assert_eq!(data.ruling, release::ruling());
+        assert_eq!(data.cap, release::cap());
+        assert!(std::ptr::eq(data.prices, Prices::release()));
     }
 
     #[test]
