@@ -168,7 +168,7 @@ judge() {
       for (k = 1; k <= n; k++) if (sg[k] in link_name) return 1
       return 0
     }
-    function normal(s,   k, m, id, qc) {
+    function normal(s,   k, m, id, qc, out, rest, mm) {
       sub(/\r$/, "", s)
       gsub(/\\\\/, "/", s)
       while (k = match(s, /\\[A-Za-z0-9_.-]/)) s = substr(s, 1, k - 1) "/" substr(s, k + 1)
@@ -177,6 +177,20 @@ judge() {
         sub(sep_at_end, "/", m)
         s = substr(s, 1, RSTART - 1) m substr(s, RSTART + RLENGTH)
       }
+      out = ""
+      rest = s
+      while (match(rest, join_call)) {
+        m = substr(rest, RSTART, RLENGTH)
+        out = out substr(rest, 1, RSTART - 1)
+        rest = substr(rest, RSTART + RLENGTH)
+        while (match(m, comma_chain)) {
+          mm = substr(m, RSTART, RLENGTH)
+          sub(comma_at_end, "/", mm)
+          m = substr(m, 1, RSTART - 1) mm substr(m, RSTART + RLENGTH)
+        }
+        out = out m
+      }
+      s = out rest
       while (match(s, join_var)) {
         m = substr(s, RSTART, RLENGTH)
         qc = substr(m, length(m) - 2, 1)
@@ -374,9 +388,13 @@ judge() {
       token_chars = "[^][ \t\"" q "`()<>,;{}|&=]+"
       quoted_word = qs "[A-Za-z0-9_.-]+" qs
       quotes_at_end = qs "+$"
-      sep = qs "[ \t]*(,|\\)[ \t]*\\.[ \t]*join[ \t]*\\(|/)[ \t]*" qs
+      sep = qs "[ \t]*(\\)[ \t]*\\.[ \t]*join[ \t]*\\(|/)[ \t]*" qs
+      comma_sep = qs "[ \t]*,[ \t]*" qs
+      comma_at_end = comma_sep "$"
+      join_call = "(join|resolve)[ \t]*\\(([^()]|\\(([^()]|\\([^()]*\\))*\\))*\\)"
       sep_at_end = sep "$"
       dot_chain = "\\.\\.(/[^\"" q "`]*)?" sep
+      comma_chain = "\\.\\.(/[^\"" q "`]*)?" comma_sep
       join_var = "(join|resolve)\\([ \t]*[A-Za-z_][A-Za-z0-9_.]*[ \t]*,[ \t]*" qs "\\.\\."
       word = qs "?(\\./)?backend/?" qs "?"
       bk = qs "?(\\./)?[Bb][Aa][Cc][Kk][Ee][Nn][Dd]/?" qs "?"
@@ -384,7 +402,7 @@ judge() {
       enters_tool = "(^|[^A-Za-z0-9_-])((tsc|vue-tsc)([ \t]+[^ \t;&|]+)*[ \t]+-p|(npm|pnpm|yarn)([ \t]+[^ \t;&|]+)*[ \t]+-w)([ \t]+|[ \t]*=[ \t]*)" bk "([^A-Za-z0-9_./-]|$)"
       enters_mark = "(working-directory:|cwd:|cwd=|current_dir\\()[ \t]*" bk "([^A-Za-z0-9_./-]|$)"
       operand = "(^|[;&|(`$ \t])(cat|cp|mv|ln|ls|find|rsync|du)([ \t]+-[A-Za-z0-9-]+)*[ \t]+" bk "([ \t;&|)]|$)"
-      archive = "(^|[;&|(`$ \t])(tar|zip)([ \t]+[^ \t;&|]+)*[ \t]+" bk "([ \t;&|)]|$)"
+      archive = "(^|[;&|(`$ \t])(tar|zip)([ \t]+-[A-Za-z0-9-]+([ \t]+[^- \t;&|][^ \t;&|]*)?)*[ \t]+" bk "([ \t;&|)]|$)"
       defaults = "\\$\\{[a-z_][a-z0-9_]*:?[-=?+][ \t]*" word "\\}"
       braces = "\\{([^{}]*,)?[ \t]*backend[ \t]*(,[^{}]*)?\\}/"
       assigns = "(^|[^a-z0-9_])[a-z_][a-z0-9_]*[ \t]*(:[^=]*)?=[ \t]*" word "[ \t]*(;|,|$|&&|\\|\\||\\))"
@@ -641,7 +659,9 @@ It fails when:
   --dir, --prefix, --manifest-path, --project, --workspace,
   working-directory:, cwd:, cwd= or current_dir(, with -p of tsc or vue-tsc,
   or with -w of npm, pnpm or yarn, each option in its own letter case; gives
-  it as an operand of tar or zip; or gives it as the first path operand of
+  it as the operand of tar or zip after their options, each option with at
+  most one argument (a sentence that names tar is no command); or gives it as
+  the first path operand of
   cat, cp, mv, ln, ls, find, rsync or du. A word that stands alone is no
   path: a comment or a sentence that names the backend is read and passes;
 - a tracked link of the app points under backend/, a tracked link of either
@@ -1367,6 +1387,17 @@ cat "$HERE/../src-tauri/tauri.conf.json"' 'backend/spikes/s1/peek.sh:3: reads sr
   case_with backend-climbs-after-a-variable-extended-with-plus-equals backend/src/pe.mjs 'let here = dirname(fileURLToPath(import.meta.url));
 here += "/../..";
 const p = here + "/../crates/halvo-capture/src/lib.rs";' 'backend/src/pe.mjs:3: reads crates/halvo-capture/src/lib.rs, a tracked path of the app'
+
+  case_with backend-reads-the-app-after-cwd-with-an-encoding backend/scripts/peek-cwd.mjs 'const text = readFileSync(process.cwd() + "/../crates/halvo-capture/src/lib.rs", "utf8");' 'backend/scripts/peek-cwd.mjs:1: reads crates/halvo-capture/src/lib.rs, a tracked path of the app'
+  case_with backend-reads-the-app-after-cwd backend/scripts/peek-cwd.mjs 'const path = process.cwd() + "/../crates/halvo-capture/src/lib.rs";' 'backend/scripts/peek-cwd.mjs:1: reads crates/halvo-capture/src/lib.rs, a tracked path of the app'
+  case_with backend-reads-the-app-after-an-environment-root-with-an-encoding backend/scripts/peek-env.mjs 'const root = process.env.HALVO_ROOT ?? ".";
+const text = readFileSync(root + "/../crates/halvo-capture/src/lib.rs", "utf8");' 'backend/scripts/peek-env.mjs:2: reads crates/halvo-capture/src/lib.rs, a tracked path of the app'
+  case_with backend-reads-the-app-after-plus-equals-with-an-encoding backend/scripts/peek-plus.mjs 'let here = dirname(fileURLToPath(import.meta.url));
+here += "/../..";
+const text = readFileSync(here + "/../crates/halvo-capture/src/lib.rs", "utf8");' 'backend/scripts/peek-plus.mjs:3: reads crates/halvo-capture/src/lib.rs, a tracked path of the app'
+  pass_with backend-joins-pieces-to-its-own-path backend/src/own.mjs 'const p = join(dirname(fileURLToPath(import.meta.url)), "..", "scripts", "stack.sh");' 'read:backend/src/own.mjs'
+  pass_with app-comment-names-zip-and-then-the-backend crates/halvo-x/src/lib.rs '// Releases ship the app as one zip file and the backend as a Worker' 'read:crates/halvo-x/src/lib.rs'
+  pass_with a-root-text-names-tar-and-then-the-backend RELEASE-NOTES.txt 'Each tar of a release leaves out the backend' 'read:RELEASE-NOTES.txt'
 
   fixture known-limit-names-v0
   put backend/scripts/names-v0.sh 'APP_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
