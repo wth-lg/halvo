@@ -1019,7 +1019,7 @@ mod detector {
         }
 
         #[test]
-        fn after_attach_the_gate_reads_unknown_until_the_detectors_first_read() {
+        fn after_attach_the_gate_reads_unknown_until_the_first_read_of_the_focused_field() {
             let _serial = crate::windows::tests::serial();
             let gate = PasswordGate::new();
             let before = HeldKey {
@@ -1029,9 +1029,19 @@ mod detector {
             };
             gate.attach().expect("the detector starts");
             let first = gate.shared.lock().entries.front().map(|entry| entry.mark);
+            let own_read = gate
+                .shared
+                .lock()
+                .entries
+                .iter()
+                .any(|entry| matches!(entry.mark, Mark::Read(_)));
             let judged = super::super::judge(&gate.shared.lock().entries, &before, 1_000);
             let detached = gate.detach(crate::windows::INPUT_STOP_DEADLINE);
-            assert!(matches!(first, Some(Mark::Read(_))), "{first:?}");
+            assert!(
+                matches!(first, Some(Mark::Read(_) | Mark::Field(_))),
+                "{first:?}"
+            );
+            assert!(own_read, "attach returned before the detector's own read");
             assert_eq!(judged, Judgment::Decided(SecureInputReading::Unknown));
             assert_eq!(detached, Ok(()));
         }
