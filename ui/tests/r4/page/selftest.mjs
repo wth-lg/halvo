@@ -25,6 +25,12 @@ const COPIED = [
   join('tools', 'r4-page', 'sample'),
 ];
 
+const I8_4_NAMES = [
+  'setTimeout', 'setInterval', 'requestAnimationFrame', 'requestIdleCallback', 'localStorage', 'sessionStorage', 'indexedDB',
+  'fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'sendBeacon', 'innerHTML', 'outerHTML', 'insertAdjacentHTML',
+  'setHTMLUnsafe', 'parseHTMLUnsafe', 'createContextualFragment', 'DOMParser', 'document.write', 'attachShadow',
+];
+
 const VIEW_CASES = [
   ['names-innerhtml', 'names', (t) => t + '\nvar r4x = document.body.innerHTML;\n'],
   ['names-escaped-identifier', 'names', (t) => t + '\nvar r4x = document.body.inner\\u0048TML;\n'],
@@ -47,7 +53,7 @@ const VIEW_CASES = [
   ['names-a-decoded-string-carried-to-a-key', 'names', (t) => t + '\nvar r4k = "\\u0069nnerHTML"; document.body[r4k] = "x";\n'],
   ['a-name-that-ends-in-a-forbidden-name', 'pass', (t) => t + '\nvar prefetch = 1;\n'],
   ['a-name-that-starts-with-a-forbidden-name', 'pass', (t) => t + '\nvar fetcher = 1;\n'],
-  ...NAMES.map((n) => ['names-each-' + n.replace('.', '-'), 'names', (t) => t + '\n' + (n === 'document.write' ? "document.write('x');" : 'var r4n = window.' + n + ';') + '\n']),
+  ...I8_4_NAMES.map((n) => ['names-each-' + n.replace('.', '-'), 'names', (t) => t + '\n' + (n === 'document.write' ? "document.write('x');" : 'var r4n = window.' + n + ';') + '\n']),
 ];
 
 const DENY = '# a planted deny line of the self-test\ndeny\tplanted_feature\t18.0\t\\.r4plantedFeature\\(\n';
@@ -287,6 +293,7 @@ export function fileCases({ repo, acorn: acornDir, work, report }) {
       report(name + '-in-' + file, rule, got.length === 1 ? got[0] : got.length ? got.join('+') : 'pass');
     }
   }
+  report('the-21-names-of-i8-4', 'pass', I8_4_NAMES.length === 21 && NAMES.length === 21 && I8_4_NAMES.every((n) => NAMES.includes(n)) ? 'pass' : 'fail');
   report('spread-count-of-a-bare-text-line', 'pass', spreadCount('- "Shop"\n- {"name":"Shop","role":"radio"}\n') === 0 ? 'pass' : 'fail');
   const base = copyRepo(repo, join(work, 'files-base'));
   report('files-of-the-repository', 'pass', fileRules(base, acornDir).cause || 'pass');
