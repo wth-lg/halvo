@@ -13,8 +13,8 @@ otherwise a line "read ... found=no" names it.
 
 The sources: the trial app (tools/r4-trials/app/src/app.rs and src/call.js),
 the samplers (tools/r4-trials/window/sample.sh, footprint.swift and
-sample.ps1), and wry 0.57.1,
-found with cargo metadata --offline. --root takes another copy of
+sample.ps1), and wry 0.57.1, the version that tools/r4-trials/app/Cargo.lock
+pins, in the cargo registry. --root takes another copy of
 tools/r4-trials. Exit: 0 when every line was printed, 1 when one was not,
 2 on a refusal.
 EOF
@@ -68,15 +68,12 @@ fp="$root/window/footprint.swift"
 win="$root/window/sample.ps1"
 
 wry=
-metadata=$(cargo metadata --format-version 1 --locked --offline --manifest-path "$root/app/Cargo.toml" 2>/dev/null) || metadata=
-if [ -n "$metadata" ]; then
-  wry=$(printf '%s' "$metadata" | node -e '
-    let text = "";
-    process.stdin.on("data", (c) => { text += c; });
-    process.stdin.on("end", () => {
-      const p = JSON.parse(text).packages.find((x) => x.name === "wry" && x.version === "0.57.1");
-      if (p) console.log(require("path").join(require("path").dirname(p.manifest_path), "src", "wkwebview", "mod.rs"));
-    });') || wry=
+if says "$root/app/Cargo.lock" 'name = "wry" version = "0.57.1"'; then
+  for dir in "${CARGO_HOME:-$HOME/.cargo}"/registry/src/*/wry-0.57.1; do
+    if [ -f "$dir/src/wkwebview/mod.rs" ]; then
+      wry="$dir/src/wkwebview/mod.rs"
+    fi
+  done
 fi
 
 w='reading trial=window machine=mac'

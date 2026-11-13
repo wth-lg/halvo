@@ -62,3 +62,9 @@ test('read.sh refuses an argument it does not know with usage', () => {
   assert.equal(r.stdout, '');
   assert.match(r.stderr, /^REFUSED usage: [^\n]+\n$/);
 });
+
+test('read.sh finds the wry source without cargo, so that a registry with no crate of another system is enough', { skip: !mac }, () => {
+  const r = spawnSync('sh', [path.join(trials, 'window', 'read.sh')], { encoding: 'utf8', timeout: 120000, env: { ...process.env, PATH: `${path.dirname(process.execPath)}${path.delimiter}/usr/bin${path.delimiter}/bin` } });
+  assert.equal(r.status, 0, r.stdout);
+  assert.deepEqual(r.stdout.split('\n').filter((l) => l !== ''), WANTED);
+});
