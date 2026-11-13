@@ -209,6 +209,10 @@ check() {
     CI_D_REPO=$repo
     CI_D_ARTIFACTS=${art:-$work/artifacts/$1}
     STUB_RUNS=$work/runs
+    if [ -n "${fixture_locale:-}" ]; then
+      LC_ALL=$fixture_locale
+      export LC_ALL
+    fi
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_RUNS STUB_CORE_LOG STUB_SCHEMA_LOG STUB_CORE_EXIT STUB_TEST_EXIT STUB_RUN_EXIT STUB_RUN2_EXIT STUB_OUT STUB_FIRST STUB_SECOND STUB_LISTS STUB_SIGNAL STUB_HEAD STUB_DIFF
     TMPDIR=$work/tmp/$1 sh "$self" 2>&1
   )
@@ -230,6 +234,7 @@ check() {
   STUB_SIGNAL=
   STUB_HEAD=
   STUB_DIFF=
+  fixture_locale=
   STUB_CORE_LOG=$work/core.log
   STUB_SCHEMA_LOG=$work/schema.log
   STUB_CORE_EXIT=0
@@ -700,6 +705,12 @@ $later_line
   printf 'halvo-schema tests/locked_files.rs each_lib_rs_holds_its_form\000_and_more\n' >>"$repo/$required" ||
     self_fail "the fixture list with a NUL byte cannot be written"
   check nul-inside-a-test-name FAIL "FAIL $name ($bytes)"
+  repo=$work/not-utf-8
+  make_repo "$repo" golden "$list"
+  printf 'halvo-schema tests/locked_files.rs each_lib_rs_holds_its_form\377\n' >>"$repo/$required" ||
+    self_fail "the fixture list with a byte that is no UTF-8 cannot be written"
+  fixture_locale=en_US.UTF-8
+  check a-byte-that-is-no-utf-8-under-a-utf-8-locale FAIL "FAIL $name ($bytes)"
   repo=$work/no-list
   make_repo "$repo" golden none
   check list-missing FAIL "FAIL $name ($required is missing)"
