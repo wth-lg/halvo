@@ -1,0 +1,8 @@
+disallowed-methods = [
+  { path = "std::process::Command::spawn", reason = "start a child through halvo_web::start::StartLock, which every start of a child in this process takes (A11.1)" },
+  { path = "std::process::Command::output", reason = "use halvo_web::start::output, which starts the child under the start lock (A11.1)" },
+  { path = "std::process::Command::status", reason = "start a child through halvo_web::start::StartLock (A11.1)" },
+  { path = "tokio::process::Command::spawn", reason = "start a child through halvo_web::start::StartLock (A11.1)" },
+  { path = "tokio::process::Command::output", reason = "start a child through halvo_web::start::StartLock (A11.1)" },
+  { path = "tokio::process::Command::status", reason = "start a child through halvo_web::start::StartLock (A11.1)" },
+]
