@@ -105,7 +105,7 @@ twelve_test() {
   awk '
     /^ *Running / { inside = index($0, "tests/macos_stall_fixture.rs") > 0; next }
     /^ *Doc-tests / { inside = 0; next }
-    inside && /^test / { if ($NF == "ignored") ignored++; else ran++ }
+    inside && /^test / { if ($0 ~ / \.\.\. ignored(,|$)/) ignored++; else ran++ }
     END { printf "%d %d\n", ignored, ran }' "$list" >"$work/twelve" || fail "the list of 12-test cannot be read"
   read -r ignored ran <"$work/twelve" || fail "the list of 12-test cannot be read"
   printf '12-test: tests of macos_stall_fixture ignored=%s ran=%s\n' "$ignored" "$ran"
@@ -332,7 +332,7 @@ self_test() {
   git -C "$work/repo" add tracked.txt || exit 2
   twelve=$work/repo/target/ci-artifacts/12-test/tests.txt
   ignored='     Running tests/macos_stall_fixture.rs (target/debug/deps/macos_stall_fixture-0)
-test a_key_typed_ahead_into_a_secure_field_is_not_recorded ... ignored
+test a_key_typed_ahead_into_a_secure_field_is_not_recorded ... ignored, posts keys and shows a window: the hosted step alone runs it
 test the_probe_reports_what_the_stall_phases_rest_on ... ignored
      Running tests/source_rules.rs (target/debug/deps/source_rules-0)
 test a_rule ... ok'
