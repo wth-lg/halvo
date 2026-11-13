@@ -1676,6 +1676,7 @@ pub(crate) mod tests {
             },
             crate::guard::GuardIo {
                 read: &mut || crate::procs::table().ok(),
+                args: &crate::checks::command_args,
                 now_ms: &mut || start.elapsed().as_millis(),
                 pause: &mut |_| std::thread::sleep(crate::guard::POLL),
                 end: &mut |p, force| {

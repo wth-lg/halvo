@@ -48,6 +48,9 @@ pub enum Trigger {
 /// of the act, called once.
 pub struct GuardIo<'a> {
     pub read: &'a mut dyn FnMut() -> Option<Vec<Proc>>,
+    /// The arguments of a process by its number (`checks::command_args` in the product), from
+    /// which the loop takes the run's mark and tests a process against it.
+    pub args: &'a dyn Fn(u32) -> Option<Vec<String>>,
     pub now_ms: &'a mut dyn FnMut() -> u128,
     pub pause: &'a mut dyn FnMut(bool),
     pub end: &'a mut dyn FnMut(&Proc, bool) -> bool,
@@ -59,7 +62,12 @@ pub struct GuardIo<'a> {
 pub struct GuardAct {
     /// Milliseconds from the read of the trigger to the read of the tree gone.
     pub ms: u128,
+    /// The asks that were sent: one call of the end without force for each process of the run at
+    /// the moment of the ask, counted when the call sent the signal.
     pub asked: usize,
+    /// The forced ends that were sent, counted per call: from `TERM_WAIT` on, every read calls the
+    /// forced end for each process of the run that still runs, so one process can count more than
+    /// once.
     pub forced: usize,
     /// Whether the browser's first process was among the processes that it asked or forced.
     pub first: bool,
@@ -133,6 +141,7 @@ pub fn guard_main(argv: &[String]) -> i32 {
         },
         GuardIo {
             read: &mut || procs::table().ok(),
+            args: &crate::checks::command_args,
             now_ms: &mut || start.elapsed().as_millis(),
             pause: &mut |unread| std::thread::sleep(if unread { UNREAD_PAUSE } else { POLL }),
             end: &mut |p, force| {
@@ -156,15 +165,20 @@ pub fn guard_main(argv: &[String]) -> i32 {
 /// them), every child of a member that runs, every process of the group that the first process
 /// leads that began at or after it, while `group_held` says that the last read held a process of
 /// that group and no other process has the group's number (so the group never ended in between
-/// and its number was not taken again), and every process whose parent is a member that no longer runs, when that
-/// member's number names no running process that began at or before it. Gives the members that
-/// run now, each by number and creation time.
+/// and its number was not taken again), and every process that bears the run's `mark`
+/// (CP-126 E1 (b), `checks::Mark::owns` with `args`) and whose parent is a member that no longer
+/// runs, when it began at or after that member and that member's number names no running process
+/// that began at or before it (CP-170 E1); with no mark yet that last clause takes nothing. The
+/// guard's own number `me` is never a member. Gives the members that run now, each by number and
+/// creation time.
 pub fn members(
     known: &mut Vec<Proc>,
     table: &[Proc],
     root: &Proc,
     me: u32,
     group_held: bool,
+    mark: Option<&crate::checks::Mark>,
+    args: &dyn Fn(u32) -> Option<Vec<String>>,
 ) -> Vec<Proc> {
     let alive = |p: &Proc| table.iter().any(|t| procs::same(t, p));
     let living: Vec<Proc> = known.iter().filter(|k| alive(k)).cloned().collect();
@@ -175,7 +189,7 @@ pub fn members(
         .map_or(0, |r| r.pgid);
     let mut found: Vec<Proc> = Vec::new();
     if alive(root) {
-        found.extend(crate::checks::tree_of(table, root));
+        found.extend(crate::checks::tree_of_with(table, root, args));
     }
     found.extend(procs::descendants(table, &living));
     let taken = table
@@ -189,7 +203,10 @@ pub fn members(
                 .cloned(),
         );
     }
-    for t in table {
+    for t in table
+        .iter()
+        .filter(|t| mark.is_some_and(|m| m.owns(t, args)))
+    {
         let orphan = known.iter().any(|k| {
             !alive(k)
                 && t.ppid == k.pid
@@ -215,8 +232,9 @@ pub fn members(
 /// could not be read is not an empty one: the loop keeps the port and reads again, and when the
 /// table stays unread for `UNREAD_CAP` it ends with exit 3 and the line
 /// `guard_end cause=table_unread`. With `Trigger::ExecutorGone` it ends nothing while the executor
-/// runs, known by number and creation time together; once the executor is gone and a process of
-/// the run still runs it waits `GRACE`, asks each process of the run that still runs to end, by
+/// runs, known by number and creation time together, and a read that finds the executor clears
+/// the time of its going and of the ask (CP-170 E2); once an unbroken run of reads misses the
+/// executor and a process of the run still runs it waits `GRACE` from the first of them, asks each process of the run that still runs to end, by
 /// number and creation time in the table of that moment, ends by force each one that still runs
 /// `TERM_WAIT` later and at every read after, and reads on until none runs; then it keeps the port
 /// `PORT_MARGIN` more and exits 0. A number that another process took is no member. With
@@ -224,6 +242,7 @@ pub fn members(
 pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) -> i32 {
     let GuardIo {
         read,
+        args,
         now_ms,
         pause,
         end,
@@ -246,6 +265,7 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
     let mut act = GuardAct::default();
     let mut gone_at: Option<u128> = None;
     let mut group_held = false;
+    let mut mark: Option<crate::checks::Mark> = None;
     let (grace, margin) = match trigger {
         Trigger::ExecutorGone { .. } => (GRACE.as_millis(), PORT_MARGIN.as_millis()),
         Trigger::Now => (0, 0),
@@ -268,7 +288,18 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
                 known.push(r.clone());
             }
         }
-        let running = members(&mut known, &table, &root, me, group_held);
+        if mark.is_none() && table.iter().any(|t| procs::same(t, &root)) {
+            mark = mark_of(&root, args);
+        }
+        let running = members(
+            &mut known,
+            &table,
+            &root,
+            me,
+            group_held,
+            mark.as_ref(),
+            args,
+        );
         group_held = root.pgid == root.pid
             && table
                 .iter()
@@ -324,9 +355,25 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
                     Some(_) => {}
                 }
             }
+        } else {
+            trigger_at = None;
+            asked_at = None;
         }
         pause(false);
     }
+}
+
+/// The run's mark (CP-126 E1 (b)) from the browser's first process: the profile that its own
+/// arguments name, its program's bundle or install directory, and its creation time. `None` while
+/// either cannot be read.
+fn mark_of(root: &Proc, args: &dyn Fn(u32) -> Option<Vec<String>>) -> Option<crate::checks::Mark> {
+    let profile = crate::checks::profile_of(&args(root.pid)?)?;
+    let exe = root.exe.as_deref()?;
+    Some(crate::checks::Mark {
+        profile,
+        since_us: root.started_us,
+        root: procs::bundle_root(exe),
+    })
 }
 
 /// Notes in the record a process that the loop asked or forced: its program's file name, and
@@ -359,6 +406,7 @@ pub fn end_tree_now(root: &Proc) -> GuardAct {
                 }
                 procs::table().ok()
             },
+            args: &crate::checks::command_args,
             now_ms: &mut || start.elapsed().as_millis(),
             pause: &mut |unread| std::thread::sleep(if unread { UNREAD_PAUSE } else { POLL }),
             end: &mut |p, force| {
@@ -391,6 +439,16 @@ mod tests {
         step: u128,
         table: &dyn Fn(u128, &Ends) -> Option<Vec<Proc>>,
     ) -> (i32, u128, Ends, Option<GuardAct>) {
+        run_with(trigger, step, table, &|_| None)
+    }
+
+    /// `run` with the arguments of a process given, from which the loop takes the run's mark.
+    fn run_with(
+        trigger: Trigger,
+        step: u128,
+        table: &dyn Fn(u128, &Ends) -> Option<Vec<Proc>>,
+        args: &dyn Fn(u32) -> Option<Vec<String>>,
+    ) -> (i32, u128, Ends, Option<GuardAct>) {
         let clock = Cell::new(0u128);
         let ends = RefCell::new(Vec::new());
         let mut record = None;
@@ -405,6 +463,7 @@ mod tests {
                     assert!(reads < 1_000_000, "the guard reads on without end");
                     table(clock.get(), &ends.borrow())
                 },
+                args,
                 now_ms: &mut || clock.get(),
                 pause: &mut |_| clock.set(clock.get() + step),
                 end: &mut |p, force| {
@@ -424,6 +483,28 @@ mod tests {
             started_us,
             pgid,
             exe: None,
+        }
+    }
+
+    const BUNDLE_EXE: &str = "/B.app/Contents/MacOS/b";
+
+    /// A row of a program inside the browser's bundle; with `marked_args` it bears the run's mark.
+    fn in_bundle(pid: u32, ppid: u32, started_us: u64, pgid: u32) -> Proc {
+        Proc {
+            exe: Some(std::path::PathBuf::from(BUNDLE_EXE)),
+            ..row(pid, ppid, started_us, pgid)
+        }
+    }
+
+    /// The arguments of the processes `marked`: the run's profile `/p` as a whole path.
+    fn marked_args(marked: &'static [u32]) -> impl Fn(u32) -> Option<Vec<String>> {
+        move |pid| {
+            marked.contains(&pid).then(|| {
+                vec![
+                    "--type=renderer".to_string(),
+                    "--user-data-dir=/p".to_string(),
+                ]
+            })
         }
     }
 
@@ -634,23 +715,248 @@ mod tests {
     #[test]
     fn an_orphan_born_between_two_reads_is_followed_and_the_port_kept_until_it_is_gone() {
         for (ppid, pgid) in [(1, ROOT), (20, 0)] {
-            let (code, at, ends, _) = run(executor(50), 10, &|t, ends| {
-                let mut v = Vec::new();
-                if t < 500 {
-                    v.push(row(ROOT, 1, 7, ROOT));
-                }
-                if t < 1_000 {
-                    v.push(row(20, ROOT, 8, ROOT));
-                }
-                if t >= 1_000 && forced(ends, 30).is_none() {
-                    v.push(row(30, ppid, 9, pgid));
-                }
-                Some(v)
-            });
+            let (code, at, ends, _) = run_with(
+                executor(50),
+                10,
+                &|t, ends| {
+                    let mut v = Vec::new();
+                    if t < 500 {
+                        v.push(in_bundle(ROOT, 1, 7, ROOT));
+                    }
+                    if t < 1_000 {
+                        v.push(in_bundle(20, ROOT, 8, ROOT));
+                    }
+                    if t >= 1_000 && forced(ends, 30).is_none() {
+                        v.push(in_bundle(30, ppid, 9, pgid));
+                    }
+                    Some(v)
+                },
+                &marked_args(&[ROOT, 20, 30]),
+            );
             assert_eq!(code, 0);
             let end = forced(&ends, 30).expect("the orphan was ended");
             assert!(at >= end + 1_000, "the port freed at {at} ms ({ppid})");
         }
+    }
+
+    /// CP-170 E1 (c): the same orphan by its parent's number without the run's mark is no member:
+    /// nothing asks or ends it.
+    #[test]
+    fn an_orphan_by_its_parent_s_number_without_the_mark_is_no_member() {
+        let (code, _, ends, _) = run_with(
+            executor(50),
+            10,
+            &|t, _| {
+                let mut v = Vec::new();
+                if t < 500 {
+                    v.push(in_bundle(ROOT, 1, 7, 0));
+                }
+                if t < 1_000 {
+                    v.push(in_bundle(20, ROOT, 8, 0));
+                }
+                if (1_000..60_000).contains(&t) {
+                    v.push(in_bundle(30, 20, 9, 0));
+                }
+                Some(v)
+            },
+            &marked_args(&[ROOT, 20]),
+        );
+        assert_eq!(code, 0);
+        assert!(ends.is_empty(), "{ends:?}");
+    }
+
+    /// CP-170 E1 (c), T1: a process that bears the mark and has a dead member's number as its
+    /// parent number but began before that member is no member.
+    #[test]
+    fn a_marked_process_older_than_the_dead_member_is_no_member() {
+        let args = marked_args(&[ROOT, 20, 30]);
+        let root = in_bundle(ROOT, 1, 7, 0);
+        let mark = crate::checks::Mark {
+            profile: "/p".into(),
+            since_us: 7,
+            root: std::path::PathBuf::from("/B.app"),
+        };
+        let mut known = vec![root.clone(), in_bundle(20, ROOT, 9, 0)];
+        let table = vec![in_bundle(30, 20, 8, 0)];
+        assert!(members(&mut known, &table, &root, 4, false, Some(&mark), &args).is_empty());
+        let mut known = vec![root.clone(), in_bundle(20, ROOT, 9, 0)];
+        let table = vec![in_bundle(30, 20, 10, 0)];
+        assert_eq!(
+            members(&mut known, &table, &root, 4, false, Some(&mark), &args).len(),
+            1
+        );
+    }
+
+    /// The review's case me01 (evidence/pr-review-27/cases/me/01-orphan-dead-taker.case): member K
+    /// (200) of the run ends; a foreign process takes number 200, starts F (300) and ends. F's
+    /// parent number reads 200, it began after K, and no running process holds 200: F bears no
+    /// mark and is no member.
+    #[test]
+    fn me01_a_child_of_a_foreign_taker_of_a_dead_member_s_number_is_no_member() {
+        let args = marked_args(&[100, 200]);
+        let root = in_bundle(100, 5, 10, 0);
+        let k = in_bundle(200, 100, 20, 0);
+        let mut known = Vec::new();
+        let mark = mark_of(&root, &args);
+        assert!(mark.is_some());
+        let first = members(
+            &mut known,
+            &[root.clone(), k.clone()],
+            &root,
+            1,
+            false,
+            mark.as_ref(),
+            &args,
+        );
+        assert_eq!(first.len(), 2, "{first:?}");
+        let f = row(300, 200, 31, 0);
+        let later = members(
+            &mut known,
+            &[root.clone(), f],
+            &root,
+            1,
+            false,
+            mark.as_ref(),
+            &args,
+        );
+        assert!(!later.iter().any(|p| p.pid == 300), "{later:?}");
+    }
+
+    /// The review's case me01 through the loop: the executor (5) is gone, the root and K end, the
+    /// foreign F runs on; the loop ends nothing but the run's tree.
+    #[test]
+    fn me01_the_loop_ends_no_child_of_a_foreign_taker_that_ended() {
+        let (code, _, ends, _) = run_with(
+            Trigger::ExecutorGone {
+                pid: 5,
+                started_us: 1,
+            },
+            20,
+            &|t, _| {
+                Some(if t < 100 {
+                    vec![in_bundle(ROOT, 5, 7, 0), in_bundle(200, ROOT, 20, 0)]
+                } else if t < 200 {
+                    vec![in_bundle(ROOT, 5, 7, 0)]
+                } else if t < 10_000 {
+                    vec![row(300, 200, 31, 0)]
+                } else {
+                    vec![]
+                })
+            },
+            &marked_args(&[ROOT, 200]),
+        );
+        assert_eq!(code, 0);
+        assert!(!ends.iter().any(|e| e.0 == 300), "{ends:?}");
+    }
+
+    /// The verifier's G1 (CP-170 E1): the executor runs until 30,000 ms; the browser and its member
+    /// 200 end at 1,000 ms; a foreign process takes number 200 at 1,500 ms, starts 300 and ends;
+    /// 300 runs on. Nothing asks or ends 300, and the guard frees the port once the tree is gone.
+    #[test]
+    fn g1_a_foreign_child_of_a_reused_number_is_never_asked_or_ended() {
+        let (code, at, ends, _) = run_with(
+            executor(50),
+            20,
+            &|t, _| {
+                let mut v = Vec::new();
+                if t < 30_000 {
+                    v.push(row(5, 1, 50, 5));
+                }
+                if t < 1_000 {
+                    v.push(in_bundle(ROOT, 1, 7, 0));
+                    v.push(in_bundle(200, ROOT, 20, 0));
+                }
+                if (1_500..2_000).contains(&t) {
+                    v.push(row(200, 1, 40, 0));
+                }
+                if (1_800..60_000).contains(&t) {
+                    v.push(row(300, 200, 45, 0));
+                }
+                Some(v)
+            },
+            &marked_args(&[ROOT, 200]),
+        );
+        assert_eq!(code, 0);
+        assert!(ends.is_empty(), "{ends:?}");
+        assert!(at < 5_000, "the port was held until {at} ms");
+    }
+
+    /// The verifier's G2 (CP-170 E2): the executor runs throughout, and the reads at 1 s and at
+    /// 5 s lack its row; nothing is asked or ended.
+    #[test]
+    fn g2_two_reads_that_miss_a_running_executor_end_nothing() {
+        let (code, _, ends, _) = run(executor(50), 20, &|t, _| {
+            let mut v = Vec::new();
+            if t != 1_000 && t != 5_000 {
+                v.push(row(5, 1, 50, 5));
+            }
+            if t < 10_000 {
+                v.push(row(ROOT, 1, 7, ROOT));
+            } else if t < 20_000 {
+                return Some(vec![row(5, 1, 50, 5)]);
+            }
+            Some(v)
+        });
+        assert_eq!(code, 0);
+        assert!(ends.is_empty(), "{ends:?}");
+    }
+
+    /// CP-170 E2: an executor that one early read missed and that ends later gets the whole grace
+    /// from its true end.
+    #[test]
+    fn an_executor_missed_once_early_gets_the_whole_grace_from_its_end() {
+        let (code, _, ends, _) = run(executor(50), 20, &|t, ends| {
+            let mut v = Vec::new();
+            if t != 1_000 && t < 20_000 {
+                v.push(row(5, 1, 50, 5));
+            }
+            if forced(ends, ROOT).is_none() {
+                v.push(row(ROOT, 1, 7, ROOT));
+            }
+            Some(v)
+        });
+        assert_eq!(code, 0);
+        let asked = ends.iter().find(|e| !e.1).expect("asked");
+        assert!(asked.2 >= 20_000 + 3_000, "asked at {} ms", asked.2);
+    }
+
+    /// The verifier's m36: the margin begins again when a member is seen again after an empty read.
+    #[test]
+    fn m36_the_margin_begins_again_after_a_member_is_seen_again() {
+        let (code, at, _, _) = run(executor(50), 10, &|t, _| {
+            let mut v = vec![row(5, 1, 50, 5)];
+            if t < 1_000 || (1_010..3_000).contains(&t) {
+                v.push(row(ROOT, 1, 7, ROOT));
+            }
+            Some(v)
+        });
+        assert_eq!(code, 0);
+        assert!(at >= 3_000 + 1_000, "the port freed at {at} ms");
+    }
+
+    /// The verifier's m39: the guard never takes its own number as a member, also as a child of a
+    /// member.
+    #[test]
+    fn m39_the_guard_s_own_number_is_never_a_member() {
+        let root = row(ROOT, 1, 7, ROOT);
+        let mut known = Vec::new();
+        let table = vec![root.clone(), row(4, ROOT, 8, ROOT)];
+        let got = members(&mut known, &table, &root, 4, false, None, &|_| None);
+        assert_eq!(got.iter().map(|p| p.pid).collect::<Vec<_>>(), vec![ROOT]);
+    }
+
+    /// The verifier's m42: the unread time is one unbroken spell, so two spells that sum to more
+    /// than `UNREAD_CAP` with a read between them do not end the guard.
+    #[test]
+    fn m42_two_unread_spells_with_a_read_between_do_not_end_the_guard() {
+        let (code, at, _, _) = run(executor(50), 1_000, &|t, _| match t {
+            0..=199_000 => None,
+            200_000 => Some(vec![row(5, 1, 50, 5), row(ROOT, 1, 7, ROOT)]),
+            201_000..=399_000 => None,
+            _ if t < 500_000 => Some(vec![row(5, 1, 50, 5), row(ROOT, 1, 7, ROOT)]),
+            _ => Some(vec![row(5, 1, 50, 5)]),
+        });
+        assert_eq!(code, 0, "ended at {at} ms");
     }
 
     /// An orphan's rule takes no process of a number that another process took before it began,
@@ -665,15 +971,28 @@ mod tests {
             row(31, 1, 10, 77),
             row(5, 1, 50, 5),
         ];
-        assert!(members(&mut known, &table, &root, 4, false).is_empty());
+        let none = |_: u32| None;
+        assert!(members(&mut known, &table, &root, 4, false, None, &none).is_empty());
+        let args = marked_args(&[30]);
+        let mark = crate::checks::Mark {
+            profile: "/p".into(),
+            since_us: 7,
+            root: std::path::PathBuf::from("/B.app"),
+        };
         let mut known = vec![root.clone(), row(20, ROOT, 8, ROOT)];
-        let table = vec![row(30, 20, 10, 0), row(5, 1, 50, 5)];
-        assert_eq!(members(&mut known, &table, &root, 4, false).len(), 1);
+        let table = vec![in_bundle(30, 20, 10, 0), row(5, 1, 50, 5)];
+        assert_eq!(
+            members(&mut known, &table, &root, 4, false, Some(&mark), &args).len(),
+            1
+        );
         let mut known = vec![root.clone()];
         let table = vec![row(32, 1, 10, ROOT), row(33, 1, 6, ROOT)];
-        assert_eq!(members(&mut known, &table, &root, 4, true).len(), 1);
+        assert_eq!(
+            members(&mut known, &table, &root, 4, true, None, &none).len(),
+            1
+        );
         let mut known = vec![root.clone()];
-        assert!(members(&mut known, &table, &root, 4, false).is_empty());
+        assert!(members(&mut known, &table, &root, 4, false, None, &none).is_empty());
     }
 
     /// CP-158 (1): `Trigger::Now` asks at once, ends by force after `TERM_WAIT`, and returns when
@@ -766,6 +1085,7 @@ mod tests {
                     }
                     Some(v)
                 },
+                args: &|_| None,
                 now_ms: &mut || clock.get(),
                 pause: &mut |_| clock.set(clock.get() + 10),
                 end: &mut |p, force| fence.pass(p, force, &send),
@@ -845,6 +1165,7 @@ mod tests {
                     let _ = own.0[0].try_wait();
                     procs::table().ok()
                 },
+                args: &crate::checks::command_args,
                 now_ms: &mut || start.elapsed().as_millis(),
                 pause: &mut |_| {
                     assert!(
