@@ -472,7 +472,10 @@ impl ScriptedDaemon {
                             .unwrap_or_else(|| sample_inventory(Vec::new())),
                     )
                 } else {
-                    error(ErrorCode::StoreUnavailable, "store unavailable")
+                    error(
+                        ErrorCode::StoreUnavailable,
+                        &format!("store unavailable: {}", self.status.fields().store.as_str()),
+                    )
                 }
             }
             Request::Pause => {
