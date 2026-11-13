@@ -964,3 +964,40 @@ fn the_port_hands_a_maker_the_slots_of_its_class_alone() {
         "a delete gets no slot: {seen:?}"
     );
 }
+
+/// The correction of CP-157 E1, (b): a slot of the class that the load before the `begin` no longer holds does not
+/// end as a failed step; the effect is ended and the run ends `failed` with `changed`.
+#[test]
+fn a_slot_of_the_class_that_the_later_load_no_longer_holds_ends_the_run_changed() {
+    let fake = Fake {
+        submit: true,
+        ..Fake::default()
+    };
+    let plan = Plan {
+        slots_at: Some(Box::new(|load, slots| {
+            if load == 1 {
+                slots.push(super::suite::slot("fields", "a"));
+            }
+        })),
+        ..Plan::plain()
+    };
+    let record = run_path(
+        Category::CalendarCleanup,
+        (vec![form_origin()], Vec::new()),
+        Box::new(fake),
+        plan,
+    );
+    assert_eq!(
+        record.states(),
+        [
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Rejected
+        ]
+    );
+    assert_eq!(record.done(), Some(Outcome::Failed));
+    assert_eq!(
+        stopped(&record),
+        Some((LogEvent::Stopped, Some(Cause::Changed)))
+    );
+}
