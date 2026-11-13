@@ -344,6 +344,7 @@ EOF
   printf '#!/bin/sh\n#= tests/purge.rs beta\n' >"$work/list.unrun"
   printf '#!/bin/sh\n' >"$work/list.empty"
   printf '#!/bin/sh\n#= src/lib.rs tests::alpha\n#= tests/open.rs beta\n' >"$work/list.short"
+  printf '#!/bin/sh\n#= src/lib.rs tests::alpha\n' >"$work/list.shorter"
   printf '#!/bin/sh\n#= src/lib.rs tests::alpha\n#= tests/open.rs beta\n#= tests/open.rs gamma\n#= tests/open.rs zeta\n' >"$work/list.ignored"
   printf 'halvo-derived v0.0.0\n|-- rusqlite feature "sqlcipher"\n|   `-- libsqlite3-sys feature "sqlcipher"\n' >"$work/tree.good"
   printf 'halvo-derived v0.0.0\n|-- rusqlite feature "bundled-sqlcipher"\n' >"$work/tree.bundled"
@@ -372,6 +373,8 @@ EOF
   check an-empty-list FAIL "the list of $own names no test)"
   STUB_LIST=$work/list.short
   check a-test-that-the-list-does-not-name FAIL 'the test gamma of tests/open.rs is not on the list)'
+  STUB_LIST=$work/list.shorter
+  check two-tests-that-the-list-does-not-name FAIL 'the test beta of tests/open.rs is not on the list)'
   STUB_IGNORED=1
   check an-ignored-test-that-the-list-does-not-name FAIL 'the test zeta of tests/open.rs is not on the list)'
   STUB_LIST=$work/list.ignored
