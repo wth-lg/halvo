@@ -168,6 +168,26 @@ if [ "$mode" = list ] || [ "$mode" = rules ]; then
   exit "$status"
 fi
 
+# shellcheck disable=SC2329
+st_top() {
+  trap '' INT TERM
+  if [ -n "$st_worker" ]; then
+    kill -s "$3" "$st_worker" 2>/dev/null
+    wait "$st_worker"
+  fi
+  exit "$2"
+}
+
+if [ "$mode" = self-test ] && [ "${RUN_CI_D_WORKER:-}" != "$PPID" ]; then
+  st_worker=
+  trap 'st_top INT 130 USR1' INT
+  trap 'st_top TERM 143 TERM' TERM
+  RUN_CI_D_WORKER=$$ sh "$0" "$job" "$@" &
+  st_worker=$!
+  wait "$st_worker"
+  exit "$?"
+fi
+
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/run-ci-d.XXXXXX") || {
   printf 'FAIL run-ci-d (mktemp failed)\n'
   exit 1
@@ -1022,7 +1042,7 @@ if [ "$mode" = self-test ]; then
     printf 'FAIL run-ci-d (perl does not run; the step ci.d self-test starts each self-test through perl, for INT and QUIT at their defaults and a process group of its own)\n'
     exit 1
   }
-  trap 'st_interrupt INT 130' INT
+  trap 'st_interrupt INT 130' USR1
   trap 'st_interrupt TERM 143' TERM
   if [ -e "$st_list" ]; then
     while IFS= read -r st_line || [ -n "$st_line" ]; do
