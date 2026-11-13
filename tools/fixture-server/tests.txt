@@ -69,6 +69,7 @@ all sites.test.mjs site data: fields of the wrong type are refused
 all sites.test.mjs encoding: every byte outside the unreserved set is percent-encoded with upper-case digits
 all sites.test.mjs fill: each reference takes its value once and a value is not read again
 all sites.test.mjs requests: one path per choice of the values of the names a page uses, in the order of parameters
+all sites.test.mjs requests: every value of a list of three, and two names that a template uses out of the order of parameters
 all sites.test.mjs checker: counts per category, the password and card pages, and the parameter rows
 all sites.test.mjs checker: a name with no row is printed and makes the status 1
 all sites.test.mjs checker: without --parameters it compares no rows and prints no parameters line

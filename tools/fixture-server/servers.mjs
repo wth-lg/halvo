@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,6 +49,7 @@ export async function goneBy(pid, deadline) {
  * process holds, so the server ends when this process ends, however it ends; the child and its streams are then
  * unreferenced, so a test process that fails before its cleanup still exits. With `input: 'ignore'` the input is
  * the null device. A server that prints no `listening` line within 20 s is killed, and the promise rejects.
+ * Where the environment names a file in FIXTURE_SERVER_PIDS, the server's process id is appended to it.
  */
 export function startServer(args, { input = 'pipe' } = {}) {
   const child = spawn(process.execPath, [SERVER, ...args], {
@@ -56,6 +57,7 @@ export function startServer(args, { input = 'pipe' } = {}) {
     windowsHide: true,
   });
   child.stdin?.on('error', () => {});
+  if (process.env.FIXTURE_SERVER_PIDS) appendFileSync(process.env.FIXTURE_SERVER_PIDS, `${child.pid}\n`);
   return new Promise((resolve, reject) => {
     let out = '';
     const deadline = setTimeout(() => child.kill('SIGKILL'), START_MS);

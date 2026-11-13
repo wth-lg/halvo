@@ -393,6 +393,18 @@ test('requests: one path per choice of the values of the names a page uses, in t
 const ROOT = scratchDir('fixture-server-sites-');
 after(ROOT.remove);
 
+test('requests: every value of a list of three, and two names that a template uses out of the order of parameters', () => {
+  const site = parseSiteData(changed(shop, (s) => {
+    s.values.item = ['blue cup', "a!b'c", '(x)*y'];
+    s.pages[1].title = '{size} {item} - Acorn';
+  }));
+  assert.deepEqual(requestsOf(site).filter((r) => r.page.page === 'item').map((r) => `${r.path} ${r.title}`), [
+    '/item?item=blue%20cup&size=small small blue cup - Acorn',
+    "/item?item=a%21b%27c&size=small small a!b'c - Acorn",
+    '/item?item=%28x%29%2Ay&size=small small (x)*y - Acorn',
+  ]);
+});
+
 function scratch() {
   return mkdtempSync(join(ROOT.dir, 'case-'));
 }
