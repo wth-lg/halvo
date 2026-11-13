@@ -927,6 +927,10 @@ fn the_keyless_sweep_removes_nothing_through_a_shard_that_becomes_a_link_after_t
         outside.path().join(&keyless).exists(),
         "the sweep ({swept:?}) removed a file outside the store through a shard swapped for a link"
     );
+    say_branch(
+        "the_keyless_sweep_removes_nothing_through_a_shard_that_becomes_a_link_after_the_walk",
+        &format!("the move of the walked shard: {swapped:?}; the sweep: {swept:?}"),
+    );
     match swapped {
         Some(Ok(())) => assert_eq!(
             swept,
@@ -973,6 +977,10 @@ fn the_keyless_sweep_counts_a_shard_that_becomes_a_link_before_its_open_and_remo
         .map(|sweep| (sweep.removed, sweep.not_store_files))
         .map_err(|e| format!("{e:?}"));
 
+    say_branch(
+        "the_keyless_sweep_counts_a_shard_that_becomes_a_link_before_its_open_and_removes_nothing_behind_it",
+        &format!("the move of the shard: {:?}; the sweep: {swept:?}", *answer.lock().unwrap()),
+    );
     assert_eq!(
         *answer.lock().unwrap(),
         Some(Ok(())),
@@ -3072,6 +3080,10 @@ fn create_clears_through_its_handle_and_leaves_the_files_of_a_directory_put_at_i
         expected.sort();
         expected
     };
+    say_branch(
+        "create_clears_through_its_handle_and_leaves_the_files_of_a_directory_put_at_its_name",
+        &format!("the move of the store directory: {moved_away:?}; create: {created:?}"),
+    );
     match moved_away {
         Some(Ok(())) => {
             assert_eq!(
@@ -4810,6 +4822,17 @@ fn a_segment_write_whose_shard_is_swapped_at_the_create_of_its_partial(swap: Sha
         foreign_after, foreign_before,
         "the write ({written:?}) put a file into a foreign directory through a swapped shard"
     );
+    say_branch(
+        match swap {
+            ShardSwap::ForAForeignDirectory => {
+                "a_segment_write_puts_no_file_into_a_foreign_directory_put_in_place_of_its_shard_at_the_create"
+            }
+            ShardSwap::ForALinkToItsMovedSelf => {
+                "a_segment_write_whose_shard_is_moved_away_and_linked_back_at_the_create_answers_corrupt"
+            }
+        },
+        &format!("the move of the shard: {swapped:?}; the write: {written:?}"),
+    );
     match swapped {
         Some(Ok(())) => {
             assert_eq!(
@@ -5925,4 +5948,58 @@ fn windows_reads_what_sqlite_does_with_a_file_link_at_store_db_wal() {
         "outside directory after: {:?}",
         names_in(outside.path())
     ));
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_open_refuses_a_file_link_or_a_junction_at_each_database_name() {
+    let say = |line: String| {
+        let _ = writeln!(std::io::stderr(), "E5B {line}");
+    };
+    for name in [
+        "store.db",
+        "store.db-wal",
+        "store.db-shm",
+        "store.db-journal",
+    ] {
+        for kind in ["file link", "junction"] {
+            let dir = tempfile::tempdir().unwrap();
+            let outside = tempfile::tempdir().unwrap();
+            let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+            let at = store_dir.join(name);
+            if at.exists() {
+                std::fs::rename(&at, dir.path().join("moved-aside")).unwrap();
+            }
+            let target = outside.path().join("target");
+            let made = if kind == "file link" {
+                std::fs::write(&target, b"bytes of another party").unwrap();
+                std::os::windows::fs::symlink_file(&target, &at).map_err(|e| e.raw_os_error())
+            } else {
+                std::fs::create_dir(&target).unwrap();
+                link_dir(&target, &at);
+                Ok(())
+            };
+            if let Err(code) = made {
+                say(format!(
+                    "{kind} at {name}: this account may not make one ({code:?})"
+                ));
+                continue;
+            }
+
+            let answer = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
+
+            say(format!("{kind} at {name}: {answer}"));
+            let expected = if name == "store.db" {
+                "Corrupt(\"the database file of the store is a link\")"
+            } else {
+                "Corrupt(\"a file beside the database of the store is a link\")"
+            };
+            assert_eq!(answer, expected, "open with a {kind} at {name}");
+            if kind == "file link" {
+                assert_eq!(std::fs::read(&target).unwrap(), b"bytes of another party");
+            } else {
+                assert_eq!(std::fs::read_dir(&target).unwrap().count(), 0);
+            }
+        }
+    }
 }

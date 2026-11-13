@@ -618,6 +618,8 @@ mod windows_dir {
             std::fs::remove_dir(self.path.join(name))
         }
 
+        /// Always yes: the held handle shares no delete, so the name cannot be
+        /// moved or removed while the handle is held.
         pub(crate) fn still_named(&self) -> io::Result<bool> {
             Ok(true)
         }
