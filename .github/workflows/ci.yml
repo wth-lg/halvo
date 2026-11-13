@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -82,28 +71,37 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
+      - name: control-2b tests 200 times
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          found=0
+          for bin in target/debug/deps/halvo_control-*; do
+            case "$bin" in *.d|*.pdb|*.rlib|*.rmeta|*.lib|*.dll) continue ;; esac
+            [ -f "$bin" ] && [ -x "$bin" ] || continue
+            found=$((found + 1))
+            pass=0
+            other=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              code=0
+              "$bin" --exact --test-threads 4 client::tests::a_broken_reply_stays_a_protocol_error_beside_the_two_typed_errors client::tests::a_delete_with_no_id_while_the_store_opens_with_no_id_answers_busy_and_deletes_nothing client::tests::a_reply_of_another_version_is_its_own_error_and_ctl_prints_the_line_that_it_printed_before client::tests::a_reply_with_a_value_that_v1_does_not_know_is_its_own_error_and_ctl_prints_the_line_that_it_printed_before proto::tests::a_text_outside_a_closed_list_of_v1_is_an_unknown_value_at_every_place_of_every_reply proto::tests::each_source_entry_carries_the_mark_unstopped_on_the_wire_and_an_entry_without_it_does_not_decode proto::tests::the_mark_unstopped_refuses_paused_no_indicator_and_awaiting_resume_beside_it_and_takes_the_other_five proto::tests::the_text_of_a_status_does_not_print_the_mark proto::tests::the_twins_at_version_2_of_the_frames_with_white_space_are_invalid_argument testing::tests::a_pause_keeps_the_person_s_stop_of_a_source_whatever_the_stop_answers_and_a_resume_ends_it testing::tests::a_stop_answered_with_timeout_or_os_marks_the_source_and_a_later_ok_or_thread_ended_clears_the_mark testing::tests::every_status_that_the_scripted_daemon_builds_from_its_stop_answers_is_taken >"${RUNNER_TEMP:-/tmp}/control-2b-loop.txt" 2>&1 || code=$?
+              ok=$(tr -d '\r' <"${RUNNER_TEMP:-/tmp}/control-2b-loop.txt" | grep -c '^test result: ok. 12 passed; 0 failed' || true)
+              if [ "$code" = 0 ] && [ "$ok" = 1 ]; then
+                pass=$((pass + 1))
+              else
+                other=$((other + 1))
+                [ "$other" -gt 1 ] || tail -n 40 "${RUNNER_TEMP:-/tmp}/control-2b-loop.txt"
+              fi
+              i=$((i + 1))
+            done
+            echo "control-2b loop (macos): binary $(basename "$bin"): runs 200, passes $pass, other $other"
+            [ "$other" = 0 ] || exit 1
+          done
+          echo "control-2b loop (macos): binaries run: $found"
+          [ "$found" -gt 0 ]
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -133,28 +131,37 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
+      - name: control-2b tests 200 times
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          found=0
+          for bin in target/debug/deps/halvo_control-*; do
+            case "$bin" in *.d|*.pdb|*.rlib|*.rmeta|*.lib|*.dll) continue ;; esac
+            [ -f "$bin" ] && [ -x "$bin" ] || continue
+            found=$((found + 1))
+            pass=0
+            other=0
+            i=0
+            while [ "$i" -lt 200 ]; do
+              code=0
+              "$bin" --exact --test-threads 4 client::tests::a_broken_reply_stays_a_protocol_error_beside_the_two_typed_errors client::tests::a_delete_with_no_id_while_the_store_opens_with_no_id_answers_busy_and_deletes_nothing client::tests::a_reply_of_another_version_is_its_own_error_and_ctl_prints_the_line_that_it_printed_before client::tests::a_reply_with_a_value_that_v1_does_not_know_is_its_own_error_and_ctl_prints_the_line_that_it_printed_before proto::tests::a_text_outside_a_closed_list_of_v1_is_an_unknown_value_at_every_place_of_every_reply proto::tests::each_source_entry_carries_the_mark_unstopped_on_the_wire_and_an_entry_without_it_does_not_decode proto::tests::the_mark_unstopped_refuses_paused_no_indicator_and_awaiting_resume_beside_it_and_takes_the_other_five proto::tests::the_text_of_a_status_does_not_print_the_mark proto::tests::the_twins_at_version_2_of_the_frames_with_white_space_are_invalid_argument testing::tests::a_pause_keeps_the_person_s_stop_of_a_source_whatever_the_stop_answers_and_a_resume_ends_it testing::tests::a_stop_answered_with_timeout_or_os_marks_the_source_and_a_later_ok_or_thread_ended_clears_the_mark testing::tests::every_status_that_the_scripted_daemon_builds_from_its_stop_answers_is_taken >"${RUNNER_TEMP:-/tmp}/control-2b-loop.txt" 2>&1 || code=$?
+              ok=$(tr -d '\r' <"${RUNNER_TEMP:-/tmp}/control-2b-loop.txt" | grep -c '^test result: ok. 12 passed; 0 failed' || true)
+              if [ "$code" = 0 ] && [ "$ok" = 1 ]; then
+                pass=$((pass + 1))
+              else
+                other=$((other + 1))
+                [ "$other" -gt 1 ] || tail -n 40 "${RUNNER_TEMP:-/tmp}/control-2b-loop.txt"
+              fi
+              i=$((i + 1))
+            done
+            echo "control-2b loop (windows): binary $(basename "$bin"): runs 200, passes $pass, other $other"
+            [ "$other" = 0 ] || exit 1
+          done
+          echo "control-2b loop (windows): binaries run: $found"
+          [ "$found" -gt 0 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
