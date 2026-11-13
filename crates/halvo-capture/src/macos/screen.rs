@@ -428,7 +428,7 @@ impl CaptureSource for ScreenSource {
         let (tx, rx) = channel();
         let asked = Instant::now();
         stream.ask_stop(tx);
-        let mut completion = rx.recv_timeout(SCREEN_STOP_WAIT);
+        let mut completion = rx.recv_timeout(SCREEN_STOP_WAIT.saturating_sub(asked.elapsed()));
         if completion == Err(RecvTimeoutError::Disconnected) {
             std::thread::sleep(SCREEN_STOP_WAIT.saturating_sub(asked.elapsed()));
             completion = Err(RecvTimeoutError::Timeout);
