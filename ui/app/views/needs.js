@@ -39,6 +39,11 @@
   let pointedAt = null;
   let raising = false;
   const keys = new Map();
+  let holdBase = null;
+  const heldGone = new Map();
+  const answeredGone = new Set();
+  const opened = new Set();
+  const lines = new Set();
 
   function fresh() {
     serial += 1;
@@ -69,41 +74,75 @@
     return { start: start, gone: before.length - start - end, added: after.length - start - end };
   }
 
-  function limit(typed, full) {
-    let kept = '';
-    let atBound = false;
+  function limit(typed, full, tooLong) {
+    const line = { kept: '', composing: false, endRefused: false, sent: null };
+    let mark = false;
+    let shown = null;
     let note = null;
     let before = null;
-    typed.addEventListener('beforeinput', function () {
-      before = [typed.selectionStart, typed.selectionEnd];
-    });
-    typed.addEventListener('input', function () {
-      const was = before;
-      before = null;
-      const now = typed.value;
-      const change = changed(kept, now);
-      if (change.gone === 0 && change.added === 0) return;
-      if (bytes(now) > 1024 || (((atBound && kept !== '') || bytes(kept) >= 1024) && change.added > 0)) {
-        typed.value = kept;
-        if (was) typed.setSelectionRange(was[0], was[1]);
-        else typed.setSelectionRange(change.start, change.start + change.gone);
-        atBound = true;
-        if (!note && full) {
-          note = el('p', 'hn-full', full);
-          note.id = fresh();
-          typed.parentNode.insertBefore(note, typed.nextSibling);
-          typed.setAttribute('aria-describedby', note.id);
-        }
-        return;
-      }
-      kept = now;
-      atBound = false;
+    let start = null;
+    function show(which) {
+      if (shown === which) return;
+      shown = which;
       if (note) {
         note.remove();
         note = null;
         typed.removeAttribute('aria-describedby');
       }
+      const text = which === 'full' ? full : which === 'too_long' ? tooLong : '';
+      if (!text) return;
+      note = el('p', 'hn-full', text);
+      note.id = fresh();
+      typed.parentNode.insertBefore(note, typed.nextSibling);
+      typed.setAttribute('aria-describedby', note.id);
+      tell(text);
+    }
+    function atBound() {
+      return mark || bytes(line.kept) >= 1024;
+    }
+    function judge(now, was) {
+      const change = changed(line.kept, now);
+      if (change.gone === 0 && change.added === 0) return true;
+      if (bytes(now) > 1024 || (atBound() && change.added > 0)) {
+        typed.value = line.kept;
+        if (was) typed.setSelectionRange(was[0], was[1]);
+        else typed.setSelectionRange(change.start, change.start + change.gone);
+        if (bytes(line.kept) > 1020) mark = true;
+        show(atBound() ? 'full' : 'too_long');
+        return false;
+      }
+      line.kept = now;
+      if (change.added === 0) {
+        mark = false;
+        show(null);
+      }
+      return true;
+    }
+    line.sent = function () {
+      if (shown === 'too_long') show(null);
+    };
+    typed.addEventListener('beforeinput', function () {
+      before = [typed.selectionStart, typed.selectionEnd];
     });
+    typed.addEventListener('compositionstart', function () {
+      line.composing = true;
+      start = [typed.selectionStart, typed.selectionEnd];
+    });
+    typed.addEventListener('compositionend', function () {
+      line.composing = false;
+      const was = start;
+      start = null;
+      before = null;
+      if (!judge(typed.value, was)) line.endRefused = true;
+    });
+    typed.addEventListener('input', function () {
+      if (line.composing) return;
+      const was = before;
+      before = null;
+      judge(typed.value, was);
+    });
+    lines.add(line);
+    return line;
   }
 
   function pieces(tag, cls, value) {
@@ -167,6 +206,7 @@
         radios.push({ input: input, n: c.n });
       });
       let typed = null;
+      let line = null;
       if (p.typed === 'yes') {
         typed = document.createElement('input');
         typed.type = 'text';
@@ -175,10 +215,10 @@
         typed.setAttribute('data-param', p.name);
         typed.setAttribute('aria-labelledby', legend.id);
         set.appendChild(typed);
-        limit(typed, p.full);
+        line = limit(typed, p.full, p.too_long);
       }
       box.appendChild(set);
-      answers.push({ param: p.name, radios: radios, typed: typed });
+      answers.push({ param: p.name, radios: radios, typed: typed, line: line });
     });
   }
 
@@ -190,8 +230,8 @@
       })[0];
       if (picked) {
         calls.push(['agents_answer', { item: item.item, choice: 'choose', param: a.param, n: picked.n }]);
-      } else if (a.typed && a.typed.value.trim() !== '') {
-        calls.push(['agents_setup_typed', { item: item.item, param: a.param, text: a.typed.value }]);
+      } else if (a.line && a.line.kept.trim() !== '') {
+        calls.push(['agents_setup_typed', { item: item.item, param: a.param, text: a.line.kept }]);
       }
     });
     return calls;
@@ -205,8 +245,14 @@
     });
   }
 
+  function blocked(card) {
+    return card.answers.some(function (a) {
+      return a.line !== null && (a.line.composing || a.line.endRefused);
+    });
+  }
+
   function answer(item, choice, card) {
-    if (card.busy) return;
+    if (card.busy || blocked(card)) return;
     if (choice.choice === 'present') {
       held(card, call('agents_present', { item: item.item }));
       return;
@@ -219,6 +265,9 @@
           return reply === null ? null : call(c[0], c[1]);
         });
       }, Promise.resolve({})));
+      card.answers.forEach(function (a) {
+        if (a.line) a.line.sent();
+      });
       return;
     }
     if (isPage(item)) {
@@ -234,6 +283,11 @@
   function input(event) {
     tick += 1;
     const type = event.type;
+    if (type === 'pointerdown' || (type === 'keydown' && !event.repeat)) {
+      lines.forEach(function (l) {
+        l.endRefused = false;
+      });
+    }
     if (type === 'keydown') {
       if (event.repeat && event.key === 'Enter' && event.target.tagName === 'BUTTON' && list.contains(event.target)) event.preventDefault();
       if (!event.repeat) keys.set(event.key, { at: tick, target: event.target });
@@ -277,7 +331,7 @@
   }
 
   function build(item, key) {
-    const card = { key: key, json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, answers: [], gone: false, busy: false, opened: 0 };
+    const card = { id: item.item, key: key, json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, answers: [], gone: false, busy: false, opened: 0 };
     const page = isPage(item);
     const box = page ? el('dialog', 'hn-dialog', '') : card.li;
     if (item.title) {
@@ -321,6 +375,7 @@
       });
       box.addEventListener('close', function () {
         if (!card.gone && box.isConnected) modal(card);
+        else release();
       });
       card.dialog = box;
       card.li.appendChild(box);
@@ -330,6 +385,8 @@
 
   function modal(card) {
     card.opened = tick;
+    opened.add(card.id);
+    empty();
     card.dialog.showModal();
     card.dialog.scrollTop = 0;
     card.dialog.focus();
@@ -410,8 +467,26 @@
     });
   }
 
-  function say(text) {
-    if (text) region.appendChild(el('p', null, text));
+  function empty() {
+    if (!region) return;
+    while (region.firstChild) region.removeChild(region.firstChild);
+  }
+
+  function addition(sentences) {
+    empty();
+    sentences.forEach(function (text) {
+      if (text) region.appendChild(el('p', null, text));
+    });
+  }
+
+  function pageWaiting() {
+    return Array.from(cards.values()).some(function (card) {
+      return card.dialog !== null;
+    });
+  }
+
+  function tell(text) {
+    if (region && !holdBase && !pageWaiting()) addition([text]);
   }
 
   function firsts(items) {
@@ -422,25 +497,59 @@
     return byId;
   }
 
+  function release() {
+    if (!holdBase || pageWaiting()) return;
+    const base = holdBase;
+    holdBase = null;
+    const now = last ? firsts(last.items) : new Map();
+    const out = [];
+    base.forEach(function (item, id) {
+      if (!now.has(id) && !(isPage(item) && answeredGone.has(id))) out.push(item.say_gone);
+    });
+    heldGone.forEach(function (text) {
+      out.push(text);
+    });
+    now.forEach(function (item, id) {
+      if (!base.has(id) && !isPage(item) && !holdsFocus(id)) out.push(item.say_new);
+    });
+    heldGone.clear();
+    answeredGone.clear();
+    addition(out);
+  }
+
   function take(reply) {
     if (!reply || !Array.isArray(reply.items)) return;
     const before = last ? firsts(last.items) : null;
     const after = firsts(reply.items);
-    const gone = [];
-    if (before) {
-      before.forEach(function (item, id) {
-        if (!after.has(id) && !holdsFocus(id)) gone.push(item.say_gone);
-      });
-    }
+    const answeredNow = new Set(answered);
     seq = reply.seq;
     last = reply;
     apply(reply, true);
-    gone.forEach(say);
-    if (before) {
-      after.forEach(function (item, id) {
-        if (!before.has(id) && !holdsFocus(id)) say(item.say_new);
+    const gone = before ? Array.from(before.entries()).filter(function (e) {
+      return !after.has(e[0]);
+    }) : [];
+    const came = before ? Array.from(after.entries()).filter(function (e) {
+      return !before.has(e[0]);
+    }) : [];
+    if (holdBase || pageWaiting()) {
+      if (!holdBase) holdBase = before || after;
+      gone.forEach(function (e) {
+        if (!isPage(e[1])) return;
+        if (answeredNow.has(e[0])) answeredGone.add(e[0]);
+        else if (!holdBase.has(e[0]) && opened.has(e[0])) heldGone.set(e[0], e[1].say_gone);
       });
+      if (gone.length + came.length > 0) empty();
+      return;
     }
+    if (gone.length + came.length === 0) return;
+    const out = [];
+    gone.forEach(function (e) {
+      if (!(isPage(e[1]) && answeredNow.has(e[0]))) out.push(e[1].say_gone);
+    });
+    came.forEach(function (e) {
+      if (!isPage(e[1]) && !holdsFocus(e[0])) out.push(e[1].say_new);
+    });
+    addition(out);
   }
 
   function wait(mine) {
@@ -474,6 +583,7 @@
         region = el('div', 'hn-say', '');
         region.setAttribute('role', 'status');
         region.setAttribute('aria-live', 'polite');
+        region.setAttribute('aria-atomic', 'true');
         root.insertBefore(region, list);
       }
       turn += 1;
@@ -487,6 +597,7 @@
     hide: function () {
       shown = false;
       turn += 1;
+      empty();
     }
   });
 })();

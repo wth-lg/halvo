@@ -948,6 +948,7 @@ async function region(origin, dir) {
         count: all.length,
         everywhere: document.querySelectorAll('[role="status"]').length,
         live: r ? r.getAttribute('aria-live') : null,
+        atomic: r ? r.getAttribute('aria-atomic') : null,
         top: section.querySelector('ul').getBoundingClientRect().top,
         place: Boolean(r) && r.nextElementSibling === section.querySelector('ul') && Boolean(document.getElementById('view-needs').compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING),
         kept: Boolean(r && r.r4needsMark),
@@ -966,6 +967,7 @@ async function region(origin, dir) {
       const at = await facts(h);
       if (at.count !== 1 || at.live !== 'polite' || at.says.length !== 0) faults.push(tag + ':before=' + JSON.stringify(at));
       if (!at.place) faults.push(tag + ':region_not_between_the_heading_and_the_list');
+      if (at.atomic !== 'true') faults.push(tag + ':aria_atomic=' + at.atomic);
       await mark(h);
       if (focusOn) await h.page.locator(focusOn).focus();
       const ids = second.map((i) => i.item).join(',');
@@ -990,11 +992,10 @@ async function region(origin, dir) {
   await step('arrives_while_the_focus_is_elsewhere', [stuck], sel('done', stuck.item), [stuck, ready], ['Ready came.'], 'done:b');
   await step('goes_while_the_focus_is_elsewhere', [stuck, ready], sel('done', stuck.item), [stuck], ['Ready went.'], 'done:b');
   await step('arrives_while_the_focus_is_on_the_page', [stuck], null, [stuck, ready], ['Ready came.'], null);
-  await step('goes_while_the_focus_is_in_it', [stuck, ready], sel('start', ready.item), [stuck], [], null);
-  await step('arrives_while_a_confirmation_holds_the_focus(pinned_as_built,where_a_sentence_is_said_while_a_confirmation_is_open_waits_for_a_ruling)', [confirm], null, [confirm, ready], ['Ready came.'], 'alertdialog:-');
+  await step('goes_while_the_focus_is_in_it', [stuck, ready], sel('start', ready.item), [stuck], ['Ready went.'], null);
   await step('a_confirmation_arrives_and_holds_the_focus', [stuck], sel('done', stuck.item), [stuck, confirm], [], 'alertdialog:-');
   await step('one_goes_and_one_arrives', [stuck], null, [ready], ['Stuck went.', 'Ready came.'], null);
-  await step('one_goes_with_the_focus_in_it_and_one_arrives', [stuck], sel('done', stuck.item), [ready], ['Ready came.'], null);
+  await step('one_goes_with_the_focus_in_it_and_one_arrives', [stuck], sel('done', stuck.item), [ready], ['Stuck went.', 'Ready came.'], null);
   await step('an_item_with_no_sentence_adds_nothing', [stuck], null, [stuck, { ...ready, say_new: '' }], [], null);
   const h = await open({ origin, state: 'test_many', views: [VIEW] });
   try {
@@ -1028,21 +1029,160 @@ async function region(origin, dir) {
   } finally {
     await k.close();
   }
-  const keeps = 'the_region_keeps_every_sentence(pinned_as_built,how_long_the_region_keeps_a_sentence_waits_for_a_ruling)';
-  const changes = [[stuck], [stuck, ready], [stuck], [stuck, ready], []];
-  const many = await open({ origin, replies: changes.map((items, i) => ({ state: snap(i + 1, items) })), views: [VIEW] });
-  try {
-    await many.page.waitForFunction(() => document.querySelectorAll('#views [data-act]').length === 0, null, { timeout: 5000 });
-    await settled(many);
-    await frames(many);
-    const got = await facts(many);
-    const want = ['Ready came.', 'Ready went.', 'Ready came.', 'Stuck went.', 'Ready went.'];
-    if (JSON.stringify(got.says) !== JSON.stringify(want)) faults.push(keeps + ':after_4_changes_paragraphs=' + got.says.length + ':want=' + want.length);
-  } catch {
-    faults.push(keeps + ':throws');
-  } finally {
-    await many.close();
-  }
+  const second = told(withId(stateFile(dir, 'needs_confirm_page').snapshot.items[0], 'd'.repeat(32)), 'Second');
+  const other = told(withId(stateFile(dir, 'needs_show').snapshot.items[0], '7'.repeat(32)), 'Other');
+  const answerLine = (c) => ({ call: 'agents_answer', args: { item: c.item, choice: 'reject' }, reply: { ok: 'yes' } });
+  const says = (h) => facts(h).then((f) => f.says);
+  const waitIds = (h, items) =>
+    h.page.waitForFunction(
+      (want) => [...new Set([...document.querySelectorAll('#views [data-param]')].map((e) => e.getAttribute('data-param')))].filter((p) => /^[0-9a-f]{32}$/.test(p)).sort().join(',') === want,
+      items.map((i) => i.item).sort().join(','),
+      { timeout: 5000 },
+    );
+  const pass = async (h, items) => {
+    await h.page.evaluate((agent) => window.Halvo.ipc.call('agents_card', { agent }), gate.args.agent);
+    await waitIds(h, items);
+    await frames(h);
+  };
+  const answerOpen = (h) =>
+    h.page.evaluate(() => {
+      const d = [...document.querySelectorAll('[role="alertdialog"]')].find((x) => x.matches(':modal'));
+      d.querySelector('[data-act="reject"]').click();
+    });
+  const afterClose = async (h) => {
+    await frames(h);
+    await settled(h);
+    await frames(h);
+  };
+  const flow = async (tag, replies, fn) => {
+    const h = await open({ origin, replies, views: [VIEW] });
+    try {
+      await fn(h);
+    } catch (err) {
+      faults.push(tag + ':throws');
+    } finally {
+      await h.close();
+    }
+  };
+  const expect = (tag, got, want) => {
+    if (JSON.stringify(got) !== JSON.stringify(want)) faults.push(tag + ':says=' + (got.join('|') || '-'));
+  };
+  const open1 = 'arrives_while_a_confirmation_holds_the_focus';
+  await flow(open1, [{ state: snap(1, [confirm]) }, gate, { state: snap(2, [confirm, ready]) }, answerLine(confirm)], async (h) => {
+    await pass(h, [confirm, ready]);
+    expect(open1 + '_while_open', await says(h), []);
+    await answerOpen(h);
+    await afterClose(h);
+    expect(open1 + '_after_the_answer', await says(h), ['Ready came.']);
+  });
+  const both = 'a_reply_with_a_confirmation_and_another_item';
+  await flow(both, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, other]) }, gate, { state: snap(3, [stuck, other, confirm, ready]) }, answerLine(confirm)], async (h) => {
+    await pass(h, [stuck, other]);
+    expect(both + '_before', await says(h), ['Other came.']);
+    await pass(h, [stuck, other, confirm, ready]);
+    expect(both + '_while_open', await says(h), []);
+    await answerOpen(h);
+    await afterClose(h);
+    expect(both + '_after_the_close', await says(h), ['Ready came.']);
+  });
+  const waits = 'a_waiting_confirmation_is_never_said';
+  await flow(waits, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, second]) }, answerLine(confirm), answerLine(second)], async (h) => {
+    const seen = [];
+    await pass(h, [stuck, confirm, second]);
+    seen.push(...(await says(h)));
+    await answerOpen(h);
+    await afterClose(h);
+    seen.push(...(await says(h)));
+    await answerOpen(h);
+    await afterClose(h);
+    const end = await says(h);
+    seen.push(...end);
+    if (seen.includes('Second came.') || seen.includes('Confirm came.')) faults.push(waits + ':said=' + seen.join('|'));
+    expect(waits + '_after', end, []);
+  });
+  const between = 'an_item_that_came_and_went_while_a_confirmation_was_open';
+  await flow(between, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm]) }, gate, { state: snap(3, [stuck, confirm, ready]) }, gate, { state: snap(4, [stuck, confirm]) }, answerLine(confirm)], async (h) => {
+    await pass(h, [stuck, confirm]);
+    await pass(h, [stuck, confirm, ready]);
+    await pass(h, [stuck, confirm]);
+    await answerOpen(h);
+    await afterClose(h);
+    expect(between, await says(h), []);
+  });
+  const dropped = 'a_confirmation_dropped_without_an_answer_is_said_gone_after';
+  await flow(dropped, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm]) }, gate, { state: snap(3, [stuck]) }], async (h) => {
+    await pass(h, [stuck, confirm]);
+    await pass(h, [stuck]);
+    await afterClose(h);
+    expect(dropped, await says(h), ['Confirm went.']);
+  });
+  const answeredOne = 'an_answered_confirmation_is_not_said_gone';
+  await flow(answeredOne, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm]) }, answerLine(confirm), { state: snap(3, [stuck]) }], async (h) => {
+    await pass(h, [stuck, confirm]);
+    await answerOpen(h);
+    await afterClose(h);
+    await waitIds(h, [stuck]);
+    await afterClose(h);
+    expect(answeredOne, await says(h), []);
+  });
+  const many = 'the_element_holds_the_last_additions_sentences_alone';
+  const silent = { ...told(withId(stateFile(dir, 'needs_check').snapshot.items[0], '6'.repeat(32)), 'Silent'), say_new: '', say_gone: '' };
+  const changes = [snap(1, [stuck])];
+  for (let i = 1; i <= 80; i++) changes.push(snap(i + 1, i % 2 ? [stuck, ready] : [stuck]));
+  changes.push(snap(82, [stuck]));
+  await flow(many, [...changes.map((s) => ({ state: s })), gate, { state: snap(83, [stuck, silent]) }, gate, { state: snap(84, [stuck, silent, ready]) }], async (h) => {
+    await h.page.waitForFunction(() => document.querySelectorAll('#views [data-act]').length > 0, null, { timeout: 5000 });
+    await settled(h);
+    await frames(h);
+    expect(many + '_after_80_replies_and_one_with_the_same_items', await says(h), ['Ready went.']);
+    await pass(h, [stuck, silent]);
+    expect(many + '_after_a_reply_that_adds_nothing', await says(h), []);
+    await pass(h, [stuck, silent, ready]);
+    expect(many + '_after_one_more', await says(h), ['Ready came.']);
+    await h.page.evaluate(() => Halvo.views.window('hidden'));
+    expect(many + '_after_a_hide', await says(h), []);
+  });
+  const ax = 'the_tree_holds_the_element_after_the_close';
+  await flow(ax, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, ready]) }, answerLine(confirm)], async (h) => {
+    if (engineOf(h) !== 'chromium') {
+      console.log('region tree: not read on ' + engineOf(h) + ', whose tree this harness does not read');
+      return;
+    }
+    await pass(h, [stuck, confirm, ready]);
+    await answerOpen(h);
+    await afterClose(h);
+    const cdp = await h.page.context().newCDPSession(h.page);
+    await cdp.send('DOM.enable');
+    await cdp.send('Accessibility.enable');
+    const { root } = await cdp.send('DOM.getDocument', { depth: 0 });
+    const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: '[role="status"]' });
+    const { nodes } = await cdp.send('Accessibility.getPartialAXTree', { nodeId, fetchRelatives: false });
+    const node = nodes.find((n) => n.role && n.role.value === 'status');
+    if (!node || node.ignored) faults.push(ax + ':status_node=' + (node ? 'ignored' : 'missing'));
+    const full = await cdp.send('Accessibility.getFullAXTree');
+    const byId = new Map(full.nodes.map((n) => [n.nodeId, n]));
+    const status = full.nodes.find((n) => n.role && n.role.value === 'status' && !n.ignored);
+    const texts = [];
+    const walk = (n) => {
+      if (!n) return;
+      if (n.role && n.role.value === 'StaticText' && n.name) texts.push(n.name.value);
+      (n.childIds || []).forEach((c) => walk(byId.get(c)));
+    };
+    walk(status);
+    if (!texts.join(' ').includes('Ready came.')) faults.push(ax + ':tree_text=' + (texts.join('|') || '-'));
+  });
+  const task = 'the_release_is_not_made_in_the_task_that_closes';
+  await flow(task, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, ready]) }, answerLine(confirm)], async (h) => {
+    await pass(h, [stuck, confirm, ready]);
+    const inTask = await h.page.evaluate(() => {
+      const d = [...document.querySelectorAll('[role="alertdialog"]')].find((x) => x.matches(':modal'));
+      d.querySelector('[data-act="reject"]').click();
+      return [...document.querySelector('[role="status"]').childNodes].map((n) => n.textContent);
+    });
+    expect(task + '_in_the_closing_task', inTask, []);
+    await afterClose(h);
+    expect(task + '_after_the_close', await says(h), ['Ready came.']);
+  });
   return faults;
 }
 
@@ -1078,8 +1218,9 @@ async function bound(origin, dir) {
     return c ? c.args.text : null;
   };
   const shows = (tag, f, want) => {
+    const text = want === 'too_long' ? p.too_long : p.full;
     const ok = want
-      ? f.described && f.note === p.full && f.noteNodes === 1 && f.noteAfterLine && f.notes === 1
+      ? f.described && f.note === text && f.noteNodes === 1 && f.noteAfterLine && f.notes === 1
       : !f.described && f.note === null && f.notes === 0;
     if (!ok) faults.push(tag + ':sentence=' + JSON.stringify({ described: f.described, note: f.note !== null, notes: f.notes }));
   };
@@ -1101,7 +1242,7 @@ async function bound(origin, dir) {
       const f = await typedFacts(h, p.name);
       const want = fits ? text : '';
       if (f.value !== want) faults.push(tag + ':line_holds=' + Buffer.byteLength(f.value));
-      shows(tag, f, !fits);
+      shows(tag, f, fits ? false : 'too_long');
       const sent = await sentOf(h, out);
       if (fits ? sent !== text : sent !== null) faults.push(tag + ':sent=' + (sent === null ? 'none' : Buffer.byteLength(sent)));
     } finally {
@@ -1220,13 +1361,13 @@ async function bound(origin, dir) {
   await one(second, async (k, l) => {
     await l.fill(xs(1000));
     await k.page.keyboard.insertText('y'.repeat(30));
-    shows(second + '_first', await typedFacts(k, p.name), true);
+    shows(second + '_first', await typedFacts(k, p.name), 'too_long');
     await k.page.keyboard.press('Backspace');
     shows(second + '_after_the_removal', await typedFacts(k, p.name), false);
     await k.page.keyboard.insertText('y'.repeat(30));
     const f = await typedFacts(k, p.name);
     if (f.value !== xs(999)) faults.push(second + ':line_holds=' + Buffer.byteLength(f.value));
-    shows(second + '_second', f, true);
+    shows(second + '_second', f, 'too_long');
   });
   const empties = [
     ['an_empty_line_after_a_refusal_takes_the_next_letter', async (k, l) => l.focus()],
@@ -1246,30 +1387,13 @@ async function bound(origin, dir) {
       await k.page.keyboard.insertText(big);
       const f = await typedFacts(k, p.name);
       if (f.value !== '') faults.push(t + ':line_after_the_refusal=' + Buffer.byteLength(f.value));
-      shows(t + '_refused', f, true);
+      shows(t + '_refused', f, 'too_long');
       await k.page.keyboard.type('a');
       const g = await typedFacts(k, p.name);
       if (g.value !== 'a') faults.push(t + ':line_after_a_letter=' + Buffer.byteLength(g.value));
-      shows(t + '_taken', g, false);
+      shows(t + '_taken(the_sentence_stands_until_a_removal)', g, 'too_long');
     });
   }
-  const short = 'a_short_line_after_a_refused_paste(pinned_as_built,the_rule_for_a_refused_input_far_below_the_bound_waits_for_a_ruling)';
-  await one(short, async (k, l) => {
-    await l.fill(xs(10));
-    await k.page.keyboard.insertText(big);
-    shows(short + '_paste', await typedFacts(k, p.name), true);
-    await k.page.keyboard.type('a');
-    let f = await typedFacts(k, p.name);
-    if (f.value !== xs(10)) faults.push(short + ':letter_after_the_paste_taken');
-    shows(short + '_letter', f, true);
-    await k.page.keyboard.press('Backspace');
-    f = await typedFacts(k, p.name);
-    if (f.value !== xs(9)) faults.push(short + ':backspace_not_taken');
-    shows(short + '_backspace', f, false);
-    await k.page.keyboard.type('a');
-    f = await typedFacts(k, p.name);
-    if (f.value !== xs(9) + 'a') faults.push(short + ':letter_after_the_backspace_not_taken');
-  });
   const inside = 'a_removal_inside_a_full_line_is_taken';
   await one(inside, async (k, l) => {
     await l.fill(digits);
@@ -1301,20 +1425,296 @@ async function bound(origin, dir) {
     if (JSON.stringify(f.caret) !== '[600,610]') faults.push(script + ':selection=' + f.caret.join('-'));
     shows(script, f, true);
   });
-  const ime = 'a_composition_across_the_bound(pinned_as_built,the_rule_for_a_composition_across_the_bound_waits_for_a_ruling)';
-  await one(ime, async (k, l) => {
-    if (engineOf(k) !== 'chromium') {
-      console.log('bound composition: not run on ' + engineOf(k) + ', which takes no composition through the browser\'s protocol in this harness');
+  const saidNow = (k) => k.page.evaluate(() => [...document.querySelector('[role="status"]').childNodes].map((n) => n.textContent));
+  for (const [n, letterTaken] of [
+    [1020, true],
+    [1021, false],
+  ]) {
+    const t = 'the_bound_after_a_refusal_on_' + n + '_bytes';
+    await one(t, async (k, l) => {
+      await l.fill(xs(n));
+      await k.page.keyboard.insertText(big);
+      shows(t + '_refused', await typedFacts(k, p.name), letterTaken ? 'too_long' : 'full');
+      await k.page.keyboard.type('a');
+      const f = await typedFacts(k, p.name);
+      if (f.value !== (letterTaken ? xs(n) + 'a' : xs(n))) faults.push(t + ':letter_' + (letterTaken ? 'not_taken' : 'taken'));
+    });
+  }
+  const below = 'a_refusal_below_the_bound_refuses_only_itself';
+  await one(below, async (k, l) => {
+    await l.fill(xs(10));
+    await k.page.keyboard.insertText(big);
+    let f = await typedFacts(k, p.name);
+    if (f.value !== xs(10)) faults.push(below + ':line_after_the_refusal=' + Buffer.byteLength(f.value));
+    shows(below + '_refused', f, 'too_long');
+    const said = await saidNow(k);
+    if (JSON.stringify(said) !== JSON.stringify([p.too_long])) faults.push(below + ':status_element_holds=' + said.length);
+    await k.page.keyboard.type('a');
+    f = await typedFacts(k, p.name);
+    if (f.value !== xs(10) + 'a') faults.push(below + ':letter_not_taken');
+    shows(below + '_after_a_taken_letter', f, 'too_long');
+    await k.page.keyboard.press('Backspace');
+    f = await typedFacts(k, p.name);
+    if (f.value !== xs(10)) faults.push(below + ':removal_not_taken');
+    shows(below + '_after_a_removal', f, false);
+  });
+  const flag = 'a_flag_in_one_input_on_1018_bytes_then_four_digits(the_limit_of_1_6_a,pinned_as_ruled)';
+  {
+    const out = outDir();
+    const h = await open({ origin, state: 'setup_three', views: [VIEW], out });
+    try {
+      await h.page.locator(line).fill(xs(1018));
+      await h.page.keyboard.insertText(cp(0x1f1eb, 0x1f1f7));
+      await h.page.keyboard.type('1234');
+      const f = await typedFacts(h, p.name);
+      if (f.value !== xs(1018) + '1234') faults.push(flag + ':line_ends_in=' + f.value.slice(-4));
+      shows(flag, f, 'too_long');
+      const sent = await sentOf(h, out);
+      if (sent !== xs(1018) + '1234') faults.push(flag + ':sent=' + (sent === null ? 'none' : Buffer.byteLength(sent)));
+    } catch {
+      faults.push(flag + ':throws');
+    } finally {
+      await h.close();
+    }
+  }
+  const atb = 'at_the_bound_only_a_removal_changes_the_line';
+  await one(atb, async (k, l) => {
+    await l.fill(xs(1024));
+    await k.page.keyboard.type('a');
+    shows(atb + '_full', await typedFacts(k, p.name), 'full');
+    await l.evaluate((x) => x.setSelectionRange(0, 1024));
+    await k.page.keyboard.insertText('short');
+    let f = await typedFacts(k, p.name);
+    if (f.value !== xs(1024)) faults.push(atb + ':whole_line_replaced');
+    await l.evaluate((x) => x.setSelectionRange(1024, 1024));
+    await k.page.keyboard.press('Backspace');
+    shows(atb + '_after_a_removal', await typedFacts(k, p.name), false);
+    await k.page.keyboard.type('b');
+    f = await typedFacts(k, p.name);
+    if (f.value !== xs(1023) + 'b') faults.push(atb + ':letter_after_the_removal_not_taken');
+  });
+  const reach = 'a_line_with_too_long_reaches_the_bound_and_shows_full';
+  await one(reach, async (k, l) => {
+    await l.fill(xs(10));
+    await k.page.keyboard.insertText(big);
+    shows(reach + '_too_long', await typedFacts(k, p.name), 'too_long');
+    await k.page.keyboard.insertText(xs(1014));
+    let f = await typedFacts(k, p.name);
+    if (f.value !== xs(1024)) faults.push(reach + ':fill_not_taken=' + Buffer.byteLength(f.value));
+    shows(reach + '_still_too_long', f, 'too_long');
+    await k.page.keyboard.type('a');
+    f = await typedFacts(k, p.name);
+    shows(reach + '_full', f, 'full');
+    const said = await saidNow(k);
+    if (JSON.stringify(said) !== JSON.stringify([p.full])) faults.push(reach + ':status_element_holds=' + said.length);
+  });
+  return faults;
+}
+
+async function compose(origin, dir) {
+  const faults = [];
+  const item = stateFile(dir, 'setup_three').snapshot.items[0];
+  const p = item.params.find((x) => x.typed === 'yes');
+  const line = '[data-act="typed"][data-param="' + p.name + '"]';
+  const choose = '[data-act="choose"][data-param="' + item.item + '"]';
+  const sentence = (f) => (f.note === p.full ? 'full' : f.note === p.too_long ? 'too_long' : f.note === null ? 'none' : 'other');
+  const run = async (tag, fn) => {
+    const out = outDir();
+    const h = await open({ origin, state: 'setup_three', views: [VIEW], out });
+    try {
+      await fn(h, out);
+    } catch (err) {
+      faults.push(tag + ':throws');
+    } finally {
+      await h.close();
+    }
+  };
+  const typedCalls = (out) => callsOf(out).filter((c) => c.call === 'agents_setup_typed').map((c) => c.args.text);
+  const scripted = (h, plan) =>
+    h.page.evaluate(
+      ([sel, plan, order]) => {
+        const t = document.querySelector(sel);
+        t.focus();
+        if (plan.caret !== undefined) t.setSelectionRange(plan.caret, plan.caret);
+        const at = t.selectionStart;
+        const base = t.value;
+        const put = (s) => {
+          t.value = base.slice(0, at) + s + base.slice(at);
+          t.setSelectionRange(at + s.length, at + s.length);
+        };
+        t.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: '' }));
+        for (const s of plan.updates) {
+          put(s);
+          t.dispatchEvent(new CompositionEvent('compositionupdate', { bubbles: true, data: s }));
+          t.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertCompositionText', data: s, isComposing: true }));
+        }
+        const during = t.value;
+        if (plan.open) return { during };
+        if (plan.press) {
+          document.querySelector(plan.press).dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }));
+        }
+        if (plan.cancel) {
+          t.value = base;
+          t.setSelectionRange(at, at);
+        } else put(plan.commit);
+        const end = () => t.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: plan.cancel ? '' : plan.commit }));
+        const last = () => t.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertCompositionText', data: plan.cancel ? '' : plan.commit, isComposing: order === 'chromium' }));
+        if (order === 'chromium') {
+          last();
+          end();
+        } else {
+          end();
+          last();
+        }
+        if (plan.press) {
+          document.querySelector(plan.press).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+        }
+        return { during };
+      },
+      [line, plan, engineOf(h)],
+    );
+  const facts = (h) => typedFacts(h, p.name);
+  const kana = (...c) => cp(...c);
+  const over = { caret: 500, updates: [kana(0x304b), kana(0x304b, 0x306a), kana(0x304b, 0x306a, 0x304c), kana(0x304b, 0x306a, 0x304c, 0x308f)], commit: kana(0x304b, 0x306a, 0x304c, 0x308f) };
+  const spellings = [0x304b, 0x306a, 0x304c, 0x308f, 0x3051, 0x3093];
+  const spelling = {
+    updates: spellings.map((_, i) => cp(...spellings.slice(0, i + 1))),
+    commit: cp(0x795e, 0x5948, 0x5ddd, 0x770c),
+  };
+  await run('a_commit_that_would_end_above_the_bound_is_refused', async (h, out) => {
+    const t = 'a_commit_that_would_end_above_the_bound_is_refused';
+    await h.page.locator(line).fill(xs(1018));
+    await scripted(h, over);
+    const f = await facts(h);
+    if (f.value !== xs(1018)) faults.push(t + ':line_holds=' + Buffer.byteLength(f.value));
+    if (JSON.stringify(f.caret) !== '[500,500]') faults.push(t + ':selection=' + f.caret.join('-'));
+    if (sentence(f) !== 'too_long') faults.push(t + ':sentence=' + sentence(f));
+    await act(h, { act: 'choose', param: item.item });
+    const sent = typedCalls(out);
+    if (sent.length !== 1 || sent[0] !== xs(1018)) faults.push(t + ':sent=' + sent.map((s) => Buffer.byteLength(s)).join(','));
+  });
+  await run('a_word_that_fits_is_taken_although_its_spelling_passed_the_bound', async (h) => {
+    const t = 'a_word_that_fits_is_taken_although_its_spelling_passed_the_bound';
+    await h.page.locator(line).fill(xs(1010));
+    const r = await scripted(h, { ...spelling, open: true });
+    if (r.during !== xs(1010) + spelling.updates[5]) faults.push(t + ':line_written_during_the_composition=' + Buffer.byteLength(r.during));
+    const g = await facts(h);
+    if (g.value !== xs(1010) + spelling.updates[5] || sentence(g) !== 'none') faults.push(t + ':changed_during_the_composition=' + Buffer.byteLength(g.value) + ':' + sentence(g));
+    await h.page.evaluate(([sel, commit, order]) => {
+      const x = document.querySelector(sel);
+      x.value = 'x'.repeat(1010) + commit;
+      x.setSelectionRange(x.value.length, x.value.length);
+      const end = () => x.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: commit }));
+      const last = () => x.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertCompositionText', data: commit, isComposing: order === 'chromium' }));
+      if (order === 'chromium') {
+        last();
+        end();
+      } else {
+        end();
+        last();
+      }
+    }, [line, spelling.commit, engineOf(h)]);
+    const f = await facts(h);
+    if (f.value !== xs(1010) + spelling.commit) faults.push(t + ':line_holds=' + Buffer.byteLength(f.value));
+    if (sentence(f) !== 'none') faults.push(t + ':sentence=' + sentence(f));
+  });
+  await run('a_cancelled_composition_leaves_the_line', async (h) => {
+    const t = 'a_cancelled_composition_leaves_the_line';
+    await h.page.locator(line).fill(xs(1018));
+    await scripted(h, { updates: [kana(0x304b)], cancel: true });
+    const f = await facts(h);
+    if (f.value !== xs(1018) || sentence(f) !== 'none') faults.push(t + ':line=' + Buffer.byteLength(f.value) + ':' + sentence(f));
+  });
+  for (const [n, taken] of [
+    [1022, true],
+    [1023, false],
+  ]) {
+    const t = 'a_dead_key_on_' + n + '_bytes';
+    await run(t, async (h) => {
+      await h.page.locator(line).fill(xs(n));
+      await scripted(h, { updates: [cp(0xb4)], commit: cp(0xe9) });
+      const f = await facts(h);
+      if (f.value !== (taken ? xs(n) + cp(0xe9) : xs(n))) faults.push(t + ':line_holds=' + Buffer.byteLength(f.value));
+      if (sentence(f) !== (taken ? 'none' : 'full')) faults.push(t + ':sentence=' + sentence(f));
+      if (!taken) {
+        await h.page.keyboard.type('a');
+        const g = await facts(h);
+        if (g.value !== xs(n)) faults.push(t + ':no_mark');
+      }
+    });
+  }
+  await run('a_commit_in_two_parts_keeps_the_first', async (h) => {
+    const t = 'a_commit_in_two_parts_keeps_the_first';
+    await h.page.locator(line).fill(xs(1015));
+    await scripted(h, { updates: [kana(0x304b), kana(0x304b, 0x306a)], commit: kana(0x304b, 0x306a) });
+    await scripted(h, { updates: [kana(0x304c), kana(0x304c, 0x308f)], commit: kana(0x304c, 0x308f) });
+    const f = await facts(h);
+    if (f.value !== xs(1015) + kana(0x304b, 0x306a)) faults.push(t + ':line_holds=' + Buffer.byteLength(f.value));
+    if (sentence(f) !== 'full') faults.push(t + ':sentence=' + sentence(f));
+  });
+  await run('a_refused_commit_on_1015_bytes_then_a_commit_of_3(the_limit_of_1_6_a)', async (h) => {
+    const t = 'a_refused_commit_on_1015_bytes_then_a_commit_of_3(the_limit_of_1_6_a)';
+    await h.page.locator(line).fill(xs(1015));
+    await scripted(h, { updates: spelling.updates.slice(0, 4), commit: spelling.commit });
+    await scripted(h, { updates: [kana(0x304b)], commit: kana(0x304b) });
+    const f = await facts(h);
+    if (f.value !== xs(1015) + kana(0x304b)) faults.push(t + ':line_holds=' + Buffer.byteLength(f.value));
+    if (sentence(f) !== 'too_long') faults.push(t + ':sentence=' + sentence(f));
+  });
+  await run('a_press_with_a_composition_open_sends_nothing', async (h, out) => {
+    const t = 'a_press_with_a_composition_open_sends_nothing';
+    await h.page.locator(line).fill('abc');
+    await scripted(h, { caret: 3, updates: [kana(0x304b)], open: true });
+    await h.page.evaluate((sel) => document.querySelector(sel).click(), choose);
+    await settled(h);
+    if (typedCalls(out).length !== 0) faults.push(t + ':calls=' + typedCalls(out).length);
+  });
+  await run('a_press_in_which_a_composition_end_was_refused_sends_nothing', async (h, out) => {
+    const t = 'a_press_in_which_a_composition_end_was_refused_sends_nothing';
+    await h.page.locator(line).fill(xs(1018));
+    await scripted(h, { ...over, press: choose });
+    await settled(h);
+    if (typedCalls(out).length !== 0) faults.push(t + ':calls=' + typedCalls(out).length);
+    await act(h, { act: 'choose', param: item.item });
+    const sent = typedCalls(out);
+    if (sent.length !== 1 || sent[0] !== xs(1018)) faults.push(t + ':the_next_press=' + sent.length);
+  });
+  await run('the_send_takes_the_kept_line_and_never_the_field', async (h, out) => {
+    const t = 'the_send_takes_the_kept_line_and_never_the_field';
+    await h.page.locator(line).fill('abc');
+    await h.page.evaluate((sel) => {
+      document.querySelector(sel).value = 'abcdef';
+    }, line);
+    await act(h, { act: 'choose', param: item.item });
+    const sent = typedCalls(out);
+    if (sent.length !== 1 || sent[0] !== 'abc') faults.push(t + ':sent=' + JSON.stringify(sent));
+  });
+  const ime = 'by_the_protocol';
+  await run(ime, async (h, out) => {
+    if (engineOf(h) !== 'chromium') {
+      console.log('compose protocol: not run on ' + engineOf(h) + ', which takes no composition through the browser\'s protocol in this harness');
       return;
     }
-    await l.fill(xs(1018));
-    const cdp = await k.page.context().newCDPSession(k.page);
-    const steps = [cp(0x304b), cp(0x304b, 0x306a), cp(0x304b, 0x306a, 0x304c), cp(0x304b, 0x306a, 0x304c, 0x308f)];
-    for (const s of steps) await cdp.send('Input.imeSetComposition', { text: s, selectionStart: s.length, selectionEnd: s.length });
-    await cdp.send('Input.insertText', { text: steps[3] });
-    const f = await typedFacts(k, p.name);
-    if (f.value !== xs(1018) + steps[1]) faults.push(ime + ':line_ends_in=' + [...f.value.slice(-3)].map((c) => c.codePointAt(0).toString(16)).join('.'));
-    shows(ime, f, true);
+    const cdp = await h.page.context().newCDPSession(h.page);
+    const send = async (plan) => {
+      for (const s of plan.updates) await cdp.send('Input.imeSetComposition', { text: s, selectionStart: s.length, selectionEnd: s.length });
+      await cdp.send('Input.insertText', { text: plan.commit });
+    };
+    await h.page.locator(line).fill(xs(1018));
+    await h.page.locator(line).evaluate((x) => x.setSelectionRange(500, 500));
+    await send(over);
+    let f = await facts(h);
+    if (f.value !== xs(1018)) faults.push(ime + '_over:line_holds=' + Buffer.byteLength(f.value));
+    if (JSON.stringify(f.caret) !== '[500,500]') faults.push(ime + '_over:selection=' + f.caret.join('-'));
+    if (sentence(f) !== 'too_long') faults.push(ime + '_over:sentence=' + sentence(f));
+    await act(h, { act: 'choose', param: item.item });
+    const sent = typedCalls(out);
+    if (sent.length !== 1 || sent[0] !== xs(1018)) faults.push(ime + '_over:sent=' + sent.length);
+    await h.page.locator(line).fill(xs(1010));
+    await h.page.locator(line).evaluate((x) => x.setSelectionRange(1010, 1010));
+    await send(spelling);
+    f = await facts(h);
+    if (f.value !== xs(1010) + spelling.commit) faults.push(ime + '_spelling:line_holds=' + Buffer.byteLength(f.value));
   });
   return faults;
 }
@@ -1356,7 +1756,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -1377,6 +1777,7 @@ if (PAGE_TESTS.some(want)) {
     if (want('bound')) report('bound', await bound(origin, dir));
     if (want('features')) report('features', await features(origin), ['features']);
     if (want('region')) report('region', await region(origin, dir));
+    if (want('compose')) report('compose', await compose(origin, dir));
   }
 }
 const passed = results.filter((r) => r.ok).length;
