@@ -205,6 +205,7 @@ self_test() {
   ok="$want_memory$nl"
   store_refusal="REFUSED store: the derived store is not in this build$nl"
   log_line='^(routine trains=[0-9]+ plays=[0-9]+ same=[0-9]+( store=[a-z]+)? result=(ok|miss)|(routine|derived)=unreadable exit=[0-9]+|derived=not-run)$'
+  failing_fixtures=13
   wrong=
   rejected=0
   self_case good "" "$ok" 0 "" "$store_refusal" 2
@@ -224,6 +225,10 @@ self_test() {
   self_case derived-usage derived "$ok" 0 "" "REFUSED usage: an argument that the command does not take$nl" 2
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
+    exit 1
+  fi
+  if [ "$rejected" -ne "$failing_fixtures" ]; then
+    printf 'FAIL self-test:%s (%s failing fixtures rejected, not %s)\n' "$name" "$rejected" "$failing_fixtures"
     exit 1
   fi
   printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
