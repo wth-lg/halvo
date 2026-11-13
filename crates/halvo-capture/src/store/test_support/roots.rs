@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use crate::custody::dev_fallback::DevFallbackCustody;
@@ -9,27 +9,41 @@ use crate::custody::RootId;
 use crate::store::db::{EncryptedStore, KeyFile};
 use crate::store::StoreResult;
 
-fn registry() -> &'static Mutex<HashMap<RootId, Arc<tempfile::TempDir>>> {
-    static ROOTS: OnceLock<Mutex<HashMap<RootId, Arc<tempfile::TempDir>>>> = OnceLock::new();
+fn registry() -> &'static Mutex<HashMap<RootId, PathBuf>> {
+    static ROOTS: OnceLock<Mutex<HashMap<RootId, PathBuf>>> = OnceLock::new();
     ROOTS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-fn directory_of(root_id: RootId) -> Arc<tempfile::TempDir> {
-    let mut roots = registry().lock().unwrap();
-    Arc::clone(
-        roots
-            .entry(root_id)
-            .or_insert_with(|| Arc::new(tempfile::tempdir().expect("a roots directory"))),
-    )
+/// `<target>/tmp/store-test-roots`, beside the test executable's build tree
+/// and outside the temporary directory that a test run checks for leftovers.
+fn roots_base() -> PathBuf {
+    let exe = std::env::current_exe().expect("the test executable's path");
+    let target = exe
+        .ancestors()
+        .nth(3)
+        .expect("the test executable lies in <target>/<profile>/deps");
+    target.join("tmp").join("store-test-roots")
 }
 
-/// The root of a test store: a root id with a roots directory of its own,
-/// made under the test's temporary directory. Dropping it destroys the root
-/// and removes the directory. A custody that a test makes for the id before
-/// the guard uses the same directory.
+fn directory_of(root_id: RootId) -> PathBuf {
+    let mut roots = registry().lock().unwrap();
+    roots
+        .entry(root_id)
+        .or_insert_with(|| {
+            let dir = roots_base().join(root_id.to_string());
+            std::fs::create_dir_all(&dir).expect("a roots directory for the test");
+            dir
+        })
+        .clone()
+}
+
+/// The root of a test store: a root id with a roots directory of its own
+/// under `<target>/tmp/store-test-roots`. Dropping it destroys the root. A
+/// custody that a test makes for the id before the guard uses the same
+/// directory.
 pub(crate) struct RootGuard {
     id: RootId,
-    dir: Arc<tempfile::TempDir>,
+    dir: PathBuf,
 }
 
 impl RootGuard {
@@ -49,7 +63,7 @@ impl RootGuard {
     }
 
     pub(crate) fn roots(&self) -> PathBuf {
-        self.dir.path().join("roots")
+        self.dir.join("roots")
     }
 
     #[cfg(unix)]
@@ -72,11 +86,11 @@ impl Drop for RootGuard {
 /// no guard holds it yet.
 pub(crate) fn roots_of(root_id: RootId) -> PathBuf {
     if let Some(dir) = registry().lock().unwrap().get(&root_id) {
-        return dir.path().join("roots");
+        return dir.join("roots");
     }
     match std::env::var_os(ROOTS_OF_THE_PARENT) {
         Some(roots) => PathBuf::from(roots),
-        None => directory_of(root_id).path().join("roots"),
+        None => directory_of(root_id).join("roots"),
     }
 }
 
@@ -102,7 +116,7 @@ pub(crate) fn roots_for_store(dir: &Path) -> PathBuf {
                 .lock()
                 .unwrap()
                 .get(&root_id)
-                .map(|dir| dir.path().join("roots"));
+                .map(|dir| dir.join("roots"));
             match (known, std::env::var_os(ROOTS_OF_THE_PARENT)) {
                 (Some(roots), _) => roots,
                 (None, Some(roots)) => PathBuf::from(roots),
