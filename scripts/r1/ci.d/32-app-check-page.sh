@@ -65,7 +65,7 @@ verdict() {
   service=$4
   lines=$(grep -c '' "$out")
   content=$(cat "$out") || fail "the output of halvo --check-page cannot be read"
-  expected="page=loaded commands_ok=$expected_commands_ok version=$version service=$service"
+  expected="page=loaded commands_ok=$expected_commands_ok version=$version service=$service guard=installed"
   first=$(head -n 1 "$out" | cut -c1-120 | LC_ALL=C tr -c 'A-Za-z0-9=._ \n-' '?') || fail "the first line of halvo --check-page cannot be read"
   [ -n "$first" ] || first='(none)'
   matched=false
@@ -75,7 +75,7 @@ verdict() {
   printf 'check-page exit: %s, lines: %s, line matched: %s, first line: %s\n' "$code" "$lines" "$matched" "$first"
   [ "$code" -eq 0 ] || fail "halvo --check-page exited $code"
   [ "$lines" -eq 1 ] || fail "halvo --check-page printed $lines lines"
-  [ "$matched" = true ] || fail "halvo --check-page printed another line than page=loaded commands_ok=$expected_commands_ok version=<the version> service=$service"
+  [ "$matched" = true ] || fail "halvo --check-page printed another line than page=loaded commands_ok=$expected_commands_ok version=<the version> service=$service guard=installed"
 }
 
 measure() {
@@ -144,22 +144,27 @@ self_test() {
 #!/bin/sh
 [ "$1" = --check-page ] && [ "$2" = --data-dir ] && [ -n "$3" ] && [ "$4" = --within-s ] && [ "$5" = 2 ] || exit 98
 case $STUB_MODE in
-  loaded) printf 'page=loaded commands_ok=3 version=0.0.0 service=not_running\n' ;;
-  two-commands) printf 'page=loaded commands_ok=2 version=0.0.0 service=not_running\n' ;;
-  other-version) printf 'page=loaded commands_ok=3 version=9.9.9 service=not_running\n' ;;
-  extra-word) printf 'page=loaded commands_ok=3 version=0.0.0 service=not_running extra\n' ;;
-  other-service) printf 'page=loaded commands_ok=3 version=0.0.0 service=held_unreachable\n' ;;
+  loaded) printf 'page=loaded commands_ok=3 version=0.0.0 service=not_running guard=installed\n' ;;
+  two-commands) printf 'page=loaded commands_ok=2 version=0.0.0 service=not_running guard=installed\n' ;;
+  other-version) printf 'page=loaded commands_ok=3 version=9.9.9 service=not_running guard=installed\n' ;;
+  extra-word) printf 'page=loaded commands_ok=3 version=0.0.0 service=not_running guard=installed extra\n' ;;
+  other-service) printf 'page=loaded commands_ok=3 version=0.0.0 service=held_unreachable guard=installed\n' ;;
   no-service) printf 'page=loaded commands_ok=3 version=0.0.0\n' ;;
-  long-line) printf 'page=loaded commands_ok=3 version=0.0.0 service=not_running %s\n' 'abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789' ;;
+  long-line) printf 'page=loaded commands_ok=3 version=0.0.0 service=not_running guard=installed %s\n' 'abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789' ;;
   odd-bytes) printf 'page=loaded\033[31m commands_ok=3 version=0.0.0\r\n' ;;
-  two-lines) printf 'page=loaded commands_ok=3 version=0.0.0 service=not_running\npage=loaded commands_ok=3 version=0.0.0 service=not_running\n' ;;
+  two-lines) printf 'page=loaded commands_ok=3 version=0.0.0 service=not_running guard=installed\npage=loaded commands_ok=3 version=0.0.0 service=not_running guard=installed\n' ;;
+  no-guard) printf 'page=loaded commands_ok=3 version=0.0.0 service=not_running\n' ;;
+  guard-not-installed)
+    printf 'halvo: the window main is not opened, because its engine guard is not installed: the rule list did not compile\n' >&2
+    exit 3
+    ;;
   no-line) ;;
   times-out)
     printf 'halvo: --check-page: the page did not have the reply of its 3 read commands within 2 s\n' >&2
     exit 1
     ;;
   setup-fails)
-    printf 'page=loaded commands_ok=3 version=0.0.0 service=not_running\n'
+    printf 'page=loaded commands_ok=3 version=0.0.0 service=not_running guard=installed\n'
     exit 101
     ;;
   hangs) exec sleep 30 ;;
@@ -168,29 +173,33 @@ EOF
   chmod +x "$work/bin/halvo"
   rejected=0
   wrong=
-  check loaded PASS 'check-page exit: 0, lines: 1, line matched: true' 'page=loaded commands_ok=3 version=0.0.0 service=not_running
+  check loaded PASS 'check-page exit: 0, lines: 1, line matched: true' 'page=loaded commands_ok=3 version=0.0.0 service=not_running guard=installed
 '
-  check two-commands FAIL 'printed another line than' 'page=loaded commands_ok=2 version=0.0.0 service=not_running
+  check two-commands FAIL 'printed another line than' 'page=loaded commands_ok=2 version=0.0.0 service=not_running guard=installed
 '
-  check other-version FAIL 'printed another line than' 'page=loaded commands_ok=3 version=9.9.9 service=not_running
+  check other-version FAIL 'printed another line than' 'page=loaded commands_ok=3 version=9.9.9 service=not_running guard=installed
 '
-  check extra-word FAIL 'printed another line than' 'page=loaded commands_ok=3 version=0.0.0 service=not_running extra
+  check extra-word FAIL 'printed another line than' 'page=loaded commands_ok=3 version=0.0.0 service=not_running guard=installed extra
 '
   check odd-bytes FAIL 'printed another line than' 'page=loaded??31m commands_ok=3 version=0.0.0?
 '
-  check other-service FAIL 'printed another line than' 'page=loaded commands_ok=3 version=0.0.0 service=held_unreachable
+  check other-service FAIL 'printed another line than' 'page=loaded commands_ok=3 version=0.0.0 service=held_unreachable guard=installed
 '
   check no-service FAIL 'printed another line than' 'page=loaded commands_ok=3 version=0.0.0
 '
-  check long-line FAIL 'printed another line than' 'page=loaded commands_ok=3 version=0.0.0 service=not_running abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwx
+  check long-line FAIL 'printed another line than' 'page=loaded commands_ok=3 version=0.0.0 service=not_running guard=installed abcdefghijklmnopqrstuvwxyz0123456789abcdefgh
 '
-  check two-lines FAIL 'printed 2 lines)' 'page=loaded commands_ok=3 version=0.0.0 service=not_running
+  check two-lines FAIL 'printed 2 lines)' 'page=loaded commands_ok=3 version=0.0.0 service=not_running guard=installed
+'
+  check no-guard FAIL 'printed another line than' 'page=loaded commands_ok=3 version=0.0.0 service=not_running
+'
+  check guard-not-installed FAIL 'halvo --check-page exited 3)' '(none)
 '
   check no-line FAIL 'printed 0 lines)' '(none)
 '
   check times-out FAIL 'halvo --check-page exited 1)' '(none)
 '
-  check setup-fails FAIL 'halvo --check-page exited 101)' 'page=loaded commands_ok=3 version=0.0.0 service=not_running
+  check setup-fails FAIL 'halvo --check-page exited 101)' 'page=loaded commands_ok=3 version=0.0.0 service=not_running guard=installed
 '
   check hangs FAIL 'ran past 4 s and was ended)'
   if [ -n "$wrong" ]; then
