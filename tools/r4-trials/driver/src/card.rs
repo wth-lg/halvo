@@ -24,7 +24,7 @@ pub enum Form {
     System,
 }
 
-/// What a dialog returned: `allow` comes only from the control labelled `ALLOW`.
+/// What a dialog returned. For the form `system`, `allow` comes only from the control labelled `ALLOW`; for the form `plugin` it also comes from a failed or cancelled dialog and from a response that rfd does not list, which the plugin hands back as `ALLOW`'s label.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Answer {
     Allow,
