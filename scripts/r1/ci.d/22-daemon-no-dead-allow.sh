@@ -382,9 +382,9 @@ self_test() {
   case_of platform-alone PASS
   fixture macro-declares-a-module
   add_line macro-declares-a-module daemon/mod.rs 'macro_rules! test_only {'
-  add_line macro-declares-a-module daemon/mod.rs '    ($name:ident) => {'
+  add_line macro-declares-a-module daemon/mod.rs "    (\$name:ident) => {"
   add_line macro-declares-a-module daemon/mod.rs '        #[cfg(test)]'
-  add_line macro-declares-a-module daemon/mod.rs '        mod $name;'
+  add_line macro-declares-a-module daemon/mod.rs "        mod \$name;"
   add_line macro-declares-a-module daemon/mod.rs '    };'
   add_line macro-declares-a-module daemon/mod.rs '}'
   add_line macro-declares-a-module daemon/mod.rs 'test_only!(state);'
@@ -392,18 +392,18 @@ self_test() {
   case_of macro-declares-a-module FAIL
   fixture macro-gates-a-module
   add_line macro-gates-a-module daemon/mod.rs 'macro_rules! gate {'
-  add_line macro-gates-a-module daemon/mod.rs '    ($($item:item)*) => { $( #[cfg(test)] $item )* };'
+  add_line macro-gates-a-module daemon/mod.rs "    (\$(\$item:item)*) => { \$( #[cfg(test)] \$item )* };"
   add_line macro-gates-a-module daemon/mod.rs '}'
   add_line macro-gates-a-module daemon/mod.rs 'gate! { mod state; }'
   state_file macro-gates-a-module
   case_of macro-gates-a-module FAIL
   fixture outside-macro-with-the-name
-  add_line outside-macro-with-the-name lib.rs 'macro_rules! test_only { ($name:ident) => { #[cfg(test)] mod $name; }; }'
+  add_line outside-macro-with-the-name lib.rs "macro_rules! test_only { (\$name:ident) => { #[cfg(test)] mod \$name; }; }"
   add_line outside-macro-with-the-name daemon/mod.rs 'test_only!(state);'
   state_file outside-macro-with-the-name
   case_of outside-macro-with-the-name FAIL
   fixture outside-macro-gates-a-module
-  add_line outside-macro-gates-a-module lib.rs 'macro_rules! gate { ($($item:item)*) => { $( #[cfg(test)] $item )* }; }'
+  add_line outside-macro-gates-a-module lib.rs "macro_rules! gate { (\$(\$item:item)*) => { \$( #[cfg(test)] \$item )* }; }"
   add_line outside-macro-gates-a-module daemon/mod.rs 'gate! { mod state; }'
   state_file outside-macro-gates-a-module
   case_of outside-macro-gates-a-module FAIL
