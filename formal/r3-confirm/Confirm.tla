@@ -148,7 +148,7 @@ Init ==
   /\ given = [a \in Approvals |-> [eff |-> "none", dig |-> "none", ans |-> "none"]]
   /\ wire = [e \in Effects |-> <<>>]
   /\ seen = [e \in Effects |-> [cls |-> "none", decs |-> {}, approved |-> <<>>, rel |-> <<>>, left |-> {}, com |-> {},
-                                  gone |-> [why |-> "none", alive |-> "none"]]]
+                                  gone |-> [why |-> "none", alive |-> "none"], ended |-> "none"]]
 
 Parse ==
   /\ cfg.st = "raw"
@@ -313,7 +313,8 @@ RunEnds ==
   /\ cfg = Norm(cfg)
   /\ alive' = "no"
   /\ mem' = [e \in Effects |-> "idle"]
-  /\ UNCHANGED <<cfg, eff, val, given, wire, seen>>
+  /\ seen' = [e \in Effects |-> [seen[e] EXCEPT !.ended = IF eff[e].st = "not_made" THEN "not_made" ELSE "other"]]
+  /\ UNCHANGED <<cfg, eff, val, given, wire>>
 
 Next ==
   \/ Parse
@@ -401,6 +402,7 @@ P11 ==
   \A e \in Effects :
     /\ Len(seen[e].rel) > 0 => eff[e].st \in {"releasing", "committed", "unknown", "not_made"}
     /\ eff[e].st = "not_made" => Unmade(e)
+    /\ (alive = "no" /\ eff[e].st = "not_made") => seen[e].ended = "not_made"
 
 Yn(v) == IF v = "yes" THEN "y" ELSE "n"
 

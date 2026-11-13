@@ -386,10 +386,10 @@ block() {
     P9:1new) printf '%s\n' '  /\ Plain(e, Bare("commit"))' ;;
     P10:1old) printf '%s\n' 'Lose(e) ==' '  /\ alive = "no"' ;;
     P10:1new) printf '%s\n' 'Lose(e) ==' ;;
-    P11:1old) printf '%s\n' '  /\ UNCHANGED <<cfg, eff, val, given, wire, seen>>' ;;
+    P11:1old) printf '%s\n' '  /\ UNCHANGED <<cfg, eff, val, given, wire>>' ;;
     P11:1new)
       printf '%s\n' "  /\\ eff' = [e \\in Effects |-> IF eff[e].st = \"releasing\" THEN [eff[e] EXCEPT !.st = IF eff[e].apr \\in Approvals THEN \"approved\" ELSE \"cleared\"] ELSE eff[e]]" \
-        '  /\ UNCHANGED <<cfg, val, given, wire, seen>>'
+        '  /\ UNCHANGED <<cfg, val, given, wire>>'
       ;;
     P10-live:1old) printf '%s\n' '  /\ alive = "yes"' '  /\ mem[e] = "begun"' '  /\ Len(wire[e]) < 2' ;;
     P10-live:1new) printf '%s\n' '  /\ mem[e] = "begun"' '  /\ (alive = "yes" \/ eff[e].st = "releasing")' '  /\ Len(wire[e]) < 2' ;;

@@ -181,6 +181,12 @@ What the check does not see:
 - `formal_traces` reads `traces.jsonl` from the source tree when it runs, so a test binary
   that runs without the checkout cannot read it, and a step that runs before the test can
   change it; the check reads the file of the commit.
+- The cause with which the model refuses a `not_made` move, or a move after it. Until U1.8
+  (b), `step_traces`, the one test that compares causes, gives it no such move, and
+  `formal_traces` compares none (A5.6); the export compares the model's own causes with the
+  committed file. The review of U1.8 (a) found that a `Step` that refuses `begin` after
+  `not_made` with `unknown`, or a cause that does not fit with `effect`, passes the crate's
+  tests after an export.
 - Each job fetches the jar twice, once for the check and once for its self-test.
 - An input that the commit does not hold. The test of `same-as-commit=yes` is `git diff
   --quiet HEAD`, which sees tracked files alone: a commit that drops a configuration file
@@ -374,7 +380,7 @@ variables:
 | `val` | The digest of the bound values of each effect as they are on the page, in the call or in the file. | The environment: `Propose` and `Change`. |
 | `given` | The entries of the supervisor's decisions: the effect that was shown, the digest that was shown, and the answer `allow` or `reject`. | The environment: `Give`. |
 | `wire` | The requests that left: the digest that each carried, the state of the row when it left, whether the run went on when it left, the arrivals in `releasing` that were stored before, the digest that the person was shown last, whether the reply came, and its answer: `made`, `not_replaced` (the executor did not make the `replace` and the workbook is unchanged), `401`, `429` or `other`. | The environment: `Send` and `Reply`. |
-| `seen` | What was observed of each effect: its class, each decision that `Decide` gave for it, each arrival of its row in `approved` in order (the entry that the move offered, its answer, the effect that it was given for, the digest that was shown, the digest of the row), each arrival in `releasing` with the state before and the row's digest, each final state that a move left, for each arrival in `committed` whether the request had left and the reply had come, and for an arrival in `not_made` the cause of the row and whether the run went on when it was stored. | Every move that changes a row, from the row before and the row after the move. |
+| `seen` | What was observed of each effect: its class, each decision that `Decide` gave for it, each arrival of its row in `approved` in order (the entry that the move offered, its answer, the effect that it was given for, the digest that was shown, the digest of the row), each arrival in `releasing` with the state before and the row's digest, each final state that a move left, for each arrival in `committed` whether the request had left and the reply had come, for an arrival in `not_made` the cause of the row and whether the run went on when it was stored, and whether each effect was `not_made` when the run ended. | Every move that changes a row, from the row before and the row after the move; `RunEnds` what it was at the end, from the state before its step. |
 
 No invariant reads the answer of `Step` or a claim of a move about itself. Each reads the
 histories `seen` and `wire`, which the moves write from `given`, `val` and the rows. P5 and
@@ -393,7 +399,7 @@ holds.
 | P8 | An effect for which `decide` gave `confirm` reaches `releasing` only from `approved`, and its request leaves only after that. | As P1, for every effect for which `Decide` gave `confirm`. |
 | P9 | An effect reaches `committed` only after its request left and the reply to that request came. | At each arrival of a row in `committed`, the wire held a request of the effect with its reply. |
 | P10 | Every request that leaves carries the digest of its effect's row at `begin`, and for an effect for which `decide` gave `confirm` that is the digest that the person was shown for the approval that moved it to `approved` last. | Each request left while its row was `releasing` and while the run went on, after a stored `begin`, with the digest that the row had at that `begin`; for an effect for which `Decide` gave `confirm` it is also the shown digest of the last arrival in `approved`. |
-| P11 | An effect whose row once was `releasing` is `releasing`, `committed`, `unknown` or `not_made`, and in no other state, and it reaches `not_made` only by a move of the runner and never by a move of the run's end. | An effect with an arrival in `releasing` has a row in one of the four states. It reads the rows and not the wire for that, so it also covers an end of the run between the stored `begin` and the send. A row in `not_made` was stored by the runner's `NotMade` while the run went on, and its cause is true: it fits the class (the row of `class` in the step relation), `not_sent` and a `not_replaced` that the runner withheld have no request on the wire, and a `not_replaced` that the executor answered, `unauthorized` and `throttled` have a request whose reply answered `not_replaced`, `401` and `429`. |
+| P11 | An effect whose row once was `releasing` is `releasing`, `committed`, `unknown` or `not_made`, and in no other state, and it reaches `not_made` only by a move of the runner and never by a move of the run's end. | An effect with an arrival in `releasing` has a row in one of the four states. It reads the rows and not the wire for that, so it also covers an end of the run between the stored `begin` and the send. A row in `not_made` was stored by the runner's `NotMade` while the run went on, and its cause is true: it fits the class (the row of `class` in the step relation), `not_sent` and a `not_replaced` that the runner withheld have no request on the wire, and a `not_replaced` that the executor answered, `unauthorized` and `throttled` have a request whose reply answered `not_replaced`, `401` and `429`. After the run's end an effect is `not_made` only when it was `not_made` when the run ended, so no move of the run's end makes it, whatever that move writes of itself. |
 
 The moves of the system, and what each takes from the contract:
 
@@ -431,7 +437,8 @@ The moves of the system, and what each takes from the contract:
   `finish`, before which the runner fails every request that it holds paused, and for the
   death of the runner, which is its process being gone by death or by reaping. The model
   does not tell the two apart: after either, no move of the runner comes, none of the
-  environment, and no request leaves.
+  environment, and no request leaves. It stores whether each effect was `not_made` when the
+  run ended, from the state before its step, which P11 reads.
 - `Lose` is the move of the handler of the run's end and comes only after `RunEnds`. So no
   request leaves after its row became `unknown`. Neither `Lose` nor `End` makes `not_made`:
   `Step` gives `lose` the state `unknown` and refuses `end` for a `releasing` row.
