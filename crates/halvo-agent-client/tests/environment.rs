@@ -138,7 +138,11 @@ fn the_runner_gets_the_names_of_the_list_of_its_system_and_no_other_variable_of_
 fn a_marker_in_the_temporary_directory_or_system_root_of_the_library_reaches_no_value_of_the_runner_and_one_in_home_or_local_app_data_does(
 ) {
     let m = marker();
-    let mut set: Vec<(&str, &str)> = FROM_THE_SYSTEM.iter().map(|n| (*n, m.as_str())).collect();
+    let system = format!("{m}-of-the-library");
+    let mut set: Vec<(&str, &str)> = FROM_THE_SYSTEM
+        .iter()
+        .map(|n| (*n, system.as_str()))
+        .collect();
     set.push((FROM_THE_LIBRARY, &m));
     let (_, log) = run(
         "environment-markers",
@@ -165,6 +169,50 @@ fn a_marker_in_the_temporary_directory_or_system_root_of_the_library_reaches_no_
             .to_string(),
         "the temporary-directory variables of the runner that name a directory"
     );
+}
+
+#[cfg(target_os = "macos")]
+fn answered_by_the_system() -> Vec<(&'static str, String)> {
+    extern "C" {
+        fn confstr(name: i32, buf: *mut u8, len: usize) -> usize;
+    }
+    const CS_DARWIN_USER_TEMP_DIR: i32 = 65537;
+    let mut buf = vec![0u8; 1024];
+    let n = unsafe { confstr(CS_DARWIN_USER_TEMP_DIR, buf.as_mut_ptr(), buf.len()) };
+    assert!(
+        n > 1 && n <= buf.len(),
+        "confstr answered the temporary directory"
+    );
+    buf.truncate(n - 1);
+    vec![("TMPDIR", String::from_utf8(buf).unwrap())]
+}
+
+#[cfg(windows)]
+fn answered_by_the_system() -> Vec<(&'static str, String)> {
+    let var = |n: &str| std::env::var(n).unwrap();
+    let temp = format!(r"{}\Temp", var("LOCALAPPDATA"));
+    vec![
+        ("SystemRoot", var("SystemRoot")),
+        ("TEMP", temp.clone()),
+        ("TMP", temp),
+    ]
+}
+
+#[test]
+fn the_temporary_directory_and_system_root_of_the_runner_are_what_the_system_answers() {
+    let expected = answered_by_the_system();
+    let steps: Vec<String> = expected
+        .iter()
+        .map(|(n, v)| format!("environment-is {n} {v}"))
+        .collect();
+    let (_, log) = run("environment-system", &steps, &[], &[]);
+    for (name, _) in &expected {
+        assert_eq!(
+            logged(&log, &format!("environment-is {name} ")),
+            "same",
+            "the runner's {name} is what the system answers"
+        );
+    }
 }
 
 #[test]

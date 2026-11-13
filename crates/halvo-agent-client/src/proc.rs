@@ -764,6 +764,10 @@ mod environment_block_tests {
             block(&[("b", "1"), ("A", "2")]).as_deref(),
             Some("A=2\0b=1\0\0")
         );
+        assert_eq!(
+            block(&[("B", "1"), ("a", "2")]).as_deref(),
+            Some("a=2\0B=1\0\0")
+        );
     }
 
     #[test]

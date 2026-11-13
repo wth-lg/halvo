@@ -512,6 +512,23 @@ impl Peer {
                     self.log.line(&line);
                 }
             }
+            "environment-is" => {
+                let (name, expected) = rest.split_once(' ').unwrap_or((rest, ""));
+                let same = |v: &str| {
+                    if cfg!(windows) {
+                        v.trim_end_matches('\\')
+                            .eq_ignore_ascii_case(expected.trim_end_matches('\\'))
+                    } else {
+                        v == expected
+                    }
+                };
+                let word = match std::env::var(name) {
+                    Ok(v) if same(&v) => "same",
+                    Ok(_) => "other",
+                    Err(_) => "absent",
+                };
+                self.log.line(&format!("environment-is {name} {word}"));
+            }
             "directory" => {
                 let yes = if in_system_directory() { "yes" } else { "no" };
                 self.log.line(&format!("directory system={yes}"));
