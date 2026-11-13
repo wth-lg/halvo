@@ -415,13 +415,6 @@ self_test() {
   push_to_branch branch-that-blinded-the-range-check 1 'the control did not fail' "$no_commit" "$branch_that_blinded_the_range_check"
 
   start_at "$main"
-  git -C "$dev" update-index --force-remove "$AGENT_SETTINGS"
-  commit 'Delete the agent settings'
-  branch_without_the_agent_settings=$(tip)
-  runner branch-without-the-agent-settings "$main" "$branch_without_the_agent_settings" "$branch_without_the_agent_settings:refs/heads/feature"
-  push_to_branch branch-without-the-agent-settings 1 '.claude/settings.json is missing' "$no_commit" "$branch_without_the_agent_settings"
-
-  start_at "$main"
   awk '{ print } $0 == "commit_range() {" { print "  case \"$*\" in *..*) return 0 ;; esac" }' "$root/scripts/commit-range.sh" >"$dev/scripts/commit-range.sh"
   cmp -s "$root/scripts/commit-range.sh" "$dev/scripts/commit-range.sh" && die "the self-test could not edit scripts/commit-range.sh for 'Give no commit to a range with two dots': the line that it follows has changed"
   git -C "$dev" add scripts/commit-range.sh
@@ -430,6 +423,13 @@ self_test() {
   branch_that_emptied_its_ranges=$(tip)
   runner branch-whose-range-function-gives-its-range-no-commit "$main" "$branch_that_emptied_its_ranges" "$branch_that_emptied_its_ranges:refs/heads/feature"
   push_to_branch branch-whose-range-function-gives-its-range-no-commit 1 'holds refuses this range' "$no_commit" "$branch_that_emptied_its_ranges"
+
+  start_at "$main"
+  git -C "$dev" update-index --force-remove "$AGENT_SETTINGS"
+  commit 'Delete the agent settings'
+  branch_without_the_agent_settings=$(tip)
+  runner branch-without-the-agent-settings "$main" "$branch_without_the_agent_settings" "$branch_without_the_agent_settings:refs/heads/feature"
+  push_to_branch branch-without-the-agent-settings 1 '.claude/settings.json is missing' "$no_commit" "$branch_without_the_agent_settings"
 
   as_decided='{"attribution": {"commit": "", "pr": "", "sessionUrl": false}}'
   expect_settings as-decided 0 '' "$as_decided"
