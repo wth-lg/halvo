@@ -13,15 +13,12 @@ pub struct InstalledApp {
     pub bundle_id: Option<String>,
 }
 
-fn standard_app_dirs() -> Vec<PathBuf> {
-    let mut dirs = vec![
+fn standard_app_dirs(home: &Path) -> Vec<PathBuf> {
+    vec![
         PathBuf::from("/Applications"),
         PathBuf::from("/System/Applications"),
-    ];
-    if let Ok(home) = std::env::var("HOME") {
-        dirs.push(PathBuf::from(home).join("Applications"));
-    }
-    dirs
+        home.join("Applications"),
+    ]
 }
 
 fn xml_bundle_id(app_path: &Path) -> Option<String> {
@@ -71,10 +68,11 @@ pub fn scan_dir(dir: &Path) -> Vec<InstalledApp> {
     apps
 }
 
-/// List installed applications across the standard Applications directories.
-pub fn installed_applications() -> Vec<InstalledApp> {
+/// List installed applications across the standard Applications directories,
+/// with `home` as the home directory whose `Applications` folder is read.
+pub fn installed_applications(home: &Path) -> Vec<InstalledApp> {
     let mut apps = Vec::new();
-    for dir in standard_app_dirs() {
+    for dir in standard_app_dirs(home) {
         apps.extend(scan_dir(&dir));
     }
     apps
@@ -111,6 +109,27 @@ mod tests {
         assert_eq!(apps.len(), 1);
         assert_eq!(apps[0].name, "Bare");
         assert_eq!(apps[0].bundle_id, None);
+    }
+
+    #[test]
+    fn the_home_directory_is_a_parameter_whose_applications_folder_is_read() {
+        let home = tempfile::tempdir().unwrap();
+        let app = home.path().join("Applications").join("Gadget.app");
+        fs::create_dir_all(&app).unwrap();
+        assert_eq!(
+            standard_app_dirs(home.path()),
+            [
+                PathBuf::from("/Applications"),
+                PathBuf::from("/System/Applications"),
+                home.path().join("Applications"),
+            ]
+        );
+        let found: Vec<PathBuf> = installed_applications(home.path())
+            .into_iter()
+            .map(|app| app.path)
+            .filter(|path| path.starts_with(home.path()))
+            .collect();
+        assert_eq!(found, [app]);
     }
 
     #[test]
