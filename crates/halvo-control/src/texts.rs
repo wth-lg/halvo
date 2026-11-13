@@ -1033,4 +1033,16 @@ mod tests {
             wrong.join("\n")
         );
     }
+
+    #[test]
+    fn ct9_a_source_with_no_line_is_never_read_as_off() {
+        assert_eq!(
+            texts_of(&recorded(Platform::Windows, &switches(&[]), &[])),
+            [K2, S2]
+        );
+        assert_eq!(
+            texts_of(&recorded(Platform::Macos, &switches(&[]), &[])),
+            [S2]
+        );
+    }
 }
