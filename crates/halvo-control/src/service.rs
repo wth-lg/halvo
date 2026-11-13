@@ -847,6 +847,53 @@ mod login_item_tests {
         }
     }
 
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_two_opens_of_an_install_are_an_error_at_once_on_a_planted_entry() {
+        use crate::instance_lock::planted;
+
+        for kind in ["a FIFO", "a link to a FIFO"] {
+            let base = tempfile::Builder::new().prefix("li").tempdir().unwrap();
+            let fifo = base.path().join("f");
+            planted::mkfifo(&fifo);
+            let temp = base.path().join("t");
+            if kind == "a link to a FIFO" {
+                std::os::unix::fs::symlink(&fifo, &temp).unwrap();
+            } else {
+                std::fs::rename(&fifo, &temp).unwrap();
+            }
+            let path = base.path().join("p");
+            let dir = base.path().to_path_buf();
+            let waits_on = if kind == "a FIFO" { &temp } else { &fifo };
+            let answer = planted::answer_within(&temp, waits_on, move |temp| {
+                replace_with_temp(b"x", temp, &path, &dir).map_err(|e| e.kind())
+            });
+            assert_eq!(
+                answer,
+                Some(Err(std::io::ErrorKind::AlreadyExists)),
+                "{kind} at the temporary file's path: the open with create_new takes no entry \
+                 and never waits; the bound is {:?}",
+                planted::BOUND
+            );
+        }
+
+        let base = tempfile::Builder::new().prefix("li").tempdir().unwrap();
+        let fifo = base.path().join("f");
+        planted::mkfifo(&fifo);
+        let temp = base.path().join("t");
+        let path = base.path().join("p");
+        let answer = planted::answer_within(&fifo, &fifo, move |fifo| {
+            replace_with_temp(b"x", &temp, &path, fifo).map_err(|e| e.kind())
+        });
+        assert_eq!(
+            answer,
+            Some(Err(std::io::ErrorKind::NotADirectory)),
+            "a FIFO at the directory's path: the open of the directory for its sync is an error \
+             at once and never waits; the bound is {:?}",
+            planted::BOUND
+        );
+    }
+
     #[test]
     fn the_temp_file_of_a_live_process_of_another_account_is_kept() {
         let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
