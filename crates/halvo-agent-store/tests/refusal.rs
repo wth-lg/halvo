@@ -166,7 +166,7 @@ fn refusal_end_run_loses() {
     let stored: serde_json::Value =
         serde_json::from_str(&rows(&store, "agent_run")[0]).expect("a run row");
     for key in RUN_LIST_KEYS {
-        assert_eq!(stored[*key], serde_json::Value::Null, "{key}");
+        assert_eq!(stored.get(*key), Some(&serde_json::Value::Null), "{key}");
     }
     let before = effects(&store).len();
     assert_eq!(end_run(&mut store, 1), Ok(accepted()));
