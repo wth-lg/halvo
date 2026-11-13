@@ -353,65 +353,64 @@ clear_members() {
   [ "$code" -eq 0 ] || fail "cargo clean --offline of the packages of account/ exited $code"
 }
 
-dep_info_parse() {
+dep_info_read() {
   awk '
+function add(k, i, v, unescape) {
+  if (unescape) gsub(/\\ /, " ", v)
+  n++; kind[n] = k; idx[n] = i; value[n] = v
+}
+function whole(p) { return substr(p, 1, 1) == "/" ? p : account "/" p }
+function parent(p) { sub(/\/[^\/]*$/, "", p); return p == "" ? "/" : p }
 BEGIN {
-  files = 0
-  while ((getline file) > 0) {
+  account = ENVIRON["DEP_INFO_ACCOUNT"]; names = ENVIRON["DEP_INFO_NAMES"]
+  list = ENVIRON["DEP_INFO_LIST"]; members = ENVIRON["DEP_INFO_MEMBERS"]
+  n = 0; files = 0; unopenable = 0
+  while ((getline file < list) > 0) {
     files++
     status = (getline line < file)
-    if (status < 0) { print "unopenable\t" files "\t-"; continue }
+    if (status < 0) { unopenable++; continue }
     while (status > 0) {
-      if (index(line, "# env-dep:OUT_DIR=") == 1) {
-        value = substr(line, 19)
-        gsub(/\\ /, " ", value)
-        print "outdir\t" files "\t" value
-      } else if (index(line, "# env-dep:") == 1 || line == "") {
-      } else if (line ~ /:$/) {
-        value = substr(line, 1, length(line) - 1)
-        gsub(/\\ /, " ", value)
-        print "path\t" files "\t" value
-      } else if (index(line, ": ") > 1) {
-        value = substr(line, 1, index(line, ": ") - 1)
-        gsub(/\\ /, " ", value)
-        print "head\t" files "\t" value
-      } else {
-        print "bad\t" files "\t-"
-      }
+      if (index(line, "# env-dep:OUT_DIR=") == 1) add("outdir", files, substr(line, 19), 1)
+      else if (index(line, "# env-dep:") == 1 || line == "") { }
+      else if (line ~ /:$/) add("path", files, substr(line, 1, length(line) - 1), 1)
+      else if (index(line, ": ") > 1) add("head", files, substr(line, 1, index(line, ": ") - 1), 1)
+      else bad[files] = 1
       status = (getline line < file)
     }
     close(file)
   }
+  close(list)
+  while ((getline line < members) > 0) {
+    split(line, part, "\t")
+    add("member", part[1], part[2], 0)
+  }
+  close(members)
+  if (ENVIRON["DEP_INFO_CONVERT"] == "1") {
+    for (i = 1; i <= n; i++) print value[i] > names
+    close(names)
+    command = "cygpath -u -f \"" names "\""
+    converted = 0
+    while ((command | getline line) > 0) value[++converted] = line
+    close(command)
+    if (converted != n) { print "unconverted\t0\t-\t-"; exit }
+  }
+  for (i = 1; i <= n; i++) if (kind[i] == "path" && substr(value[i], 1, 1) != "/") local[idx[i]] = 1
+  count = 0; unread = 0
+  for (f in local) { count++; if (f in bad) unread++ }
+  print "local\t" count "\t-\t-"
+  print "unopenable\t" unopenable "\t-\t-"
+  print "unread\t" unread "\t-\t-"
+  for (i = 1; i <= n; i++) if (kind[i] == "outdir" && idx[i] in local) print "outdir\t" idx[i] "\t" whole(value[i]) "\t."
+  dirs = 0
+  for (i = 1; i <= n; i++) {
+    if ((kind[i] != "path" && kind[i] != "head") || !(idx[i] in local)) continue
+    p = whole(value[i]); dir = parent(p)
+    if (!(dir in group)) order[++dirs] = dir
+    group[dir] = group[dir] kind[i] "\t" idx[i] "\t" dir "\t" substr(p, length(dir) + 2) "\n"
+  }
+  for (d = 1; d <= dirs; d++) printf "%s", group[order[d]]
+  for (i = 1; i <= n; i++) if (kind[i] == "member") print "member\t" idx[i] "\t" parent(whole(value[i])) "\t."
 }'
-}
-
-dep_info_join() {
-  DEP_INFO_NAMES=$1 awk '
-BEGIN { FS = "\t"; account = ENVIRON["DEP_INFO_ACCOUNT"]; names = ENVIRON["DEP_INFO_NAMES"] }
-{
-  kind[NR] = $1; idx[NR] = $2; value[NR] = $3
-  if ($1 == "path" || $1 == "head" || $1 == "outdir") {
-    if ((getline converted < names) <= 0) { print "unconverted\t0\t-\t-"; exit }
-    value[NR] = converted
-    if ($1 == "path" && substr(converted, 1, 1) != "/") local[$2] = 1
-  }
-}
-END {
-  files = 0
-  for (i = 1; i <= NR; i++) {
-    if (kind[i] == "unopenable") { print "unopenable\t" idx[i] "\t-\t-"; continue }
-    if (!(idx[i] in local)) continue
-    if (!(idx[i] in counted)) { counted[idx[i]] = 1; files++ }
-    if (kind[i] == "bad") { print "bad\t" idx[i] "\t-\t-"; continue }
-    p = value[i]
-    if (substr(p, 1, 1) != "/") p = account "/" p
-    if (kind[i] == "outdir") { print "outdir\t" idx[i] "\t" p "\t."; continue }
-    dir = p; sub(/\/[^\/]*$/, "", dir)
-    if (dir == "") dir = "/"
-    print kind[i] "\t" idx[i] "\t" dir "\t" substr(p, length(dir) + 2)
-  }
-  print "local\t" files "\t-\t-"
-}' "$2"
 }
 
 place_of() {
@@ -447,34 +446,40 @@ below() {
 }
 
 out_dir_of() {
-  out=$(cd -P "$1" 2>/dev/null && pwd -P) || return 1
-  [ "${out##*/}" = out ] || return 1
-  build=${out%/*}
+  cd -P "$1" 2>/dev/null || return 1
+  out_real=$PWD
+  [ "${out_real##*/}" = out ] || return 1
+  build=${out_real%/*}
   build=${build%/*}
   [ "${build##*/}" = build ] || return 1
-  [ "${build%/*/*}" -ef "$target" ] || return 1
-  printf '%s\n' "$out"
+  [ "${build%/*/*}" -ef "$target" ]
+}
+
+read_dir_below() {
+  found=no
+  old_ifs=$IFS
+  IFS=$nl
+  set -f
+  for read_dir in $read_dirs; do
+    if below "$read_dir" "$1"; then
+      found=yes
+      break
+    fi
+  done
+  set +f
+  IFS=$old_ifs
+  [ "$found" = yes ]
 }
 
 check_sources() {
   stale_fix='cargo clean --manifest-path account/Cargo.toml --target-dir target/account clears it'
   find "$target" -name '*.d' -type f >"$work/dep-info.txt" || fail "the search for dep-info files under target/account failed; $stale_fix"
-  dep_info_parse <"$work/dep-info.txt" >"$work/dep-info.raw" || fail 'awk cannot read the dep-info files'
-  awk -F "$tab" '$1 == "path" || $1 == "head" || $1 == "outdir" { print $3 }' "$work/dep-info.raw" >"$work/dep-info.names" || fail 'awk cannot read the dep-info files'
+  convert=0
   if command -v cygpath >/dev/null 2>&1; then
-    cygpath -u -f "$work/dep-info.names" >"$work/dep-info.converted" || fail 'cygpath cannot convert the paths of the dep-info files'
-  else
-    cp "$work/dep-info.names" "$work/dep-info.converted" || fail 'cannot write in the temp directory'
+    convert=1
   fi
-  DEP_INFO_ACCOUNT=$account_dir dep_info_join "$work/dep-info.converted" "$work/dep-info.raw" >"$work/dep-info.joined" || fail 'awk cannot read the dep-info files'
-  sort -t "$tab" -k 3,3 "$work/dep-info.joined" >"$work/dep-info.sorted" || fail 'sort cannot order the dep-info lines'
-  : >"$work/dep-info.outs" || fail 'cannot write in the temp directory'
-  : >"$work/dep-info.dirs" || fail 'cannot write in the temp directory'
-  while IFS="$tab" read -r kind idx dir leaf || [ -n "$kind" ]; do
-    if [ "$kind" = outdir ] && out=$(out_dir_of "$dir"); then
-      printf '%s\t%s\n' "$idx" "$out" >>"$work/dep-info.outs"
-    fi
-  done <"$work/dep-info.sorted"
+  DEP_INFO_LIST=$work/dep-info.txt DEP_INFO_MEMBERS=$work/members.tsv DEP_INFO_ACCOUNT=$account_dir DEP_INFO_NAMES=$work/dep-info.names DEP_INFO_CONVERT=$convert dep_info_read >"$work/dep-info.read" || fail 'awk cannot read the dep-info files'
+  here=$PWD
   dep_info=0
   unopenable=0
   unread=0
@@ -482,24 +487,40 @@ check_sources() {
   missing=0
   links=0
   outside=0
+  member_missing=
+  outs=$nl
+  read_dirs=
   last_dir=
   real=
+  place=other
   while IFS="$tab" read -r kind idx dir leaf || [ -n "$kind" ]; do
     case $kind in
       local) dep_info=$idx ;;
       unconverted) fail 'cygpath gave fewer paths than the dep-info files hold' ;;
-      unopenable) unopenable=$((unopenable + 1)) ;;
-      bad)
-        unread=$((unread + 1))
-        printf 'a dep-info file of account/ holds a line that names no file whole\n'
+      unopenable) unopenable=$idx ;;
+      unread)
+        unread=$idx
+        [ "$unread" -eq 0 ] || printf 'a dep-info file of account/ holds a line that names no file whole\n'
+        ;;
+      outdir) ! out_dir_of "$dir" || outs=$outs$idx$tab$out_real$nl ;;
+      member)
+        cd -P "$dir" 2>/dev/null || fail "cannot enter the directory of the package $idx"
+        if [ -z "$member_missing" ] && ! read_dir_below "$PWD"; then
+          printf 'no dep-info file names a source of the package %s\n' "$idx"
+          member_missing=$idx
+        fi
         ;;
       head | path)
         if [ "$dir" != "$last_dir" ]; then
           last_dir=$dir
-          real=$(cd -P "$dir" 2>/dev/null && pwd -P) || real=
-          place=other
-          [ -z "$real" ] || place_of "$real"
-          [ "$place" != account ] || printf '%s\n' "$real" >>"$work/dep-info.dirs"
+          if cd -P "$dir" 2>/dev/null; then
+            real=$PWD
+            place_of "$real"
+            [ "$place" != account ] || read_dirs=$read_dirs$real$nl
+          else
+            real=
+            place=other
+          fi
         fi
         if [ "$kind" = head ]; then
           if [ -z "$real" ] || [ ! -f "$real/$leaf" ] || [ "$place" != target ]; then
@@ -512,11 +533,13 @@ check_sources() {
           printf 'read through a symbolic link: %s\n' "$leaf"
         elif [ "$place" = target ]; then
           admitted=no
-          while IFS="$tab" read -r out_idx out || [ -n "$out_idx" ]; do
-            if [ "$out_idx" = "$idx" ] && below "$real" "$out"; then
-              admitted=yes
-            fi
-          done <"$work/dep-info.outs"
+          case $outs in
+            *"$nl$idx$tab"*)
+              out=${outs#*"$nl$idx$tab"}
+              out=${out%%"$nl"*}
+              ! below "$real" "$out" || admitted=yes
+              ;;
+          esac
           if [ "$admitted" = no ]; then
             outside=$((outside + 1))
             printf 'read outside account/: a file under target/account outside the out directory of its build script\n'
@@ -530,7 +553,8 @@ check_sources() {
         fi
         ;;
     esac
-  done <"$work/dep-info.sorted"
+  done <"$work/dep-info.read"
+  cd "$here" || fail 'cannot return to the repository'
   [ "$unopenable" -eq 0 ] || fail "the target holds a dep-info file that this check cannot open; $stale_fix"
   [ "$unread" -eq 0 ] || fail 'a source of account/ reads a file outside account/'
   [ "$elsewhere" -eq 0 ] || fail "the target holds dep-info that this build did not write, whose rule names another place; $stale_fix"
@@ -538,27 +562,7 @@ check_sources() {
   [ "$links" -eq 0 ] || fail 'a source of account/ reads a file through a symbolic link'
   [ "$outside" -eq 0 ] || fail 'a source of account/ reads a file outside account/'
   [ "$dep_info" -gt 0 ] || fail 'cargo wrote no dep-info file of a package of account/'
-  check_members_read
-}
-
-check_members_read() {
-  while IFS="$tab" read -r member manifest || [ -n "$member" ]; do
-    case $manifest in
-      [A-Za-z]:*) if command -v cygpath >/dev/null 2>&1; then manifest=$(cygpath -u "$manifest") || fail 'cygpath cannot convert a manifest path'; fi ;;
-    esac
-    member_dir=$(cd -P "$(dirname "$manifest")" 2>/dev/null && pwd -P) || fail "cannot enter the directory of the package $member"
-    found=no
-    while IFS= read -r read_dir || [ -n "$read_dir" ]; do
-      if below "$read_dir" "$member_dir"; then
-        found=yes
-        break
-      fi
-    done <"$work/dep-info.dirs"
-    if [ "$found" = no ]; then
-      printf 'no dep-info file names a source of the package %s\n' "$member"
-      fail 'a package of account/ has no dep-info file that this check read'
-    fi
-  done <"$work/members.tsv"
+  [ -z "$member_missing" ] || fail 'a package of account/ has no dep-info file that this check read'
 }
 
 count_tests() {
