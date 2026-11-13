@@ -81,8 +81,25 @@ fn mappings() -> Vec<Values> {
             [EffectId::from_random([0; 16]), EffectId::from_random(last)],
         ),
     ];
+    let mut pairs: Vec<(String, [Digest; 2], [EffectId; 2])> = forward
+        .into_iter()
+        .map(|(name, d, e)| (name.to_owned(), d, e))
+        .collect();
+    for i in 0..64 {
+        let j = i % 32;
+        let mut bytes = [0u8; 16];
+        bytes[j / 2] = if j % 2 == 0 { 0x10 } else { 0x01 };
+        pairs.push((
+            format!("digit {i} of the digests and digit {j} of the ids differ"),
+            [
+                hex_digest(zeros.clone()),
+                hex_digest(format!("{}1{}", &zeros[..i], &zeros[i + 1..])),
+            ],
+            [EffectId::from_random([0; 16]), EffectId::from_random(bytes)],
+        ));
+    }
     let mut all = Vec::new();
-    for (name, [d1, d2], [e1, e2]) in forward {
+    for (name, [d1, d2], [e1, e2]) in pairs {
         all.push(Values {
             name: format!("{name}, d1 and e1 below d2 and e2"),
             digests: [d1.clone(), d2.clone()],
@@ -95,24 +112,6 @@ fn mappings() -> Vec<Values> {
         });
     }
     all
-}
-
-impl Values {
-    fn digest(&self, name: &str) -> Digest {
-        match name {
-            "d1" => self.digests[0].clone(),
-            "d2" => self.digests[1].clone(),
-            other => panic!("digest {other}"),
-        }
-    }
-
-    fn id(&self, name: &str) -> EffectId {
-        match name {
-            "e1" => self.ids[0].clone(),
-            "e2" => self.ids[1].clone(),
-            other => panic!("effect {other}"),
-        }
-    }
 }
 
 fn file() -> String {
@@ -146,13 +145,6 @@ fn opt<'a>(v: &'a Value, key: &str) -> Option<&'a str> {
     }
 }
 
-fn need<'a>(v: &'a Value, key: &str) -> &'a str {
-    match opt(v, key) {
-        Some(s) => s,
-        None => panic!("no {key} in {v}"),
-    }
-}
-
 fn class(name: &str) -> ActionClass {
     match ActionClass::parse(name) {
         Ok(c) => c,
@@ -174,26 +166,104 @@ fn decision(name: &str) -> Decision {
     }
 }
 
-fn step_move(m: &Value, of_effect: ActionClass, values: &Values) -> EffectMove {
-    match text(m, "move") {
-        "propose" => EffectMove::Propose(Decided::free(of_effect, decision(need(m, "decision")))),
+struct Step {
+    kind: &'static str,
+    class: ActionClass,
+    decision: Option<Decision>,
+    entry: Option<usize>,
+    digest: Option<usize>,
+    bound_class: Option<ActionClass>,
+    used: Option<bool>,
+    ok: bool,
+    state: Option<EffectState>,
+    bound: usize,
+}
+
+struct Trace {
+    n: u64,
+    effect: usize,
+    bound: usize,
+    steps: Vec<Step>,
+}
+
+fn index(name: &str) -> usize {
+    match name {
+        "d1" | "e1" => 0,
+        "d2" | "e2" => 1,
+        other => panic!("name {other}"),
+    }
+}
+
+fn used(name: &str) -> bool {
+    match name {
+        "yes" => true,
+        "no" => false,
+        other => panic!("used {other}"),
+    }
+}
+
+fn parsed(traces: &[Value]) -> Vec<Trace> {
+    traces
+        .iter()
+        .map(|t| {
+            let n = t.get("n").and_then(Value::as_u64).unwrap_or(0);
+            let Some(moves) = t.get("moves").and_then(Value::as_array) else {
+                panic!("trace {n} has no moves");
+            };
+            let steps = moves
+                .iter()
+                .map(|m| {
+                    let name = text(m, "move");
+                    let Some(kind) = MOVES.iter().copied().find(|k| *k == name) else {
+                        panic!("move {name}");
+                    };
+                    Step {
+                        kind,
+                        class: class(text(m, "class")),
+                        decision: opt(m, "decision").map(decision),
+                        entry: opt(m, "entry").map(index),
+                        digest: opt(m, "digest").map(index),
+                        bound_class: opt(m, "bound_class").map(class),
+                        used: opt(m, "used").map(used),
+                        ok: text(m, "answer") == "ok",
+                        state: opt(m, "state").map(state),
+                        bound: index(text(m, "bound")),
+                    }
+                })
+                .collect();
+            Trace {
+                n,
+                effect: index(text(t, "effect")),
+                bound: index(text(t, "bound")),
+                steps,
+            }
+        })
+        .collect()
+}
+
+fn held<T: Copy>(value: Option<T>, key: &str, m: &Step) -> T {
+    match value {
+        Some(v) => v,
+        None => panic!("no {key} in a {} move", m.kind),
+    }
+}
+
+fn step_move(m: &Step, values: &Values, other: Option<ActionClass>) -> EffectMove {
+    match m.kind {
+        "propose" => EffectMove::Propose(Decided::free(m.class, held(m.decision, "decision", m))),
         "rebind" => EffectMove::Rebind {
-            digest: values.digest(need(m, "digest")),
-            class: class(need(m, "bound_class")),
+            digest: values.digests[held(m.digest, "digest", m)].clone(),
+            class: other.unwrap_or(held(m.bound_class, "bound_class", m)),
         },
         "approve" => EffectMove::Approve {
-            entry: values.id(need(m, "entry")),
-            digest: values.digest(need(m, "digest")),
-            used: match need(m, "used") {
-                "yes" => true,
-                "no" => false,
-                other => panic!("used {other}"),
-            },
+            entry: values.ids[held(m.entry, "entry", m)].clone(),
+            digest: values.digests[held(m.digest, "digest", m)].clone(),
+            used: held(m.used, "used", m),
         },
         "reject" => EffectMove::Reject,
         "end" => EffectMove::End,
         "begin" => EffectMove::Begin {
-            digest: values.digest(need(m, "digest")),
+            digest: values.digests[held(m.digest, "digest", m)].clone(),
         },
         "commit" => EffectMove::Commit,
         "lose" => EffectMove::Lose,
@@ -201,22 +271,22 @@ fn step_move(m: &Value, of_effect: ActionClass, values: &Values) -> EffectMove {
     }
 }
 
-fn alike(m: &Value, of_effect: ActionClass, rebinds: u32) -> Vec<(Option<ActionClass>, u32)> {
-    let classes: Vec<Option<ActionClass>> =
-        if text(m, "move") == "rebind" && class(need(m, "bound_class")) != of_effect {
-            ActionClass::ALL
-                .iter()
-                .copied()
-                .filter(|c| *c != of_effect)
-                .map(Some)
-                .collect()
-        } else {
-            vec![None]
-        };
-    let counts = if rebinds >= MODEL_LIMIT {
+fn alike(m: &Step, rebinds: u32) -> Vec<(Option<ActionClass>, u32)> {
+    let classes: Vec<Option<ActionClass>> = if m.kind == "rebind" && m.bound_class != Some(m.class)
+    {
+        ActionClass::ALL
+            .iter()
+            .copied()
+            .filter(|c| *c != m.class)
+            .map(Some)
+            .collect()
+    } else {
+        vec![None]
+    };
+    let counts: Vec<u32> = if rebinds >= MODEL_LIMIT {
         vec![rebinds, rebinds + 1, u32::MAX]
     } else {
-        vec![rebinds]
+        (0..MODEL_LIMIT).collect()
     };
     let mut out = Vec::new();
     for c in &classes {
@@ -350,7 +420,8 @@ fn the_committed_traces_have_the_form_that_the_model_writes() {
 
 #[test]
 fn effect_step_accepts_and_refuses_as_the_model_at_every_move() {
-    let (_, traces) = traces();
+    let (_, raw) = traces();
+    let traces = parsed(&raw);
     let orders: BTreeSet<(bool, bool)> = mappings()
         .iter()
         .map(|v| {
@@ -373,29 +444,26 @@ fn effect_step_accepts_and_refuses_as_the_model_at_every_move() {
         let mut reached = BTreeSet::new();
         let mut other_classes = 0u64;
         let mut higher_counts = 0u64;
+        let mut lower_counts = 0u64;
         for trace in &traces {
-            let n = trace.get("n").and_then(Value::as_u64).unwrap_or(0);
-            let id = values.id(text(trace, "effect"));
+            let n = trace.n;
+            let id = &values.ids[trace.effect];
             let mut now: Option<EffectState> = None;
-            let mut bound = values.digest(text(trace, "bound"));
+            let mut bound = trace.bound;
             let mut rebinds = 0u32;
-            let Some(steps) = trace.get("moves").and_then(Value::as_array) else {
-                panic!("trace {n} has no moves");
-            };
-            for (i, m) in steps.iter().enumerate() {
+            for (i, m) in trace.steps.iter().enumerate() {
                 moves += 1;
-                let kind = text(m, "move");
-                let of_effect = class(text(m, "class"));
+                let kind = m.kind;
                 let effect = now.map(|s| Effect {
                     id: id.clone(),
                     state: s,
-                    class: of_effect,
-                    digest: bound.clone(),
+                    class: m.class,
+                    digest: values.digests[bound].clone(),
                     rebinds,
                 });
-                let got = effect_step(effect.as_ref(), step_move(m, of_effect, &values));
-                let model_ok = text(m, "answer") == "ok";
-                let model_state = opt(m, "state").map(state);
+                let got = effect_step(effect.as_ref(), step_move(m, &values, None));
+                let model_ok = m.ok;
+                let model_state = m.state;
                 let next = match got {
                     Ok(s) => Some(s),
                     Err(_) => now,
@@ -408,22 +476,15 @@ fn effect_step_accepts_and_refuses_as_the_model_at_every_move() {
                         if got.is_ok() { "accepts" } else { "refuses" },
                     ));
                 }
-                for (other, count) in alike(m, of_effect, rebinds) {
+                for (other, count) in alike(m, rebinds) {
                     let effect = now.map(|s| Effect {
                         id: id.clone(),
                         state: s,
-                        class: of_effect,
-                        digest: bound.clone(),
+                        class: m.class,
+                        digest: values.digests[bound].clone(),
                         rebinds: count,
                     });
-                    let mv = match other {
-                        Some(c) => EffectMove::Rebind {
-                            digest: values.digest(need(m, "digest")),
-                            class: c,
-                        },
-                        None => step_move(m, of_effect, &values),
-                    };
-                    let alike_got = effect_step(effect.as_ref(), mv);
+                    let alike_got = effect_step(effect.as_ref(), step_move(m, &values, other));
                     let alike_next = match alike_got {
                         Ok(s) => Some(s),
                         Err(_) => now,
@@ -431,8 +492,11 @@ fn effect_step_accepts_and_refuses_as_the_model_at_every_move() {
                     if other.is_some() && count == rebinds {
                         other_classes += 1;
                     }
-                    if other.is_none() && count != rebinds {
+                    if other.is_none() && count != rebinds && rebinds >= MODEL_LIMIT {
                         higher_counts += 1;
+                    }
+                    if other.is_none() && count != rebinds && rebinds < MODEL_LIMIT {
+                        lower_counts += 1;
                     }
                     if alike_got.is_ok() != model_ok || alike_next != model_state {
                         differ.push(format!(
@@ -447,13 +511,13 @@ fn effect_step_accepts_and_refuses_as_the_model_at_every_move() {
                     accepted.insert(kind);
                     reached.insert(s);
                     if kind == "rebind" {
-                        bound = values.digest(need(m, "digest"));
+                        bound = held(m.digest, "digest", m);
                         rebinds += 1;
                     }
                 } else {
                     refused.insert(kind);
                 }
-                if bound != values.digest(text(m, "bound")) {
+                if bound != m.bound {
                     differ.push(format!(
                         "trace {n} move {} {kind}: the digest after the move differs",
                         i + 1
@@ -478,5 +542,6 @@ fn effect_step_accepts_and_refuses_as_the_model_at_every_move() {
         }
         assert!(other_classes > 0, "no rebind with another class");
         assert!(higher_counts > 0, "no move at the limit of rebinds");
+        assert!(lower_counts > 0, "no move below the limit of rebinds");
     }
 }

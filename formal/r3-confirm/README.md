@@ -232,12 +232,17 @@ when the move is a `rebind` with the answer `ok`. No key holds the count: it is 
 of the trace's earlier accepted rebinds. The test `formal_traces` compares no causes
 (A5.6); the file holds the model's cause.
 
-`Step` reads a digest, an effect id and a class only to compare two of them for equality,
-and the count of rebinds only in `x.reb >= Limit`. So `formal_traces` also gives each name
-the values the other way round (`d1` above `d2` and `e1` above `e2`, as well as below), tries
-each `rebind` whose class is not the effect's with each of the other classes, and tries each
-move at a count of two with the counts three and 2^32 - 1. Each of these moves must have
-the answer and the next state of the trace's own move.
+`Step` compares the class of a `rebind` with the effect's, a digest and an effect id only
+for equality, and the count only in `x.reb >= Limit`; it reads the effect's class only for
+membership in the classes that need an approval and those that make no effect, and the
+directed traces try every class at every place. So `formal_traces` gives `d1`, `d2`, `e1`
+and `e2` 134 sets of values: two that differ in every digit, in the first digit and in the
+last digit, and for each of the 64 digits of a digest one pair that differs there alone,
+with a pair of effect ids that differs in one of their 32 digits alone, each set in both
+orders (`d1` and `e1` below `d2` and `e2`, and above). It tries each `rebind` whose class
+is not the effect's with each of the other classes, each move at a count below two with
+every count below two, and each move at a count of two with the counts three and 2^32 - 1.
+Each of these moves must have the answer and the next state of the trace's own move.
 
 The first 304 traces are directed and do not depend on the seed. For each of the seven
 classes that can make an effect there are eleven places: no effect, the eight states, and
@@ -396,8 +401,7 @@ before the code. The crate halvo-policy compares the code with the two files on 
 its test `policy_table` compares `decide_row` with each row of `policy-table.tsv`, and its
 test `formal_traces` follows each trace of `traces.jsonl` with `effect_step`, which must
 accept and refuse each move as the model does and reach the same next state, with each of
-six ways of giving `d1`, `d2`, `e1` and `e2` values of the code's types and with the moves
-that the section "The traces" names.
+the 134 sets of values and with the derived moves that the section "The traces" names.
 
 1. Change `Confirm.tla` first. Run the check and the control copy, and `Full.cfg` by hand.
 2. Run `export.sh` and commit the model and the two files together. The tests that read
