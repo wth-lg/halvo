@@ -162,6 +162,16 @@ mod platform {
 mod tests {
     use super::*;
 
+    /// A file of src-tauri/src, read when the test runs, with its line ends made LF.
+    fn source(name: &str) -> String {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join(name);
+        std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()))
+            .replace("\r\n", "\n")
+    }
+
     #[test]
     fn the_engine_allows_the_app_origin_alone_and_refuses_a_string_that_the_reader_refuses() {
         let (scheme, host) = crate::app::APP_ORIGIN;
@@ -184,7 +194,7 @@ mod tests {
 
     #[test]
     fn every_engine_string_that_the_url_reader_refuses_is_refused_at_the_engine() {
-        let forms = include_str!("engine-url-forms.txt");
+        let forms = source("engine-url-forms.txt");
         let mut refused_by_reader = 0;
         for form in forms.lines() {
             if tauri::Url::parse(form).is_err() {
@@ -197,7 +207,7 @@ mod tests {
 
     #[test]
     fn the_window_main_refuses_every_download_and_gets_the_guard_of_its_engine() {
-        let app = include_str!("app.rs");
+        let app = source("app.rs");
         assert_eq!(app.matches(".on_download(|_, _| false)").count(), 1);
         assert_eq!(app.matches("crate::engine::guard(&window);").count(), 1);
         assert_eq!(app.matches("::from_config(app, &config)?").count(), 1);
@@ -205,7 +215,7 @@ mod tests {
 
     #[test]
     fn on_windows_the_handler_cancels_alone_for_the_window_and_for_its_frames() {
-        let source = include_str!("engine.rs").replace("\r\n", "\n");
+        let source = source("engine.rs");
         let windows = &source[source
             .find("#[cfg(windows)]\nmod platform")
             .expect("the Windows module")..];
