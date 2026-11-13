@@ -331,6 +331,8 @@ fn the_stand_in_started_by_hand_names_its_standard_error_and_writes_each_form_of
     mixed.extend_from_slice(&[0xc3, 0x28, b'\n']);
     let mut line = m.to_vec();
     line.push(b'\n');
+    let written = FLOOD + 2 * line.len() + mixed.len() + m.len();
+    wait_until(SHORT, || err.bytes().len() >= written);
     let printed = err.bytes();
     assert_eq!(count(&printed, b"x"), FLOOD, "the flood's bytes");
     assert_eq!(count(&printed, m), 4, "the marker's forms");
