@@ -115,6 +115,7 @@ type Account = {
   writtenOffAtReactivation: number | null;
   lastSeen: { carry: number; writtenOff: number | null } | null;
   cancelsAfterAReactivation: number;
+  writeOffWhileActiveAgain: number;
 };
 
 function blocker(): Blocker {
@@ -212,6 +213,7 @@ class World {
       add("not-billable-at-the-send-limit", rows.filter((row) => row.refusal === "send_limit").length);
       add("reactivations", account.reactivations);
       add("cancels-after-a-reactivation", account.cancelsAfterAReactivation);
+      add("write-offs-while-active-again", account.writeOffWhileActiveAgain);
       const periods = this.meter.periods(account.id, this.now);
       const end = periods.at(-1)?.end;
       const ended = periods.length > 0 && end !== undefined && account.ended !== null;
@@ -298,6 +300,7 @@ class World {
       writtenOffAtReactivation: null,
       lastSeen: null,
       cancelsAfterAReactivation: 0,
+      writeOffWhileActiveAgain: 0,
     } satisfies Omit<Account, "index" | "id">);
     this.meter.subscribe(id, at);
     this.accounts.push(account);
@@ -669,6 +672,15 @@ class World {
     );
   }
 
+  private readWriteOffWhileActive(account: Account): void {
+    const writtenOff = account.test.host.step((sql) => {
+      if (ownTables(sql).length === 0) return undefined;
+      const row = sql.exec("SELECT written_off FROM metering_account")[0];
+      return row === undefined || row.written_off === null ? null : Number(row.written_off);
+    });
+    if (writtenOff !== undefined && writtenOff !== account.writtenOffAtReactivation) account.writeOffWhileActiveAgain = 1;
+  }
+
   private readRemainder(account: Account): void {
     const read = account.test.host.step((sql) => {
       if (ownTables(sql).length === 0) return null;
@@ -804,6 +816,7 @@ class World {
       }
       if (account.unexplainedReads > 0) this.fail("a read the sync cannot explain", account.id);
       if (account.cancelSinceReactivation || account.destroyStarted) this.readRemainder(account);
+      else if (account.reactivations > 0 && account.writeOffWhileActiveAgain === 0) this.readWriteOffWhileActive(account);
       if (account.ended !== null && account.eventsHeldWhenEndCompleted === null && account.inFlight === null && this.objectEnded(account)) {
         account.eventsHeldWhenEndCompleted = this.meter.recordedEvents(account.id).length;
       }
