@@ -804,12 +804,12 @@ mod tests {
         let mut wrong = Vec::new();
         let mut rows = 0;
         for (i, (value, state, mark)) in line_values().into_iter().enumerate() {
-            let columns: [(&str, Platform, SourceName, &[SwitchName], Vec<Recorded>); 4] = [
+            let columns = [
                 (
                     "Windows, key_class on, beside the keyboard line",
                     Platform::Windows,
                     SourceName::Keyboard,
-                    &default_on,
+                    &default_on[..],
                     list(
                         &[
                             vec![(TitleText, TITLE_ON)],
@@ -823,7 +823,7 @@ mod tests {
                     "Windows, key_class off, beside the keyboard line",
                     Platform::Windows,
                     SourceName::Keyboard,
-                    &key_class_off,
+                    &key_class_off[..],
                     list(
                         &[
                             vec![(TitleText, TITLE_ON)],
@@ -837,7 +837,7 @@ mod tests {
                     "macOS, screen_activity off, beside the screen line",
                     Platform::Macos,
                     SourceName::Screen,
-                    &default_on,
+                    &default_on[..],
                     list(
                         &[
                             vec![
@@ -854,7 +854,7 @@ mod tests {
                     "Windows, screen_activity off, beside the screen line",
                     Platform::Windows,
                     SourceName::Screen,
-                    &default_on,
+                    &default_on[..],
                     list(
                         &[
                             vec![
