@@ -1,4 +1,4 @@
-import { execFileSync, fork, spawnSync } from "node:child_process";
+import { fork, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,11 @@ const ORDERINGS = 20000;
 const SETTINGS = 38;
 const WORKERS = 4;
 const TEST_SECONDS = 600;
+const MEMORY_SETTING = 25;
+const MEMORY_ROUNDS = 4;
+const MEMORY_DATABASES_PER_ROUND = 121;
+const MEMORY_DATABASES_AT_LEAST = MEMORY_ROUNDS * MEMORY_DATABASES_PER_ROUND;
+const MEMORY_LIVE_BOUND = 2;
 const TESTS = [
   [
     "expiry-on-time",
@@ -55,6 +60,8 @@ const seeds = option("--seeds") === undefined ? SEEDS : list(option("--seeds"));
 const orderings = Number(option("--orderings") ?? ORDERINGS);
 const settings = option("--settings") === undefined ? Array.from({ length: SETTINGS }, (_, index) => index) : list(option("--settings"));
 const workers = Math.max(1, Math.min(WORKERS, Number(option("--workers") ?? WORKERS)));
+const selfTestCopy = args.includes("--self-test-copy");
+const LINE = selfTestCopy ? "self-test copy, no git: " : "";
 
 const tokens = {
   "fake-checks": "unmeasured",
@@ -70,13 +77,15 @@ const fail = (sentence) => {
   firstFailure ??= sentence;
 };
 
-function trackedChanges() {
-  try {
-    const out = execFileSync("git", ["-C", ROOT, "status", "--porcelain", "--untracked-files=no", "--", "."], { encoding: "utf8" });
-    return out.split("\n").filter((line) => line !== "");
-  } catch {
+function trackedChanges(when) {
+  if (selfTestCopy) return [];
+  const run = spawnSync("git", ["-C", ROOT, "status", "--porcelain", "--untracked-files=no", "--", "."], { encoding: "utf8" });
+  if (run.status !== 0) {
+    const why = run.error?.message ?? `exit ${run.status ?? run.signal}: ${(run.stderr ?? "").split("\n").find((line) => line !== "") ?? "no message"}`;
+    fail(`git could not say ${when} the check whether a tracked file differs from HEAD (${why})`);
     return [];
   }
+  return run.stdout.split("\n").filter((line) => line !== "");
 }
 
 async function fakeChecks() {
@@ -87,7 +96,7 @@ async function fakeChecks() {
   if (!rules.every((r) => r.ok)) fail(`the fake meter fails its own check ${rules.find((r) => !r.ok)?.name}`);
 }
 
-function runJobs(jobs) {
+function runJobs(jobs, execArgv = []) {
   return new Promise((resolve) => {
     const results = new Map();
     const queue = [...jobs];
@@ -96,7 +105,7 @@ function runJobs(jobs) {
       if (alive === 0) resolve(results);
     };
     const start = () => {
-      const child = fork(join(HERE, "worker.mjs"), [], { cwd: ROOT, stdio: ["ignore", "inherit", "inherit", "ipc"] });
+      const child = fork(join(HERE, "worker.mjs"), [], { cwd: ROOT, stdio: ["ignore", "inherit", "inherit", "ipc"], execArgv: [...process.execArgv, ...execArgv] });
       alive += 1;
       let current = null;
       const next = () => {
@@ -109,6 +118,7 @@ function runJobs(jobs) {
       };
       child.on("message", (message) => {
         if (message.ready !== undefined) {
+          if (message.ready !== SETTINGS) fail(`the search holds ${message.ready} settings, and the plan SETTINGS is ${SETTINGS}`);
           next();
           return;
         }
@@ -246,7 +256,42 @@ function runTests() {
   }
 }
 
-const before = trackedChanges();
+async function plan() {
+  const { searchCases } = await import("./property.ts");
+  const held = searchCases().length;
+  const text = `seeds=${SEEDS.join(",")} orderings-of-one-seed=${ORDERINGS} settings=${SETTINGS}`;
+  if (held !== SETTINGS) {
+    console.log(`FAIL metering-plan: ${text}; first failure: the search holds ${held} settings, and the plan SETTINGS is ${SETTINGS}`);
+    process.exit(1);
+  }
+  console.log(`PASS metering-plan: ${text}`);
+  process.exit(0);
+}
+
+async function memory() {
+  const results = await runJobs([{ id: "memory", kind: "memory", index: MEMORY_SETTING, rounds: MEMORY_ROUNDS }], ["--expose-gc"]);
+  const message = results.get("memory");
+  const run = message?.result;
+  const text =
+    run === undefined
+      ? "unmeasured"
+      : `setting=${MEMORY_SETTING} rounds=${MEMORY_ROUNDS} databases=${run.databases} live-after-collection=${run.live} bound=${MEMORY_LIVE_BOUND} heap-after-collection-mb=${Math.round(run.heapUsed / 1048576)}`;
+  let failure = firstFailure;
+  if (failure === null && run === undefined) failure = `the worker's run threw ${message?.error ?? "nothing it reported"}`;
+  else if (failure === null && run.databases < MEMORY_DATABASES_AT_LEAST) failure = `the worker opened ${run.databases} databases, fewer than the ${MEMORY_DATABASES_AT_LEAST} that the count needs`;
+  else if (failure === null && run.live > MEMORY_LIVE_BOUND) failure = `${run.live} of ${run.databases} databases live on in the worker after their worlds closed, above the bound ${MEMORY_LIVE_BOUND}`;
+  if (failure === null) {
+    console.log(`PASS metering-memory: ${text}`);
+    process.exit(0);
+  }
+  console.log(`FAIL metering-memory: ${text}; first failure: ${failure}`);
+  process.exit(1);
+}
+
+if (args.includes("--plan")) await plan();
+if (args.includes("--memory-self-check")) await memory();
+
+const before = trackedChanges("before");
 for (const line of before) note(`a tracked file differs from HEAD before the check: ${line}`);
 try {
   await fakeChecks();
@@ -255,7 +300,7 @@ try {
 } catch (error) {
   fail(`the check threw ${error?.name ?? "an error"}: ${String(error?.message ?? error).split("\n")[0]}`);
 }
-const after = trackedChanges();
+const after = trackedChanges("after");
 if (after.length > 0) fail(`a tracked file differs from HEAD after the check: ${after[0].slice(3)}`);
 for (const [name, value] of Object.entries(tokens)) {
   const counted = /^(\d+) of (\d+)$/.exec(value);
@@ -266,8 +311,8 @@ const text = Object.entries(tokens)
   .map(([name, value]) => `${name}=${value}`)
   .join(" ");
 if (firstFailure === null) {
-  console.log(`PASS metering: ${text}`);
+  console.log(`${LINE}PASS metering: ${text}`);
   process.exit(0);
 }
-console.log(`FAIL metering: ${text}; first failure: ${firstFailure}`);
+console.log(`${LINE}FAIL metering: ${text}; first failure: ${firstFailure}`);
 process.exit(1);

@@ -18,8 +18,42 @@ sqlite.DatabaseSync.prototype.prepare = function prepareOnce(query) {
 const { propertyRun, searchCases, searchOne } = await import("./property.ts");
 const cases = searchCases();
 
+async function releasedWorlds(job) {
+  if (typeof globalThis.gc !== "function") throw new Error("the worker runs without --expose-gc, so it cannot collect before it counts");
+  const proto = sqlite.DatabaseSync.prototype;
+  const refs = [];
+  const seen = new WeakSet();
+  const note = (db) => {
+    if (seen.has(db)) return;
+    seen.add(db);
+    refs.push(new WeakRef(db));
+  };
+  const { prepare: cachedPrepare, exec } = proto;
+  proto.prepare = function noted(query) {
+    note(this);
+    return cachedPrepare.call(this, query);
+  };
+  proto.exec = function noted(query) {
+    note(this);
+    return exec.call(this, query);
+  };
+  let sequences = 0;
+  try {
+    for (let round = 0; round < job.rounds; round += 1) sequences += (await searchOne(cases[job.index])).sequences;
+  } finally {
+    proto.prepare = cachedPrepare;
+    proto.exec = exec;
+  }
+  for (let pass = 0; pass < 3; pass += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    globalThis.gc();
+  }
+  return { sequences, databases: refs.length, live: refs.filter((ref) => ref.deref() !== undefined).length, heapUsed: process.memoryUsage().heapUsed };
+}
+
 async function run(job) {
   const started = performance.now();
+  if (job.kind === "memory") return { ...(await releasedWorlds(job)), seconds: (performance.now() - started) / 1000 };
   if (job.kind === "seed") {
     const result = await propertyRun({ seed: job.seed, orderings: job.orderings });
     return { ...result, seconds: (performance.now() - started) / 1000 };
