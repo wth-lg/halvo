@@ -254,7 +254,10 @@ fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
     let n = bytes.len().min(aligned.0.len());
     aligned.0[..n].copy_from_slice(&bytes[..n]);
     // SAFETY: `aligned` is align(8) >= align_of::<RAWINPUT>(), is exactly
-    // size_of::<RAWINPUT>() bytes, and is fully initialized.
+    // size_of::<RAWINPUT>() bytes, and is fully initialized; and every bit
+    // pattern is a valid RAWINPUT, because it is made of integers, a raw
+    // device handle and a union of integer records, with no reference, enum
+    // or bool in it.
     let raw: &RAWINPUT = unsafe { &*(aligned.0.as_ptr() as *const RAWINPUT) };
 
     if raw.header.dwType == RIM_TYPEKEYBOARD.0 {
