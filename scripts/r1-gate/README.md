@@ -90,9 +90,12 @@ on it can apply and build when no build read the file. Outside those paths a `.s
 file gets `sh -n`, a `.c` file `cc -fsyntax-only`, a `.pl` file `perl -c` and a
 `.swift` file `swiftc -parse`, and a row on a file of any other kind is refused.
 `FAIL mutation:<name> (the mutant does not build)` is never a caught mutant.
-`mutants.expected` lists one name for each mutant that a review applied; under
-`--strict` a name that no row file holds or retires is a FAIL, and so is a
-missing `mutants.expected`.
+`mutants.expected` lists one name for each mutant that a review applied and
+the name of every row whose state is `required` or `required on <place>`; a
+unit that adds such a row adds its name in the same change. Under `--strict` a
+FAIL line comes for each name that no row file holds or retires, for each such
+required row whose name the list lacks, with the row file named, and for a
+missing `mutants.expected`. The count line of every run gives both numbers.
 
 ## What a run changes on a Mac
 

@@ -18,8 +18,9 @@ row grammar is in scripts/r1-gate/README.md.
       PASS mutation:<name> names that source. A mutant that does not build is
       FAIL mutation:<name> (the mutant does not build), never a caught mutant.
       --strict also fails on a pending or transitional row, on a row for the
-      measuring Mac that did not run, and on a name of mutants.expected that no
-      row file holds or retires.
+      measuring Mac that did not run, on a name of mutants.expected that no
+      row file holds or retires, and on a required row, of any place, whose
+      name mutants.expected lacks.
       --only runs the named rows in the order given, each name once.
       --budget starts no row once SECONDS have passed since the first row
       started, lets a running row end, prints NOT-RUN mutation:<name> (the
@@ -293,7 +294,7 @@ run_rows() {
     row_now=$(date +%s)
     row_seconds
   fi
-  missing=0
+  missing=0; unnamed=0
   if [ -f "$tree/scripts/r1-gate/mutants.expected" ]; then
     while IFS= read -r expected_name; do
       [ -n "$expected_name" ] || continue
@@ -302,13 +303,19 @@ run_rows() {
       missing=$((missing + 1))
       [ "$strict" = no ] || say FAIL "$expected_name" "named in mutants.expected, and no row file holds or retires it"
     done < "$tree/scripts/r1-gate/mutants.expected"
+    awk -F '\t' 'FILENAME == ARGV[1] { if ($0 != "") named[$0] = 1; next }
+      $7 ~ /^required/ && !($3 in named) { print $3 "\t" $1 }' "$tree/scripts/r1-gate/mutants.expected" "$table" > "$work/unnamed.tsv" || return 2
+    while IFS="$TAB" read -r unnamed_name unnamed_file; do
+      unnamed=$((unnamed + 1))
+      [ "$strict" = no ] || say FAIL "$unnamed_name" "strict: a required row of $unnamed_file, and mutants.expected does not name it"
+    done < "$work/unnamed.tsv"
   elif [ "$strict" = yes ]; then
     say FAIL expected "scripts/r1-gate/mutants.expected is missing, and --strict needs it"; failures=$((failures + 1))
   fi
-  printf 'mutation rows: %s caught, %s failed, %s open, %s transitional, %s for the measuring Mac not run, %s expected names with no row\n' "$caught" "$failures" "$opens" "$transitionals" "$unrun" "$missing"
+  printf 'mutation rows: %s caught, %s failed, %s open, %s transitional, %s for the measuring Mac not run, %s expected names with no row, %s required rows with no expected name\n' "$caught" "$failures" "$opens" "$transitionals" "$unrun" "$missing" "$unnamed"
   [ "$failures" -eq 0 ] || return 1
   [ "$strict" = no ] && return 0
-  [ "$((opens + transitionals + unrun + missing))" -eq 0 ]
+  [ "$((opens + transitionals + unrun + missing + unnamed))" -eq 0 ]
 }
 
 fixture_tree() {
@@ -635,6 +642,22 @@ cases() {
   t expected-file-missing-fails-strict FAIL fixture_run no-expected yes yes
   t expected-file-missing-is-named PASS fixture_says no-expected 'FAIL mutation:expected (scripts/r1-gate/mutants.expected is missing, and --strict needs it)' yes yes
   t expected-file-missing-passes-without-strict PASS fixture_run no-expected yes
+  fixture_tree unnamed
+  row unnamed/scripts/r1-gate/mutants.rows unnamed-row b.sh 's/two/three/' leak required X-1
+  t required-row-with-no-expected-name-fails-strict FAIL fixture_run unnamed yes yes
+  t required-row-with-no-expected-name-is-named PASS fixture_says unnamed 'FAIL mutation:unnamed-row (strict: a required row of scripts/r1-gate/mutants.rows, and mutants.expected does not name it)' yes yes
+  t required-row-with-no-expected-name-passes-without-strict PASS fixture_run unnamed yes
+  fixture_tree named
+  row named/scripts/r1-gate/mutants.rows named-row b.sh 's/two/three/' leak required X-1
+  row named/code/mutants.rows other-row a.sh 's/one/1/' leak 'required on hosted-runner' X-2
+  printf 'named-row\nother-row\n' > "$gate_scratch/named/scripts/r1-gate/mutants.expected"
+  t required-rows-with-their-expected-names-pass-strict PASS not_ci fixture_run named yes yes
+  fixture_tree unnamed-place
+  row unnamed-place/scripts/r1-gate/mutants.rows named-row b.sh 's/two/three/' leak required X-1
+  row unnamed-place/code/mutants.rows other-row a.sh 's/one/1/' leak 'required on hosted-runner' X-2
+  printf 'named-row\n' > "$gate_scratch/unnamed-place/scripts/r1-gate/mutants.expected"
+  t required-on-a-place-row-with-no-expected-name-fails-strict FAIL not_ci fixture_run unnamed-place yes yes
+  t required-on-a-place-row-is-named-with-its-file PASS not_ci fixture_says unnamed-place 'FAIL mutation:other-row (strict: a required row of code/mutants.rows, and mutants.expected does not name it)' yes yes
   fixture_tree empty
   t no-row-at-all FAIL fixture_run empty yes
   fixture_tree missing-file
@@ -646,6 +669,7 @@ cases() {
   t measuring-mac-row-under-ci-is-not-run PASS under_ci fixture_says mac 'NOT-RUN mutation:mac-only (runs on the measuring Mac)' yes
   fixture_tree input
   row input/scripts/r1-gate/mutants.rows typed b.sh 's/two/2/' leak 'required on hosted-runner' X-1
+  printf 'typed\n' > "$gate_scratch/input/scripts/r1-gate/mutants.expected"
   t input-row-here-is-not-run-and-no-fail PASS not_ci fixture_run input yes yes
   t input-row-here-is-named PASS not_ci fixture_says input 'NOT-RUN mutation:typed (needs input; runs on the hosted runner)' yes
   t input-row-runs-under-ci PASS under_ci fixture_says input 'PASS mutation:typed (applies and builds)' yes
