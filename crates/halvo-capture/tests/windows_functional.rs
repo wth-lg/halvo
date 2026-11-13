@@ -3523,11 +3523,112 @@ fn processes_named(image: &str) -> usize {
         .count()
 }
 
+/// Brings `hwnd`, a window of this thread or of another process, to the
+/// front with the calls that the system allows a process that holds or may
+/// take the foreground, and no keyboard or pointer input: SetForegroundWindow,
+/// then the same call with this thread's input joined to the foreground
+/// thread's, then a minimize and a restore of a window of this thread.
+fn foreground_without_input(hwnd: HWND, own: bool) -> (bool, &'static str) {
+    // SAFETY: the calls take a window handle by value.
+    unsafe {
+        let _ = ShowWindow(hwnd, SW_SHOW);
+        let _ = BringWindowToTop(hwnd);
+        let _ = SetForegroundWindow(hwnd);
+    }
+    pump_thread(Duration::from_millis(200));
+    if foreground_window() == hwnd {
+        return (true, "SetForegroundWindow");
+    }
+    let front_thread = {
+        let mut pid = 0u32;
+        // SAFETY: `pid` is a live u32 that the call writes into.
+        unsafe { GetWindowThreadProcessId(foreground_window(), Some(&mut pid)) }
+    };
+    // SAFETY: GetCurrentThreadId takes no argument.
+    let this_thread = unsafe { GetCurrentThreadId() };
+    if front_thread != 0 && front_thread != this_thread {
+        // SAFETY: the input of the two threads is joined only around the two
+        // window calls and detached again before the block ends.
+        unsafe {
+            let _ = AttachThreadInput(this_thread, front_thread, true);
+            let _ = BringWindowToTop(hwnd);
+            let _ = SetForegroundWindow(hwnd);
+            let _ = AttachThreadInput(this_thread, front_thread, false);
+        }
+    }
+    pump_thread(Duration::from_millis(200));
+    if foreground_window() == hwnd {
+        return (true, "attach-thread-input");
+    }
+    if own {
+        // SAFETY: ShowWindow takes this thread's window handle by value.
+        unsafe {
+            let _ = ShowWindow(hwnd, SW_MINIMIZE);
+            let _ = ShowWindow(hwnd, SW_RESTORE);
+        }
+        pump_thread(Duration::from_millis(200));
+    }
+    (foreground_window() == hwnd, "minimize-restore")
+}
+
+fn top_windows() -> Vec<HWND> {
+    use windows::core::BOOL;
+    use windows::Win32::UI::WindowsAndMessaging::EnumWindows;
+    unsafe extern "system" fn each(hwnd: HWND, found: LPARAM) -> BOOL {
+        // SAFETY: `found` is the address of the vector that the caller holds
+        // across the enumeration on this thread.
+        unsafe { (*(found.0 as *mut Vec<HWND>)).push(hwnd) };
+        BOOL::from(true)
+    }
+    let mut all: Vec<HWND> = Vec::new();
+    // SAFETY: the callback has the WNDENUMPROC signature and reads `all` only
+    // while this call runs.
+    unsafe {
+        let _ = EnumWindows(Some(each), LPARAM(&mut all as *mut Vec<HWND> as isize));
+    }
+    all
+}
+
+/// The visible frame window of the Settings app: a window of the class
+/// ApplicationFrameWindow whose sample names SystemSettings.exe, or a window
+/// of SystemSettings.exe itself.
+fn settings_window() -> Option<HWND> {
+    use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
+    top_windows().into_iter().find(|hwnd| {
+        // SAFETY: IsWindowVisible reads a handle value.
+        let visible = unsafe { IsWindowVisible(*hwnd) }.as_bool();
+        visible
+            && (image_name(window_pid(*hwnd)).eq_ignore_ascii_case("SystemSettings.exe")
+                || class_of_window(*hwnd) == "ApplicationFrameWindow"
+                    && window_sample(*hwnd).contains("SystemSettings.exe"))
+    })
+}
+
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
 fn x14_foreground_app_of_a_hosted_app() {
-    with_deadline("x14", Duration::from_secs(120), || {
+    use windows::Win32::UI::WindowsAndMessaging::{AllowSetForegroundWindow, ASFW_ANY};
+    with_deadline("x14", Duration::from_secs(150), || {
         env_report("x14");
+        let anchor = TestWindow::create(&normal_window(
+            "HalvoVerifyAnchor",
+            "halvo-verify-anchor",
+            60,
+            60,
+        ))
+        .expect("the anchor window");
+        pump_thread(Duration::from_millis(300));
+        let before = window_sample(foreground_window());
+        let (anchor_front, anchor_method) = foreground_without_input(anchor.hwnd, true);
+        // SAFETY: AllowSetForegroundWindow takes a plain value.
+        let allowed = unsafe { AllowSetForegroundWindow(ASFW_ANY) }.is_ok();
+        say(
+            "x14",
+            format!(
+                "before_anchor {before} anchor_foreground={anchor_front} \
+                 anchor_method={anchor_method} allow_set_foreground_any={allowed}"
+            ),
+        );
         let (sink, events) = capture(4096);
         let mut foreground = ForegroundAppSource::new();
         let start = foreground.begin(SourceContext::new(sink.clone()));
@@ -3538,19 +3639,31 @@ fn x14_foreground_app_of_a_hosted_app() {
         let mut seen = Vec::new();
         let began = Instant::now();
         let mut sampled = Instant::now();
-        while began.elapsed() < Duration::from_secs(12) {
-            seen.extend(events.drain_for(Duration::from_millis(200)));
+        let mut settings_front = false;
+        let mut brought = None;
+        while began.elapsed() < Duration::from_secs(15) {
+            pump_thread(Duration::from_millis(100));
+            seen.extend(events.drain_for(Duration::from_millis(100)));
+            if let Some(frame) = settings_window() {
+                if foreground_window() == frame {
+                    settings_front = true;
+                } else if brought.is_none() && began.elapsed() >= Duration::from_secs(3) {
+                    brought = Some(foreground_without_input(frame, false));
+                }
+            }
             if sampled.elapsed() >= Duration::from_secs(1) {
                 sampled = Instant::now();
                 say("x14", window_sample(foreground_window()));
             }
         }
+        seen.extend(events.drain_for(Duration::from_millis(500)));
         let settings_processes = processes_named("SystemSettings.exe");
         let foreground_now = current_foreground_app().unwrap_or_default();
         let _ = stop_counted(&mut foreground, "foreground");
         let _ = Command::new("taskkill.exe")
             .args(["/IM", "SystemSettings.exe", "/F"])
             .output();
+        drop(anchor);
         summarize("x14", "after-opening-settings", &seen);
         let named = |file: &str| {
             seen.iter()
@@ -3564,6 +3677,8 @@ fn x14_foreground_app_of_a_hosted_app() {
             format!(
                 "foreground_start={} settings_launched={launched} \
                  settings_processes_running={settings_processes} \
+                 settings_window_was_foreground={settings_front} \
+                 brought_to_front_by_the_fixture={brought:?} \
                  foreground_now_is_frame_host={} foreground_now_is_settings={} \
                  events_naming_applicationframehost={frame_host}",
                 show(&start),
@@ -3577,12 +3692,12 @@ fn x14_foreground_app_of_a_hosted_app() {
             "INCONCLUSIVE: the Settings app did not start on this machine"
         );
         assert!(
-            frame_host + settings >= 1,
-            "INCONCLUSIVE: no foreground event for the Settings window"
+            settings_front,
+            "INCONCLUSIVE: the Settings window never came to the front by an allowed call"
         );
         let evidence: String = format!("TF x14 events_naming_systemsettings={settings}");
         println!("{evidence}");
-        assert!(settings == 1, "{evidence}");
+        assert!(settings >= 1, "{evidence}");
     });
 }
 
