@@ -496,10 +496,10 @@ fn settle_within(handle: &owner::OwnerHandle, bound: Duration) -> Option<counter
             return None;
         };
         let left = bound.saturating_sub(started.elapsed());
-        if snapshot.events_pending == 0 || left.is_zero() {
+        if snapshot.events_pending == 0 || left < 2 * owner::POLL {
             return Some(snapshot);
         }
-        std::thread::sleep(left.min(owner::POLL));
+        std::thread::sleep(owner::POLL);
     }
 }
 

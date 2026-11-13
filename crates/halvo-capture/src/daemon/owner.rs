@@ -2484,4 +2484,16 @@ mod tests {
             .count();
         assert_eq!(marks, 1);
     }
+
+    #[test]
+    fn a_pass_answers_the_waiting_commands_before_it_waits_for_an_event() {
+        let mut harness = Harness::new();
+        let pending = harness.handle.ask(Command::ClosePause).unwrap();
+        harness.owner.receive_in_pass(Duration::ZERO);
+        assert!(
+            matches!(pending.try_answer(), Some(Answer::Resumed(_))),
+            "the command waited for the receive"
+        );
+        assert!(harness.owner.finish_pass());
+    }
 }
