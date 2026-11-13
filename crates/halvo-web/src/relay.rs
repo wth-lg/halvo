@@ -623,14 +623,17 @@ impl RelayHandle {
     }
 
     /// Adds one host and port to the list, marked as `entry` says; a list of every host stays one.
+    /// `Entry::Listed` takes an earlier mark of the same host and port away (CP-186 S2).
     pub fn allow(&self, host: &str, port: u16, entry: Entry) {
         if let Ok(mut l) = self.shared.list.lock() {
             if let List::Hosts(set) = &mut *l {
                 set.insert(key(host, port));
             }
-            if entry == Entry::BoundLoopback && bound_loopback(host).is_some() {
-                if let Ok(mut b) = self.shared.bound.lock() {
+            if let Ok(mut b) = self.shared.bound.lock() {
+                if entry == Entry::BoundLoopback && bound_loopback(host).is_some() {
                     b.insert(key(host, port));
+                } else {
+                    b.remove(&key(host, port));
                 }
             }
         }
@@ -1046,6 +1049,23 @@ mod tests {
         assert_eq!(code, 2);
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert_eq!(accepted.load(Ordering::SeqCst), 1);
+        assert_eq!(h.class_refusals().len(), 1);
+    }
+
+    /// CP-186 S2, the review's case relay/03: a loopback literal that was marked as bound and is
+    /// then listed again with `Entry::Listed` is refused by its class.
+    #[tokio::test]
+    async fn s2_a_listed_entry_takes_an_earlier_bound_mark_away() {
+        let (echo, accepted) = echo_server().await;
+        let relay = Relay::start(Names::System).await.unwrap();
+        let h = relay.handle();
+        h.trust(Some(me()));
+        h.allow("127.0.0.1", echo, Entry::BoundLoopback);
+        h.allow("127.0.0.1", echo, Entry::Listed);
+        let (_, code) = connect_via(relay.port, "127.0.0.1", echo).await;
+        assert_eq!(code, 2);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(accepted.load(Ordering::SeqCst), 0);
         assert_eq!(h.class_refusals().len(), 1);
     }
 
