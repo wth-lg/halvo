@@ -1732,6 +1732,12 @@ async function compose(origin, dir) {
 const KANA2 = String.fromCodePoint(0x304b, 0x306a);
 const KANA4 = String.fromCodePoint(0x304b, 0x306a, 0x304c, 0x308f);
 
+/** Whether a case of press or holds is left out: R4_CASES, when set, names the prefixes of the cases to run. */
+function skipCase(tag) {
+  const only = process.env.R4_CASES;
+  return Boolean(only) && !only.split(',').some((x) => tag.startsWith(x));
+}
+
 /** Page helpers of the press and hold cases: a composition, its end and a press, made by a script. */
 function pageKit(h, engine) {
   const run = (fn, arg) => h.page.evaluate(fn, arg);
@@ -1822,6 +1828,7 @@ async function press(origin, dir) {
   const typedSent = (out) => callsOf(out).filter((c) => c.call === 'agents_setup_typed').map((c) => c.args.text);
   const bytesOf = (list) => list.map((s) => Buffer.byteLength(s)).join(',') || '-';
   const run = async (tag, fn, opts) => {
+    if (skipCase(tag)) return;
     const out = outDir();
     const h = await open({ origin, views: [VIEW], out, ...(opts || { state: 'setup_three' }) });
     try {
@@ -2137,6 +2144,7 @@ async function holds(origin, dir) {
     await frames(h);
   };
   const flow = async (tag, replies, fn) => {
+    if (skipCase(tag)) return;
     const h = await open({ origin, replies, views: [VIEW] });
     try {
       await fn(h, pageKit(h, engineOf(h)));
