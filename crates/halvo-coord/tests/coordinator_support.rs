@@ -31,6 +31,18 @@ pub struct Both {
     pub trace: Cell<bool>,
     pub callers: std::cell::RefCell<Vec<String>>,
     pub panics: Cell<Option<&'static str>>,
+    pub loss: Cell<Option<Loss>>,
+    pub lost: std::cell::RefCell<Vec<Event>>,
+}
+
+/// A lost acknowledgement of the next `log`, in one of two forms: the owner stores the rows and
+/// the reply is lost, so that the coordinator's read right after the call brings them; or the
+/// call is refused and the rows land in the owner's events after the move (`lost`), so that the
+/// coordinator learns of them through a later refusal `seq`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Loss {
+    Reply,
+    Later,
 }
 
 impl Both {
@@ -70,7 +82,17 @@ impl Owner for Both {
 
     fn log(&self, events: &[Event]) -> Result<(), PortError> {
         self.note("::log");
-        self.ports.log(events)
+        match self.loss.take() {
+            Some(Loss::Reply) => {
+                self.ports.log(events)?;
+                Err(PortError::NoService)
+            }
+            Some(Loss::Later) => {
+                self.lost.borrow_mut().extend(events.iter().cloned());
+                Err(PortError::NoService)
+            }
+            None => self.ports.log(events),
+        }
     }
 
     fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
@@ -220,6 +242,8 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
         trace: Cell::new(false),
         callers: std::cell::RefCell::new(Vec::new()),
         panics: Cell::new(None),
+        loss: Cell::new(None),
+        lost: std::cell::RefCell::new(Vec::new()),
     }
 }
 

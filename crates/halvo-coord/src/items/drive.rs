@@ -40,6 +40,7 @@ pub struct Ledger {
     agent: AgentId,
     last: u32,
     waiting: Vec<Event>,
+    closing: Vec<Event>,
 }
 
 impl Ledger {
@@ -51,7 +52,63 @@ impl Ledger {
             agent,
             last,
             waiting: Vec::new(),
+            closing: Vec::new(),
         }
+    }
+
+    /// Takes the owner's events after the last acknowledged one that a read outside this ledger
+    /// brought, the coordinator's read right after a call that answered no acknowledgement, as
+    /// the read after a refusal `seq` takes them (ruling RD-40).
+    pub fn take(&mut self, events: &[Event]) {
+        let read: Vec<Event> = events
+            .iter()
+            .filter(|e| e.seq.get() > self.last)
+            .cloned()
+            .collect();
+        if !read.is_empty() {
+            self.absorb(read);
+        }
+    }
+
+    /// The row of the owner's events, as this ledger stored them or its reads gave them, that
+    /// closes `item`: an answer whose acknowledgement was lost, or a lapse (ruling RD-40). One
+    /// decision for both orders in which the coordinator learns of such a row.
+    fn closing(&self, item: &ItemId) -> Option<&Event> {
+        self.closing
+            .iter()
+            .find(|e| closed_item(&e.what) == Some(item) && closes(std::slice::from_ref(e), item))
+    }
+
+    /// Keeps the rows that close an item among `events`, which the owner acknowledged.
+    fn kept(&mut self, events: &[Event]) {
+        for e in events {
+            if closed_item(&e.what).is_some_and(|item| closes(std::slice::from_ref(e), item)) {
+                self.closing.push(e.clone());
+            }
+        }
+    }
+
+    /// The events of a read: the waiting events that the owner stored with no acknowledgement
+    /// leave the list, every waiting row that would close an item that the owner's events close
+    /// leaves it, the rows that close an item are kept for `closing`, and the rest is numbered
+    /// after the owner's last.
+    fn absorb(&mut self, read: Vec<Event>) {
+        for e in &read {
+            if let Some(k) = self.waiting.iter().position(|w| same_but_seq(w, e)) {
+                self.waiting.remove(k);
+            }
+            self.last = self.last.max(e.seq.get());
+        }
+        for e in read {
+            if closed_item(&e.what).is_some_and(|item| closes(std::slice::from_ref(&e), item)) {
+                self.closing.push(e);
+            }
+        }
+        let closing = std::mem::take(&mut self.closing);
+        self.waiting
+            .retain(|w| closed_item(&w.what).is_none_or(|item| !closes(&closing, item)));
+        self.closing = closing;
+        self.renumber();
     }
 
     /// The `seq` of the last acknowledged event.
@@ -96,21 +153,18 @@ fn same_but_seq(a: &Event, b: &Event) -> bool {
         && a.what == b.what
 }
 
-/// Reads the owner's events after the last acknowledged one, takes the waiting events that the
-/// owner stored with no acknowledgement off the list, and every waiting row that would close an
-/// item that those events already close, whatever row closed it (I7.2, ruling RD-34 (b) (1)),
-/// and numbers the rest after the owner's last; gives up after a fixed count of calls. Answers
-/// the events that it read.
-fn resync<P: Owner>(ports: &P, ledger: &mut Ledger) -> Result<Vec<Event>, PortError> {
+/// Reads the owner's events after the last acknowledged one and takes them as `Ledger::absorb`
+/// does: the waiting events that the owner stored with no acknowledgement leave the list, and so
+/// does every waiting row that would close an item that those events close, whatever row closed
+/// it (I7.2, rulings RD-34 (b) (1), RD-40); the rest is numbered after the owner's last. Gives up
+/// after a fixed count of calls.
+fn resync<P: Owner>(ports: &P, ledger: &mut Ledger) -> Result<(), PortError> {
     let mut after = ledger.last;
     let mut read = Vec::new();
     for _ in 0..HISTORY_CALLS {
         let page = ports.history(&ledger.agent, after)?;
         let full = page.len() >= HISTORY_PAGE;
         for e in page {
-            if ledger.waiting.first().is_some_and(|w| same_but_seq(w, &e)) {
-                ledger.waiting.remove(0);
-            }
             after = after.max(e.seq.get());
             read.push(e);
         }
@@ -118,12 +172,8 @@ fn resync<P: Owner>(ports: &P, ledger: &mut Ledger) -> Result<Vec<Event>, PortEr
             break;
         }
     }
-    ledger
-        .waiting
-        .retain(|w| closed_item(&w.what).is_none_or(|item| !closes(&read, item)));
-    ledger.last = after;
-    ledger.renumber();
-    Ok(read)
+    ledger.absorb(read);
+    Ok(())
 }
 
 /// The item that a row closes: an `item_answered` or an `item_lapsed`.
@@ -135,14 +185,19 @@ fn closed_item(what: &What) -> Option<&ItemId> {
 }
 
 /// Whether the rows close the item: its `item_released` or its `item_lapsed`, or its
-/// `item_answered` of a kind other than `confirm`, whose rows without their acknowledgement
-/// count as not stored (I4.5, ruling RD-34 (b) (3)). The kind is the row's own, since the read
-/// need not hold the item's `item_raised`.
+/// `item_answered`, but for a confirmation, whose rows without their acknowledgement count as
+/// not stored (I4.5, ruling RD-34 (b) (3)), and for the second step of a sign-in, whose stored
+/// row that its run did not take lapses with the run (U2.2c's `lapse_bind`). The kind is the
+/// row's own, since the read need not hold the item's `item_raised`.
 fn closes(rows: &[Event], item: &ItemId) -> bool {
     rows.iter().any(|e| match &e.what {
         What::ItemReleased { item: i, .. } | What::ItemLapsed { item: i, .. } => i == item,
         What::ItemAnswered { item: i, answer } => {
-            i == item && !matches!(answer, Answered::Confirm(_))
+            i == item
+                && !matches!(
+                    answer,
+                    Answered::Confirm(_) | Answered::SignIn(SignInAnswer::Second(_))
+                )
         }
         _ => false,
     })
@@ -161,7 +216,8 @@ pub fn flush<P: Owner>(ports: &P, ledger: &mut Ledger, limits: &Limits) -> Resul
         match ports.log(&ledger.waiting[..n]) {
             Ok(()) => {
                 ledger.last = ledger.waiting[n - 1].seq.get();
-                ledger.waiting.drain(..n);
+                let sent: Vec<Event> = ledger.waiting.drain(..n).collect();
+                ledger.kept(&sent);
             }
             Err(e) if refused_with(&e, "seq") && !resynced => {
                 resync(ports, ledger)?;
@@ -195,6 +251,10 @@ fn store_at<P: Owner>(
     whats: Vec<What>,
     at: (u64, u32),
 ) -> Result<(), PortError> {
+    let whats: Vec<What> = whats
+        .into_iter()
+        .filter(|w| closed_item(w).is_none_or(|item| ledger.closing(item).is_none()))
+        .collect();
     let events = ledger.number(whats, at.0, at.1);
     ledger.waiting.extend(events);
     flush(ports, ledger, limits)
@@ -225,6 +285,7 @@ fn store_once<P: Owner>(
         match ports.log(&events) {
             Ok(()) => {
                 ledger.last = events.last().map_or(ledger.last, |e| e.seq.get());
+                ledger.kept(&events);
                 return Ok(());
             }
             Err(e) if refused_with(&e, "seq") && !resynced => {
@@ -252,23 +313,27 @@ fn store_answer<P: Owner>(
 ) -> Result<Option<What>, PortError> {
     flush(ports, ledger, limits)?;
     let item = closed_item(&row).cloned();
+    let earlier = |ledger: &Ledger| {
+        item.as_ref()
+            .and_then(|i| ledger.closing(i))
+            .map(|e| e.what.clone())
+    };
+    if let Some(what) = earlier(ledger) {
+        return Ok(Some(what));
+    }
     let mut events = ledger.number(vec![row.clone()], now, today);
     let mut resynced = false;
     loop {
         match ports.log(&events) {
             Ok(()) => {
                 ledger.last = events.last().map_or(ledger.last, |e| e.seq.get());
+                ledger.kept(&events);
                 return Ok(None);
             }
             Err(e) if refused_with(&e, "seq") && !resynced => {
-                let read = resync(ports, ledger)?;
-                let earlier = read.iter().find(|e| {
-                    item.as_ref().is_some_and(|i| {
-                        closed_item(&e.what) == Some(i) && closes(std::slice::from_ref(e), i)
-                    })
-                });
-                if let Some(e) = earlier {
-                    return Ok(Some(e.what.clone()));
+                resync(ports, ledger)?;
+                if let Some(what) = earlier(ledger) {
+                    return Ok(Some(what));
                 }
                 events = ledger.number(vec![row.clone()], now, today);
                 resynced = true;

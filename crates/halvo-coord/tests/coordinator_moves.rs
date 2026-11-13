@@ -2257,3 +2257,389 @@ fn a_switch_off_marks_the_guards_table_and_the_board_before_a_cancel_that_panics
     let live = board.runs.iter().find(|r| r.run == run).unwrap();
     assert!(live.stop.is_some());
 }
+
+/// The two orders in which the coordinator learns that the owner stored an answer whose call
+/// answered `no_service`: by its own read right after the call, or by a later refusal `seq`.
+const ORDERS: [support::Loss; 2] = [support::Loss::Reply, support::Loss::Later];
+
+/// A run of agent 0 that waits on a stuck item, which the person answered `done`: the owner
+/// stored the row and the call answered `no_service`, in the order `order`.
+fn answered_with_a_lost_reply(order: support::Loss) -> (Coordinator<Both>, RunId, ItemId) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let (item, _) = open_item(&c);
+    c.ports().loss.set(Some(order));
+    assert_eq!(
+        c.answer(&item, Choice::Done, None),
+        Err(Cause::NoService),
+        "{order:?}"
+    );
+    let lost: Vec<halvo_coord::types::Event> = c.ports().lost.borrow_mut().drain(..).collect();
+    c.ports().ports.events.borrow_mut().extend(lost);
+    assert_eq!(
+        closing_rows(&c, &item),
+        1,
+        "{order:?}: the owner holds the answer"
+    );
+    (c, run, item)
+}
+
+fn handed_back(c: &Coordinator<Both>, m: usize) -> Vec<halvo_coord::types::HandbackResult> {
+    calls_since(c, m)
+        .into_iter()
+        .filter_map(|call| match call {
+            Call::AnswerHandback(_, result) => Some(result),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_stored_answer_whose_reply_was_lost_counts_for_the_same_answer_again_in_both_orders() {
+    use halvo_coord::types::HandbackResult;
+    for order in ORDERS {
+        let (c, _run, item) = answered_with_a_lost_reply(order);
+        let m = mark(&c);
+        assert_eq!(c.answer(&item, Choice::Done, None), Ok(()), "{order:?}");
+        assert_eq!(closing_rows(&c, &item), 1, "{order:?}: one item_answered");
+        assert_eq!(handed_back(&c, m), [HandbackResult::Done], "{order:?}");
+        assert_eq!(
+            row_line(&c.snapshot(), 0),
+            text("line.working.working"),
+            "{order:?}"
+        );
+    }
+}
+
+#[test]
+fn a_stored_answer_whose_reply_was_lost_decides_another_choice_in_both_orders() {
+    use halvo_coord::types::HandbackResult;
+    for order in ORDERS {
+        let (c, _run, item) = answered_with_a_lost_reply(order);
+        let m = mark(&c);
+        assert_eq!(
+            c.answer(&item, Choice::Decline, None),
+            Err(Cause::UnknownItem),
+            "{order:?}"
+        );
+        assert_eq!(
+            closing_rows(&c, &item),
+            1,
+            "{order:?}: one row, the stored done"
+        );
+        assert_eq!(
+            handed_back(&c, m),
+            [HandbackResult::Done],
+            "{order:?}: the stored choice"
+        );
+        assert!(c.snapshot().items.is_empty(), "{order:?}");
+    }
+}
+
+#[test]
+fn a_stop_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_both_orders() {
+    for order in ORDERS {
+        let (c, run, item) = answered_with_a_lost_reply(order);
+        let m = mark(&c);
+        assert_eq!(c.control(&agent(0), Action::Stop), Ok(()), "{order:?}");
+        assert_eq!(
+            closing_rows(&c, &item),
+            1,
+            "{order:?}: no item_lapsed beside the answer"
+        );
+        assert_eq!(cancels_of(&c, m, &run), 1, "{order:?}");
+        assert_eq!(
+            row_line(&c.snapshot(), 0),
+            text("line.working.stopping"),
+            "{order:?}"
+        );
+        c.ports().ports.end_runner(&run);
+        assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()), "{order:?}");
+        assert!(
+            events(&c).contains(&What::RunEnded {
+                run: run.clone(),
+                cause: RunEnd::Cancelled
+            }),
+            "{order:?}"
+        );
+    }
+}
+
+#[test]
+fn the_runners_end_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_both_orders() {
+    for order in ORDERS {
+        let (c, run, item) = answered_with_a_lost_reply(order);
+        c.ports().ports.end_runner(&run);
+        assert_eq!(
+            c.on_run(&run, RunEvent::Ended(Some(Outcome::HandedBack))),
+            Ok(()),
+            "{order:?}"
+        );
+        assert_eq!(
+            closing_rows(&c, &item),
+            1,
+            "{order:?}: no item_lapsed beside the answer"
+        );
+        assert!(
+            events(&c).contains(&What::RunEnded {
+                run: run.clone(),
+                cause: RunEnd::HandedBack
+            }),
+            "{order:?}: the runner's own cause"
+        );
+        assert_eq!(c.live(), 0, "{order:?}");
+    }
+}
+
+#[test]
+fn the_wait_limit_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_both_orders() {
+    use halvo_coord::types::HandbackResult;
+    let limits = Limits::PRODUCT;
+    for order in ORDERS {
+        let (c, run, item) = answered_with_a_lost_reply(order);
+        let m = mark(&c);
+        c.ports()
+            .ports
+            .set_clock(T0 + limits.wait_limit_s * 1000, DAY);
+        c.tick();
+        assert_eq!(
+            closing_rows(&c, &item),
+            1,
+            "{order:?}: no item_lapsed beside the answer"
+        );
+        assert_eq!(
+            handed_back(&c, m),
+            [HandbackResult::Timeout],
+            "{order:?}: the run is timed out"
+        );
+        assert_eq!(cancels_of(&c, m, &run), 1, "{order:?}");
+        let m = mark(&c);
+        c.ports().ports.set_clock(
+            T0 + limits.wait_limit_s * 1000 + limits.cancel_grace_s * 1000,
+            DAY,
+        );
+        c.tick();
+        assert_eq!(kills_of(&c, m, &run), 1, "{order:?}");
+        assert!(
+            events(&c).contains(&What::RunEnded {
+                run: run.clone(),
+                cause: RunEnd::Lapsed
+            }),
+            "{order:?}"
+        );
+    }
+}
+
+/// One sequence of drawn moves over two agents in which each `log` loses its acknowledgement
+/// with chance one in four, in the form `form`; the rows of a `Later` loss land in the owner's
+/// events after the move where their `seq` is still free. Answers, by the kind of the item, the
+/// items that end with more than one closing row, and the confirmations whose `item_answered`
+/// rows stand beside their lapse, which I4.5 allows.
+fn lossy_sequence(seed: u64, form: support::Loss) -> (Vec<ItemKind>, usize) {
+    use halvo_coord::types::{Event, Raised};
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let mut state = seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1;
+    let mut draw = |n: u64| {
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (state >> 33) % n
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let mut now = T0;
+    let mut runs: [Option<RunId>; 2] = [None, None];
+    let show = std::env::var("HALVO_LOSSY_SHOW").is_ok();
+    let mut moves: Vec<String> = Vec::new();
+    for _ in 0..18 {
+        let lose = draw(4) == 0;
+        if lose {
+            c.ports().loss.set(Some(form));
+        }
+        let n = draw(2) as usize;
+        let mv = draw(11);
+        let before = events(&c).len();
+        match mv {
+            0 | 1 => {
+                if c.control(&agent(n), Action::RunNow).is_ok() {
+                    runs[n] = started(&c).last().cloned();
+                }
+            }
+            2 | 3 => {
+                if let Some(run) = &runs[n] {
+                    let reason = [
+                        HandbackReason::SignIn,
+                        HandbackReason::AccountLink,
+                        HandbackReason::StepFailed,
+                        HandbackReason::EffectUnknown,
+                    ][draw(4) as usize];
+                    let _ = c.on_run(run, RunEvent::Hello);
+                    let _ = c.on_run(run, handback(run, n, reason));
+                }
+            }
+            4 => {
+                if let Some(run) = &runs[n] {
+                    let _ = c.on_run(run, RunEvent::Hello);
+                    let _ = c.on_run(run, ask_confirm(run, n));
+                }
+            }
+            5 | 6 => {
+                let items = c.snapshot().items;
+                if let Some(item) = items.get(draw(items.len().max(1) as u64) as usize) {
+                    let id = item.item().clone();
+                    let choice = match item.kind() {
+                        ItemKind::Check => {
+                            [Choice::TryAgain, Choice::WentThrough][draw(2) as usize]
+                        }
+                        ItemKind::Confirm => {
+                            c.on_screen(&id);
+                            now += limits.arm_ms + 1;
+                            c.ports().ports.set_clock(now, DAY);
+                            c.tick();
+                            [Choice::Allow, Choice::Reject][draw(2) as usize]
+                        }
+                        ItemKind::Ready => [Choice::Start, Choice::Skip][draw(2) as usize],
+                        ItemKind::Setup => Choice::None,
+                        _ => [Choice::Done, Choice::Decline][draw(2) as usize],
+                    };
+                    let _ = c.answer(&id, choice, None);
+                }
+            }
+            7 => {
+                let _ = c.control(&agent(n), Action::Stop);
+            }
+            8 => {
+                if let Some(run) = &runs[n] {
+                    c.ports().ports.end_runner(run);
+                    let outcome = [Outcome::Completed, Outcome::HandedBack, Outcome::Failed]
+                        [draw(3) as usize];
+                    let _ = c.on_run(run, RunEvent::Ended(Some(outcome)));
+                }
+            }
+            9 => {
+                now += [
+                    1_000,
+                    limits.cancel_grace_s * 1000,
+                    limits.wait_limit_s * 1000,
+                ][draw(3) as usize];
+                c.ports().ports.set_clock(now, DAY);
+                c.tick();
+            }
+            _ => {
+                if draw(2) == 0 {
+                    let _ = c.control(&agent(n), Action::SwitchOff);
+                } else {
+                    let _ = c.control(&agent(n), Action::SwitchOn);
+                }
+            }
+        }
+        if show {
+            moves.push(format!(
+                "move {mv} agent {n} lose {lose}: {:?}",
+                &events(&c)[before..]
+            ));
+        }
+        c.ports().loss.set(None);
+        let lost: Vec<Event> = c.ports().lost.borrow_mut().drain(..).collect();
+        for e in lost {
+            let last = c
+                .ports()
+                .ports
+                .events
+                .borrow()
+                .iter()
+                .filter(|o| o.agent == e.agent)
+                .map(|o| o.seq.get())
+                .max()
+                .unwrap_or(0);
+            if e.seq.get() == last + 1 {
+                c.ports().ports.events.borrow_mut().push(e);
+            }
+        }
+    }
+    if draw(3) == 0 {
+        let _ = c.quit_stop();
+        c.tick();
+        c.quit_kill();
+    }
+    let stored = events(&c);
+    let mut twice = Vec::new();
+    let mut confirm_rows = 0;
+    for w in &stored {
+        let What::ItemRaised { item, raised } = w else {
+            continue;
+        };
+        let confirm = matches!(raised, Raised::Confirm(_));
+        let answered = stored
+            .iter()
+            .filter(|w| matches!(w, What::ItemAnswered { item: i, .. } if i == item))
+            .count();
+        let ended = stored
+            .iter()
+            .filter(|w| {
+                matches!(w, What::ItemLapsed { item: i, .. } | What::ItemReleased { item: i, .. } if i == item)
+            })
+            .count();
+        let closing = if confirm { ended } else { answered + ended };
+        if closing > 1 {
+            twice.push(raised.kind());
+            if show {
+                println!("seed {seed} {form:?}: {moves:#?}");
+            }
+        }
+        if confirm && answered > 0 && ended > 0 {
+            confirm_rows += 1;
+        }
+    }
+    (twice, confirm_rows)
+}
+
+#[test]
+fn lossy_sequences_leave_no_item_with_two_closing_rows_in_either_form_of_a_lost_acknowledgement() {
+    let count: u64 = std::env::var("HALVO_LOSSY_SEQUENCES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1_280);
+    for form in ORDERS {
+        let mut twice: Vec<ItemKind> = Vec::new();
+        let mut confirm_rows = 0;
+        for seed in 0..count {
+            let (t, r) = lossy_sequence(seed, form);
+            twice.extend(t);
+            confirm_rows += r;
+        }
+        let mut by_kind: Vec<(ItemKind, usize)> = Vec::new();
+        for k in &twice {
+            match by_kind.iter_mut().find(|(kind, _)| kind == k) {
+                Some((_, n)) => *n += 1,
+                None => by_kind.push((*k, 1)),
+            }
+        }
+        println!(
+            "lossy form={form:?} sequences={count} items_with_two_closing_rows={} by_kind={by_kind:?} confirmations_answered_and_lapsed={confirm_rows}",
+            twice.len()
+        );
+        assert!(twice.is_empty(), "{form:?}: {by_kind:?}");
+    }
+}
+
+#[test]
+fn a_switch_off_whose_lapse_lost_its_reply_leaves_one_closing_row_at_the_runners_end() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::EffectUnknown))
+        .unwrap();
+    let (item, _) = open_item(&c);
+    c.ports().loss.set(Some(support::Loss::Reply));
+    assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()));
+    c.ports().ports.end_runner(&run);
+    assert_eq!(
+        c.on_run(&run, RunEvent::Ended(Some(Outcome::HandedBack))),
+        Ok(())
+    );
+    assert_eq!(closing_rows(&c, &item), 1);
+}

@@ -90,19 +90,20 @@ fn index<C>(board: &Board<C>, agent: &AgentId) -> Option<usize> {
     board.members.iter().position(|m| &m.facts.agent == agent)
 }
 
+/// The items ledger of the agent of `facts`, which takes the owner's events that the board read
+/// after its last acknowledged one, the coordinator's read right after a call that answered no
+/// acknowledgement among them, as its own read after a refusal `seq` takes them (ruling RD-40).
 fn ledger<'a, C>(ledgers: &'a mut Vec<(AgentId, Ledger)>, facts: &Facts<C>) -> &'a mut Ledger {
-    let last = facts.events.last().map_or(0, |e| e.seq.get());
-    let fresh = || Ledger::new(facts.workflow.id.clone(), facts.agent.clone(), last);
     let k = match ledgers.iter().position(|(a, _)| a == &facts.agent) {
         Some(k) => k,
         None => {
-            ledgers.push((facts.agent.clone(), fresh()));
+            let last = facts.events.last().map_or(0, |e| e.seq.get());
+            let fresh = Ledger::new(facts.workflow.id.clone(), facts.agent.clone(), last);
+            ledgers.push((facts.agent.clone(), fresh));
             ledgers.len() - 1
         }
     };
-    if ledgers[k].1.waiting().is_empty() && ledgers[k].1.last() != last {
-        ledgers[k].1 = fresh();
-    }
+    ledgers[k].1.take(&facts.events);
     &mut ledgers[k].1
 }
 
