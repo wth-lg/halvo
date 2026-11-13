@@ -10,6 +10,7 @@ lfx=$(printf '\nx')
 nl=${lfx%x}
 want_memory='routine trains=135 plays=270 same=270 result=ok'
 want_derived='routine trains=5 plays=10 same=10 store=derived result=ok'
+not_built='REFUSED store: the derived store is not in this build'
 
 finish() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -106,7 +107,9 @@ judge() {
   else
     printf '%s\n' "$memory_line"
   fi
-  if [ "$derived_exit" -eq 2 ] && grep -q '^REFUSED store: ' "$1/derived.err"; then
+  err_lines=$(awk 'END { print NR }' "$1/derived.err") || err_lines=0
+  err_text=$(cat "$1/derived.err") || err_text=
+  if [ "$derived_exit" -eq 2 ] && [ ! -s "$1/derived.out" ] && [ "$err_lines" -eq 1 ] && [ "$err_text" = "$not_built" ]; then
     derived_line=derived=not-run
     printf '%s\n' "$derived_line"
   else
@@ -203,9 +206,9 @@ self_test() {
   fixture_gate >"$work/gate.sh" || broken
   gate_script=$work/gate.sh
   ok="$want_memory$nl"
-  store_refusal="REFUSED store: the derived store is not in this build$nl"
+  store_refusal="$not_built$nl"
   log_line='^(routine trains=[0-9]+ plays=[0-9]+ same=[0-9]+( store=[a-z]+)? result=(ok|miss)|(routine|derived)=unreadable exit=[0-9]+|derived=not-run)$'
-  failing_fixtures=14
+  failing_fixtures=18
   wrong=
   rejected=0
   self_case good "" "$ok" 0 "" "$store_refusal" 2
@@ -224,6 +227,10 @@ self_test() {
   self_case derived-ok-with-exit-1 derived "$ok" 0 "$want_derived$nl" "" 1
   self_case derived-on-memory derived "$ok" 0 "routine trains=5 plays=10 same=10 store=memory result=ok$nl" "" 0
   self_case derived-usage derived "$ok" 0 "" "REFUSED usage: an argument that the command does not take$nl" 2
+  self_case derived-store-other-detail derived "$ok" 0 "" "REFUSED store: train 3: the replay run of day 150 did not complete$nl" 2
+  self_case derived-store-second-line derived "$ok" 0 "" "a line before it$nl$store_refusal" 2
+  self_case derived-store-beside-a-miss derived "$ok" 0 "routine trains=5 plays=10 same=9 store=derived result=miss$nl" "$store_refusal" 2
+  self_case derived-store-status-1 derived "$ok" 0 "" "$store_refusal" 1
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
