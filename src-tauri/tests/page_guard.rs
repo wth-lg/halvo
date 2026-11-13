@@ -217,31 +217,33 @@ fn unit_commands() -> Vec<&'static str> {
 fn a_child_web_view_of_the_window_main_gets_no_command_of_the_unit_and_deletes_nothing() {
     let test = Guarded::new("child-web-view", app::context());
     let main = test.main();
-    let child = WebviewBuilder::new("child", WebviewUrl::App("index.html".into()));
-    #[cfg(windows)]
-    let child = child.data_directory(scratch("child-web-view-data").join("webview"));
-    let child = main
-        .as_ref()
-        .window()
-        .add_child(
-            child,
-            LogicalPosition::new(0.0, 0.0),
-            LogicalSize::new(100.0, 100.0),
-        )
-        .expect("a child web view builds on the mock runtime");
-    assert_eq!(child.window().label(), "main");
-    assert!(
-        child.url().is_ok_and(|url| app::is_app_url(&url)),
-        "the child web view's own address is of the app's origin: {:?}",
-        child.url()
-    );
-    for command in unit_commands() {
-        for origin in [app_origin(), None] {
-            assert_eq!(
-                call(&child, command, origin.clone()),
-                refused(),
-                "{command} from the child web view of the window main, Origin header {origin:?}"
-            );
+    for label in ["child", "main-child"] {
+        let child = WebviewBuilder::new(label, WebviewUrl::App("index.html".into()));
+        #[cfg(windows)]
+        let child = child.data_directory(scratch(&format!("{label}-data")).join("webview"));
+        let child = main
+            .as_ref()
+            .window()
+            .add_child(
+                child,
+                LogicalPosition::new(0.0, 0.0),
+                LogicalSize::new(100.0, 100.0),
+            )
+            .expect("a child web view builds on the mock runtime");
+        assert_eq!(child.window().label(), "main");
+        assert!(
+            child.url().is_ok_and(|url| app::is_app_url(&url)),
+            "the child web view's own address is of the app's origin: {:?}",
+            child.url()
+        );
+        for command in unit_commands() {
+            for origin in [app_origin(), None] {
+                assert_eq!(
+                    call(&child, command, origin.clone()),
+                    refused(),
+                    "{command} from the child web view {label} of the window main, Origin header {origin:?}"
+                );
+            }
         }
     }
     assert_eq!(
