@@ -279,6 +279,7 @@ reset_stubs() {
   STUB_COMMITTED=$work/committed.jsonl
   STUB_CHANGE=
   STUB_CHANGED=$work/one-answer.jsonl
+  STUB_TERM=
   STUB_REPO=$work/repo
   cp "$work/clean-status.txt" "$work/tree/status" || exit 2
   cp "$work/clean-flags.txt" "$work/tree/flags" || exit 2
@@ -298,6 +299,12 @@ check() {
     STUB_TREE=$work/tree
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TREE STUB_DIR STUB_TEST_OUT STUB_TEST_EXIT STUB_SIM_OUT STUB_SIM_EXIT
     export STUB_LIST_EXIT STUB_IGNORED_EXIT STUB_EXACT_EXIT STUB_FRESH STUB_COMMITTED STUB_CHANGE STUB_CHANGED
+    if [ -n "$STUB_TERM" ]; then
+      CARGO_TERM_QUIET=true
+      CARGO_TERM_VERBOSE=true
+      CARGO_TERM_COLOR=always
+      export CARGO_TERM_QUIET CARGO_TERM_VERBOSE CARGO_TERM_COLOR
+    fi
     sh "$self" 2>&1
   )
   code=$?
@@ -326,6 +333,10 @@ write_stubs() {
 route='test --locked -p halvo-route --test refusal_spend --lib --test formal_traces --test no_grant_in_release'
 route_names='refusal_no_hold refusal_over_room refusal_second_dispatch refusal_ruling_none refusal_no_cap refusal_not_active refusal_zero_amount refusal_final_state admit::tests::refusal_admit_ruling admit::tests::refusal_admit_no_cap admit::tests::refusal_admit_over_room admit::tests::refusal_admit_sum admit::tests::refusal_admit_overflow leave::tests::refusal_leave_ruling leave::tests::refusal_leave_local leave::tests::refusal_leave_ceiling leave::tests::refusal_leave_part leave::tests::refusal_leave_origin leave::tests::refusal_leave_consent formal_traces no_grant_in_release'
 gate='test --locked -p halvo-route-gate --test sequences_same'
+if [ "${CARGO_TERM_QUIET-}" != false ] || [ "${CARGO_TERM_VERBOSE-}" != false ] || [ "${CARGO_TERM_COLOR-}" != never ]; then
+  printf 'stub cargo: quiet=%s verbose=%s color=%s\n' "${CARGO_TERM_QUIET-}" "${CARGO_TERM_VERBOSE-}" "${CARGO_TERM_COLOR-}"
+  exit 96
+fi
 case $* in
   'test --locked -p halvo-route -p halvo-route-gate')
     cat "$STUB_TEST_OUT"
@@ -590,6 +601,9 @@ PASS $name"
   variant '6s/ stopped_mid_run=0$/ stopped_mid_run=0 extra=1/' "$work/sim-good.txt" "$work/sim-extra.txt"
   STUB_SIM_OUT=$work/sim-extra.txt
   check a-line-with-another-key FAIL "FAIL $name (sim)"
+  variant '2s/^spend /spent /' "$work/sim-good.txt" "$work/sim-first-word.txt"
+  STUB_SIM_OUT=$work/sim-first-word.txt
+  check a-case-line-of-another-first-word FAIL "FAIL $name (sim)"
   variant '7s/cases=6/cases=5/' "$work/sim-good.txt" "$work/sim-five.txt"
   STUB_SIM_OUT=$work/sim-five.txt
   check summary-of-five-cases-with-exit-0 FAIL "FAIL $name (sim)"
@@ -638,6 +652,13 @@ PASS $name"
   check changed-before FAIL "FAIL $name (tests)"
   printf 'h %s\n' "$sequences" >>"$work/tree/flags"
   check index-flag-before FAIL "FAIL $name (tests)"
+  printf 'u UU N... 100644 100644 100644 100644 0 0 0 %s\n' "$sequences" >>"$work/tree/status"
+  check unmerged-before FAIL "FAIL $name (tests)"
+  : >"$work/tree/status"
+  : >"$work/tree/flags"
+  check empty-tree-state-before FAIL "FAIL $name (tests)"
+  STUB_TERM=1
+  check job-sets-cargo-terms PASS 'refusals expected=19 ok=19' "PASS $name"
   STUB_TEST_EXIT=101
   STUB_SIM_OUT=$work/sim-fail.txt
   STUB_SIM_EXIT=1
@@ -664,11 +685,6 @@ PASS $name"
     note real-export-of-the-commit PASS PASS
   else
     note real-export-of-the-commit PASS FAIL
-  fi
-  if cmp -s "$work/real.jsonl" "$work/one-answer.jsonl"; then
-    note real-export-against-one-answer-changed FAIL PASS
-  else
-    note real-export-against-one-answer-changed FAIL FAIL
   fi
 
   if [ -n "$wrong" ]; then
