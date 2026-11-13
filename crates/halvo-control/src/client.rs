@@ -795,6 +795,30 @@ mod tests {
     }
 
     #[test]
+    fn in_the_scripted_daemon_a_claim_renews_a_lapsed_lease_and_a_plain_read_does_not() {
+        let mut fields = sample_status(Platform::Macos).into_fields();
+        fields.capture = crate::proto::Capture::NoIndicator;
+        fields.lease = crate::proto::Lease::Lapsed;
+        for line in &mut fields.sources {
+            if line.state == crate::proto::SourceState::Running {
+                line.state = crate::proto::SourceState::Stopped { by_user: false };
+            }
+        }
+        let (client, _) = client(ScriptedDaemon::new(DaemonStatus::new(fields).unwrap()));
+        let plain = client.status().unwrap();
+        assert_eq!(plain.fields().lease, crate::proto::Lease::Lapsed);
+        assert!(client.inventory().is_ok());
+        assert_eq!(
+            client.status().unwrap().fields().lease,
+            crate::proto::Lease::Lapsed
+        );
+        let claimed = client.status_claiming_the_indicator().unwrap();
+        assert_eq!(claimed.fields().lease, crate::proto::Lease::Fresh);
+        assert_eq!(claimed.fields().capture, crate::proto::Capture::Running);
+        assert_eq!(claimed, sample_status(Platform::Macos));
+    }
+
+    #[test]
     fn pause_and_resume_take_capture_changed_alone_and_the_reads_take_status_alone() {
         let status = || sample_status(Platform::Macos);
         let with = |reply: Reply| {

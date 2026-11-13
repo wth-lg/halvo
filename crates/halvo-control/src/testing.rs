@@ -396,7 +396,27 @@ impl ScriptedDaemon {
             return error(ErrorCode::Busy, "another mutation is in flight");
         }
         match request {
-            Request::Status { .. } => Reply::Status(self.status.clone()),
+            Request::Status { indicator } => {
+                let f = self.status.fields();
+                if indicator
+                    && f.lease != Lease::Fresh
+                    && f.capture == Capture::NoIndicator
+                    && f.desired == CaptureState::Running
+                {
+                    self.edit(|f| {
+                        f.lease = Lease::Fresh;
+                        f.capture = Capture::Running;
+                        for line in &mut f.sources {
+                            if line.state == (SourceState::Stopped { by_user: false }) {
+                                line.state = SourceState::Running;
+                            }
+                        }
+                    });
+                } else if indicator {
+                    self.edit(|f| f.lease = Lease::Fresh);
+                }
+                Reply::Status(self.status.clone())
+            }
             Request::Inventory => {
                 if self.status.fields().store == StoreState::Open {
                     Reply::Inventory(
