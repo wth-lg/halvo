@@ -13,6 +13,7 @@ import { makeFile } from '../rule.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fake = path.join(here, '..', '..', 'app', 'tests', 'fake-app.mjs');
+const READ_LINES = `reading trial=window machine=mac arm=a2 system=macos call=background_throttling value=suspend\nreading trial=window machine=mac arm=a2 system=windows call=set_is_visible value=false\nreading trial=window machine=mac arm=a2 system=windows call=set_memory_usage_target_level value=low\nreading trial=window machine=mac arm=a2 system=macos expect=same_as_a source=wry-0.57.1 policy_set=only_when_named\nreading trial=window machine=mac figure=key_bytes system=macos command=ps\nreading trial=window machine=mac figure=second_bytes system=macos command=proc_pid_rusage\nreading trial=window machine=mac figure=cpu_ms system=macos command=ps\nreading trial=window machine=mac figure=key_bytes system=windows command=Get-Process\nreading trial=window machine=mac figure=second_bytes system=windows command=Get-Process\nreading trial=window machine=mac figure=cpu_ms system=windows command=Get-Process\n`;
 const FAST = { shownMs: 50, hiddenMs: 400, destroyedMs: 200 };
 const FAST_SYNC = { count: 40000, rate: 20000, hideAt: 10000, showAfterMs: 300, settleMs: 100, endMs: 3000 };
 
@@ -215,7 +216,7 @@ test('the window run prints the processor count of each sample, and its lines ma
   const d = deps();
   assert.equal(await main({ trial: 'window', arm: 'a', runs: 2 }, 'hosted-mac', d, FAST), 0);
   assert.ok(d.printed.some((l) => /^trace trial=window arm=a run=2 sample load_x100=100 cpu_pct=- ncpu=3$/.test(l)), d.printed.join('\n'));
-  const made = makeFile('window', '', [d.printed.join('\n')]);
+  const made = makeFile('window', READ_LINES, [d.printed.join('\n')]);
   assert.equal(made.ok, true, made.why);
 });
 

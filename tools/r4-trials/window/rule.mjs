@@ -1,9 +1,10 @@
 // The rule of the window and state-sync trial (contracts I11.3): the cell and figure lines, the
 // figures over the counted runs and the two verdicts, and the result files made from raw output.
-// usage: node rule.mjs make window|sync <reading file> <log>... | check window|sync <file>
+// usage: node rule.mjs make window|sync <reading file> <log>... | check window|sync <file> [<log>...]
 // make prints the result file from the reading lines and the cell and figure lines of the logs, and
 // refuses (exit 1) what makeFile names; check reads a result file and exits 1 when what checkFile
-// names does not hold.
+// names does not hold. A window file is checked with its job logs, which give each machine's
+// processor count; without them check says mac_counted=unchecked.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -164,6 +165,85 @@ function twice(trial, cells) {
 
 const OBJECT_LINE = /^reading trial=sync machine=mac object=\S+$/;
 
+const UINT = /^\d+$/;
+const UINT_OR_DASH = /^(\d+|-)$/;
+const RUN = /^([1-9]|10)$/;
+const WINDOW_FORM = {
+  machine: (v) => MACHINES.includes(v), arm: (v) => ARMS.includes(v), run: (v) => RUN.test(v),
+  key_bytes: (v) => UINT.test(v), second_bytes: (v) => UINT.test(v), helpers: (v) => UINT.test(v), cpu_ms: (v) => UINT.test(v),
+  ticks: (v) => UINT_OR_DASH.test(v), frames: (v) => UINT_OR_DASH.test(v), load_x100: (v) => UINT_OR_DASH.test(v),
+  cpu_pct: (v) => UINT_OR_DASH.test(v), counted: (v) => v === 'yes' || v === 'no', show_ms: (v) => UINT.test(v),
+};
+const SYNC_FORM = {
+  machine: (v) => MACHINES.includes(v), way: (v) => WAYS.includes(v), arm: (v) => SYNC_ARMS.includes(v), sent: (v) => v === '200000',
+  last: (v) => UINT.test(v), order: (v) => v === 'ok' || v === 'miss', after_hide: (v) => UINT.test(v),
+  growth_bytes: (v) => /^-?\d+$/.test(v), hidden_ticks: (v) => UINT_OR_DASH.test(v),
+};
+const READINGS = {
+  window: [
+    /^reading trial=window machine=mac arm=a2 system=(macos|windows) call=[a-z_]+ value=[a-z0-9_]+$/,
+    /^reading trial=window machine=mac figure=(key_bytes|second_bytes|cpu_ms) system=(macos|windows) command=[A-Za-z_-]+$/,
+    /^reading trial=window machine=mac arm=a2 system=macos expect=same_as_a source=[a-z0-9.-]+ policy_set=[a-z_]+$/,
+  ],
+  sync: [/^reading trial=sync machine=mac object=\S+$/, /^reading trial=sync machine=mac way=channel order_by=index$/],
+};
+
+/** Why a cell line is not of its form in I11.3, or null: the keys in their order and no other, a
+ * number where the form has one, the closed sets of machines, arms and ways, `sent=200000`,
+ * `hidden_ticks` a number in arm a2 and `-` in arm b, runs 1 to 10, and on each machine the load
+ * that its sampler gives (`load_x100` on hosted-mac, `cpu_pct` on hosted-win). */
+export function cellFormError(trial, line) {
+  const words = String(line).replace(/\r$/, '').split(' ').filter((w) => w !== '');
+  const form = trial === 'window' ? WINDOW_FORM : SYNC_FORM;
+  const keys = ['trial', ...Object.keys(form)];
+  if (words[0] !== 'cell' || words.length !== keys.length + 1) return 'its keys are not those of the form';
+  const pairs = {};
+  for (const [i, word] of words.slice(1).entries()) {
+    const at = word.indexOf('=');
+    if (at <= 0 || word.slice(0, at) !== keys[i]) return `its key ${i + 1} is not ${keys[i]}`;
+    pairs[keys[i]] = word.slice(at + 1);
+  }
+  if (pairs.trial !== trial) return 'it is of another trial';
+  for (const [key, ok] of Object.entries(form)) if (!ok(pairs[key])) return `${key}=${pairs[key]} is not of the form`;
+  if (trial === 'sync' && (pairs.arm === 'a2') !== UINT.test(pairs.hidden_ticks)) return 'hidden_ticks is a number in arm a2 alone';
+  if (trial === 'window') {
+    const mac = pairs.machine === 'hosted-mac';
+    if (mac ? !(UINT.test(pairs.load_x100) && pairs.cpu_pct === '-') : !(UINT.test(pairs.cpu_pct) && pairs.load_x100 === '-')) {
+      return `the load is not the one that the sampler of ${pairs.machine} gives`;
+    }
+  }
+  return null;
+}
+
+/** Why the reading lines of a file are not those that the unit prints, or null: each of a form of
+ * read.sh with `machine=mac`, and in a window file each sampler command and a quieting call for
+ * each system and the line of TA-5; in a sync file the object line and the line of channel order. */
+export function readingError(trial, reading) {
+  const bad = reading.find((l) => !READINGS[trial].some((re) => re.test(l)));
+  if (bad) return `a reading line of no form that read.sh prints: ${bad}`;
+  const wanted = trial === 'window'
+    ? [...['macos', 'windows'].flatMap((sys) => [
+      ...['key_bytes', 'second_bytes', 'cpu_ms'].map((f) => new RegExp(`^reading trial=window machine=mac figure=${f} system=${sys} `)),
+      new RegExp(`^reading trial=window machine=mac arm=a2 system=${sys} call=`)]), / expect=same_as_a /]
+    : READINGS.sync;
+  const missing = wanted.find((re) => !reading.some((l) => re.test(l)));
+  return missing ? `no reading line of the form ${missing}` : null;
+}
+
+function logCounts(logs) {
+  const counts = {};
+  for (const log of logs) {
+    const lines = rawLines(log);
+    const machines = new Set(ofTrial(lines, 'window', 'cell').map((l) => parseLine(l).pairs.machine));
+    const ncpus = new Set(lines.map((l) => /^trace trial=window .* ncpu=(\d+)$/.exec(l)).filter(Boolean).map((m) => Number(m[1])));
+    for (const machine of machines) {
+      counts[machine] = counts[machine] ?? new Set();
+      for (const n of ncpus) counts[machine].add(n);
+    }
+  }
+  return counts;
+}
+
 /** The result file of `trial` from the text of read.sh and the job logs, or why none can be made:
  * a log with a miss line, a run that appears twice, a `counted` that its load does not give, a
  * figure over all cells of a machine and arm that no log printed, or a sync file without its
@@ -197,14 +277,24 @@ export function makeFile(trial, readingText, logs) {
   const missing = figures.find((l) => !given.has(l));
   if (missing) return { ok: false, why: `no log printed the figure ${missing}` };
   const verdict = trial === 'window' ? windowVerdict(parsed).line : syncVerdict(parsed).line;
-  return { ok: true, text: `${[...reading, ...cells, ...figures, verdict].join('\n')}\n` };
+  const text = `${[...reading, ...cells, ...figures, verdict].join('\n')}\n`;
+  const checked = checkFile(trial, text, trial === 'window' ? logs : undefined);
+  if (!checked.ok) return { ok: false, why: checked.why };
+  return { ok: true, text };
 }
 
-/** Whether a result file holds its lines in the order of I11.1, each run once, `counted` as the use
- * gives it where the cell holds the use, its figures and its verdict as its cells give them, and,
- * for the sync trial, its object line and no figure line. */
-export function checkFile(trial, fileText) {
-  const lines = String(fileText).split('\n').filter((l, i, all) => !(l === '' && i === all.length - 1));
+/** Whether a result file holds its lines in the order of I11.1, each line, a carriage return at its
+ * end taken off, of its form (`cellFormError`, `readingError`), at least one cell, each run once,
+ * `counted` as the load gives it, its figures and its one verdict line as its cells give them, and,
+ * for the sync trial, no figure line. A window file's macOS `counted` needs each machine's processor
+ * count from the job `logs`; without logs `macCounted` is `unchecked`. */
+export function checkFile(trial, fileText, logs = undefined) {
+  const result = checkLines(trial, fileText, logs);
+  return { ...result, macCounted: trial !== 'window' ? '-' : logs ? 'checked' : 'unchecked' };
+}
+
+function checkLines(trial, fileText, logs) {
+  const lines = String(fileText).split('\n').map((l) => l.replace(/\r$/, '')).filter((l, i, all) => !(l === '' && i === all.length - 1));
   const kinds = trial === 'window' ? KINDS : KINDS.filter((k) => k !== 'figure');
   let last = 0;
   for (const line of lines) {
@@ -215,12 +305,27 @@ export function checkFile(trial, fileText) {
     last = at;
   }
   if (trial === 'sync' && !lines.some((l) => OBJECT_LINE.test(l))) return { ok: false, why: 'no reading line names the object of call.js' };
-  const cells = ofTrial(lines, trial, 'cell').map((l) => cellOf(parseLine(l).pairs));
+  const readingWhy = readingError(trial, ofTrial(lines, trial, 'reading'));
+  if (readingWhy) return { ok: false, why: readingWhy };
+  const cellLines = ofTrial(lines, trial, 'cell');
+  if (cellLines.length === 0) return { ok: false, why: 'the file holds no cell line' };
+  for (const line of cellLines) {
+    const why = cellFormError(trial, line);
+    if (why) return { ok: false, why: `a cell not of its form (${why}): ${line}` };
+  }
+  const cells = cellLines.map((l) => cellOf(parseLine(l).pairs));
   const again = twice(trial, cells);
   if (again) return { ok: false, why: `a run appears twice: ${again}` };
   if (trial === 'window') {
-    const off = cells.find((c) => countedFrom(c, null) !== null && countedFrom(c, null) !== c.counted);
-    if (off) return { ok: false, why: `counted does not follow from cpu_pct in run ${off.run} of ${off.machine} arm ${off.arm}` };
+    const counts = logs ? logCounts(logs) : {};
+    for (const c of cells) {
+      const known = counts[c.machine];
+      const ncpu = known && known.size === 1 ? [...known][0] : null;
+      if (logs && c.machine === 'hosted-mac' && ncpu === null) return { ok: false, why: `the logs give no single processor count for ${c.machine}` };
+      const wanted = countedFrom(c, ncpu);
+      if (wanted !== null && wanted !== c.counted) return { ok: false, why: `counted is not ${wanted} in run ${c.run} of ${c.machine} arm ${c.arm}` };
+      if (wanted === null && c.machine !== 'hosted-mac') return { ok: false, why: `counted has neither load nor use in run ${c.run} of ${c.machine} arm ${c.arm}` };
+    }
     const wanted = windowFigures(cells).map(figureLine).join('\n');
     if (ofTrial(lines, trial, 'figure').join('\n') !== wanted) return { ok: false, why: 'the figure lines are not the figures of the cells' };
   }
@@ -234,9 +339,9 @@ export function checkFile(trial, fileText) {
 function main(argv) {
   const [mode, trial, ...files] = argv;
   const good = ['window', 'sync'].includes(trial)
-    && ((mode === 'make' && files.length >= 2) || (mode === 'check' && files.length === 1));
+    && ((mode === 'make' && files.length >= 2) || (mode === 'check' && files.length >= 1 && (trial === 'window' || files.length === 1)));
   if (!good) {
-    process.stderr.write('REFUSED usage: make window|sync <reading file> <log>... or check window|sync <file>\n');
+    process.stderr.write('REFUSED usage: make window|sync <reading file> <log>... or check window <file> [<log>...] or check sync <file>\n');
     process.exit(2);
   }
   const read = (f) => fs.readFileSync(f, 'utf8');
@@ -249,8 +354,10 @@ function main(argv) {
     process.stdout.write(made.text);
     return;
   }
-  const checked = checkFile(trial, read(files[0]));
-  console.log(`rule check trial=${trial} ok=${checked.ok ? 'yes' : 'no'} ${checked.why}`);
+  const logs = files.length > 1 ? files.slice(1).map(read) : undefined;
+  const checked = checkFile(trial, read(files[0]), logs);
+  const counted = trial === 'window' ? ` mac_counted=${checked.macCounted}` : '';
+  console.log(`rule check trial=${trial} ok=${checked.ok ? 'yes' : 'no'}${counted} ${checked.why}`);
   process.exit(checked.ok ? 0 : 1);
 }
 

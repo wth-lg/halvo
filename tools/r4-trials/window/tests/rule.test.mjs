@@ -6,6 +6,8 @@ import {
 } from '../rule.mjs';
 
 const MiB = 1024 * 1024;
+const RW = `reading trial=window machine=mac arm=a2 system=macos call=background_throttling value=suspend\nreading trial=window machine=mac arm=a2 system=windows call=set_is_visible value=false\nreading trial=window machine=mac arm=a2 system=windows call=set_memory_usage_target_level value=low\nreading trial=window machine=mac arm=a2 system=macos expect=same_as_a source=wry-0.57.1 policy_set=only_when_named\nreading trial=window machine=mac figure=key_bytes system=macos command=ps\nreading trial=window machine=mac figure=second_bytes system=macos command=proc_pid_rusage\nreading trial=window machine=mac figure=cpu_ms system=macos command=ps\nreading trial=window machine=mac figure=key_bytes system=windows command=Get-Process\nreading trial=window machine=mac figure=second_bytes system=windows command=Get-Process\nreading trial=window machine=mac figure=cpu_ms system=windows command=Get-Process\n`;
+const RS = 'reading trial=sync machine=mac object=__TAURI_INTERNALS__\nreading trial=sync machine=mac way=channel order_by=index\n';
 
 function wcell(machine, arm, run, over = {}) {
   return {
@@ -176,14 +178,14 @@ function windowLog(machine, cells) {
 }
 
 test('a result file is made of the reading lines, the cells, the figures of the logs and the verdict', () => {
-  const reading = 'reading trial=window machine=mac figure=key_bytes system=macos command=ps\nreading trial=sync machine=mac object=x\n';
+  const reading = `${RW}reading trial=sync machine=mac object=x\n`;
   const mac = machineCells('hosted-mac');
   const win = machineCells('hosted-win', { b: 199 });
   const made = makeFile('window', reading, [windowLog('hosted-mac', mac), windowLog('hosted-win', win)]);
   assert.equal(made.ok, true, made.why);
   const lines = made.text.trimEnd().split('\n');
-  assert.equal(lines[0], 'reading trial=window machine=mac figure=key_bytes system=macos command=ps');
-  assert.equal(lines.length, 1 + 80 + 8 + 1);
+  assert.equal(lines[0], RW.split('\n')[0]);
+  assert.equal(lines.length, 10 + 80 + 8 + 1);
   assert.equal(lines.at(-1), 'verdict window hosted_mac=destroy hosted_win=hidden quiet_mac=- quiet_win=no');
   assert.equal(checkFile('window', made.text).ok, true);
 });
@@ -191,26 +193,26 @@ test('a result file is made of the reading lines, the cells, the figures of the 
 test('a log with a miss line, or a figure that its cells do not give, makes no result file', () => {
   const mac = machineCells('hosted-mac');
   const log = windowLog('hosted-mac', mac);
-  const missed = makeFile('window', '', [`${log}\nmiss trial=window machine=hosted-mac arm=a run=2 step=hide`]);
+  const missed = makeFile('window', RW, [`${log}\nmiss trial=window machine=hosted-mac arm=a run=2 step=hide`]);
   assert.equal(missed.ok, false);
   assert.match(missed.why, /miss/);
-  const wrong = makeFile('window', '', [log.replace(/median_bytes=\d+/, 'median_bytes=1')]);
+  const wrong = makeFile('window', RW, [log.replace(/median_bytes=\d+/, 'median_bytes=1')]);
   assert.equal(wrong.ok, false);
   assert.match(wrong.why, /figure/);
-  const noFigure = makeFile('window', '', [log.split('\n').filter((l) => !l.includes(' figure ')).join('\n')]);
+  const noFigure = makeFile('window', RW, [log.split('\n').filter((l) => !l.includes(' figure ')).join('\n')]);
   assert.equal(noFigure.ok, false);
 });
 
 test('a result file is checked for its order, its figures and its verdict', () => {
-  const made = makeFile('sync', 'reading trial=sync machine=mac object=__TAURI_INTERNALS__\n', [allSync().map(syncCellLine).join('\n')]);
+  const made = makeFile('sync', RS, [allSync().map(syncCellLine).join('\n')]);
   assert.equal(made.ok, true, made.why);
   assert.equal(made.text.trimEnd().split('\n').at(-1), 'verdict sync=get');
   assert.equal(checkFile('sync', made.text).ok, true);
   assert.equal(checkFile('sync', made.text.replace('verdict sync=get', 'verdict sync=channel')).ok, false);
   const lines = made.text.trimEnd().split('\n');
-  assert.equal(checkFile('sync', [lines[1], lines[0], ...lines.slice(2)].join('\n')).ok, false, 'a reading line after a cell');
+  assert.equal(checkFile('sync', [lines[2], lines[0], lines[1], ...lines.slice(3)].join('\n')).ok, false, 'a reading line after a cell');
   assert.equal(checkFile('sync', `${made.text}extra\n`).ok, false, 'a line of no kind');
-  const w = makeFile('window', '', [windowLog('hosted-mac', machineCells('hosted-mac'))]);
+  const w = makeFile('window', RW, [windowLog('hosted-mac', machineCells('hosted-mac'))]);
   assert.equal(checkFile('window', w.text.replace(/median_bytes=\d+/, 'median_bytes=2')).ok, false);
 });
 
@@ -219,12 +221,12 @@ const MAC_TRACE = '2026-11-12T10:00:00.0000000Z trace trial=window machine=hoste
 test('the figures of a result file are one per machine and arm over all its cells, each found in the logs', () => {
   const mac = machineCells('hosted-mac');
   const win = machineCells('hosted-win', { b: 199 });
-  const swapped = makeFile('window', '', [windowLog('hosted-win', win), `${windowLog('hosted-mac', mac)}\n${MAC_TRACE}`]);
+  const swapped = makeFile('window', RW, [windowLog('hosted-win', win), `${windowLog('hosted-mac', mac)}\n${MAC_TRACE}`]);
   assert.equal(swapped.ok, true, swapped.why);
   assert.equal(checkFile('window', swapped.text).ok, true);
   const b = mac.filter((c) => c.arm === 'b');
   const halves = [b.slice(0, 5), b.slice(5)].map((cells) => `${windowLog('hosted-mac', cells)}\n${MAC_TRACE}`);
-  const split = makeFile('window', '', halves);
+  const split = makeFile('window', RW, halves);
   assert.equal(split.ok, false);
   assert.match(split.why, /figure/);
 });
@@ -232,29 +234,29 @@ test('the figures of a result file are one per machine and arm over all its cell
 test('a run that appears twice makes no result file and fails the check', () => {
   const mac = machineCells('hosted-mac');
   const twice = [...mac, mac.find((c) => c.arm === 'b' && c.run === 3)];
-  const made = makeFile('window', '', [`${windowLog('hosted-mac', twice)}\n${MAC_TRACE}`]);
+  const made = makeFile('window', RW, [`${windowLog('hosted-mac', twice)}\n${MAC_TRACE}`]);
   assert.equal(made.ok, false);
   assert.match(made.why, /twice/);
-  const good = makeFile('window', '', [`${windowLog('hosted-mac', mac)}\n${MAC_TRACE}`]);
+  const good = makeFile('window', RW, [`${windowLog('hosted-mac', mac)}\n${MAC_TRACE}`]);
   const lines = good.text.split('\n');
   const cell = lines.find((l) => l.includes(' arm=b run=3 '));
   assert.equal(checkFile('window', good.text.replace(cell, `${cell}\n${cell}`)).ok, false);
-  const s = makeFile('sync', 'reading trial=sync machine=mac object=x\n', [[...allSync(), scell('hosted-mac', 'get', 'b')].map(syncCellLine).join('\n')]);
+  const s = makeFile('sync', RS, [[...allSync(), scell('hosted-mac', 'get', 'b')].map(syncCellLine).join('\n')]);
   assert.equal(s.ok, false);
 });
 
 test('counted follows from the use on Windows and from the load and the processor count on macOS', () => {
   const win = machineCells('hosted-win').map((c) => (c.run === 1 ? { ...c, cpu_pct: 99 } : c));
-  const wrongWin = makeFile('window', '', [windowLog('hosted-win', win)]);
+  const wrongWin = makeFile('window', RW, [windowLog('hosted-win', win)]);
   assert.equal(wrongWin.ok, false);
   assert.match(wrongWin.why, /counted/);
-  const winText = makeFile('window', '', [windowLog('hosted-win', machineCells('hosted-win'))]).text;
+  const winText = makeFile('window', RW, [windowLog('hosted-win', machineCells('hosted-win'))]).text;
   assert.equal(checkFile('window', winText.replace(/cpu_pct=10 counted=yes/, 'cpu_pct=51 counted=yes')).ok, false);
   const mac = machineCells('hosted-mac').map((c) => (c.run === 1 ? { ...c, load_x100: 301 } : c));
-  assert.equal(makeFile('window', '', [`${windowLog('hosted-mac', mac)}\n${MAC_TRACE}`]).ok, false);
+  assert.equal(makeFile('window', RW, [`${windowLog('hosted-mac', mac)}\n${MAC_TRACE}`]).ok, false);
   const atLine = machineCells('hosted-mac').map((c) => (c.run === 1 ? { ...c, load_x100: 300 } : c));
-  assert.equal(makeFile('window', '', [`${windowLog('hosted-mac', atLine)}\n${MAC_TRACE}`]).ok, true);
-  const noCount = makeFile('window', '', [windowLog('hosted-mac', machineCells('hosted-mac')).split('\n').filter((l) => !l.includes(' trace ')).join('\n')]);
+  assert.equal(makeFile('window', RW, [`${windowLog('hosted-mac', atLine)}\n${MAC_TRACE}`]).ok, true);
+  const noCount = makeFile('window', RW, [windowLog('hosted-mac', machineCells('hosted-mac')).split('\n').filter((l) => !l.includes(' trace ')).join('\n')]);
   assert.equal(noCount.ok, false);
   assert.match(noCount.why, /processor count/);
 });
@@ -262,7 +264,7 @@ test('counted follows from the use on Windows and from the load and the processo
 test('a sync result file needs its object reading line before the cells and holds no figure line', () => {
   const none = makeFile('sync', '', [allSync().map(syncCellLine).join('\n')]);
   assert.equal(none.ok, false);
-  const made = makeFile('sync', 'reading trial=sync machine=mac object=__TAURI_INTERNALS__\n', [allSync().map(syncCellLine).join('\n')]);
+  const made = makeFile('sync', RS, [allSync().map(syncCellLine).join('\n')]);
   assert.equal(checkFile('sync', made.text.replace(/^reading trial=sync machine=mac object=__TAURI_INTERNALS__\n/, '')).ok, false);
   const lines = made.text.trimEnd().split('\n');
   assert.equal(checkFile('sync', [...lines.slice(0, -1), 'figure trial=sync machine=hosted-mac arm=b median_bytes=1 range_bytes=0 runs=1', lines.at(-1)].join('\n')).ok, false);
