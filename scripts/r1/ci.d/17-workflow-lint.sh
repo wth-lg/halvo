@@ -474,6 +474,12 @@ EOF
   check quoted-name-holds-the-permissions FAIL 'ci.yml line 1 has a quote that this lint reads as running past the line'"'"'s end'
   tree open-flow-map-with-no-quote "8s/.*/    env: { A: b,\\${nl}    timeout-minutes: 30\\${nl}    }/"
   check open-flow-map-with-no-quote FAIL 'ci.yml line 8 has a [ or { that this lint reads as running past the line'"'"'s end'
+  tree explicit-key-mark-at-the-line-end "7s/\$/\\${nl}    ?\\${nl}      name\\${nl}    : x/"
+  check explicit-key-mark-at-the-line-end FAIL 'ci.yml line 8 starts a key with ? and a blank, one of the keys in the explicit form of YAML'
+  tree question-mark-inside-a-plain-value "7s/\$/\\${nl}    name: is it ? yes/"
+  check question-mark-inside-a-plain-value PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree signs-inside-a-plain-value "7s/\$/\\${nl}    name: a \\&\\& b * c!/"
+  check signs-inside-a-plain-value PASS 'jobs: 2, uses keys: 2, findings: 0'
   tree another-actionlint-version ''
   printf '#!/bin/sh\ncase "%s1" in -version) printf "1.6.0\\n" ;; *) exec "%s" "%s@" ;; esac\n' "\$" "$STUB_REAL" "\$" >"$work/old-tools/actionlint"
   chmod +x "$work/old-tools/actionlint"
