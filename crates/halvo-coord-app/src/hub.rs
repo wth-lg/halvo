@@ -80,14 +80,16 @@ pub trait Core: Send + Sync {
     /// none when the call's body is no JSON; the reply of every refusal is
     /// `{"error":"<cause>"}`, so the call never fails. A command that `LIST` gives no error
     /// cause, `agents_snapshot` and `agents_next`, is never refused: with arguments that do not
-    /// fit the list it answers the whole state at once.
+    /// fit the list it answers the whole state at once. A name outside `LIST` answers
+    /// `{"error":"malformed"}`.
     fn call(&self, command: &str, args: Option<&Value>) -> Reply;
 
     /// The hook of the window `main` shown: from now on `agents_next` waits again.
     fn shown(&self);
 
     /// The hook of the window `main` hidden: every waiting `agents_next` answers
-    /// `{"closed":"yes"}`, and so does each one until the window is shown again.
+    /// `{"closed":"yes"}`, and so does each one until the window is shown again. No window
+    /// event stands behind it, so the app calls it where it hides the window.
     fn hidden(&self);
 
     /// The hook of the window `main` destroyed, which answers as `hidden` does.
@@ -102,7 +104,10 @@ pub trait Core: Send + Sync {
     /// coordinator is held open, until no run is live, at most until `cancel_grace_s` after the
     /// stop of each live run, counted from its stop for a run that was stopped before the quit,
     /// and at most `budget`, the time that the system gives the quit at a logout or a shutdown;
-    /// then the second step.
+    /// then the second step. The grace counts from the end of the first step and the budget
+    /// from the hook's start. The hook waits in real time for a span that it computes once; a
+    /// second call during the wait returns at the same end. A panic of a port unwinds through
+    /// it with runs alive, and the next life's reap is then the kill (RD-34 (e)).
     fn quit(&self, budget: Option<Duration>);
 
     /// The native dialog's report that the item is on screen (I4.2).
@@ -115,7 +120,8 @@ pub trait Core: Send + Sync {
 /// The presenter of the native dialog (I4.9), which U4.2 builds: it gets each confirmation of
 /// the presenter `native` that the page asks to show through `agents_present`, never a second
 /// time while the dialog of that item is open, and returns at once, the dialog running on a
-/// thread of its own. It neither holds nor takes the coordinator's lock.
+/// thread of its own. It is called with no lock held, so a presenter may call
+/// `Native::on_screen` and `Native::answer`, which take the coordinator's lock.
 pub trait Present: Send + Sync {
     /// Shows the dialog of `dialog`'s item.
     fn present(&self, dialog: Native);
@@ -141,7 +147,9 @@ impl Native {
         self.core.on_screen(&self.item);
     }
 
-    /// The person's answer in the dialog.
+    /// The person's answer in the dialog: `Err(Early)` until the first tick after `arm_ms`
+    /// from `on_screen`, after which I4.9 has the dialog shown once more, and
+    /// `Err(UnknownItem)` after an answer.
     pub fn answer(&self, answer: ConfirmAnswer) -> Result<(), Cause> {
         self.core.answer_native(&self.item, answer)
     }
@@ -181,8 +189,12 @@ where
     Cfg<P>: ConfigView + Clone + Send + 'static,
 {
     /// A hub of a new life over `ports` and `limits`, whose count of agents under `needs_you`
-    /// goes to `tray` and whose native confirmations go to `present`, with the waits of
-    /// `limits`.
+    /// goes to `tray` at each change of the state, also when the count is the same, and whose
+    /// native confirmations go to `present`, with the waits of `limits`. The tray's sink and
+    /// every port of `P` are called with the coordinator's lock held: none calls back into the
+    /// hub, the `Core` or the coordinator, and none waits for a thread that can wait for that
+    /// lock (a sink that waits for the main thread while the main thread calls a hook stops the
+    /// app for good).
     pub fn new(
         ports: P,
         limits: Limits,
@@ -192,7 +204,7 @@ where
         Hub::with_waits(ports, limits, tray, present, Waits::of(&limits))
     }
 
-    /// The same with other waits.
+    /// The same with other waits, under the same rule for the sink and the ports.
     pub fn with_waits(
         ports: P,
         limits: Limits,

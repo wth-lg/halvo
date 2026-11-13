@@ -171,6 +171,11 @@ fn the_dialogs_allow_reaches_the_run_as_allow_once() {
     open[0].on_screen();
     arm(&hub, Limits::PRODUCT.arm_ms);
     assert_eq!(open[0].answer(ConfirmAnswer::Allow), Ok(()));
+    assert_eq!(
+        open[0].answer(ConfirmAnswer::Allow),
+        Err(Cause::UnknownItem),
+        "after an answer"
+    );
     let sent: Vec<Vec<EffectAnswer>> = calls_since(&hub, m)
         .into_iter()
         .filter_map(|c| match c {

@@ -2,7 +2,10 @@
 //! page's commands of `halvo_coord::types::commands::LIST`, registered for the window `main`
 //! alone, the state that reaches the page by one waiting call, the tray's count and the hooks of
 //! the app's start, hide and quit. It is generic over the Tauri runtime, so that the app, the
-//! shell and the mock runtime register the same commands.
+//! shell and the mock runtime register the same commands. What its tests on the mock runtime
+//! cannot show: a second window main, a webview whose label is not its window's (that needs
+//! Tauri's feature `unstable`), and a real window's events, which the tests hand to the hooks
+//! themselves.
 
 mod args;
 mod attention;

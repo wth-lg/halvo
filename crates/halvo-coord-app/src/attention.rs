@@ -1,7 +1,8 @@
 use halvo_coord::words;
 
 /// What the tray shows for the count of agents under `needs_you` (I10.3), which the app's
-/// `set_attention` applies: for a count above zero the icon variant, the tooltip `tray.needs`
+/// `set_attention` will apply, in the unit's second pull request (no `set_attention` exists
+/// yet): for a count above zero the icon variant, the tooltip `tray.needs`
 /// with the count on both systems and the count as the title on macOS alone, which Windows
 /// does not support; for zero the tray's own icon, tooltip and title.
 #[derive(Clone, Debug, PartialEq, Eq)]
