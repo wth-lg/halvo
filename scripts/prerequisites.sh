@@ -185,6 +185,22 @@ pnpm_lock_integrity() {
   ' backend/pnpm-lock.yaml 2>/dev/null | sed -n 's/^    resolution: {integrity: sha512-\([A-Za-z0-9+/]\{86\}==\)}$/\1/p'
 }
 
+hex_of_base64() {
+  printf '%s' "$1" | base64 -d | od -A n -v -t x1 | tr -d ' \n'
+}
+
+download_once() {
+  if [ -f "$2" ]; then
+    return
+  fi
+  echo "prerequisites: downloading $1"
+  if ! curl -fsSL --retry 3 --retry-delay 2 -o "$2.part" "$1"; then
+    echo "prerequisites: error: the download of $1 failed; check the network or its proxy, then run sh scripts/prerequisites.sh again" >&2
+    return 1
+  fi
+  mv "$2.part" "$2"
+}
+
 ensure_pnpm() {
   prefix=$1
   field=$(sed -n 's/.*"packageManager": "pnpm@\([^"]*\)".*/\1/p' backend/package.json)
@@ -204,24 +220,34 @@ ensure_pnpm() {
     if [ -n "$found" ]; then
       echo "prerequisites: the pnpm on the path is $found, not the $pinned that backend/package.json pins"
     fi
-    archive=$(pwd -P)/backend/.tools/downloads/pnpm-$pinned.tgz
-    url=https://registry.npmjs.org/pnpm/-/pnpm-$pinned.tgz
-    mkdir -p backend/.tools/downloads || return
-    if [ ! -f "$archive" ]; then
-      echo "prerequisites: downloading $url"
-      if ! curl -fsSL --retry 3 --retry-delay 2 -o "$archive.part" "$url"; then
-        echo "prerequisites: error: the download of $url failed; check the network or its proxy, then run sh scripts/prerequisites.sh again" >&2
-        return 1
-      fi
-      mv "$archive.part" "$archive" || return
+    if ! platform=$(pnpm_platform); then
+      echo "prerequisites: error: no platform package of pnpm matches $(uname -s) $(uname -m), so this script cannot check one against backend/pnpm-lock.yaml; install pnpm $pinned yourself and put it on your PATH, then run sh scripts/prerequisites.sh again" >&2
+      return 1
     fi
+    package=@pnpm/exe.$platform@$pinned
+    integrity=$(pnpm_lock_integrity "$package")
+    if [ -z "$integrity" ]; then
+      echo "prerequisites: error: the first document of backend/pnpm-lock.yaml holds no sha512 integrity value for $package, so the platform package cannot be checked; that lock does not belong to the pnpm $pinned that backend/package.json pins" >&2
+      return 1
+    fi
+    downloads=$(pwd -P)/backend/.tools/downloads
+    archive=$downloads/pnpm-$pinned.tgz
+    platform_archive=$downloads/pnpm-exe.$platform-$pinned.tgz
+    mkdir -p backend/.tools/downloads || return
+    download_once "https://registry.npmjs.org/pnpm/-/pnpm-$pinned.tgz" "$archive" || return
     sum=$(sha512_of "$archive") || return
     if [ "$sum" != "$pinned_sum" ]; then
       echo "prerequisites: error: $archive has the sha512 $sum, not the one that backend/package.json pins for pnpm $pinned; move it away, then run sh scripts/prerequisites.sh again" >&2
       return 1
     fi
-    echo "prerequisites: installing pnpm $pinned for the user into $prefix from $archive, whose sha512 is the pinned one"
-    if ! npm install --global --prefix "$prefix" "$archive"; then
+    download_once "https://registry.npmjs.org/@pnpm/exe.$platform/-/exe.$platform-$pinned.tgz" "$platform_archive" || return
+    sum=$(sha512_of "$platform_archive") || return
+    if [ "$sum" != "$(hex_of_base64 "$integrity")" ]; then
+      echo "prerequisites: error: $platform_archive has the sha512 $sum, not the one that backend/pnpm-lock.yaml holds for $package; move it away, then run sh scripts/prerequisites.sh again" >&2
+      return 1
+    fi
+    echo "prerequisites: installing pnpm $pinned for the user into $prefix with npm offline, from $archive and $platform_archive, whose sha512 values are the pinned ones"
+    if ! npm install --global --prefix "$prefix" --offline --omit=optional --no-update-notifier "$archive" "$platform_archive"; then
       echo "prerequisites: error: npm could not install pnpm $pinned from $archive; read npm's lines above, then run sh scripts/prerequisites.sh again" >&2
       return 1
     fi
@@ -512,6 +538,10 @@ EOF
     mkdir -p "$case_dir/repo/backend/scripts" "$case_dir/home"
     printf 'the pnpm 12.14.0 archive of a case\n' >"$case_dir/assets/pnpm-12.14.0.tgz"
     printf '{\n  "packageManager": "pnpm@12.14.0+sha512.%s"\n}\n' "$(sha512_of "$case_dir/assets/pnpm-12.14.0.tgz")" >"$case_dir/repo/backend/package.json"
+    case_platform=$(pnpm_platform)
+    platform_asset=$case_dir/assets/exe.$case_platform-12.14.0.tgz
+    printf 'the pnpm 12.14.0 binary of a case for %s\n' "$case_platform" >"$platform_asset"
+    write_lock "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$platform_asset")"
     cat >"$case_dir/repo/backend/scripts/fetch-tools.sh" <<EOF
 echo "fetch-tools \$(pwd -P)" >>'$case_dir/calls'
 EOF
@@ -539,6 +569,15 @@ EOF
     backend_dir=$(cd "$case_dir/repo/backend" && pwd -P)
     repo_dir=$(cd "$case_dir/repo" && pwd -P)
     archive_path=$repo_dir/backend/.tools/downloads/pnpm-12.14.0.tgz
+    platform_archive_path=$repo_dir/backend/.tools/downloads/pnpm-exe.$case_platform-12.14.0.tgz
+    npm_line="npm install --global --prefix $case_dir/home/.local --offline --omit=optional --no-update-notifier $archive_path $platform_archive_path"
+    platform_url=https://registry.npmjs.org/@pnpm/exe.$case_platform/-/exe.$case_platform-12.14.0.tgz
+  }
+
+  expect_nothing_installed() {
+    [ "$(grep -c '^npm ' "$case_dir/calls" || :)" = 0 ] || problems="$problems; npm ran"
+    [ ! -e "$case_dir/home/.local" ] || problems="$problems; the prefix $case_dir/home/.local exists"
+    [ "$(count 'pnpm install' "$case_dir/calls")" = 0 ] || problems="$problems; pnpm install ran"
   }
 
   run_ensure_backend() {
@@ -558,8 +597,11 @@ EOF
   new_backend_case backend-no-pnpm
   run_ensure_backend ok
   run_ensure_backend ok
-  [ "$(count "npm install --global --prefix $case_dir/home/.local $archive_path" "$case_dir/calls")" = 1 ] || problems="$problems; npm did not install pnpm under the user's .local from the archive once"
-  [ "$(count 'curl ' "$case_dir/calls")" = 1 ] || problems="$problems; the archive was not downloaded once"
+  [ "$(count "$npm_line" "$case_dir/calls")" = 1 ] || problems="$problems; npm did not install pnpm offline under the user's .local from the archive and the platform package once"
+  [ "$(grep -c '^npm ' "$case_dir/calls" || :)" = 1 ] || problems="$problems; npm ran more than once"
+  [ "$(count 'curl ' "$case_dir/calls")" = 2 ] || problems="$problems; the archive and the platform package were not downloaded once each"
+  [ "$(count "curl $platform_url" "$case_dir/calls")" = 1 ] || problems="$problems; the platform package was not downloaded once from $platform_url"
+  cmp -s "$platform_asset" "$platform_archive_path" || problems="$problems; the platform package that npm installs is not the downloaded one"
   [ "$(count "pnpm install --frozen-lockfile --ignore-scripts in $backend_dir" "$case_dir/calls")" = 2 ] || problems="$problems; pnpm install did not run in backend/ with the frozen lockfile and no install scripts on each run"
   [ "$(count "fetch-tools $repo_dir" "$case_dir/calls")" = 2 ] || problems="$problems; backend/scripts/fetch-tools.sh did not run on each run"
   [ "$(count 'prerequisites: pnpm 12.14.0 present' "$case_dir/output")" = 1 ] || problems="$problems; the second run did not report pnpm present"
@@ -578,7 +620,7 @@ esac
 EOF
   chmod +x "$case_dir/stubs/pnpm"
   run_ensure_backend ok
-  [ "$(count "npm install --global --prefix $case_dir/home/.local $archive_path" "$case_dir/calls")" = 1 ] || problems="$problems; npm did not install pnpm from the archive once"
+  [ "$(count "$npm_line" "$case_dir/calls")" = 1 ] || problems="$problems; npm did not install pnpm from the archive and the platform package once"
   [ "$(count 'other-pnpm ' "$case_dir/calls")" = 0 ] || problems="$problems; the pnpm of another version ran"
   [ "$(count "pnpm install --frozen-lockfile --ignore-scripts in $backend_dir" "$case_dir/calls")" = 1 ] || problems="$problems; the pinned pnpm did not run the install once"
   verdict "$name"
@@ -626,6 +668,87 @@ EOF
   run_ensure_backend fails
   [ "$(count 'npm install' "$case_dir/calls")" = 0 ] || problems="$problems; npm ran"
   [ "$(count 'failed; check the network or its proxy, then run sh scripts/prerequisites.sh again' "$case_dir/output")" = 1 ] || problems="$problems; no line said what to do after the failed download"
+  verdict "$name"
+
+  expect_platform_refused() {
+    expect_nothing_installed
+    [ "$(count "has the sha512 $(sha512_of "$platform_archive_path"), not the one that backend/pnpm-lock.yaml holds for @pnpm/exe.$case_platform@12.14.0; move it away, then run sh scripts/prerequisites.sh again" "$case_dir/output")" = 1 ] || problems="$problems; no line refused the platform package and said what to do"
+    [ -f "$platform_archive_path" ] || problems="$problems; the refused platform package was not kept for the person to read"
+  }
+
+  name='a platform package whose bytes differ from the value of the first document of backend/pnpm-lock.yaml is refused: npm installs nothing, and one line says what to do'
+  new_backend_case backend-platform-other-bytes
+  printf 'other bytes\n' >"$platform_asset"
+  run_ensure_backend fails
+  [ "$(count "curl $platform_url" "$case_dir/calls")" = 1 ] || problems="$problems; the platform package was not downloaded once"
+  expect_platform_refused
+  verdict "$name"
+
+  name='a platform package of another version is refused, although the lock holds its bytes under that version'
+  new_backend_case backend-platform-other-version
+  printf 'the pnpm 12.13.0 binary of a case\n' >"$platform_asset"
+  write_lock "@pnpm/exe.$case_platform@12.13.0" "$(integrity_of "$platform_asset")" "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$case_dir/assets/pnpm-12.14.0.tgz")"
+  run_ensure_backend fails
+  expect_platform_refused
+  verdict "$name"
+
+  name='the value of another platform package in the lock does not admit the package of this platform'
+  new_backend_case backend-platform-value-of-another
+  write_lock "@pnpm/exe.another-platform@12.14.0" "$(integrity_of "$platform_asset")" "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$case_dir/assets/pnpm-12.14.0.tgz")"
+  run_ensure_backend fails
+  expect_platform_refused
+  verdict "$name"
+
+  name='a platform package already in the downloads directory is checked again, not downloaded again, and refused when its bytes differ'
+  new_backend_case backend-platform-kept-other-bytes
+  mkdir -p "$case_dir/repo/backend/.tools/downloads"
+  printf 'bytes written after the download\n' >"$platform_archive_path"
+  run_ensure_backend fails
+  [ "$(count "curl $platform_url" "$case_dir/calls")" = 0 ] || problems="$problems; the kept platform package was downloaded again"
+  expect_platform_refused
+  verdict "$name"
+
+  name='a platform package already in the downloads directory with the bytes of the lock is installed without a download'
+  new_backend_case backend-platform-kept
+  mkdir -p "$case_dir/repo/backend/.tools/downloads"
+  cp "$platform_asset" "$platform_archive_path"
+  run_ensure_backend ok
+  [ "$(count "curl $platform_url" "$case_dir/calls")" = 0 ] || problems="$problems; the kept platform package was downloaded again"
+  [ "$(count "$npm_line" "$case_dir/calls")" = 1 ] || problems="$problems; npm did not install the kept platform package once"
+  verdict "$name"
+
+  name='a failed download of the platform package fails the step: npm installs nothing, and one line says what to do'
+  new_backend_case backend-platform-download-fails
+  mv "$platform_asset" "$platform_asset.absent"
+  run_ensure_backend fails
+  expect_nothing_installed
+  [ "$(count "the download of $platform_url failed; check the network or its proxy, then run sh scripts/prerequisites.sh again" "$case_dir/output")" = 1 ] || problems="$problems; no line said what to do after the failed download of the platform package"
+  verdict "$name"
+
+  name='a lock whose first document holds no value for the platform package stops the step before any download'
+  new_backend_case backend-lock-without-platform
+  write_lock
+  printf "  '@pnpm/exe.%s@12.14.0':\n    resolution: {integrity: sha512-%s}\n\n" "$case_platform" "$(integrity_of "$platform_asset")" >>"$case_dir/repo/backend/pnpm-lock.yaml"
+  run_ensure_backend fails
+  expect_nothing_installed
+  [ "$(count 'curl ' "$case_dir/calls")" = 0 ] || problems="$problems; a download ran"
+  [ "$(count "the first document of backend/pnpm-lock.yaml holds no sha512 integrity value for @pnpm/exe.$case_platform@12.14.0" "$case_dir/output")" = 1 ] || problems="$problems; no line named the missing value"
+  verdict "$name"
+
+  name='a host for which this script names no platform package of pnpm stops the step before any download'
+  new_backend_case backend-no-platform
+  cat >"$case_dir/stubs/uname" <<'EOF'
+#!/bin/sh
+case "$1" in
+  -s) echo FreeBSD ;;
+  *) echo amd64 ;;
+esac
+EOF
+  chmod +x "$case_dir/stubs/uname"
+  run_ensure_backend fails
+  expect_nothing_installed
+  [ "$(count 'curl ' "$case_dir/calls")" = 0 ] || problems="$problems; a download ran"
+  [ "$(count 'no platform package of pnpm matches FreeBSD amd64' "$case_dir/output")" = 1 ] || problems="$problems; no line named the host"
   verdict "$name"
 
   name='each host that the script knows gets the name of its platform package, and another host gets none'
