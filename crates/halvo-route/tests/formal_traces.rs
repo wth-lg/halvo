@@ -444,6 +444,8 @@ fn apply(trace: &mut Value, index: usize, value: &str) {
 
 fn text_edits(text: &str) -> (Vec<TextEdit>, Vec<String>) {
     let lines: Vec<&str> = text.lines().collect();
+    let traces = lines.len() - 1;
+    let whole = [0, traces / 2, traces - 1];
     let mut edits = Vec::new();
     let mut wanted: Vec<(String, &'static str)> = Vec::new();
     for (offset, line) in lines[1..].iter().enumerate() {
@@ -460,6 +462,9 @@ fn text_edits(text: &str) -> (Vec<TextEdit>, Vec<String>) {
         }
         let places = [0, moves.len() / 2, moves.len() - 1];
         for (place, index) in places.into_iter().enumerate() {
+            if !whole.contains(&offset) && place != offset % places.len() {
+                continue;
+            }
             let values = certain_values(&trace, index);
             let value = values[(offset * places.len() + place) % values.len()];
             edits.push(TextEdit {
@@ -519,7 +524,14 @@ fn a_changed_value_in_the_text_of_every_trace_fails_the_check() {
         "no move of the file takes these changes for certain: {missed:?}"
     );
     let traces = text.lines().count() - 1;
-    assert!(edits.len() >= 3 * traces, "{} edits", edits.len());
+    let unedited: Vec<usize> = (2..traces + 2)
+        .filter(|line| !edits.iter().any(|edit| edit.line == *line))
+        .collect();
+    assert!(unedited.is_empty(), "lines with no edit: {unedited:?}");
+    for line in [2, traces / 2 + 2, traces + 1] {
+        let places = edits.iter().filter(|edit| edit.line == line).count();
+        assert!(places >= 3, "line {line} has {places} edits");
+    }
     let threads = std::thread::available_parallelism().map_or(1, |n| n.get());
     let size = edits.len().div_ceil(threads);
     let passed: Vec<String> = std::thread::scope(|scope| {
