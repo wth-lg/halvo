@@ -354,6 +354,51 @@ fn a_summary_of_the_other_source_of_one_domain_moves_the_other_workflow_alone() 
 }
 
 #[test]
+fn two_workflows_of_one_agent_keep_their_own_rows_and_marks() {
+    let today = DAY + 60;
+    let one = settled(5, today - 1, 7, DAY - 14, DAY);
+    let live = RoutineState {
+        period: Some(7),
+        seen: 3,
+        first: Some(DAY + 39),
+        last: Some(DAY + 53),
+        next: Some(DAY + 60),
+        missed: 0,
+        mark: RuleMark::None,
+        since: None,
+    };
+    let two = LearnRoutine {
+        agent: one.agent.clone(),
+        ..with_figures(
+            &fresh_at(2, DAY, domain(OTHER, "address_field"), BROWSER),
+            9,
+            today - 1,
+            &live,
+        )
+    };
+    let mut store = Store::default();
+    store.put_routine(&one);
+    store.put_routine(&two);
+    let other = |n: u32, day: u32| summary(n, BILL, domain(OTHER, "address_field"), BROWSER, day);
+    store.summaries = vec![other(1, DAY + 46), other(2, DAY + 53), other(3, DAY + 60)];
+    let records = store.step(today);
+    let rows: Vec<LearnRoutine> = records
+        .iter()
+        .map(|r| LearnRoutine::parse(r.json.as_bytes()).expect("a learn_routine row"))
+        .collect();
+    let expected_one = routine_step(Some(&figures(&one)), &[], today);
+    let expected_two = routine_step(Some(&figures(&two)), &[DAY + 46, DAY + 53, DAY + 60], today);
+    assert_eq!(
+        rows,
+        vec![
+            with_figures(&one, 6, today, &expected_one),
+            with_figures(&two, 10, today, &expected_two),
+        ]
+    );
+    assert_eq!((rows[0].mark, rows[1].mark), (Mark::Stale, Mark::None));
+}
+
+#[test]
 fn a_clock_set_back_gives_the_row_of_routine_step_and_never_the_mark() {
     let back = DAY - 10;
     let prev = settled(5, DAY, 7, DAY - 14, DAY);
