@@ -117,6 +117,8 @@ mod cases {
     static BOUND_HIT: AtomicUsize = AtomicUsize::new(0);
     static REPORTS: AtomicUsize = AtomicUsize::new(0);
     static REPORTS_AT_ACT: AtomicUsize = AtomicUsize::new(usize::MAX);
+    static REPORT_AT: Mutex<Option<Instant>> = Mutex::new(None);
+    static VISIBLE: Mutex<Option<String>> = Mutex::new(None);
     static TEXTS: Mutex<(String, String)> = Mutex::new((String::new(), String::new()));
     static READ: Mutex<Option<Reading>> = Mutex::new(None);
 
@@ -213,6 +215,13 @@ mod cases {
             }
             ACTED.store(generation, Ordering::SeqCst);
             REPORTS_AT_ACT.store(REPORTS.load(Ordering::SeqCst), Ordering::SeqCst);
+            let visible: bool = msg_send![window, isVisible];
+            let at = *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner);
+            *VISIBLE.lock().unwrap_or_else(PoisonError::into_inner) = Some(match (visible, at) {
+                (true, Some(at)) => at.elapsed().as_millis().to_string(),
+                (false, _) => "not visible at the first read".into(),
+                (true, None) => "no report before the first read".into(),
+            });
             let mut reading = Reading::default();
             let mut found = Vec::new();
             let content: *mut AnyObject = msg_send![window, contentView];
@@ -386,6 +395,15 @@ mod cases {
             read.close_button,
             read.texts.len()
         );
+        println!(
+            "dialog_hosted timing {}: report_to_visible_ms={}",
+            CASES[generation - 1].0,
+            VISIBLE
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone()
+                .unwrap_or_else(|| "no read".into())
+        );
         failures
     }
 
@@ -396,6 +414,8 @@ mod cases {
         *READ.lock().unwrap_or_else(PoisonError::into_inner) = None;
         REPORTS.store(0, Ordering::SeqCst);
         REPORTS_AT_ACT.store(usize::MAX, Ordering::SeqCst);
+        *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner) = None;
+        *VISIBLE.lock().unwrap_or_else(PoisonError::into_inner) = None;
         CASE.store(generation, Ordering::SeqCst);
         let done = Arc::new(AtomicBool::new(false));
         let poker = std::thread::spawn({
@@ -414,6 +434,10 @@ mod cases {
         });
         let answer = dialog.show(card, &|| {
             REPORTS.fetch_add(1, Ordering::SeqCst);
+            REPORT_AT
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .get_or_insert_with(Instant::now);
         });
         done.store(true, Ordering::SeqCst);
         let _ = poker.join();
@@ -446,12 +470,12 @@ mod cases {
     use halvo_coord::items::ConfirmAnswer;
     use halvo_coord_app::{Card, Dialog, System};
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex, PoisonError};
     use std::time::Instant;
     use windows::core::{HSTRING, PCWSTR};
     use windows::Win32::Foundation::{LPARAM, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, PostMessageW, SendMessageW, WM_CLOSE, WM_USER,
+        FindWindowW, IsWindowVisible, PostMessageW, SendMessageW, WM_CLOSE, WM_USER,
     };
 
     pub const LIST: u32 = 5;
@@ -466,6 +490,7 @@ mod cases {
     ];
 
     static REPORTS: AtomicUsize = AtomicUsize::new(0);
+    static REPORT_AT: Mutex<Option<Instant>> = Mutex::new(None);
 
     fn case<R: tauri::Runtime>(
         dialog: &System<R>,
@@ -473,6 +498,7 @@ mod cases {
         (name, id, expected): (&'static str, usize, ConfirmAnswer),
     ) -> Verdict {
         REPORTS.store(0, Ordering::SeqCst);
+        *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner) = None;
         let title = HSTRING::from(card.title());
         let done = Arc::new(AtomicBool::new(false));
         let poker = std::thread::spawn({
@@ -480,13 +506,27 @@ mod cases {
             move || {
                 let start = Instant::now();
                 let mut at_act = None;
+                let mut timing = String::from("no read");
                 let mut bound = false;
                 while !done.load(Ordering::SeqCst) {
                     // SAFETY: the title is a string that lives for the call.
                     let found = unsafe { FindWindowW(PCWSTR::null(), &title) };
                     if let Ok(window) = found {
+                        // SAFETY: `window` is the window that the call above found; a window that has gone
+                        // reads as not visible.
+                        let visible = unsafe { IsWindowVisible(window) }.as_bool();
+                        if at_act.is_none() && !visible && start.elapsed() <= BOUND {
+                            std::thread::sleep(std::time::Duration::from_millis(10));
+                            continue;
+                        }
                         if at_act.is_none() {
                             at_act = Some(REPORTS.load(Ordering::SeqCst));
+                            let at = *REPORT_AT.lock().unwrap_or_else(PoisonError::into_inner);
+                            timing = match at {
+                                Some(at) if visible => at.elapsed().as_millis().to_string(),
+                                Some(_) => "not visible at the bound".into(),
+                                None => "no report before the window was found".into(),
+                            };
                             if id == CLOSE {
                                 // SAFETY: `window` is the window that the call above found; a
                                 // message to a window that has gone fails and does nothing.
@@ -511,14 +551,21 @@ mod cases {
                     }
                     std::thread::sleep(std::time::Duration::from_millis(50));
                 }
-                (at_act, bound)
+                (at_act, bound, timing)
             }
         });
         let answer = dialog.show(card, &|| {
             REPORTS.fetch_add(1, Ordering::SeqCst);
+            REPORT_AT
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .get_or_insert_with(Instant::now);
         });
         done.store(true, Ordering::SeqCst);
-        let (at_act, bound) = poker.join().unwrap_or((None, true));
+        let (at_act, bound, timing) = poker
+            .join()
+            .unwrap_or((None, true, String::from("no read")));
+        println!("dialog_hosted timing {name}: report_to_visible_ms={timing}");
         let mut failures = Vec::new();
         if bound {
             failures.push(format!(
