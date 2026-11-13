@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: learn-gate routine prints routine trains=135 plays=270 same=270 result=ok on the memory store, alone and with exit 0; learn-gate routine --store derived prints routine trains=5 plays=10 same=10 store=derived result=ok, or derived=not-run while the binary refuses it with store; and no cargo command or binary of the check changes the tree.
+# rule: learn-gate routine prints routine trains=135 plays=270 same=270 result=ok on the memory store, alone on standard output and with exit 0; learn-gate routine --store derived prints routine trains=5 plays=10 same=10 store=derived result=ok, or derived=not-run for the build's own refusal line alone (status 2, nothing on standard output, and the one line REFUSED store: the derived store is not in this build on standard error); before its first cargo command the check fails when a tracked file differs from HEAD (changed or staged, its own file among them) or carries an index flag, and a file that git does not track is allowed; and no cargo command or binary of the check changes the tree.
 set -u
 LC_ALL=C
 export LC_ALL

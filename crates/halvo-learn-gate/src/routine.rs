@@ -56,8 +56,9 @@ impl Train {
     }
 }
 
-/// The stream that carries a train's occurrences in one play (L10.4): every occurrence as a summary of the day's
-/// batch, or those from day `REPLAY_FROM` on as verified replay runs of the stub runner and the rest as summaries.
+/// The stream that carries a train's occurrences in one play (L10.4): every occurrence as the user's summary of its
+/// day, or those from day `REPLAY_FROM` on as replay runs of the stub runner and the rest as summaries. The command
+/// requires that each run completed; that it is verified is the step's check, through the handlers' verdict.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stream {
     Summaries,
@@ -302,10 +303,12 @@ pub fn newest(rows: &dyn RowRead) -> Result<Figures, String> {
 }
 
 /// Plays one train in one stream on a memory store of its own (L10.2, L10.4): the compile on day 1, then each day
-/// from 1 to `LAST_DAY` on the clock. On a day with an occurrence the store and the batches are opened on the day
-/// and, where the stream carries the occurrence as a run, the stub runner plays it. Every day then commits one
-/// batch, with the day's summary where the stream carries the occurrence so and empty else, runs `LearnStep` after
-/// it, commits the step's rows and reads the newest routine row against the train.
+/// from 1 to `LAST_DAY` on the clock, until the first day whose figures differ from the train's. On a day with an
+/// occurrence the store and the command's list of summaries are opened on the day, and the stub runner plays the
+/// occurrence where the stream carries it as a run; else the day's summary goes onto that list. No batch is
+/// committed: every day `LearnStep` runs over that list and the rows of the family `learn`, its rows are committed,
+/// and the mark and the period of the newest routine row, read again after a write or on an occurrence day, are
+/// compared with the train's. The line reaches neither the step's 30-day rewrite nor the bound of a routine row.
 pub fn play(train: &Train, stream: Stream) -> Result<Played, String> {
     let case = routine_case();
     let mut play = Play::new(&case, Arm::Admit, 1, MemoryStore::new());
