@@ -64,28 +64,28 @@ pub struct Recorded {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Class {
+enum SourceClass {
     Off,
     Runs,
     Stopped,
     MayRun,
 }
 
-fn class(line: &SourceLine) -> Class {
+fn class(line: &SourceLine) -> SourceClass {
     match (&line.state, line.unstopped) {
-        (SourceState::Running | SourceState::Impaired { .. }, _) => Class::Runs,
+        (SourceState::Running | SourceState::Impaired { .. }, _) => SourceClass::Runs,
         (SourceState::Failed { .. }, _)
-        | (SourceState::Stopped { .. } | SourceState::Off, true) => Class::MayRun,
-        (SourceState::Stopped { .. }, false) => Class::Stopped,
-        (SourceState::Off, false) => Class::Off,
+        | (SourceState::Stopped { .. } | SourceState::Off, true) => SourceClass::MayRun,
+        (SourceState::Stopped { .. }, false) => SourceClass::Stopped,
+        (SourceState::Off, false) => SourceClass::Off,
     }
 }
 
-fn class_of(sources: &[SourceLine], name: SourceName) -> Class {
+fn class_of(sources: &[SourceLine], name: SourceName) -> SourceClass {
     sources
         .iter()
         .find(|s| s.name == name)
-        .map_or(Class::MayRun, class)
+        .map_or(SourceClass::MayRun, class)
 }
 
 fn recorded(platform: Platform, switches: &[SwitchLine], sources: &[SourceLine]) -> Vec<Recorded> {
@@ -95,17 +95,17 @@ fn recorded(platform: Platform, switches: &[SwitchLine], sources: &[SourceLine])
         let text = match (platform, line.name, on) {
             (Platform::Windows, SwitchName::KeyClass, _) => {
                 match class_of(sources, SourceName::Keyboard) {
-                    Class::Off => Some(TYPING_NOT_OBSERVED_ON_WINDOWS),
-                    Class::Runs => Some(TYPING_BEING_OBSERVED),
-                    Class::Stopped => None,
-                    Class::MayRun => Some(TYPING_MAY_BE_OBSERVED),
+                    SourceClass::Off => Some(TYPING_NOT_OBSERVED_ON_WINDOWS),
+                    SourceClass::Runs => Some(TYPING_BEING_OBSERVED),
+                    SourceClass::Stopped => None,
+                    SourceClass::MayRun => Some(TYPING_MAY_BE_OBSERVED),
                 }
             }
             (_, SwitchName::ScreenActivity, false) => match class_of(sources, SourceName::Screen) {
-                Class::Off => Some(SCREEN_ACTIVITY_NOT_RECORDED),
-                Class::Runs => Some(SCREEN_ACTIVITY_RECORDED_WITH_THE_SETTING_OFF),
-                Class::Stopped => None,
-                Class::MayRun => Some(SCREEN_ACTIVITY_MAY_BE_RECORDED_WITH_THE_SETTING_OFF),
+                SourceClass::Off => Some(SCREEN_ACTIVITY_NOT_RECORDED),
+                SourceClass::Runs => Some(SCREEN_ACTIVITY_RECORDED_WITH_THE_SETTING_OFF),
+                SourceClass::Stopped => None,
+                SourceClass::MayRun => Some(SCREEN_ACTIVITY_MAY_BE_RECORDED_WITH_THE_SETTING_OFF),
             },
             (_, name, true) => Some(recorded_when_on(name)),
             (_, _, false) => None,
@@ -126,9 +126,9 @@ fn recorded(platform: Platform, switches: &[SwitchLine], sources: &[SourceLine])
     out
 }
 
-fn passwords(platform: Platform, guard: PasswordGuard, typing: Class) -> &'static str {
+fn passwords(platform: Platform, guard: PasswordGuard, typing: SourceClass) -> &'static str {
     match (platform, guard, typing) {
-        (Platform::Windows, _, Class::Off) => PASSWORDS_WITH_NO_TYPING_ON_WINDOWS,
+        (Platform::Windows, _, SourceClass::Off) => PASSWORDS_WITH_NO_TYPING_ON_WINDOWS,
         (Platform::Macos, PasswordGuard::Os, _) => PASSWORDS_WITH_SECURE_INPUT,
         (Platform::Windows, PasswordGuard::Halvo, _) => PASSWORDS_WITH_HALVO_S_DETECTOR,
         _ => PASSWORDS_NOT_CONFIRMED,
@@ -187,7 +187,7 @@ pub struct Texts {
 pub fn texts(status: &DaemonStatus) -> Texts {
     let f = status.fields();
     let typing = source_of(Modality::Keystroke, f.platform)
-        .map_or(Class::MayRun, |source| class_of(&f.sources, source));
+        .map_or(SourceClass::MayRun, |source| class_of(&f.sources, source));
     let passwords = passwords(f.platform, f.password_guard, typing);
     Texts {
         recorded: recorded(f.platform, &f.switches, &f.sources),
@@ -507,7 +507,12 @@ mod tests {
         ]);
         for platform in [Platform::Macos, Platform::Windows] {
             for &guard in PasswordGuard::ALL {
-                for typing in [Class::Off, Class::Runs, Class::Stopped, Class::MayRun] {
+                for typing in [
+                    SourceClass::Off,
+                    SourceClass::Runs,
+                    SourceClass::Stopped,
+                    SourceClass::MayRun,
+                ] {
                     sentences.push(passwords(platform, guard, typing));
                 }
             }
@@ -540,19 +545,19 @@ mod tests {
     #[test]
     fn the_password_sentences_are_these_literals_for_each_guard_and_system() {
         assert_eq!(
-            passwords(Platform::Macos, PasswordGuard::Os, Class::Runs),
+            passwords(Platform::Macos, PasswordGuard::Os, SourceClass::Runs),
             "While a password field holds secure input, Halvo records no keystroke; a terminal that does not ask for secure input gets no such protection."
         );
         assert_eq!(
-            passwords(Platform::Windows, PasswordGuard::None, Class::Off),
+            passwords(Platform::Windows, PasswordGuard::None, SourceClass::Off),
             "Halvo observes no typing on Windows in this version, so it records nothing that you type into a password field."
         );
         assert_eq!(
-            passwords(Platform::Windows, PasswordGuard::Halvo, Class::Runs),
+            passwords(Platform::Windows, PasswordGuard::Halvo, SourceClass::Runs),
             "While a password field has the focus, Halvo records no keystroke; to find the field, Halvo reads the controls of the window in front through UI Automation, which uses some memory in the browser."
         );
         assert_eq!(
-            passwords(Platform::Windows, PasswordGuard::None, Class::Runs),
+            passwords(Platform::Windows, PasswordGuard::None, SourceClass::Runs),
             "Halvo cannot confirm that it leaves out password fields. While typing is observed, Halvo may note each key that you press in a password field, never which key. Pause capture before you type a password."
         );
         assert_eq!(
@@ -561,7 +566,12 @@ mod tests {
         );
         for platform in [Platform::Macos, Platform::Windows] {
             for &guard in PasswordGuard::ALL {
-                for typing in [Class::Off, Class::Runs, Class::Stopped, Class::MayRun] {
+                for typing in [
+                    SourceClass::Off,
+                    SourceClass::Runs,
+                    SourceClass::Stopped,
+                    SourceClass::MayRun,
+                ] {
                     assert!(passwords(platform, guard, typing).ends_with('.'));
                 }
             }
