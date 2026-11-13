@@ -352,17 +352,26 @@ struct Stopping {
 }
 
 impl Stopping {
-    fn start<S: Session>(session: S, spawn: StopSpawner) -> Result<Self, CaptureError> {
+    fn start<S: Session>(session: S, spawn: StopSpawner) -> Result<Self, (S, CaptureError)> {
         let ended_before = session.finished();
+        let (give, take) = std::sync::mpsc::channel::<S>();
         let (done, stopped) = std::sync::mpsc::channel();
-        spawn(Box::new(move || {
-            let _ = done.send(session.end());
-        }))
-        .map_err(|e| CaptureError::Os {
-            stage: "spawn the screen stop thread",
-            domain: "io",
-            code: i64::from(e.raw_os_error().unwrap_or(0)),
-        })?;
+        let spawned = spawn(Box::new(move || {
+            if let Ok(session) = take.recv() {
+                let _ = done.send(session.end());
+            }
+        }));
+        if let Err(e) = spawned {
+            let error = CaptureError::Os {
+                stage: "spawn the screen stop thread",
+                domain: "io",
+                code: i64::from(e.raw_os_error().unwrap_or(0)),
+            };
+            return Err((session, error));
+        }
+        if let Err(std::sync::mpsc::SendError(session)) = give.send(session) {
+            return Err((session, CaptureError::ThreadEnded));
+        }
         Ok(Self {
             done: stopped,
             ended_before,
@@ -384,6 +393,7 @@ struct ScreenLife<S> {
     session: Option<S>,
     stopping: Option<Stopping>,
     timed_out: Option<CaptureError>,
+    stop_failed: Option<CaptureError>,
     stopped: bool,
     spawn: StopSpawner,
 }
@@ -394,6 +404,7 @@ impl<S> Default for ScreenLife<S> {
             session: None,
             stopping: None,
             timed_out: None,
+            stop_failed: None,
             stopped: false,
             spawn: spawn_stop_thread,
         }
@@ -422,7 +433,17 @@ impl<S: Session> ScreenLife<S> {
 
     fn shutdown(&mut self, deadline: Duration) -> Result<(), CaptureError> {
         if let Some(session) = self.session.take() {
-            self.stopping = Some(Stopping::start(session, self.spawn)?);
+            match Stopping::start(session, self.spawn) {
+                Ok(stopping) => {
+                    self.stopping = Some(stopping);
+                    self.stop_failed = None;
+                }
+                Err((session, error)) => {
+                    self.session = Some(session);
+                    self.stop_failed = Some(error.clone());
+                    return Err(error);
+                }
+            }
         }
         let Some(stopping) = &self.stopping else {
             return Ok(());
@@ -454,6 +475,12 @@ impl<S: Session> ScreenLife<S> {
             return SourceState::Failed {
                 reason: HealthReason::Timeout,
                 error: timeout.clone(),
+            };
+        }
+        if let (Some(_), Some(error)) = (&self.session, &self.stop_failed) {
+            return SourceState::Failed {
+                reason: HealthReason::OsError,
+                error: error.clone(),
             };
         }
         match &self.session {
@@ -650,6 +677,7 @@ mod tests {
     fn a_stop_reports_a_session_that_had_ended_before_or_did_not_end_well() {
         let stop = |session| {
             Stopping::start(session, spawn_stop_thread)
+                .map_err(|(_, error)| error)
                 .expect("the stop thread")
                 .wait(Duration::from_secs(2))
         };
