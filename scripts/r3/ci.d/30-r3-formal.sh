@@ -638,7 +638,7 @@ fixture_file() {
     export-seed) sed "s/^  Seed = $seed_want\$/  Seed = 1/" "$dir/Export.cfg" >"$fx/formal/r3-confirm/Export.cfg" ;;
     traces-count-399) sed "1s/.*/{\"seed\":$seed_want,\"count\":399}/" "$dir/traces.jsonl" >"$fx/formal/r3-confirm/traces.jsonl" ;;
     pin-http) sed 's|^\(tla2tools\.jar release=[^ ]* url=\)https:|\1http:|' "$dir/README.md" >"$fx/formal/r3-confirm/README.md" ;;
-    pin-second-line) grep '^tla2tools\.jar ' "$dir/README.md" >>"$fx/formal/r3-confirm/README.md" ;;
+    pin-second-line) printf 'tla2tools.jar of another form\n' >>"$fx/formal/r3-confirm/README.md" ;;
     pin-size-no-number) sed 's|^\(tla2tools\.jar .*\) bytes=[0-9]* |\1 bytes=size |' "$dir/README.md" >"$fx/formal/r3-confirm/README.md" ;;
     table-one-row-fewer) sed '1d' "$dir/policy-table.tsv" >"$fx/formal/r3-confirm/policy-table.tsv" ;;
     traces-one-byte) sed '2s/"bound":"d1"/"bound":"d2"/' "$dir/traces.jsonl" >"$fx/formal/r3-confirm/traces.jsonl" ;;
