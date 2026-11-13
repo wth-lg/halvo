@@ -3,8 +3,8 @@
   var FEATURES = [
   ["dialog_element", function () { return (typeof HTMLDialogElement === 'function'); }],
   ["dialog_show_modal", function () { return (typeof HTMLDialogElement.prototype.showModal === 'function'); }],
-  ["dialog_cancel_event", function () { return ('oncancel' in document.createElement('dialog')); }],
-  ["dialog_close_event", function () { return ('onclose' in document.createElement('dialog')); }],
+  ["dialog_cancel_event", function () { return ('oncancel' in HTMLDialogElement.prototype); }],
+  ["dialog_close_event", function () { return ('onclose' in HTMLDialogElement.prototype); }],
   ["autofocus_property", function () { return ('autofocus' in HTMLElement.prototype); }],
   ["tab_index", function () { return ('tabIndex' in HTMLElement.prototype); }],
   ["backdrop_selector", function () { return (CSS.supports('selector(::backdrop)')); }],

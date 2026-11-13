@@ -7,9 +7,9 @@ allow	dialog_element	15.4	typeof HTMLDialogElement === 'function'
 # https://developer.mozilla.org/docs/Web/API/HTMLDialogElement/showModal, Safari 15.4 of 2022-03-14
 allow	dialog_show_modal	15.4	typeof HTMLDialogElement.prototype.showModal === 'function'
 # https://developer.mozilla.org/docs/Web/API/HTMLDialogElement/cancel_event, Safari 15.4 of 2022-03-14
-allow	dialog_cancel_event	15.4	'oncancel' in document.createElement('dialog')
+allow	dialog_cancel_event	15.4	'oncancel' in HTMLDialogElement.prototype
 # https://developer.mozilla.org/docs/Web/API/HTMLDialogElement/close_event, Safari 15.4 of 2022-03-14
-allow	dialog_close_event	15.4	'onclose' in document.createElement('dialog')
+allow	dialog_close_event	15.4	'onclose' in HTMLDialogElement.prototype
 # https://developer.mozilla.org/docs/Web/API/HTMLElement/autofocus, Safari 15.4 of 2022-03-14
 allow	autofocus_property	15.4	'autofocus' in HTMLElement.prototype
 # https://developer.mozilla.org/docs/Web/API/HTMLElement/tabIndex, Safari 3.1 of 2008-03-18
