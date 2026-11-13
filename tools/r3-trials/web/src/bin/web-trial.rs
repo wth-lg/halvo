@@ -1485,6 +1485,7 @@ mod driver {
                 value_read: r.map(Into::into),
                 value_want: w.map(Into::into),
                 page_named: p.map(Into::into),
+                page_cause: None,
             };
             assert_eq!(f(None, None, None, None).lacks(), Some("no_control_reply"));
             assert_eq!(
@@ -2379,6 +2380,7 @@ mod driver {
         value_read: Option<String>,
         value_want: Option<String>,
         page_named: Option<String>,
+        page_cause: Option<String>,
     }
 
     impl OrgFacts {
@@ -2389,6 +2391,7 @@ mod driver {
                 value_read: var("R3_ORG_VALUE_READ"),
                 value_want: var("R3_ORG_VALUE_WANT"),
                 page_named: var("R3_ORG_PAGE_NAMED"),
+                page_cause: var("R3_ORG_PAGE_CAUSE"),
             }
         }
 
@@ -2409,11 +2412,16 @@ mod driver {
             }
         }
 
-        /// The facts as keys of the cell's line.
+        /// The facts as keys of the cell's line; an unread page names why (CP-137 (3)).
         fn keys(&self) -> String {
             let v = |o: &Option<String>| o.clone().unwrap_or_else(|| "-".into());
+            let cause = if self.page_named.as_deref() == Some("unread") {
+                format!(" page_cause={}", v(&self.page_cause))
+            } else {
+                String::new()
+            };
             format!(
-                " control_before={} value_read={} page_named={}",
+                " control_before={} value_read={} page_named={}{cause}",
                 v(&self.control_before),
                 v(&self.value_read),
                 v(&self.page_named)
@@ -2427,13 +2435,32 @@ mod driver {
         } else {
             ("no_route", NO_ROUTE_MESSAGE)
         };
+        // CP-137 (1): a page that the job read and that does not name the setting shows no policy
+        // in force, so no run of the cell counts, neither as the policy's effect nor as a miss
+        let not_seen = OrgFacts::from_env().page_named.as_deref() == Some("no");
         let (ok, cause, version, left) = match started {
             Ok(ex) => {
                 let v = ex.version().await.unwrap_or_else(|_| "-".into());
                 let stopped = ex.stop_and_remove().await;
+                if not_seen {
+                    return Err(NotRun::new(
+                        "policy_not_seen reason=page_not_named",
+                        format!("start=started left_after={}", stopped.ended.after),
+                    ));
+                }
                 (false, "started".to_string(), v, Some(stopped.ended))
             }
             Err(f) if f.0 == "signal" => return Err(NotRun::new("signal", "")),
+            Err(f) if not_seen => {
+                return Err(NotRun::new(
+                    "policy_not_seen reason=page_not_named",
+                    format!(
+                        "start={} left_after={}",
+                        f.0,
+                        left_of_fault(&f.1).map_or(0, |e| e.after)
+                    ),
+                ))
+            }
             Err(f) => {
                 let message = f.1.split(" stderr_kept_bytes_").next().unwrap_or("");
                 let total = counter(ctx, &["requests", "total"]).unwrap_or(-1);

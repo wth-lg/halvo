@@ -531,8 +531,12 @@ copies of its two ends open: on macOS a freed pipe's handle can name a new pipe 
   debugging channel and read as text with pypdf, which the job installs for the read (BSD-3-Clause);
   the call gets the three as `R3_ORG_CONTROL_BEFORE`, `R3_ORG_VALUE_READ` with
   `R3_ORG_VALUE_WANT`, and `R3_ORG_PAGE_NAMED`, and prints them on the cell line. A run is ok only
-  with a reply, the value as the cell needs it, and the page naming the setting where it could be
-  read (`page_named=unread` with its cause where it could not). After the removal a second control
+  with a reply and the value as the cell needs it; a control that does not reply or a value that
+  does not read back makes it a miss. Where the page was read and does not name the setting, the
+  cell is `notrun cause=policy_not_seen reason=page_not_named` (CP-137): no policy is seen in force,
+  so its runs count neither way. Where the page could not be read, the run rests on the reply and
+  the value, and the cell line says `page_named=unread page_cause=<cause>` from
+  `R3_ORG_PAGE_CAUSE` (`empty_text` when the PDF gives no text). After the removal a second control
   start runs (`org_control at=after`), which the collector puts beside the cell.
 - Flags of the third round that the product does not carry (A13.3, CP-89 (g)): `--use-mock-keychain`
   (the product's browser keeps its cookies with the system's key store, A8.3), the six rows'
