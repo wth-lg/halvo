@@ -8,7 +8,7 @@ import { cellLine, machineOf, missLine, parseProbe, systemOf } from '../cell.mjs
 import { POLICY } from '../headless.mjs';
 import { LIST, parseList, probeSource, ROOT } from '../list.mjs';
 import { parseCell } from '../result.mjs';
-import { hostedEnv, standInPath } from './stand-in-cargo.mjs';
+import { hostedEnv, standInPath, withPath } from './stand-in-cargo.mjs';
 
 const HERE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAC_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)';
@@ -27,7 +27,7 @@ function probeLine(features, agent, aria) {
 }
 
 function env(extra) {
-  const copy = { ...process.env, PATH: standInPath().PATH, ...extra };
+  const copy = withPath(standInPath(), extra);
   for (const key of ['CI', 'R4_GUEST']) if (!(key in extra)) delete copy[key];
   return copy;
 }

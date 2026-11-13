@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cell } from '../cell.mjs';
 import { ROOT } from '../list.mjs';
-import { hostedEnv, standInPath } from './stand-in-cargo.mjs';
+import { holdsCargo, hostedEnv, standInPath } from './stand-in-cargo.mjs';
 
 const HERE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -15,9 +15,10 @@ export const cases = [
     const stand = standInPath();
     const dirs = stand.PATH.split(path.delimiter);
     assert.equal(dirs[0], stand.dir);
-    for (const dir of dirs.slice(1)) assert.ok(!fs.existsSync(path.join(dir, 'cargo')), dir);
-    const which = spawnSync('sh', ['-c', 'command -v cargo'], { encoding: 'utf8', env: hostedEnv('true', stand) });
-    assert.equal(which.stdout.trim(), stand.cargo);
+    for (const dir of dirs.slice(1)) assert.ok(!holdsCargo(dir), dir);
+    const probe = spawnSync('sh', ['-c', 'cargo probe'], { encoding: 'utf8', env: hostedEnv('true', stand) });
+    assert.equal(probe.status, 1, String(probe.error));
+    assert.equal(fs.readFileSync(stand.record, 'utf8'), 'cargo probe\n');
   }],
   ['d12_the_stand_in_is_not_called_by_the_refusals_at_the_head', () => {
     const stand = standInPath();
