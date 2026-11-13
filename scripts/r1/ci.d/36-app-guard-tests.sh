@@ -58,6 +58,19 @@ tests_decide() {
       broke "rule 1: $test is missing"
     fi
   done
+  oks=$(grep -c -E '^test [^ ]+ \.\.\. ok$' "$2.lf")
+  results=$(sed -n 's/^test result: ok\. \([0-9][0-9]*\) passed; 0 failed; 0 ignored;.*$/\1/p' "$2.lf")
+  case $results in
+    '' | *[!0-9]*) results=none ;;
+    *) ;;
+  esac
+  case $counts in
+    '' | *[!0-9]*) said=none ;;
+    *) said=$counts ;;
+  esac
+  if [ "$said" = none ] || [ "$results" = none ] || [ "$said" != "$oks" ] || [ "$results" != "$oks" ]; then
+    broke "rule 1: the run's three counts are not one number: running N tests gives $said, ok lines give $oks, the result line gives $results"
+  fi
   others=$(grep -E '^test .* \.\.\. ' "$2.lf" | grep -c -v -E '^test [^ ]+ \.\.\. ok$')
   [ "$others" = 0 ] || broke "rule 1: $others tests of the run do not pass"
   unlisted=$(GUARD_TESTS="$guard_tests" APP_MODULES="$app_modules" awk '
@@ -438,6 +451,8 @@ self_test() {
   check_tests_adding a-second-binary-ran "FAIL rule 1: the run started 2 test binaries, 1 of them" 0 err "$keep" 'Running tests' '     Running unittests src/main.rs (target/debug/deps/halvo-0123456789abcdef)' 4
   check_tests_adding two-running-lines "FAIL rule 1: the run printed no single line running N tests" 0 out "$keep" '^running 12 tests$' 'running 3 tests' 18
   check_tests cargo-colour-on-standard-error PASS 0 "$keep" "s/^\\( *\\)\\([A-Z][a-z]*\\) /\\1${esc}[1m${esc}[92m\\2${esc}[0m /"
+  check_tests a-run-that-ends-before-its-result-line "FAIL rule 1: the run's three counts are not one number: running N tests gives 12, ok lines give 11, the result line gives none" 0 '/^test launch::tests::each_exit_has_its_code /d; /^test result:/d' "$keep"
+  check_tests_adding one-more-ok-line-than-the-run-counts "FAIL rule 1: the run's three counts are not one number: running N tests gives 12, ok lines give 13, the result line gives 12" 0 out "$keep" '^test tray::' 'test launch::tests::a_line_that_no_test_of_the_run_printed ... ok' 18
   check_tests no-running-line "FAIL rule 1: the run started 0 test binaries, 0 of them" 0 "$keep" '/Running /d'
 
   check_tree tree-passes PASS 0 "$keep"
