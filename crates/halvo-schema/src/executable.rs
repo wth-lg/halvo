@@ -25,20 +25,29 @@ pub use frame::{
 pub use json::{Refusal, RefusalCause};
 pub use names::{
     ActionClass, AllowedClass, Autonomy, Cause, CheckpointState, EffectState, LeftReason,
-    ListedState, MarkState, ModelTier, Outcome, Reasoning, Runtime, Way,
+    ListedState, MarkState, ModelTier, Outcome, Reasoning, ReplyState, Runtime, Way,
 };
 pub use record::{
-    AgentBindings, AgentCheckpoint, AgentEffect, AgentLog, AgentPlaybook, AgentRun, AgentSession,
+    AgentBindings, AgentCheckpoint, AgentEffect, AgentLog, AgentPlaybook, AgentReply, AgentRun,
+    AgentSession, AgentStart,
 };
 pub use step::{ExecutableStep, Playbook};
-pub use text::{ApprovalId, Digest, EffectId, Name, OwnText, OwnValue, RunId, WebOrigin};
+pub use text::{
+    ApprovalId, Digest, EffectId, Name, OwnText, OwnValue, ProviderId, RunId, WebOrigin,
+};
 
 pub use ::halvo_schema_core::executable::{ERROR_NAMES, KINDS};
 
-/// The keys and closed-list names that this run's records, bodies and replies write, the names of its eight kinds
-/// and its family. Left out: `tier`, `amount`, `period`, `week` and `month`, which the billing run's wire holds, and
-/// `role`, which the names file never holds.
-pub const NAMES: &[&str] = &[
+macro_rules! names_with_run_list {
+    ([$($name:literal),* $(,)?] $( $(#[$doc:meta])* $field:ident : $ty:ty = $key:literal => $read:expr ),* $(,)?) => {
+        /// The keys and closed-list names that this run's records, bodies and replies write, the names of its kinds
+        /// and its family, the keys of `record::RUN_LIST_KEYS` last. Left out: `tier`, `amount`, `period`, `week` and
+        /// `month`, which the billing run's wire holds, and `role`, which the names file never holds.
+        pub const NAMES: &[&str] = &[$($name,)* $($key,)*];
+    };
+}
+
+record::run_list! { names_with_run_list
     "agent_config",
     "agent_run",
     "agent_playbook",
@@ -47,6 +56,8 @@ pub const NAMES: &[&str] = &[
     "agent_log",
     "agent_session",
     "agent_checkpoint",
+    "agent_reply",
+    "agent_start",
     "agent",
     "v",
     "workflow",
@@ -247,6 +258,23 @@ pub const NAMES: &[&str] = &[
     "account_link",
     "new_origin",
     "secret",
+    "unauthorized",
+    "not_selected",
+    "no_start",
+    "start_accepted",
+    "message",
+    "draft",
+    "drafted",
+    "begun",
+    "lost",
+    "withheld",
+    "start",
+    "reply_row",
+    "load_replies",
+    "messages",
+    "replies",
+    "blocked",
+    "blocked_withheld",
     "folder",
     "copy",
     "sha256",
@@ -264,4 +292,4 @@ pub const NAMES: &[&str] = &[
     "checkpoints",
     "next",
     "superseded",
-];
+}

@@ -36,7 +36,7 @@ fn confirm_effect(effect: &str, class: &str, bound: &str, new_origin: Option<&st
 
 fn confirm(effects: &[String]) -> String {
     format!(
-        r#"{{"v":1,"run":"{R}","agent":"{A}","effects":[{}]}}"#,
+        r#"{{"v":1,"run":"{R}","agent":"{A}","cut":null,"effects":[{}]}}"#,
         effects.join(",")
     )
 }
@@ -426,7 +426,7 @@ fn a_confirmation_request_holds_confirm_classes_whose_bound_object_fits() {
             "-",
         ),
         (
-            format!(r#"{{"v":1,"run":"{R}","agent":"{A}","effects":{pay}}}"#),
+            format!(r#"{{"v":1,"run":"{R}","agent":"{A}","cut":null,"effects":{pay}}}"#),
             "list",
             "not_a_list",
             "effects",
