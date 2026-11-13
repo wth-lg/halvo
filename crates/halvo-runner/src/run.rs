@@ -185,7 +185,7 @@ impl Runner {
     }
 
     /// Opens a handback and waits for its result; the wait is no time of the run's `wall_s`. A log line that the
-    /// store refuses does not keep the handback from opening.
+    /// store refuses does not keep the handback from opening. A `cancel` is read when the result has come.
     pub(crate) fn handback(
         &mut self,
         reason: HandbackReason,
@@ -208,10 +208,12 @@ impl Runner {
         let asked = Clock::now();
         let reply = self.link.ask(&frame);
         self.waited += asked.elapsed();
-        match reply? {
-            ToRunner::HandbackReply(HandbackReply { result }) => Ok(result),
-            _ => Err(Broken::Frame("not_a_handback_reply").into()),
-        }
+        let result = match reply? {
+            ToRunner::HandbackReply(HandbackReply { result }) => result,
+            _ => return Err(Broken::Frame("not_a_handback_reply").into()),
+        };
+        self.check()?;
+        Ok(result)
     }
 
     /// Takes what came on the link while no request waited, and ends the run after a `cancel`.

@@ -53,13 +53,15 @@ impl Runner {
         }
     }
 
-    /// Writes the frame `secret` for `name` and waits for its `secret_reply`.
+    /// Writes the frame `secret` for `name` and waits for its `secret_reply`; a `cancel` is read when it has come.
     fn secret(&mut self, name: &Name) -> Result<SecretReply, Stop> {
-        match self.link.ask(&FromRunner::Secret(Secret {
+        let reply = match self.link.ask(&FromRunner::Secret(Secret {
             secret: name.clone(),
         }))? {
-            ToRunner::SecretReply(reply) => Ok(reply),
-            _ => Err(Broken::Frame("not_a_secret_reply").into()),
-        }
+            ToRunner::SecretReply(reply) => reply,
+            _ => return Err(Broken::Frame("not_a_secret_reply").into()),
+        };
+        self.check()?;
+        Ok(reply)
     }
 }

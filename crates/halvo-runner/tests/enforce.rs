@@ -3,16 +3,20 @@ mod support;
 use std::path::Path;
 
 use halvo_schema::executable::body::LoadReply;
-use halvo_schema::executable::frame::{StoreReply, StoreReplyFrame};
-use halvo_schema::executable::names::{Autonomy, FieldName, LogEvent, Source};
-use halvo_schema::executable::text::OwnValue;
+use halvo_schema::executable::frame::{Cancel, SecretReply, StoreReply, StoreReplyFrame};
+use halvo_schema::executable::names::{
+    Autonomy, FieldName, HandbackOutcome, HandbackReason, LogEvent, Source,
+};
+use halvo_schema::executable::text::{OwnValue, SecretText};
 use halvo_schema::executable::{
     ActionClass, AgentEffect, Bound, BoundField, Cause, EffectState, FromRunner, Outcome,
-    RunnerReply, ToRunner,
+    RunnerReply, ToRunner, WebOrigin,
 };
 use halvo_schema::Category;
 
-use support::{is_op, scratch, slot, Act, FillFiles, Seen, Supervisor, LONG};
+use support::{
+    handback_reply, is_effect, is_op, scratch, slot, Act, FillFiles, Seen, Supervisor, LONG,
+};
 
 fn fill(n: u8, files: &FillFiles) -> Supervisor {
     Supervisor::new(n, Category::SpreadsheetFill, files.slots())
@@ -519,4 +523,130 @@ fn person_changes(files: &FillFiles) -> Vec<u8> {
         .expect("prepare");
     folder.replace(&prepared).expect("replace");
     files.workbook_bytes()
+}
+
+fn api_agent(n: u8) -> Supervisor {
+    let mut sup = Supervisor::new(n, Category::Email, Vec::new());
+    sup.origins = vec![WebOrigin::parse("http://mail.agent.test:8080").expect("an origin")];
+    sup
+}
+
+fn cancel() -> ToRunner {
+    ToRunner::Cancel(Cancel {})
+}
+
+fn stored_token() -> SecretReply {
+    SecretReply::Stored(SecretText::parse("Zq7-halvo-marker-token").expect("a token"))
+}
+
+/// CP-135 (4), A6.2, the review's N-4: a cancel that comes while the runner waits for the result of an
+/// `account_link` handback is read when the result comes, and no `secret` frame follows; the run ends `declined`.
+#[test]
+fn a_cancel_during_the_wait_for_an_account_link_result_is_read_when_it_comes() {
+    let sup = api_agent(152);
+    let seen = sup.serve(
+        |frame, _| match frame {
+            FromRunner::Secret(_) => Act::With(ToRunner::SecretReply(SecretReply::None)),
+            FromRunner::Handback(_) => Act::Then(
+                cancel(),
+                Box::new(Act::With(handback_reply(
+                    HandbackOutcome::Done,
+                    Some("fixture_token"),
+                ))),
+            ),
+            _ => Act::Answer,
+        },
+        LONG,
+    );
+    let after: Vec<&str> = seen
+        .tags()
+        .into_iter()
+        .skip_while(|t| *t != "handback")
+        .collect();
+    assert!(
+        !after.contains(&"secret"),
+        "no secret frame after the handback: {after:?}"
+    );
+    assert_eq!(seen.handbacks(), [HandbackReason::AccountLink]);
+    assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::Declined)))
+    );
+}
+
+/// CP-135 (4), A6.2: a cancel that comes while the runner waits for a `secret_reply` is read when the reply
+/// comes, and the run ends `declined` before any call.
+#[test]
+fn a_cancel_during_the_wait_for_a_secret_reply_is_read_when_it_comes() {
+    let sup = api_agent(153);
+    let seen = sup.serve(
+        |frame, _| match frame {
+            FromRunner::Secret(_) => Act::Then(
+                cancel(),
+                Box::new(Act::With(ToRunner::SecretReply(stored_token()))),
+            ),
+            _ => Act::Answer,
+        },
+        LONG,
+    );
+    assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::Declined)))
+    );
+    assert!(seen.handbacks().is_empty());
+}
+
+/// CP-135 (4), A6.5: a cancel after the answer to the edit's `begin` and before its `replace` leaves the workbook
+/// byte for byte, and the run ends `effect_unknown` after the handback `effect_unknown`, with the effect
+/// `releasing` at the `finish`, which the store's handler of the run's end makes `unknown`.
+#[test]
+fn a_cancel_after_the_answer_to_begin_leaves_the_workbook_and_ends_effect_unknown() {
+    let files = FillFiles::new("cancel-after-begin", 1);
+    let before = files.workbook_bytes();
+    let sup = fill(154, &files);
+    let seen = sup.serve(
+        |frame, _| {
+            if is_effect(frame, EffectState::Releasing) {
+                let reply = sup.answer(frame).expect("the begin's answer");
+                Act::Then(reply, Box::new(Act::With(cancel())))
+            } else {
+                Act::Answer
+            }
+        },
+        LONG,
+    );
+    assert_eq!(files.workbook_bytes(), before, "no replace");
+    assert_eq!(
+        seen.states(),
+        [EffectState::Cleared, EffectState::Releasing],
+        "no commit"
+    );
+    assert_eq!(seen.handbacks(), [HandbackReason::EffectUnknown]);
+    assert_eq!(seen.done(), Some(Outcome::EffectUnknown), "{}", seen.stderr);
+    assert_eq!(seen.finish().map(|f| f.unknown), Some(1));
+}
+
+/// A6.5, CP-135 (4): a cancel before any `begin`, here after the answer to the edit's `propose`, ends the run
+/// `declined` with no `begin` row.
+#[test]
+fn a_cancel_before_any_begin_ends_the_run_declined() {
+    let files = FillFiles::new("cancel-before-begin", 2);
+    let before = files.workbook_bytes();
+    let sup = fill(155, &files);
+    let seen = sup.serve(
+        |frame, _| {
+            if is_effect(frame, EffectState::Cleared) {
+                let reply = sup.answer(frame).expect("the propose's answer");
+                Act::Then(cancel(), Box::new(Act::With(reply)))
+            } else {
+                Act::Answer
+            }
+        },
+        LONG,
+    );
+    assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
+    assert_eq!(seen.states(), [EffectState::Cleared]);
+    assert_eq!(files.workbook_bytes(), before);
 }

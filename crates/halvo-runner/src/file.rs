@@ -234,8 +234,14 @@ impl Runner {
                 let digest = rebuilt.ok_or(Failure::Step(Cause::StepFailed))?;
                 self.advance(at, EffectMove::Begin { digest })?;
                 self.check()?;
-                if self.link.settle(|| folder.replace(&prepared))?.is_err() {
-                    return Err(Stop::End(Outcome::EffectUnknown, Some(Cause::StepFailed)).into());
+                match self.link.settle(|| folder.replace(&prepared))? {
+                    Some(Ok(())) => {}
+                    Some(Err(_)) => {
+                        return Err(
+                            Stop::End(Outcome::EffectUnknown, Some(Cause::StepFailed)).into()
+                        )
+                    }
+                    None => return Err(Stop::End(Outcome::Declined, Some(Cause::Declined)).into()),
                 }
                 self.advance(at, EffectMove::Commit)?;
                 return Ok(());
