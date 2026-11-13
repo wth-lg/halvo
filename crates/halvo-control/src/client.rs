@@ -859,6 +859,129 @@ mod tests {
         );
     }
 
+    const DELETE_REFUSED_STDOUT: &str = "delete_refused\n";
+    const DELETE_REFUSED_STDERR: &str = "halvo-capture: this request deleted nothing: the store id in the request is not the id that the status shows, or one of the two is missing; an earlier delete may already have removed that store; read the status and ask again\n";
+
+    fn ctl_delete(
+        armed: Option<StoreId>,
+        reply: Result<Reply, ClientError>,
+    ) -> (String, String, i32) {
+        let printed = crate::ctl_text::print(
+            &crate::ctl_text::Verb::DeleteAll(armed),
+            reply,
+            &crate::paths::DataDir::from_flag("/halvo-data").unwrap(),
+        );
+        (printed.stdout, printed.stderr, printed.status)
+    }
+
+    fn refused_by_ctl() -> (String, String, i32) {
+        (
+            DELETE_REFUSED_STDOUT.to_string(),
+            DELETE_REFUSED_STDERR.to_string(),
+            1,
+        )
+    }
+
+    #[test]
+    fn d7_an_armed_id_against_a_status_that_shows_no_id_is_delete_refused_with_exit_1_and_deletes_nothing(
+    ) {
+        for status in [
+            with_store(StoreState::Unavailable, Some(StoreErrorKind::Io), None),
+            with_store(StoreState::Sealed, Some(StoreErrorKind::KeyFile), None),
+        ] {
+            let (client, connector) = client(ScriptedDaemon::new(status.clone()));
+            let armed = Some(store_id(5));
+            let reply = client.send(&Request::DeleteAll { store: armed });
+            assert_eq!(reply.as_ref().unwrap().kind(), "delete_refused");
+            assert_eq!(ctl_delete(armed, reply), refused_by_ctl());
+            assert_eq!(connector.status(), status);
+        }
+    }
+
+    #[test]
+    fn d10_a_second_dash_after_a_dash_delete_whose_reply_was_lost_is_delete_refused_with_exit_1() {
+        let status = with_store(StoreState::Unavailable, Some(StoreErrorKind::Io), None);
+        let (client, connector) = client(ScriptedDaemon::new(status));
+        let lost = client.send(&Request::DeleteAll { store: None }).unwrap();
+        assert_eq!(lost.kind(), "deleted");
+        let fresh = connector.status().fields().store_id;
+        assert!(fresh.is_some());
+        let again = client.send(&Request::DeleteAll { store: None });
+        assert_eq!(again.as_ref().unwrap().kind(), "delete_refused");
+        assert_eq!(ctl_delete(None, again), refused_by_ctl());
+        assert_eq!(connector.status().fields().store_id, fresh);
+    }
+
+    fn already_deleted_frame(current: StoreId) -> Vec<u8> {
+        let body =
+            format!(r#"{{"v":1,"body":{{"kind":"already_deleted","current":"{current}"}}}}"#);
+        framed(body.as_bytes())
+    }
+
+    #[test]
+    fn c3_an_already_deleted_that_names_the_armed_id_or_answers_no_id_is_an_error_with_exit_1() {
+        for armed in [Some(FIXTURE_STORE_ID), None] {
+            let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+            daemon.set_raw_reply(already_deleted_frame(FIXTURE_STORE_ID));
+            let (client, _) = client(daemon);
+            assert!(client.delete_all(armed).is_err(), "{armed:?}");
+            let reply = client.send(&Request::DeleteAll { store: armed });
+            assert_eq!(reply.as_ref().unwrap().kind(), "already_deleted");
+            let (_, stderr, status) = ctl_delete(armed, reply);
+            assert_eq!(status, 1, "{armed:?}");
+            assert!(stderr.starts_with("halvo-capture: "), "{stderr:?}");
+        }
+        let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+        daemon.set_raw_reply(already_deleted_frame(FIXTURE_STORE_ID));
+        let (client, _) = client(daemon);
+        assert!(client.delete_all(Some(store_id(7))).is_ok());
+    }
+
+    #[test]
+    fn no_id_on_an_open_or_no_release_custody_store_that_shows_no_id_is_delete_refused() {
+        for state in [StoreState::Open, StoreState::NoReleaseCustody] {
+            let status = with_store(state, None, None);
+            let (client, connector) = client(ScriptedDaemon::new(status.clone()));
+            let reply = client.send(&Request::DeleteAll { store: None }).unwrap();
+            assert_eq!(reply.kind(), "delete_refused", "{state:?}");
+            assert_eq!(connector.status(), status);
+        }
+    }
+
+    #[test]
+    fn no_id_on_a_sealed_key_file_or_an_unavailable_io_store_that_shows_no_id_is_accepted() {
+        for status in [
+            with_store(StoreState::Sealed, Some(StoreErrorKind::KeyFile), None),
+            with_store(StoreState::Unavailable, Some(StoreErrorKind::Io), None),
+        ] {
+            let (client, _) = client(ScriptedDaemon::new(status));
+            let reply = client.send(&Request::DeleteAll { store: None }).unwrap();
+            assert_eq!(reply.kind(), "deleted");
+        }
+    }
+
+    #[test]
+    fn an_already_deleted_frame_with_a_null_id_does_not_decode() {
+        assert!(
+            decode_reply(br#"{"v":1,"body":{"kind":"already_deleted","current":null}}"#).is_err()
+        );
+    }
+
+    #[test]
+    fn delete_refused_decodes_from_an_empty_body_and_ctl_prints_its_two_lines_with_exit_1() {
+        let reply = decode_reply(br#"{"v":1,"body":{"kind":"delete_refused"}}"#).unwrap();
+        assert_eq!(reply.kind(), "delete_refused");
+        assert_eq!(
+            crate::proto::encode_reply(&reply),
+            br#"{"v":1,"body":{"kind":"delete_refused"}}"#
+        );
+        assert_eq!(
+            ctl_delete(Some(store_id(5)), Ok(reply.clone())),
+            refused_by_ctl()
+        );
+        assert_eq!(ctl_delete(None, Ok(reply)), refused_by_ctl());
+    }
+
     #[test]
     fn t18_c_a_deleted_reply_with_no_new_store_reaches_the_caller() {
         let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
