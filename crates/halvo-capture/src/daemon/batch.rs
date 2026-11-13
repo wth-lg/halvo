@@ -86,7 +86,39 @@ impl PayloadBuffer {
 impl Drop for PayloadBuffer {
     fn drop(&mut self) {
         self.bytes.zeroize();
+        #[cfg(test)]
+        seen_at_free("payload", self.bytes.as_ptr(), self.bytes.len());
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    static WIPES: std::cell::RefCell<Option<Vec<(&'static str, bool)>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// In a test that watches with [`watch_wipes`], records whether the `len`
+/// bytes at `block` read zero after the drop code has run and before the block
+/// is given back.
+#[cfg(test)]
+pub(super) fn seen_at_free(what: &'static str, block: *const u8, len: usize) {
+    WIPES.with(|wipes| {
+        if let Some(log) = wipes.borrow_mut().as_mut() {
+            // SAFETY: the caller's block is still allocated, and its first
+            // `len` bytes were written, by the wipe or before it.
+            let bytes = unsafe { std::slice::from_raw_parts(block, len) };
+            log.push((what, bytes.iter().all(|byte| *byte == 0)));
+        }
+    });
+}
+
+/// Runs `run` and returns, for each block that a drop gave back on this
+/// thread meanwhile, what it held and whether it read zero.
+#[cfg(test)]
+pub(super) fn watch_wipes(run: impl FnOnce()) -> Vec<(&'static str, bool)> {
+    WIPES.with(|wipes| *wipes.borrow_mut() = Some(Vec::new()));
+    run();
+    WIPES.with(|wipes| wipes.borrow_mut().take().unwrap_or_default())
 }
 
 impl fmt::Debug for PayloadBuffer {
@@ -270,7 +302,11 @@ mod stored {
             let mut text = raw.to_owned();
             for filter in &filters.filters {
                 let next = filter.apply(field, &text);
+                #[cfg(test)]
+                let (block, len) = (text.as_ptr(), text.len());
                 text.zeroize();
+                #[cfg(test)]
+                super::seen_at_free("between", block, len);
                 text = next;
             }
             StoredText(text)
@@ -291,7 +327,11 @@ mod stored {
 
     impl Drop for StoredText {
         fn drop(&mut self) {
+            #[cfg(test)]
+            let (block, len) = (self.0.as_ptr(), self.0.len());
             self.0.zeroize();
+            #[cfg(test)]
+            super::seen_at_free("stored", block, len);
         }
     }
 
@@ -507,7 +547,40 @@ mod tests {
     }
 
     #[test]
-    fn no_block_holding_a_record_is_freed_or_moved_unwiped() {
+    fn the_payload_block_is_wiped_before_it_is_given_back() {
+        let seen = watch_wipes(|| {
+            let mut buffer = PayloadBuffer::with_capacity(64);
+            assert!(buffer.push_line(b"a title of a person"));
+            drop(buffer);
+        });
+        assert_eq!(seen, [("payload", true)]);
+    }
+
+    #[test]
+    fn the_text_between_two_filters_is_wiped_before_it_is_given_back() {
+        let mut filters = TextFilters::empty();
+        filters.register(|_field: TextField, text: &str| format!("{text} one"));
+        filters.register(|_field: TextField, text: &str| format!("{text} two"));
+        let mut kept = None;
+        let seen = watch_wipes(|| {
+            kept = Some(StoredText::filtered(TextField::Title, "a title", &filters));
+        });
+        assert_eq!(seen, [("between", true), ("between", true)]);
+        assert_eq!(
+            kept.as_ref().map(|text| text.as_ref()),
+            Some("a title one two")
+        );
+    }
+
+    #[test]
+    fn a_stored_text_is_wiped_before_it_is_given_back() {
+        let stored = StoredText::filtered(TextField::Title, "a title", &TextFilters::empty());
+        let seen = watch_wipes(|| drop(stored));
+        assert_eq!(seen, [("stored", true)]);
+    }
+
+    #[test]
+    fn the_payload_block_stays_in_place_and_reads_zero_after_each_flush() {
         let mut harness = Harness::new();
         harness.ask(Command::ClosePause);
         let block = harness.owner.payload_block();

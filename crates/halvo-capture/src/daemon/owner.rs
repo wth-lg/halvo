@@ -10,7 +10,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime};
 
 use halvo_control::model::StorageCap;
-use zeroize::Zeroizing;
+use zeroize::Zeroize;
 
 use super::barrier::Gate;
 use super::batch::{utc_day, Admit, Batch, TextFilters};
@@ -168,7 +168,28 @@ pub struct OwnerParts<S, C> {
 struct Spilled {
     kind: EntryKind,
     at: i64,
-    record: Zeroizing<Vec<u8>>,
+    record: SpilledRecord,
+}
+
+/// The copy of one spilled record, wiped when it drops.
+struct SpilledRecord(Vec<u8>);
+
+impl std::ops::Deref for SpilledRecord {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl Drop for SpilledRecord {
+    fn drop(&mut self) {
+        #[cfg(test)]
+        let (block, len) = (self.0.as_ptr(), self.0.len());
+        self.0.zeroize();
+        #[cfg(test)]
+        super::batch::seen_at_free("spill", block, len);
+    }
 }
 
 enum Drain {
@@ -472,8 +493,8 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
             self.counters.lost(1);
             return;
         }
-        let mut copy = Zeroizing::new(Vec::with_capacity(record.len()));
-        copy.extend_from_slice(record);
+        let mut copy = SpilledRecord(Vec::with_capacity(record.len()));
+        copy.0.extend_from_slice(record);
         self.spill_bytes += record.len() + 1;
         self.spill.push_back(Spilled {
             kind,
@@ -1216,6 +1237,40 @@ mod tests {
         assert_eq!(snapshot.events_lost, 0, "a recovered drain lost events");
         assert_eq!(snapshot.events_persisted, 4500);
         assert!(snapshot.is_conserved());
+    }
+
+    #[test]
+    fn a_spilled_record_is_wiped_before_it_is_given_back() {
+        let mut harness = Harness::over(ModelStore::new(), open_floor(), 2048);
+        harness
+            .store
+            .fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
+        resumed(&mut harness);
+        for _ in 0..600 {
+            harness.emit(foreground_now());
+            harness.pass();
+        }
+        let spilled = harness.owner.spill.len();
+        assert_eq!(spilled, 600 - crate::daemon::batch::BATCH_MAX_EVENTS);
+        harness.store.fail_every_write(None);
+        let seen = crate::daemon::batch::watch_wipes(|| {
+            settled(&mut harness);
+        });
+        let spill: Vec<bool> = seen
+            .iter()
+            .filter(|(what, _)| *what == "spill")
+            .map(|(_, zero)| *zero)
+            .collect();
+        assert_eq!(
+            spill.len(),
+            spilled,
+            "a spilled record was given back unseen"
+        );
+        assert!(
+            spill.iter().all(|zero| *zero),
+            "a spilled record was given back unwiped"
+        );
+        assert_eq!(harness.owner.snapshot().events_persisted, 600);
     }
 
     #[test]
