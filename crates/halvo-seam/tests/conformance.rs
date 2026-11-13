@@ -154,6 +154,7 @@ impl Subject for Fixture {
                         set_a,
                         restarted,
                         at_watermark: false,
+                        position: ZERO,
                         connection,
                         further,
                         reads: 0,
@@ -212,6 +213,7 @@ struct Wrong {
     set_a: bool,
     restarted: bool,
     at_watermark: bool,
+    position: Position,
     connection: i64,
     further: bool,
     reads: i64,
@@ -234,11 +236,11 @@ impl Wrong {
         let reply = open_reply(t, self.fault, open);
         let refused = matches!(&reply, ServerMessage::Error(e) if *e.cause() == Cause::BadRequest);
         let reply = match self.fault {
-            OpenWhileOpenTakesItsRange if refused && open.range().is_some() => {
+            OpenWhileOpenTakesItsRange if refused => {
                 if let Some(first) = self.last.clone() {
                     let taken = OpenCursor::at(
                         t.store().clone(),
-                        first.position(),
+                        self.position,
                         first.kinds().cloned(),
                         open.range(),
                     )
@@ -268,6 +270,7 @@ impl Wrong {
             self.last = Some(open.clone());
             self.opens += 1;
             self.at_watermark = false;
+            self.position = open.position();
         }
         reply
     }
@@ -323,6 +326,7 @@ impl Wrong {
             }
         }
         self.at_watermark = b.next == b.watermark;
+        self.position = b.next;
         let Some(open) = self
             .last
             .as_ref()

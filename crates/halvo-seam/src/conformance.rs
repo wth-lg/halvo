@@ -45,8 +45,8 @@ pub const CASES: [&str; 4] = ["resume", "shredded", "filters", "store_changed"];
 /// at the zero position as at another position. `open_while_open`, in the cases `filters` and `resume`
 /// (after its restart): an `open_cursor` sent while a cursor is open, without the `close` that C5.6 asks for,
 /// gets `bad-request`, whether it names S with another position, a kinds filter and a range, or another store
-/// id, and also while the cursor stands at the watermark; the cursor that was open then serves the whole
-/// reference read, and at the watermark a `read_batch` serves nothing.
+/// id with the same range, and also while the cursor stands at the watermark; the cursor that was open then
+/// serves the whole reference read, and at the watermark a `read_batch` serves nothing.
 /// `open_at_the_watermark_after_a_shred`, in the case `shredded`: after `shred_oldest`, an `open_cursor` with
 /// S at W, and at the highest watermark of the replies after the shred where that is above W, is no error,
 /// and its read serves no entry; after further calls of `shred_oldest` until every segment of the reference
@@ -914,7 +914,7 @@ fn open_while_open<S: Subject>(conn: &mut Conn<S>, rf: &Reference) -> Result<(),
         ),
         (
             "an open_cursor with another store id, while a cursor is open",
-            open_text(Some(&another(&rf.s)?), ZERO, None, None),
+            open_text(Some(&another(&rf.s)?), ZERO, None, Some(late)),
         ),
     ];
     for (what, text) in &seconds {
