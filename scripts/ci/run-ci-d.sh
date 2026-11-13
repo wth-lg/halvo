@@ -656,10 +656,12 @@ own_run() {
     [ -z "$case_jobs" ] || { CI_D_SELF_TEST_JOBS=$case_jobs; export CI_D_SELF_TEST_JOBS; }
     [ -z "$case_limit" ] || { CI_D_SCRIPT_LIMIT_S=$case_limit; export CI_D_SCRIPT_LIMIT_S; }
     [ -z "$case_path" ] || { PATH=$case_path:$PATH; export PATH; }
+    procs_env=NUMBER_OF_PROCESSORS=$case_procs
+    [ "$case_procs" != none ] || procs_env=-uNUMBER_OF_PROCESSORS
     CARGO_HOME=$tmp/cargo-home
     TMPDIR=${case_tmpdir:-$tmp}
     export CARGO_HOME TMPDIR
-    printf 'a line on standard input\n' | RUN_CI_D_NESTED=${case_nested:-yes} "$perl_bin" -e "$case_perl" sh "$self" "$@" 2>&1 &
+    printf 'a line on standard input\n' | RUN_CI_D_NESTED=${case_nested:-yes} ${case_procs:+env "$procs_env"} "$perl_bin" -e "$case_perl" sh "$self" "$@" 2>&1 &
     case_pid=$!
     printf '%s\n' "$case_pid" >"$tmp/nested.pid"
     if [ -n "$case_signal" ]; then
@@ -753,6 +755,10 @@ own_judge() {
   elif [ "$want" = FAIL ]; then
     rejected=$((rejected + 1))
   fi
+  case_reset
+}
+
+case_reset() {
   case_ci=
   case_scripts=
   case_cd=
@@ -771,6 +777,7 @@ own_judge() {
   case_signal_min=
   case_gone=
   case_empty=
+  case_procs=
 }
 
 # shellcheck disable=SC2016
@@ -783,27 +790,12 @@ own_self_test() {
   skip_a='printf "SKIP 10-a (no tool)\n"; exit 77'
   rejected=0
   wrong=
-  case_ci=
-  case_scripts=
-  case_cd=
-  case_locale=
-  case_tmpdir=
-  case_jobs=
-  case_limit=
-  case_first=
-  case_then=
-  case_max_s=
-  case_nested=
-  case_path=
-  case_signal=
-  case_wait=
-  case_absent=
-  case_signal_min=
-  case_gone=
-  case_empty=
+  case_reset
   perl_bin=$(command -v perl) || perl_bin=perl
   case_perl="setpgrp(0, 0); \$SIG{QUIT} = 'DEFAULT'; \$SIG{INT} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;"
-  mkdir -p "$tmp/no-perl" && printf '#!/bin/sh\nexit 1\n' >"$tmp/no-perl/perl" && chmod +x "$tmp/no-perl/perl"
+  for tool in perl getconf; do
+    mkdir -p "$tmp/no-$tool" && printf '#!/bin/sh\nexit 1\n' >"$tmp/no-$tool/$tool" && chmod +x "$tmp/no-$tool/$tool"
+  done
   real_date=$(command -v date) || real_date='date'
   mkdir -p "$tmp/late-date" &&
     printf '#!/bin/sh\nif [ "$1" = +%%s ] && [ -r late ]; then\n  read -r late <late\n  now=$(%s +%%s) || exit 1\n  echo "$((now + late))"\nelse\n  exec %s "$@"\nfi\n' "$real_date" "$real_date" >"$tmp/late-date/date" &&
@@ -870,7 +862,9 @@ own_self_test() {
     own_case dangling-link-with-a-script-name 1 'FAIL 50-dangling (it is not a regular file)' macos
   fi
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 .20-hidden.sh "$good" 'printf "PASS .20-hidden\n"'
-  own_case hidden-entry 1 "FAIL .20-hidden ($name_refusal)" macos
+  case_first="PASS 10-a${nl}FAIL .20-hidden ($name_refusal)"
+  case_then='ci.d macos: 1 passed, 1 failed, 0 skipped'
+  own_case hidden-entry-after-the-others 1 "FAIL .20-hidden ($name_refusal)" macos
   new_repo && add_script r1 10-.sh "$good" 'printf "PASS 10-\n"'
   own_case file-name-without-a-name 1 "FAIL 10- ($name_refusal)" macos
   new_repo && add_script r1 10-A.sh "$good" 'printf "PASS 10-A\n"'
@@ -967,6 +961,14 @@ own_self_test() {
     add_script a 20-y.sh "$good" '[ -e "$CI_D_REPO/first-ran" ] || { printf "FAIL 20-y (it ran first)\n"; exit 1; }; printf "PASS 20-y\n"'
   case_locale=en_US.UTF-8
   own_case byte-order 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  case_locale=en_US.UTF-8
+  case_first='scripts/B/ci.d/10-x.sh'
+  case_then='scripts/a/ci.d/20-y.sh'
+  own_case list-in-byte-order 0 'scripts/a/ci.d/20-y.sh' --list macos
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a"
+  case_first="PASS 10-a${nl}seconds 10-a "
+  case_then='PASS 10-a'
+  own_case seconds-line-after-the-output-of-a-script 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
   new_repo && add_script r1 10-a.sh "$good" 'here=$(pwd); [ "$CI_D_REPO" = "$here" ] && [ "$CI_D_JOB" = macos ] && [ "$CI_D_ARTIFACTS" = "$here/target/ci-artifacts/10-a" ] && [ -d "$CI_D_ARTIFACTS" ] && [ "$LC_ALL" = C ] && [ "${PATH%%:*}" = "$CARGO_HOME/bin" ] || { printf "FAIL 10-a (environment)\n"; exit 1; }; printf "PASS 10-a\n"'
   case_locale=en_US.UTF-8
   own_case environment 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
@@ -1029,6 +1031,7 @@ own_self_test() {
   running='others=0; for f in "$CI_D_REPO"/start.*; do o=${f##*/start.}; [ "$o" = "$me" ] || [ ! -e "$f" ] || [ -e "$CI_D_REPO/end.$o" ] || others=$((others + 1)); done'
   alone='before=0; for f in "$CI_D_REPO"/start.*; do [ -e "$f" ] || continue; o=${f##*/start.}; [ -e "$CI_D_REPO/end.$o" ] || { printf "FAIL self-test:%s (it started beside %s)\n" "$me" "$o"; exit 1; }; before=$((before + 1)); done; : >"$CI_D_REPO/start.$me"; sleep 2; after=0; for f in "$CI_D_REPO"/start.*; do after=$((after + 1)); done; [ "$after" -eq "$((before + 1))" ] || { printf "FAIL self-test:%s (another self-test started beside it)\n" "$me"; exit 1; }'
   meets="$prelude; meet || $ran_alone; $passes"
+  prelude_any=${prelude#*exit 3; }
   alone_list=scripts/ci/self-test-alone.txt
 
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $leaves; $passes" && add_script r1 20-b.sh "$good" "$prelude; $leaves; $passes"
@@ -1156,7 +1159,26 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
     mkdir -p "$fixture/$alone_list"
   own_case alone-list-that-cannot-be-read 1 "FAIL run-ci-d ($alone_list cannot be read)" macos --self-test 10-a
-  prelude_any=${prelude#*exit 3; }
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; [ -e \"\$TMPDIR/../../self-test.run-ci-d/done\" ] || { printf 'FAIL self-test:%s (it started beside the own cases)\\n' \"\$me\"; exit 1; }; $passes"
+  case_jobs=1
+  own_case own-cases-take-one-of-the-slots 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test
+  new_repo && add_script r1 10-a.sh "$good" "$meets" && add_script r1 20-b.sh "$good" "$meets"
+  case_path=$tmp/no-getconf
+  case_procs=2
+  own_case default-number-from-number-of-processors 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  for procs in none x; do
+    new_repo && add_script r1 10-a.sh "$good" "$prelude; $alone; $ends; $passes" && add_script r1 20-b.sh "$good" "$prelude; $alone; $ends; $passes"
+    case_path=$tmp/no-getconf
+    case_procs=$procs
+    own_case "default-number-of-one-when-number-of-processors-is-$procs" 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  done
+  new_repo && add_script r1 10-a.sh "$good" "$prelude_any; $alone; $ends; printf 'PASS %s\\n' \"\$me\"" &&
+    add_script r1 20-b.sh "$good" "$prelude_any; $alone; $ends; printf 'PASS %s\\n' \"\$me\""
+  case_jobs=2
+  own_case step-ci.d-one-script-at-a-time-whatever-ci-d-self-test-jobs-says 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; here=$(pwd); [ "$CI_D_REPO" = "$here" ] && [ "$CI_D_JOB" = windows ] && [ "$CI_D_ARTIFACTS" = "$here/target/ci-artifacts/10-a" ] && [ -d "$CI_D_ARTIFACTS" ] && [ "$LC_ALL" = C ] && [ "${PATH%%:*}" = "$CARGO_HOME/bin" ] && ! read -r line || { printf "FAIL self-test:10-a (environment)\n"; exit 1; }; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"'
+  case_locale=en_US.UTF-8
+  own_case environment-of-a-self-test 0 'ci.d windows self-test: 1 passed, 0 failed' windows --self-test 10-a
   for signal in INT QUIT HUP TERM; do
     for place in beside-another alone; do
       sends="kill -s $signal \"\$\$\"; sleep 1; printf 'line after the kill\\n'; if [ \"\${1:-}\" = --self-test ]; then $passes; else printf 'PASS %s\\n' \"\$me\"; fi"
@@ -1191,6 +1213,17 @@ own_self_test() {
           ;;
       esac
     done
+    case $foreground:$after in
+      'PASS 10-a:yes')
+        case_first='line after the kill'
+        case_then='PASS 10-a'
+        own_case "script-that-sends-$signal-to-itself-in-the-step-ci.d-runs-on-as-in-the-foreground" 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos 10-a
+        ;;
+      'FAIL 10-a (exit '*'):no')
+        case_absent='line after the kill'
+        own_case "script-that-sends-$signal-to-itself-in-the-step-ci.d-ends-as-in-the-foreground" 1 "$foreground" macos 10-a
+        ;;
+    esac
   done
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes"
   case_path=$tmp/no-perl
