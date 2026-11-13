@@ -7,7 +7,7 @@ name=24-r7-wall
 tab=$(printf '\t')
 contract='backend/contract/schema/v1.json backend/contract/routes/v1.json backend/contract/samples/v1.json backend/gate/prompt-budget.json'
 limits='names-v0 computed-path bare-module file-or-environment nul-byte model-side absolute-path both-sides-path unread-variable bare-operand bracket-glob'
-r7_files='scripts/r7/ci.d/10-r7-layout.sh scripts/r7/ci.d/20-r7-backend-static.sh scripts/r7/ci.d/21-r7-backend-test.sh scripts/r7/ci.d/22-r7-backend-records.sh scripts/r7/ci.d/23-r7-machine-paths.sh scripts/r7/ci.d/24-r7-wall.sh scripts/r7/layout.txt scripts/r7/stamp-gate-records.sh'
+r7_files='scripts/r7/ci.d/10-r7-layout.sh scripts/r7/ci.d/20-r7-backend-static.sh scripts/r7/ci.d/21-r7-backend-test.sh scripts/r7/ci.d/22-r7-backend-records.sh scripts/r7/ci.d/23-r7-machine-paths.sh scripts/r7/ci.d/24-r7-wall.sh scripts/r7/ci.d/25-r7-backend-licenses.sh scripts/r7/layout.txt scripts/r7/stamp-gate-records.sh'
 nlimits=$(awk -v l="$limits" 'BEGIN { print split(l, w, " ") }')
 
 step_lines() {
