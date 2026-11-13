@@ -39,7 +39,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 25
         run: |
-          set -u
+          set +e -u
           mkdir -p "$RUNNER_TEMP/adv3"
           log="$RUNNER_TEMP/adv3/probes.log"
           timeout 1200 cargo test --locked -p halvo-capture --lib -- --ignored adv3_ --nocapture --test-threads=1 >"$log" 2>&1
@@ -51,7 +51,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 28
         run: |
-          set -u
+          set +e -u
           mkdir -p "$RUNNER_TEMP/adv3"
           file=crates/halvo-capture/src/windows/mod.rs
           list="$RUNNER_TEMP/adv3/rows.tsv"
