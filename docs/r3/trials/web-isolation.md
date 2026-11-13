@@ -518,479 +518,560 @@ verdict executor=cdp version=0.9.1 product=yes relay=open open_ways=peer_connect
 
 ## Third round (U0.7c)
 
-Unit U0.7c runs A13.7's third round under CP-89, CP-93 and CP-95 (2): the trial program starts the
-browser on its debugging pipe as its one client, the relay its only route, in all five cells.
+Unit U0.7c runs A13.7's third round under CP-89, CP-93, CP-95 (2), CP-126, CP-137 and CP-140: the
+trial program starts the browser on its debugging pipe as its one client, the relay its only route,
+in all five cells.
 
 What ran: each row set (`round3`, the nine rows, `isolation`, `relay`, `reach`, `ways --step
 frame_doc` with a port control, `driver`, `org`) with `run.sh ... --round 3 --relay` (`driver`
-without `--relay`), 10 runs per cell, 20 kills per driver form. `mac` (Chrome 153.0.8010.48) ran at
-c296a1c, on an untimed helper lane from 2026-11-12T20:47:33Z to 21:36:43Z, so its `median_ms` is no
-timed measure. Run 43313951706 at 2f01929 (code as e72f083: c296a1c and Windows code) gave every
-hosted line but hosted-mac's `org_` cells: hosted-mac Chrome 157.0.8103.39 and Edge 156.0.4314.58,
-hosted-win Chrome 156.0.8078.80 and Edge 156.0.4314.58. Those four come from run 43347520562 at code
-037b242, the build and these cells alone.
+without `--relay`), 10 runs per cell, 20 kills per driver form. `mac` (Chrome 153.0.8010.48) ran on
+an untimed helper lane from 2026-11-13T05:18:41Z to 06:40:08Z inside no load bound, so its
+`median_ms` is no timed measure. hosted-mac (Chrome 157.0.8103.39, Edge 156.0.4314.58) ran in run
+43369346664; hosted-win (Chrome 156.0.8078.80, Edge 156.0.4314.58) in run 43368925419, its kill rows
+in run 43374121394 and three `org_` cells in run 43384012622. Every way out of a run ends the
+processes that the run left (CP-126 E1, the README). Each run line prints `left_before` and
+`left_after`, and no line of the block has `left_after` above 0.
 
-Choices that the text leaves, with reasons in the README: the probe's origin
-`http://halvo-start-probe.invalid/`; `FIRST_REPLY_WAIT` 30 s, `PROBE_WAIT` 10 s, `MAX_OPEN` 512,
-`MAX_RECORD` 4096; a `check` line sums A11.1's rules over a cell's runs and three reads (after the
-start, the row and the stop); a guard process holds a copy of the relay's listener until the
-browser's tree is gone. The README names the flags that the product does not carry.
+Choices (reasons in the README): the probe's origin `http://halvo-start-probe.invalid/`;
+`FIRST_REPLY_WAIT` 30 s, `PROBE_WAIT` 10 s, `MAX_OPEN` 512, `MAX_RECORD` 4096; a `check` line sums
+A11.1's rules over a cell's runs and three reads; a guard holds the relay's listener until the tree
+is gone.
 
-`org_policy`: `mac` is `notrun cause=no_policy_place`; hosted-win writes each policy under HKLM. On
-hosted-mac, run 43313951706's `sudo defaults write` to `/Library/Managed Preferences` exits 0,
-prints nothing and leaves no file (run 43333071145), so its cells measured no policy; later runs
-install the bundle id's property list there (root:wheel, 644) and end cfprefsd. The reader's rule,
-fixed before run 43347520562: a headless start with no debugging channel prints the policy page to a
-PDF; the page counts when its text holds "policy name" in any case; a cell runs only when the text
-holds the policy's name, whole, across line breaks or in word pieces up to 12 lines apart, and one
-more `Platform` source than a read before the write, else `notrun` with its cause; the words next to
-the name print from a closed list (false, direct, Platform, Machine, Mandatory, OK, other). The page
-shows that the browser took the policy, not its value: the value comes from the file (`defaults
-read`; owner and mode on the cell line). In run 43347520562 each page showed its policy and each
-cell is `ok=10 of=10`, each call within a 420 s limit and on a port of its own (runs 43333071145 and
-43339621990 lost cells to my harness: the README).
+`org_policy`: `mac` is `notrun cause=no_policy_place`. A hosted cell counts only with a start
+without the setting that replied before the write and after the removal, the value read back (the
+key; `defaults read` of the property list), and the browser's policy page, printed headless with no
+debugging channel and read as text, naming the setting as a whole word (`r3_web::policy::named`); a
+page that does not name it holds the cell open (`notrun cause=policy_not_seen`). Run 43347520562's
+reader took the name as a part of the text; the fixed rule agrees on its nine saved pages. On
+hosted-win pypdf (BSD-3-Clause) reads the page: Edge's lists `RemoteDebuggingAllowed` with the value
+false, but its text breaks the name and joins the last letter to the value, so that cell is notrun.
 
-CP-93's open facts. (1) On Windows the policy key grants `Authenticated Users` `ReadKey`, and on
-macOS the browser's policy page shows a policy to the person's own account: a person without
-administrator rights can see that one is set. (2) Windows' exclusive bind holds: `relay_port_free`
-20 of 20 on hosted-win. (3) UDP beyond loopback: 0 in the 120 hosted pipe `check` lines, 1 in
-`mac`'s `relay_foreign` reads; QUIC against name lookups stays open. (4) Edge: every deciding pipe
-cell of Edge is ok.
+The verdict line reads `product=no` by two cells, and neither shows the product failing: one is a
+timed row on a loaded Mac (`relay_port_free`, after the block), the other one read at a start that
+the next two reads of the same run no longer find. Two points with the coordinator hold it open.
+
+CP-93's open facts. (1) On Windows the policy key grants `Authenticated Users` `ReadKey`. On macOS
+the property list is root:wheel with mode -rw-r--r--, and the page named the policy when the job's
+own account, which can use sudo, read it; no line reads the page as an account without administrator
+rights. (2) Windows' exclusive bind holds: `relay_port_free` 20 of 20 on hosted-win. (3) UDP beyond
+loopback: 0 in every pipe `check` line of the block. (4) Edge: every deciding pipe cell of Edge is
+ok but hosted-win's `org_debugging`, which is notrun.
 
 ```text
-hosted machine=hosted-mac run=43313951706 sha=5027af3a1b0f5f44e342bc743171b98efd10cd5a
-hosted machine=hosted-win run=43313951706 sha=5027af3a1b0f5f44e342bc743171b98efd10cd5a
-hosted machine=hosted-mac run=43347520562 sha=7450a84520828b0eba1471de15d3aeeb46dfc38c steps=org_debugging,org_proxy
+hosted machine=hosted-mac run=43369346664 sha=583e198338bbeab60fc3a2ed526e3c4405bd16fd
+hosted machine=hosted-win run=43368925419 sha=f09e0d99ee779bc2d0b01a59f487eb4381a49921
+hosted machine=hosted-win run=43374121394 sha=873749da0de0b0d1880702d13968a7f5ce900114 steps=driver_killed_pipe,driver_killed_pipe_relay,driver_killed_port,driver_killed_port_relay,relay_port_free
+hosted machine=hosted-win run=43384012622 sha=d684140639bb245bb34c4b6558dcf88fafcf1727 steps=chrome:org_debugging,edge:org_debugging,edge:org_proxy
+check machine=mac browser=chrome form=pipe_relay step=relay_foreign ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=relay_foreign ok=10 of=10 median_ms=16 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=relay_port_free ok=5 of=10 median_ms=12273 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=pipe_inherit ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=pipe_inherit ok=10 of=10 median_ms=11 relay=pipe_relay
-check machine=mac browser=chrome form=pipe_relay step=relay_foreign ok=9 of=10 port_flag=0 tcp_listen=0 udp_wide=1 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=relay_foreign ok=10 of=10 median_ms=32 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=pipe_inherit ok=10 of=10 median_ms=10 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=relay_foreign ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=relay_foreign ok=10 of=10 median_ms=26 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=start_probe ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=start_probe ok=10 of=10 median_ms=198 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=start_probe ok=10 of=10 median_ms=213 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=same_site_pref ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=same_site_pref ok=10 of=10 median_ms=348 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=same_site_pref ok=10 of=10 median_ms=396 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=same_site_rule ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 cell candidate=cdp machine=mac browser=chrome major=153 step=same_site_rule ok=10 of=10 median_ms=54 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=signin_form ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=signin_form ok=10 of=10 median_ms=284 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=signin_form ok=10 of=10 median_ms=217 relay=pipe_relay
 relay_cell machine=mac browser=chrome form=pipe_relay step=signin_form ok=10 of=10
 check machine=mac browser=chrome form=pipe_relay step=table_read ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=table_read ok=10 of=10 median_ms=237 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=table_read ok=10 of=10 median_ms=235 relay=pipe_relay
 relay_cell machine=mac browser=chrome form=pipe_relay step=table_read ok=10 of=10
 check machine=mac browser=chrome form=pipe_relay step=form_fill ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=form_fill ok=10 of=10 median_ms=422 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=form_fill ok=10 of=10 median_ms=336 relay=pipe_relay
 relay_cell machine=mac browser=chrome form=pipe_relay step=form_fill ok=10 of=10
 check machine=mac browser=chrome form=pipe_relay step=payment_frame ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=payment_frame ok=10 of=10 median_ms=412 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=payment_frame ok=10 of=10 median_ms=382 relay=pipe_relay
 relay_cell machine=mac browser=chrome form=pipe_relay step=payment_frame ok=10 of=10
 check machine=mac browser=chrome form=pipe_relay step=file_upload ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=file_upload ok=10 of=10 median_ms=376 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=file_upload ok=10 of=10 median_ms=371 relay=pipe_relay
 relay_cell machine=mac browser=chrome form=pipe_relay step=file_upload ok=10 of=10
 check machine=mac browser=chrome form=pipe_relay step=session_expiry ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=session_expiry ok=10 of=10 median_ms=365 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=session_expiry ok=10 of=10 median_ms=362 relay=pipe_relay
 relay_cell machine=mac browser=chrome form=pipe_relay step=session_expiry ok=10 of=10
 check machine=mac browser=chrome form=pipe_relay step=changed_page_1 ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=changed_page_1 ok=10 of=10 median_ms=456 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=changed_page_1 ok=10 of=10 median_ms=406 relay=pipe_relay
 relay_cell machine=mac browser=chrome form=pipe_relay step=changed_page_1 ok=10 of=10
 check machine=mac browser=chrome form=pipe_relay step=block_request ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=block_request ok=10 of=10 median_ms=361 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=block_request ok=10 of=10 median_ms=320 relay=pipe_relay
 relay_cell machine=mac browser=chrome form=pipe_relay step=block_request ok=10 of=10
 check machine=mac browser=chrome form=pipe_relay step=credential_mark ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=credential_mark ok=10 of=10 median_ms=347 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=credential_mark ok=10 of=10 median_ms=376 relay=pipe_relay
 relay_cell machine=mac browser=chrome form=pipe_relay step=credential_mark ok=10 of=10
 check machine=mac browser=chrome form=pipe_relay step=payment_frame_isolated ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=payment_frame_isolated ok=10 of=10 median_ms=438 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=payment_frame_isolated ok=10 of=10 median_ms=480 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=changed_page_1_isolated ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=changed_page_1_isolated ok=10 of=10 median_ms=415 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=changed_page_1_isolated ok=10 of=10 median_ms=429 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=block_popup ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=block_popup ok=10 of=10 median_ms=59 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=block_popup ok=10 of=10 median_ms=49 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=block_frame_post ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=block_frame_post ok=10 of=10 median_ms=101 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=block_frame_post ok=10 of=10 median_ms=100 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=block_websocket ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=block_websocket ok=10 of=10 median_ms=52 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=block_websocket ok=10 of=10 median_ms=53 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=cert_error ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=cert_error ok=10 of=10 median_ms=350 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=cert_error ok=10 of=10 median_ms=1168 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=list_refuse ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=list_refuse ok=10 of=10 median_ms=2424 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=list_refuse ok=10 of=10 median_ms=2556 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=list_hops ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=list_hops ok=10 of=10 median_ms=1433 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=list_hops ok=10 of=10 median_ms=2062 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=list_close ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=list_close ok=10 of=10 median_ms=1490 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=list_close ok=10 of=10 median_ms=1967 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=reach_page ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=reach_page ok=10 of=10 median_ms=3241 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=reach_page ok=10 of=10 median_ms=3503 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=reach_opened ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=reach_opened ok=10 of=10 median_ms=3256 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=reach_opened ok=10 of=10 median_ms=3713 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=reach_frame ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=reach_frame ok=10 of=10 median_ms=3272 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=reach_frame ok=10 of=10 median_ms=3831 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=reach_worker ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=reach_worker ok=10 of=10 median_ms=3221 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=reach_worker ok=10 of=10 median_ms=3810 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=reach_shared ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=reach_shared ok=10 of=10 median_ms=3219 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=reach_shared ok=10 of=10 median_ms=3853 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=reach_service ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=reach_service ok=10 of=10 median_ms=3219 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=reach_service ok=10 of=10 median_ms=3896 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=frame_doc ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 way row=frame_doc form=pipe_relay machine=mac browser=chrome closed=yes runs=10 told=10
-check machine=mac browser=chrome form=port_relay step=frame_doc ok=0 of=10 port_flag=91 tcp_listen=20 udp_wide=0 active_port_file=20 executor_listener=0 pipe_holder=0
+check machine=mac browser=chrome form=port_relay step=frame_doc ok=0 of=10 port_flag=129 tcp_listen=20 udp_wide=0 active_port_file=20 executor_listener=0 pipe_holder=0
 way row=frame_doc form=port_relay machine=mac browser=chrome closed=yes runs=10 told=10
 control candidate=cdp machine=mac browser=chrome step=driver_killed_pipe let_through=yes browser_after=gone connections=1 bytes=458 seen=yes
 kill machine=mac form=pipe kills=20 arrived=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=driver_killed_pipe ok=20 of=20 median_ms=115
+cell candidate=cdp machine=mac browser=chrome major=153 step=driver_killed_pipe ok=20 of=20 median_ms=2182
 control candidate=cdp machine=mac browser=chrome step=driver_killed_port let_through=yes browser_after=alive connections=1 bytes=458 seen=yes
 kill machine=mac form=port kills=20 arrived=20
 cell candidate=cdp machine=mac browser=chrome major=153 step=driver_killed_port ok=0 of=20 median_ms=0 bytes=9160
 control candidate=cdp machine=mac browser=chrome step=driver_killed_pipe_relay let_through=yes browser_after=gone connections=1 bytes=458 seen=yes
 kill machine=mac form=pipe_relay kills=20 arrived=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=driver_killed_pipe_relay ok=20 of=20 median_ms=146 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=driver_killed_pipe_relay ok=20 of=20 median_ms=1235 relay=pipe_relay
 control candidate=cdp machine=mac browser=chrome step=driver_killed_port_relay let_through=yes browser_after=alive connections=1 bytes=458 seen=yes
 kill machine=mac form=port_relay kills=20 arrived=0
 cell candidate=cdp machine=mac browser=chrome major=153 step=driver_killed_port_relay ok=20 of=20 median_ms=0 relay=port_relay
-cell candidate=cdp machine=mac browser=chrome major=153 step=relay_port_free ok=10 of=10 median_ms=4217 relay=pipe_relay
-notrun candidate=cdp machine=mac browser=chrome step=org_debugging cause=no_policy_place
-notrun candidate=cdp machine=mac browser=chrome step=org_proxy cause=no_policy_place
+cell candidate=cdp machine=mac browser=chrome major=153 step=relay_port_free ok=10 of=10 median_ms=3517 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=relay_foreign ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=relay_foreign ok=10 of=10 median_ms=16 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=relay_port_free ok=10 of=10 median_ms=824 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=relay_port_free ok=10 of=10 median_ms=625 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=relay_port_free ok=10 of=10 median_ms=2204 relay=pipe_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=relay_port_free ok=10 of=10 median_ms=3330 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=pipe_inherit ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=pipe_inherit ok=10 of=10 median_ms=4 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=pipe_inherit ok=10 of=10 median_ms=6 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=relay_foreign ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=relay_foreign ok=10 of=10 median_ms=8 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=relay_foreign ok=10 of=10 median_ms=9 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=start_probe ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=start_probe ok=10 of=10 median_ms=424 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=start_probe ok=10 of=10 median_ms=438 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=same_site_pref ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=same_site_pref ok=10 of=10 median_ms=804 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=same_site_pref ok=10 of=10 median_ms=725 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=same_site_rule ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=same_site_rule ok=10 of=10 median_ms=56 relay=pipe_relay
-check machine=hosted-mac browser=chrome form=pipe_relay step=signin_form ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=signin_form ok=10 of=10 median_ms=564 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=same_site_rule ok=10 of=10 median_ms=55 relay=pipe_relay
+check machine=hosted-mac browser=chrome form=pipe_relay step=signin_form ok=9 of=10 port_flag=1 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=1
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=signin_form ok=10 of=10 median_ms=739 relay=pipe_relay
 relay_cell machine=hosted-mac browser=chrome form=pipe_relay step=signin_form ok=10 of=10
 check machine=hosted-mac browser=chrome form=pipe_relay step=table_read ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=table_read ok=10 of=10 median_ms=512 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=table_read ok=10 of=10 median_ms=650 relay=pipe_relay
 relay_cell machine=hosted-mac browser=chrome form=pipe_relay step=table_read ok=10 of=10
 check machine=hosted-mac browser=chrome form=pipe_relay step=form_fill ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=form_fill ok=10 of=10 median_ms=813 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=form_fill ok=10 of=10 median_ms=923 relay=pipe_relay
 relay_cell machine=hosted-mac browser=chrome form=pipe_relay step=form_fill ok=10 of=10
 check machine=hosted-mac browser=chrome form=pipe_relay step=payment_frame ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=payment_frame ok=10 of=10 median_ms=1002 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=payment_frame ok=10 of=10 median_ms=849 relay=pipe_relay
 relay_cell machine=hosted-mac browser=chrome form=pipe_relay step=payment_frame ok=10 of=10
 check machine=hosted-mac browser=chrome form=pipe_relay step=file_upload ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=file_upload ok=10 of=10 median_ms=880 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=file_upload ok=10 of=10 median_ms=757 relay=pipe_relay
 relay_cell machine=hosted-mac browser=chrome form=pipe_relay step=file_upload ok=10 of=10
 check machine=hosted-mac browser=chrome form=pipe_relay step=session_expiry ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=session_expiry ok=10 of=10 median_ms=890 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=session_expiry ok=10 of=10 median_ms=808 relay=pipe_relay
 relay_cell machine=hosted-mac browser=chrome form=pipe_relay step=session_expiry ok=10 of=10
 check machine=hosted-mac browser=chrome form=pipe_relay step=changed_page_1 ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=changed_page_1 ok=10 of=10 median_ms=933 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=changed_page_1 ok=10 of=10 median_ms=835 relay=pipe_relay
 relay_cell machine=hosted-mac browser=chrome form=pipe_relay step=changed_page_1 ok=10 of=10
 check machine=hosted-mac browser=chrome form=pipe_relay step=block_request ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=block_request ok=10 of=10 median_ms=763 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=block_request ok=10 of=10 median_ms=708 relay=pipe_relay
 relay_cell machine=hosted-mac browser=chrome form=pipe_relay step=block_request ok=10 of=10
 check machine=hosted-mac browser=chrome form=pipe_relay step=credential_mark ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=credential_mark ok=10 of=10 median_ms=756 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=credential_mark ok=10 of=10 median_ms=752 relay=pipe_relay
 relay_cell machine=hosted-mac browser=chrome form=pipe_relay step=credential_mark ok=10 of=10
 check machine=hosted-mac browser=chrome form=pipe_relay step=payment_frame_isolated ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=payment_frame_isolated ok=10 of=10 median_ms=1230 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=payment_frame_isolated ok=10 of=10 median_ms=910 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=changed_page_1_isolated ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=changed_page_1_isolated ok=10 of=10 median_ms=992 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=changed_page_1_isolated ok=10 of=10 median_ms=977 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=block_popup ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=block_popup ok=10 of=10 median_ms=153 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=block_popup ok=10 of=10 median_ms=99 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=block_frame_post ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=block_frame_post ok=10 of=10 median_ms=277 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=block_frame_post ok=10 of=10 median_ms=257 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=block_websocket ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=block_websocket ok=10 of=10 median_ms=55 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=cert_error ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=cert_error ok=10 of=10 median_ms=355 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=cert_error ok=10 of=10 median_ms=390 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=list_refuse ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=list_refuse ok=10 of=10 median_ms=2740 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=list_refuse ok=10 of=10 median_ms=2689 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=list_hops ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=list_hops ok=10 of=10 median_ms=1593 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=list_hops ok=10 of=10 median_ms=1616 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=list_close ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=list_close ok=10 of=10 median_ms=1723 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=list_close ok=10 of=10 median_ms=1809 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=reach_page ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=reach_page ok=10 of=10 median_ms=3534 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=reach_page ok=10 of=10 median_ms=3522 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=reach_opened ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=reach_opened ok=10 of=10 median_ms=3625 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=reach_opened ok=10 of=10 median_ms=3607 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=reach_frame ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=reach_frame ok=10 of=10 median_ms=3530 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=reach_frame ok=10 of=10 median_ms=3492 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=reach_worker ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=reach_worker ok=10 of=10 median_ms=3520 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=reach_worker ok=10 of=10 median_ms=3469 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=reach_shared ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=reach_shared ok=10 of=10 median_ms=3492 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=reach_shared ok=10 of=10 median_ms=3393 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=reach_service ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=reach_service ok=10 of=10 median_ms=3501 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=reach_service ok=10 of=10 median_ms=3419 relay=pipe_relay
 check machine=hosted-mac browser=chrome form=pipe_relay step=frame_doc ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 way row=frame_doc form=pipe_relay machine=hosted-mac browser=chrome closed=yes runs=10 told=10
-check machine=hosted-mac browser=chrome form=port_relay step=frame_doc ok=0 of=10 port_flag=91 tcp_listen=20 udp_wide=0 active_port_file=20 executor_listener=0 pipe_holder=0
+check machine=hosted-mac browser=chrome form=port_relay step=frame_doc ok=0 of=10 port_flag=90 tcp_listen=20 udp_wide=0 active_port_file=20 executor_listener=0 pipe_holder=0
 way row=frame_doc form=port_relay machine=hosted-mac browser=chrome closed=yes runs=10 told=10
 control candidate=cdp machine=hosted-mac browser=chrome step=driver_killed_pipe let_through=yes browser_after=gone connections=1 bytes=458 seen=yes
 kill machine=hosted-mac form=pipe kills=20 arrived=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=driver_killed_pipe ok=20 of=20 median_ms=816
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=driver_killed_pipe ok=20 of=20 median_ms=281
 control candidate=cdp machine=hosted-mac browser=chrome step=driver_killed_port let_through=yes browser_after=alive connections=1 bytes=458 seen=yes
 kill machine=hosted-mac form=port kills=20 arrived=20
 cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=driver_killed_port ok=0 of=20 median_ms=0 bytes=9160
 control candidate=cdp machine=hosted-mac browser=chrome step=driver_killed_pipe_relay let_through=yes browser_after=gone connections=1 bytes=458 seen=yes
 kill machine=hosted-mac form=pipe_relay kills=20 arrived=0
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=driver_killed_pipe_relay ok=20 of=20 median_ms=440 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=driver_killed_pipe_relay ok=20 of=20 median_ms=128 relay=pipe_relay
 control candidate=cdp machine=hosted-mac browser=chrome step=driver_killed_port_relay let_through=yes browser_after=alive connections=1 bytes=458 seen=yes
 kill machine=hosted-mac form=port_relay kills=20 arrived=0
 cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=driver_killed_port_relay ok=20 of=20 median_ms=0 relay=port_relay
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=relay_port_free ok=10 of=10 median_ms=211 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=relay_port_free ok=10 of=10 median_ms=167 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=pipe_inherit ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=pipe_inherit ok=10 of=10 median_ms=3 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=pipe_inherit ok=10 of=10 median_ms=4 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=relay_foreign ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=relay_foreign ok=10 of=10 median_ms=5 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=relay_foreign ok=10 of=10 median_ms=6 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=start_probe ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=start_probe ok=10 of=10 median_ms=461 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=start_probe ok=10 of=10 median_ms=490 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=same_site_pref ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=same_site_pref ok=10 of=10 median_ms=684 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=same_site_pref ok=10 of=10 median_ms=753 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=same_site_rule ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=same_site_rule ok=10 of=10 median_ms=58 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=same_site_rule ok=10 of=10 median_ms=57 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=signin_form ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=signin_form ok=10 of=10 median_ms=615 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=signin_form ok=10 of=10 median_ms=729 relay=pipe_relay
 relay_cell machine=hosted-mac browser=edge form=pipe_relay step=signin_form ok=10 of=10
 check machine=hosted-mac browser=edge form=pipe_relay step=table_read ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=table_read ok=10 of=10 median_ms=621 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=table_read ok=10 of=10 median_ms=729 relay=pipe_relay
 relay_cell machine=hosted-mac browser=edge form=pipe_relay step=table_read ok=10 of=10
 check machine=hosted-mac browser=edge form=pipe_relay step=form_fill ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=form_fill ok=10 of=10 median_ms=784 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=form_fill ok=10 of=10 median_ms=924 relay=pipe_relay
 relay_cell machine=hosted-mac browser=edge form=pipe_relay step=form_fill ok=10 of=10
 check machine=hosted-mac browser=edge form=pipe_relay step=payment_frame ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=payment_frame ok=10 of=10 median_ms=868 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=payment_frame ok=10 of=10 median_ms=956 relay=pipe_relay
 relay_cell machine=hosted-mac browser=edge form=pipe_relay step=payment_frame ok=10 of=10
 check machine=hosted-mac browser=edge form=pipe_relay step=file_upload ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=file_upload ok=10 of=10 median_ms=825 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=file_upload ok=10 of=10 median_ms=933 relay=pipe_relay
 relay_cell machine=hosted-mac browser=edge form=pipe_relay step=file_upload ok=10 of=10
 check machine=hosted-mac browser=edge form=pipe_relay step=session_expiry ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=session_expiry ok=10 of=10 median_ms=816 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=session_expiry ok=10 of=10 median_ms=951 relay=pipe_relay
 relay_cell machine=hosted-mac browser=edge form=pipe_relay step=session_expiry ok=10 of=10
 check machine=hosted-mac browser=edge form=pipe_relay step=changed_page_1 ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=changed_page_1 ok=10 of=10 median_ms=826 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=changed_page_1 ok=10 of=10 median_ms=1018 relay=pipe_relay
 relay_cell machine=hosted-mac browser=edge form=pipe_relay step=changed_page_1 ok=10 of=10
 check machine=hosted-mac browser=edge form=pipe_relay step=block_request ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=block_request ok=10 of=10 median_ms=782 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=block_request ok=10 of=10 median_ms=997 relay=pipe_relay
 relay_cell machine=hosted-mac browser=edge form=pipe_relay step=block_request ok=10 of=10
 check machine=hosted-mac browser=edge form=pipe_relay step=credential_mark ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=credential_mark ok=10 of=10 median_ms=789 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=credential_mark ok=10 of=10 median_ms=870 relay=pipe_relay
 relay_cell machine=hosted-mac browser=edge form=pipe_relay step=credential_mark ok=10 of=10
 check machine=hosted-mac browser=edge form=pipe_relay step=payment_frame_isolated ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=payment_frame_isolated ok=10 of=10 median_ms=1160 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=payment_frame_isolated ok=10 of=10 median_ms=1014 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=changed_page_1_isolated ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=changed_page_1_isolated ok=10 of=10 median_ms=1124 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=changed_page_1_isolated ok=10 of=10 median_ms=996 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=block_popup ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=block_popup ok=10 of=10 median_ms=113 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=block_popup ok=10 of=10 median_ms=111 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=block_frame_post ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=block_frame_post ok=10 of=10 median_ms=214 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=block_frame_post ok=10 of=10 median_ms=231 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=block_websocket ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 cell candidate=cdp machine=hosted-mac browser=edge major=156 step=block_websocket ok=10 of=10 median_ms=55 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=cert_error ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=cert_error ok=10 of=10 median_ms=365 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=cert_error ok=10 of=10 median_ms=428 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=list_refuse ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=list_refuse ok=10 of=10 median_ms=2823 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=list_refuse ok=10 of=10 median_ms=2856 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=list_hops ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=list_hops ok=10 of=10 median_ms=1771 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=list_hops ok=10 of=10 median_ms=1738 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=list_close ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=list_close ok=10 of=10 median_ms=1910 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=list_close ok=10 of=10 median_ms=1999 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=reach_page ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=reach_page ok=10 of=10 median_ms=3630 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=reach_page ok=10 of=10 median_ms=3718 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=reach_opened ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=reach_opened ok=10 of=10 median_ms=3669 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=reach_opened ok=10 of=10 median_ms=3932 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=reach_frame ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=reach_frame ok=10 of=10 median_ms=3650 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=reach_frame ok=10 of=10 median_ms=3783 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=reach_worker ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=reach_worker ok=10 of=10 median_ms=3557 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=reach_worker ok=10 of=10 median_ms=3712 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=reach_shared ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=reach_shared ok=10 of=10 median_ms=3599 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=reach_shared ok=10 of=10 median_ms=3625 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=reach_service ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=reach_service ok=10 of=10 median_ms=3634 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=reach_service ok=10 of=10 median_ms=3615 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=frame_doc ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 way row=frame_doc form=pipe_relay machine=hosted-mac browser=edge closed=yes runs=10 told=10
 check machine=hosted-mac browser=edge form=port_relay step=frame_doc ok=0 of=10 port_flag=73 tcp_listen=20 udp_wide=0 active_port_file=20 executor_listener=0 pipe_holder=0
 way row=frame_doc form=port_relay machine=hosted-mac browser=edge closed=yes runs=10 told=10
 control candidate=cdp machine=hosted-mac browser=edge step=driver_killed_pipe let_through=yes browser_after=gone connections=1 bytes=472 seen=yes
 kill machine=hosted-mac form=pipe kills=20 arrived=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=driver_killed_pipe ok=20 of=20 median_ms=495
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=driver_killed_pipe ok=20 of=20 median_ms=550
 control candidate=cdp machine=hosted-mac browser=edge step=driver_killed_port let_through=yes browser_after=alive connections=1 bytes=472 seen=yes
 kill machine=hosted-mac form=port kills=20 arrived=20
 cell candidate=cdp machine=hosted-mac browser=edge major=156 step=driver_killed_port ok=0 of=20 median_ms=0 bytes=9440
 control candidate=cdp machine=hosted-mac browser=edge step=driver_killed_pipe_relay let_through=yes browser_after=gone connections=1 bytes=472 seen=yes
 kill machine=hosted-mac form=pipe_relay kills=20 arrived=0
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=driver_killed_pipe_relay ok=20 of=20 median_ms=286 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=driver_killed_pipe_relay ok=20 of=20 median_ms=269 relay=pipe_relay
 control candidate=cdp machine=hosted-mac browser=edge step=driver_killed_port_relay let_through=yes browser_after=alive connections=1 bytes=472 seen=yes
 kill machine=hosted-mac form=port_relay kills=20 arrived=0
 cell candidate=cdp machine=hosted-mac browser=edge major=156 step=driver_killed_port_relay ok=20 of=20 median_ms=0 relay=port_relay
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=relay_port_free ok=10 of=10 median_ms=181 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=relay_port_free ok=10 of=10 median_ms=266 relay=pipe_relay
+cell candidate=cdp machine=hosted-mac browser=chrome major=0 step=org_debugging ok=10 of=10 median_ms=0 relay=pipe_relay control_before=reply value_read=0 page_named=yes plist_owner=root:wheel plist_mode=-rw-r--r-- plist_value=0 page_named=yes page_platform=3 control_platform=2 control_after=reply
+cell candidate=cdp machine=hosted-mac browser=chrome major=0 step=org_proxy ok=10 of=10 median_ms=0 relay=pipe_relay control_before=reply value_read=direct page_named=yes plist_owner=root:wheel plist_mode=-rw-r--r-- plist_value=direct page_named=yes page_platform=3 control_platform=2 control_after=reply
+cell candidate=cdp machine=hosted-mac browser=edge major=0 step=org_debugging ok=10 of=10 median_ms=0 relay=pipe_relay control_before=reply value_read=0 page_named=yes plist_owner=root:wheel plist_mode=-rw-r--r-- plist_value=0 page_named=yes page_platform=1 control_platform=0 control_after=reply
+cell candidate=cdp machine=hosted-mac browser=edge major=0 step=org_proxy ok=10 of=10 median_ms=0 relay=pipe_relay control_before=reply value_read=direct page_named=yes plist_owner=root:wheel plist_mode=-rw-r--r-- plist_value=direct page_named=yes page_platform=1 control_platform=0 control_after=reply
 check machine=hosted-win browser=chrome form=pipe_relay step=pipe_inherit ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=pipe_inherit ok=10 of=10 median_ms=477 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=pipe_inherit ok=10 of=10 median_ms=184 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=relay_foreign ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=relay_foreign ok=10 of=10 median_ms=14 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=relay_foreign ok=10 of=10 median_ms=10 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=start_probe ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=start_probe ok=10 of=10 median_ms=127 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=start_probe ok=10 of=10 median_ms=76 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=same_site_pref ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=same_site_pref ok=10 of=10 median_ms=320 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=same_site_pref ok=10 of=10 median_ms=224 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=same_site_rule ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=same_site_rule ok=10 of=10 median_ms=61 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=same_site_rule ok=10 of=10 median_ms=54 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=signin_form ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=signin_form ok=10 of=10 median_ms=222 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=signin_form ok=10 of=10 median_ms=147 relay=pipe_relay
 relay_cell machine=hosted-win browser=chrome form=pipe_relay step=signin_form ok=10 of=10
 check machine=hosted-win browser=chrome form=pipe_relay step=table_read ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=table_read ok=10 of=10 median_ms=216 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=table_read ok=10 of=10 median_ms=153 relay=pipe_relay
 relay_cell machine=hosted-win browser=chrome form=pipe_relay step=table_read ok=10 of=10
 check machine=hosted-win browser=chrome form=pipe_relay step=form_fill ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=form_fill ok=10 of=10 median_ms=332 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=form_fill ok=10 of=10 median_ms=252 relay=pipe_relay
 relay_cell machine=hosted-win browser=chrome form=pipe_relay step=form_fill ok=10 of=10
 check machine=hosted-win browser=chrome form=pipe_relay step=payment_frame ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=payment_frame ok=10 of=10 median_ms=398 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=payment_frame ok=10 of=10 median_ms=303 relay=pipe_relay
 relay_cell machine=hosted-win browser=chrome form=pipe_relay step=payment_frame ok=10 of=10
 check machine=hosted-win browser=chrome form=pipe_relay step=file_upload ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=file_upload ok=10 of=10 median_ms=327 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=file_upload ok=10 of=10 median_ms=249 relay=pipe_relay
 relay_cell machine=hosted-win browser=chrome form=pipe_relay step=file_upload ok=10 of=10
 check machine=hosted-win browser=chrome form=pipe_relay step=session_expiry ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=session_expiry ok=10 of=10 median_ms=345 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=session_expiry ok=10 of=10 median_ms=256 relay=pipe_relay
 relay_cell machine=hosted-win browser=chrome form=pipe_relay step=session_expiry ok=10 of=10
 check machine=hosted-win browser=chrome form=pipe_relay step=changed_page_1 ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=changed_page_1 ok=10 of=10 median_ms=374 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=changed_page_1 ok=10 of=10 median_ms=295 relay=pipe_relay
 relay_cell machine=hosted-win browser=chrome form=pipe_relay step=changed_page_1 ok=10 of=10
 check machine=hosted-win browser=chrome form=pipe_relay step=block_request ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=block_request ok=10 of=10 median_ms=335 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=block_request ok=10 of=10 median_ms=237 relay=pipe_relay
 relay_cell machine=hosted-win browser=chrome form=pipe_relay step=block_request ok=10 of=10
 check machine=hosted-win browser=chrome form=pipe_relay step=credential_mark ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=credential_mark ok=10 of=10 median_ms=304 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=credential_mark ok=10 of=10 median_ms=222 relay=pipe_relay
 relay_cell machine=hosted-win browser=chrome form=pipe_relay step=credential_mark ok=10 of=10
 check machine=hosted-win browser=chrome form=pipe_relay step=payment_frame_isolated ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=payment_frame_isolated ok=10 of=10 median_ms=432 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=payment_frame_isolated ok=10 of=10 median_ms=356 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=changed_page_1_isolated ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=changed_page_1_isolated ok=10 of=10 median_ms=419 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=changed_page_1_isolated ok=10 of=10 median_ms=332 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=block_popup ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=block_popup ok=10 of=10 median_ms=85 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=block_popup ok=10 of=10 median_ms=80 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=block_frame_post ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=block_frame_post ok=10 of=10 median_ms=91 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=block_frame_post ok=10 of=10 median_ms=96 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=block_websocket ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 cell candidate=cdp machine=hosted-win browser=chrome major=156 step=block_websocket ok=10 of=10 median_ms=52 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=cert_error ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=cert_error ok=10 of=10 median_ms=303 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=cert_error ok=10 of=10 median_ms=240 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=list_refuse ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=list_refuse ok=10 of=10 median_ms=2465 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=list_refuse ok=10 of=10 median_ms=2414 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=list_hops ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=list_hops ok=10 of=10 median_ms=1319 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=list_hops ok=10 of=10 median_ms=1256 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=list_close ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=list_close ok=10 of=10 median_ms=1523 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=list_close ok=10 of=10 median_ms=1476 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=reach_page ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=reach_page ok=10 of=10 median_ms=3244 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=reach_page ok=10 of=10 median_ms=3179 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=reach_opened ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=reach_opened ok=10 of=10 median_ms=3275 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=reach_opened ok=10 of=10 median_ms=3206 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=reach_frame ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=reach_frame ok=10 of=10 median_ms=3297 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=reach_frame ok=10 of=10 median_ms=3236 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=reach_worker ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=reach_worker ok=10 of=10 median_ms=3238 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=reach_worker ok=10 of=10 median_ms=3185 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=reach_shared ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=reach_shared ok=10 of=10 median_ms=3238 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=reach_shared ok=10 of=10 median_ms=3182 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=reach_service ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=reach_service ok=10 of=10 median_ms=3238 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=reach_service ok=10 of=10 median_ms=3181 relay=pipe_relay
 check machine=hosted-win browser=chrome form=pipe_relay step=frame_doc ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 way row=frame_doc form=pipe_relay machine=hosted-win browser=chrome closed=yes runs=10 told=10
 check machine=hosted-win browser=chrome form=port_relay step=frame_doc ok=0 of=10 port_flag=90 tcp_listen=20 udp_wide=0 active_port_file=20 executor_listener=0 pipe_holder=0
 way row=frame_doc form=port_relay machine=hosted-win browser=chrome closed=yes runs=10 told=10
-control candidate=cdp machine=hosted-win browser=chrome step=driver_killed_pipe let_through=yes browser_after=gone connections=1 bytes=452 seen=yes
 kill machine=hosted-win form=pipe kills=20 arrived=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=driver_killed_pipe ok=20 of=20 median_ms=300
-control candidate=cdp machine=hosted-win browser=chrome step=driver_killed_port let_through=yes browser_after=alive connections=1 bytes=452 seen=yes
 kill machine=hosted-win form=port kills=20 arrived=20
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=driver_killed_port ok=0 of=20 median_ms=0 bytes=9040
-control candidate=cdp machine=hosted-win browser=chrome step=driver_killed_pipe_relay let_through=yes browser_after=gone connections=1 bytes=452 seen=yes
 kill machine=hosted-win form=pipe_relay kills=20 arrived=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=driver_killed_pipe_relay ok=20 of=20 median_ms=301 relay=pipe_relay
-control candidate=cdp machine=hosted-win browser=chrome step=driver_killed_port_relay let_through=yes browser_after=alive connections=1 bytes=452 seen=yes
 kill machine=hosted-win form=port_relay kills=20 arrived=0
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=driver_killed_port_relay ok=20 of=20 median_ms=0 relay=port_relay
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=relay_port_free ok=10 of=10 median_ms=310 relay=pipe_relay
-cell candidate=cdp machine=hosted-win browser=chrome major=0 step=org_debugging ok=10 of=10 median_ms=0 relay=pipe_relay
-cell candidate=cdp machine=hosted-win browser=chrome major=0 step=org_proxy ok=10 of=10 median_ms=0 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=0 step=org_proxy ok=10 of=10 median_ms=0 relay=pipe_relay control_before=reply value_read=direct page_named=yes control_after=reply
 check machine=hosted-win browser=edge form=pipe_relay step=pipe_inherit ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=pipe_inherit ok=10 of=10 median_ms=601 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=pipe_inherit ok=10 of=10 median_ms=231 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=relay_foreign ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=relay_foreign ok=10 of=10 median_ms=13 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=relay_foreign ok=10 of=10 median_ms=11 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=start_probe ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=start_probe ok=10 of=10 median_ms=120 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=start_probe ok=10 of=10 median_ms=83 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=same_site_pref ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=same_site_pref ok=10 of=10 median_ms=343 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=same_site_pref ok=10 of=10 median_ms=271 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=same_site_rule ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 cell candidate=cdp machine=hosted-win browser=edge major=156 step=same_site_rule ok=10 of=10 median_ms=54 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=signin_form ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=signin_form ok=10 of=10 median_ms=235 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=signin_form ok=10 of=10 median_ms=174 relay=pipe_relay
 relay_cell machine=hosted-win browser=edge form=pipe_relay step=signin_form ok=10 of=10
 check machine=hosted-win browser=edge form=pipe_relay step=table_read ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=table_read ok=10 of=10 median_ms=233 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=table_read ok=10 of=10 median_ms=171 relay=pipe_relay
 relay_cell machine=hosted-win browser=edge form=pipe_relay step=table_read ok=10 of=10
 check machine=hosted-win browser=edge form=pipe_relay step=form_fill ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=form_fill ok=10 of=10 median_ms=375 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=form_fill ok=10 of=10 median_ms=288 relay=pipe_relay
 relay_cell machine=hosted-win browser=edge form=pipe_relay step=form_fill ok=10 of=10
 check machine=hosted-win browser=edge form=pipe_relay step=payment_frame ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=payment_frame ok=10 of=10 median_ms=448 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=payment_frame ok=10 of=10 median_ms=356 relay=pipe_relay
 relay_cell machine=hosted-win browser=edge form=pipe_relay step=payment_frame ok=10 of=10
 check machine=hosted-win browser=edge form=pipe_relay step=file_upload ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=file_upload ok=10 of=10 median_ms=368 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=file_upload ok=10 of=10 median_ms=277 relay=pipe_relay
 relay_cell machine=hosted-win browser=edge form=pipe_relay step=file_upload ok=10 of=10
 check machine=hosted-win browser=edge form=pipe_relay step=session_expiry ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=session_expiry ok=10 of=10 median_ms=407 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=session_expiry ok=10 of=10 median_ms=314 relay=pipe_relay
 relay_cell machine=hosted-win browser=edge form=pipe_relay step=session_expiry ok=10 of=10
 check machine=hosted-win browser=edge form=pipe_relay step=changed_page_1 ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=changed_page_1 ok=10 of=10 median_ms=410 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=changed_page_1 ok=10 of=10 median_ms=339 relay=pipe_relay
 relay_cell machine=hosted-win browser=edge form=pipe_relay step=changed_page_1 ok=10 of=10
 check machine=hosted-win browser=edge form=pipe_relay step=block_request ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=block_request ok=10 of=10 median_ms=391 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=block_request ok=10 of=10 median_ms=278 relay=pipe_relay
 relay_cell machine=hosted-win browser=edge form=pipe_relay step=block_request ok=10 of=10
 check machine=hosted-win browser=edge form=pipe_relay step=credential_mark ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=credential_mark ok=10 of=10 median_ms=410 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=credential_mark ok=10 of=10 median_ms=268 relay=pipe_relay
 relay_cell machine=hosted-win browser=edge form=pipe_relay step=credential_mark ok=10 of=10
 check machine=hosted-win browser=edge form=pipe_relay step=payment_frame_isolated ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=payment_frame_isolated ok=10 of=10 median_ms=563 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=payment_frame_isolated ok=10 of=10 median_ms=392 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=changed_page_1_isolated ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=changed_page_1_isolated ok=10 of=10 median_ms=540 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=changed_page_1_isolated ok=10 of=10 median_ms=376 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=block_popup ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=block_popup ok=10 of=10 median_ms=96 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=block_popup ok=10 of=10 median_ms=86 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=block_frame_post ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=block_frame_post ok=10 of=10 median_ms=101 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=block_frame_post ok=10 of=10 median_ms=94 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=block_websocket ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 cell candidate=cdp machine=hosted-win browser=edge major=156 step=block_websocket ok=10 of=10 median_ms=52 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=cert_error ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=cert_error ok=10 of=10 median_ms=296 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=cert_error ok=10 of=10 median_ms=220 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=list_refuse ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=list_refuse ok=10 of=10 median_ms=2489 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=list_refuse ok=10 of=10 median_ms=2441 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=list_hops ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=list_hops ok=10 of=10 median_ms=1345 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=list_hops ok=10 of=10 median_ms=1294 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=list_close ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=list_close ok=10 of=10 median_ms=1527 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=list_close ok=10 of=10 median_ms=1480 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=reach_page ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=reach_page ok=10 of=10 median_ms=3246 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=reach_page ok=10 of=10 median_ms=3193 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=reach_opened ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=reach_opened ok=10 of=10 median_ms=3276 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=reach_opened ok=10 of=10 median_ms=3248 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=reach_frame ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=reach_frame ok=10 of=10 median_ms=3307 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=reach_frame ok=10 of=10 median_ms=3260 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=reach_worker ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=reach_worker ok=10 of=10 median_ms=3238 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=reach_worker ok=10 of=10 median_ms=3200 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=reach_shared ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=reach_shared ok=10 of=10 median_ms=3239 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=reach_shared ok=10 of=10 median_ms=3187 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=reach_service ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=reach_service ok=10 of=10 median_ms=3243 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=reach_service ok=10 of=10 median_ms=3193 relay=pipe_relay
 check machine=hosted-win browser=edge form=pipe_relay step=frame_doc ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 way row=frame_doc form=pipe_relay machine=hosted-win browser=edge closed=yes runs=10 told=10
 check machine=hosted-win browser=edge form=port_relay step=frame_doc ok=0 of=10 port_flag=70 tcp_listen=20 udp_wide=0 active_port_file=20 executor_listener=0 pipe_holder=0
 way row=frame_doc form=port_relay machine=hosted-win browser=edge closed=yes runs=10 told=10
-control candidate=cdp machine=hosted-win browser=edge step=driver_killed_pipe let_through=yes browser_after=gone connections=1 bytes=466 seen=yes
 kill machine=hosted-win form=pipe kills=20 arrived=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=driver_killed_pipe ok=20 of=20 median_ms=368
-control candidate=cdp machine=hosted-win browser=edge step=driver_killed_port let_through=yes browser_after=alive connections=1 bytes=466 seen=yes
 kill machine=hosted-win form=port kills=20 arrived=20
+kill machine=hosted-win form=pipe_relay kills=20 arrived=0
+kill machine=hosted-win form=port_relay kills=20 arrived=0
+control candidate=cdp machine=hosted-win browser=chrome step=driver_killed_pipe let_through=yes browser_after=gone connections=1 bytes=452 seen=yes
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=driver_killed_pipe ok=20 of=20 median_ms=278
+control candidate=cdp machine=hosted-win browser=chrome step=driver_killed_port let_through=yes browser_after=alive connections=1 bytes=452 seen=yes
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=driver_killed_port ok=0 of=20 median_ms=0 bytes=9040
+control candidate=cdp machine=hosted-win browser=chrome step=driver_killed_pipe_relay let_through=yes browser_after=gone connections=1 bytes=452 seen=yes
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=driver_killed_pipe_relay ok=20 of=20 median_ms=264 relay=pipe_relay
+control candidate=cdp machine=hosted-win browser=chrome step=driver_killed_port_relay let_through=yes browser_after=alive connections=1 bytes=452 seen=yes
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=driver_killed_port_relay ok=20 of=20 median_ms=0 relay=port_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=relay_port_free ok=10 of=10 median_ms=285 relay=pipe_relay
+control candidate=cdp machine=hosted-win browser=edge step=driver_killed_pipe let_through=yes browser_after=gone connections=1 bytes=466 seen=yes
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=driver_killed_pipe ok=20 of=20 median_ms=323
+control candidate=cdp machine=hosted-win browser=edge step=driver_killed_port let_through=yes browser_after=alive connections=1 bytes=466 seen=yes
 cell candidate=cdp machine=hosted-win browser=edge major=156 step=driver_killed_port ok=0 of=20 median_ms=0 bytes=9320
 control candidate=cdp machine=hosted-win browser=edge step=driver_killed_pipe_relay let_through=yes browser_after=gone connections=1 bytes=466 seen=yes
-kill machine=hosted-win form=pipe_relay kills=20 arrived=0
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=driver_killed_pipe_relay ok=20 of=20 median_ms=374 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=driver_killed_pipe_relay ok=20 of=20 median_ms=329 relay=pipe_relay
 control candidate=cdp machine=hosted-win browser=edge step=driver_killed_port_relay let_through=yes browser_after=alive connections=1 bytes=466 seen=yes
-kill machine=hosted-win form=port_relay kills=20 arrived=0
 cell candidate=cdp machine=hosted-win browser=edge major=156 step=driver_killed_port_relay ok=20 of=20 median_ms=0 relay=port_relay
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=relay_port_free ok=10 of=10 median_ms=413 relay=pipe_relay
-cell candidate=cdp machine=hosted-win browser=edge major=0 step=org_debugging ok=10 of=10 median_ms=0 relay=pipe_relay
-cell candidate=cdp machine=hosted-win browser=edge major=0 step=org_proxy ok=10 of=10 median_ms=0 relay=pipe_relay
-cell candidate=cdp machine=hosted-mac browser=chrome major=0 step=org_debugging ok=10 of=10 median_ms=0 relay=pipe_relay plist_owner=root:wheel plist_mode=-rw-r--r-- plist_value=0 page_named=yes page_platform=3 control_platform=2
-cell candidate=cdp machine=hosted-mac browser=chrome major=0 step=org_proxy ok=10 of=10 median_ms=0 relay=pipe_relay plist_owner=root:wheel plist_mode=-rw-r--r-- plist_value=direct page_named=yes page_platform=3 control_platform=2
-cell candidate=cdp machine=hosted-mac browser=edge major=0 step=org_debugging ok=10 of=10 median_ms=0 relay=pipe_relay plist_owner=root:wheel plist_mode=-rw-r--r-- plist_value=0 page_named=yes page_platform=1 control_platform=0
-cell candidate=cdp machine=hosted-mac browser=edge major=0 step=org_proxy ok=10 of=10 median_ms=0 relay=pipe_relay plist_owner=root:wheel plist_mode=-rw-r--r-- plist_value=direct page_named=yes page_platform=1 control_platform=0
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=relay_port_free ok=10 of=10 median_ms=346 relay=pipe_relay
+cell candidate=cdp machine=hosted-win browser=chrome major=0 step=org_debugging ok=10 of=10 median_ms=0 relay=pipe_relay control_before=reply value_read=0 page_named=yes control_after=reply
+notrun candidate=cdp machine=hosted-win browser=edge step=org_debugging cause=policy_not_seen reason=page_not_named
+cell candidate=cdp machine=hosted-win browser=edge major=0 step=org_proxy ok=10 of=10 median_ms=0 relay=pipe_relay control_before=reply value_read=direct page_named=yes control_after=reply
 same_site pref=yes rule=yes start_writes_setting=yes
-verdict executor=cdp version=0.9.1 form=pipe product=yes relay=yes library=protocol_types
+verdict executor=cdp version=0.9.1 form=pipe product=no relay=yes library=protocol_types
 ```
+
+Which code each set of lines ran at (CP-126 E8 (b)). The final code is 2f85bed0: the commits after
+it change the README, CHANGELOG.md and this file alone. Each difference below is between the code
+of the set and 2f85bed0.
+
+| set | code | differences | can a result rest on a difference |
+|---|---|---|---|
+| `mac`: `relay_foreign` and `relay_port_free` (first runs), `round3`, the nine rows | 5ad984ae (95d33beb and 269bac38 change tests alone) | the kill rows end the run's own processes after their watch; an `org_` page that does not name the setting holds the cell open; two tests; the check names what it counts | no for every row but `relay_port_free`: none of them is a kill row or an `org_` cell, and the check counts as before. `relay_port_free`: its line before the watch's end is the same code; the end after the watch is new |
+| `mac`: `isolation`, `relay`, `reach`, `ways`, `driver`, `relay_foreign` and `relay_port_free` again | bed6b1aa | the `org_` page rule; two tests; the check names what it counts | no: no `org_` cell runs on `mac`, and the check counts as before |
+| hosted-win: every line but the kill rows and three `org_` cells | c49bd8ef (run 43368925419) | `procs=` on each run line; the kill rows' end; the `org_` page rule; the check names what it counts; tests | no: `procs=` is a printed count, the kill rows' end runs in the kill rows alone, and Chrome's `org_proxy` page named its setting, so the page rule gives the same answer |
+| hosted-win: the kill rows of both browsers (`relay_port_free`, `driver_killed_*`) | bed6b1aa (run 43374121394) | the `org_` page rule; the check names what it counts; tests | no |
+| hosted-win: Edge's two `org_` cells and Chrome's `org_debugging` | 2f85bed0 (run 43384012622) | none | none |
+| hosted-win: the same three cells in run 43381911741 | 590a306d | none that a result rests on | no line of the block comes from it: my step printed Edge's new-tab page (as in run 43368925419) and read Chrome's page before the binary was built |
+| hosted-mac: every line, with the four `org_` cells | 5ad984ae (run 43369346664) | the kill rows' end; the `org_` page rule; the check names what it counts; tests | yes for the kill rows: their run lines carry no left counts. By the coordinator's ruling they rest on the run's lines and on the scan at the job's end, which found 0 processes of the trial's runs. No for the `org_` cells: each page named its setting |
+| the hosted rows of run 43313951706 (e72f0835) and the `org_` cells of run 43347520562 (037b242c) | e72f0835, 037b242c | the end of a run's own processes on every way out (CP-126 E1) | yes for every row: no line of the block comes from them now |
+
+The 45 `cell` lines of web-executor.md are of run 43103175522: the first round's executor on the
+library's port connection. No run of this round measured them again.
+
+`relay_port_free` on `mac` (CP-140 (1)): the block holds every run of the head, six with 55 of 60
+ok, and the collector reads the cell as it reads every cell. No run on `mac` was made inside a load
+bound. The runs, each 10 kills, with the 1-minute load before and after:
+
+| run | code | ok | load | tree gone after the kill |
+|---|---|---|---|---|
+| head, 05:23:11Z | 5ad984ae | 5 of 10 | 104.56 to 91.43 | 5.6 to 18.0 s in the five ok runs; in the five misses not within the 30 s watch |
+| control, 05:48:12Z | 70cb7488 | 10 of 10 | 110.29 to 90.19 | 0.8 to 19.0 s |
+| head, 06:00:06Z | bed6b1aa | 10 of 10 | 73.65 to 72.90 | 0.26 to 4.9 s |
+| control, 06:01:50Z | 70cb7488 | 10 of 10 | 74.60 to 70.59 | 0.2 to 1.2 s |
+| head, 06:03:25Z | bed6b1aa | 10 of 10 | 70.83 to 83.63 | 0.26 to 1.7 s |
+| control, 06:13:53Z | 70cb7488 | 10 of 10 | 108.92 to 110.98 | 1.0 to 5.4 s |
+| head, 06:15:48Z | bed6b1aa | 10 of 10 | 106.30 to 97.68 | 0.8 to 2.9 s |
+| control, 06:17:44Z | 70cb7488 | 10 of 10 | 103.92 to 115.30 | 0.7 to 22.6 s |
+| head, in the `driver` row, 06:19:28Z | bed6b1aa | 10 of 10 | 115.30 to 101.67 (the row's) | 1.1 to 18.7 s |
+| head, 06:38:59Z | bed6b1aa | 10 of 10 | 101.67 to 98.78 | 0.8 to 9.2 s |
+
+The five misses came in one run. The control passed at the same load, with the tree gone after up
+to 22.6 s against a watch of 30 s. The code of the row's watch is the same in all five head runs.
+The kept lines of the five misses say `gone_ms=- free_ms=-`: at the end of the watch a process of
+the tree read before the kill still ran, and the relay's port was not free; the code of that run
+printed no name for it. They say `left=no`: after the watch the browser's first process either no
+longer ran or was closed. That code printed nothing on the other processes of the tree at the end
+of the run; at 06:00:20Z no process named that run's scratch directory. Every head run from bed6b1aa
+on prints `left_before=0 left_after=0` in each run.
+
+hosted-win Edge's `org_debugging` (CP-137 (5)): both controls replied, the key read back 0, and in
+run 43368925419 each of the ten starts showed the effect; the page, printed with `edge://policy/`
+in run 43384012622, lists the setting, but pypdf's text gives it as `Remot eDebuggingAllow e` on
+one line and `dfalse Platform Device Mandator` on the next, so the rule's pieces spell more than
+the name and the cell is `notrun cause=policy_not_seen`. Whether the controls and the value carry
+the cell is with the coordinator.
+
+The check read (CP-140 (2)): in run 43369346664, hosted-mac Chrome's `signin_form`, run 7 of 10,
+the read after the start counted `port_flag=1` and `pipe_holder=1`; the reads after the row (0.74 s
+later) and after the stop counted 0, and the run was ok with `left_after=0`. Its `check` line stays
+as it reads. Since 350698a0 a check names each process that it counts in `port_flag` or
+`pipe_holder` (`check_counted`: number, parent, program, and a second read 0.5 s later); run
+43369346664 ran before it.
+
+Two points hold the verdict open, with the coordinator for a check by three readers before they are
+ruled: (a) whether a run of a row with a watch on `mac` counts for its cell only inside a load
+bound that is stated before the run, with the lines outside it kept and counted for nothing; (b)
+whether a count at the read after the start that the reads after the row and after the stop of the
+same run no longer find is a holder at all or a child of the browser between its fork and its exec,
+and what the check must print to tell the two apart. The planner has both with these numbers; a
+later round applies what is ruled to the kept lines.
+
+What the third round did not measure (CP-126 E8 (c)). No cell ran on an organisation's managed
+machine: the job wrote each `org_` policy itself on a hosted runner, and no management profile or
+domain delivered one. Every browser started headless, so no cell measured a browser with a window.
+Every run started with a new profile in a scratch directory, never a person's own profile. Every
+process ran under the one account of the machine or of the job, so no cell measured a peer of
+another account; the cell of `relay_foreign` under another account is with the planner.

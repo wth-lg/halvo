@@ -519,7 +519,13 @@ counts; a read that counts nothing does not wait.
   `NO_ROUTE_MESSAGE` when the probe found no refusal) and the fixture counted no request. On this
   Mac the cell is a `notrun` line with `cause=no_policy_place`: Chrome on macOS takes a policy from
   the system's managed preferences, which this unit does not write here. On hosted-mac the four
-  cells come from scratch run 43347520562, all `ok=10 of=10`. The runs before it lost cells to the
+  cells come from scratch run 43369346664 (CP-126, the fixed reader), all `ok=10 of=10` with each
+  page naming its setting; run 43347520562 gave the same four. On hosted-win Chrome's two cells and
+  Edge's `org_proxy` are `ok=10 of=10` with the control, the value and the page; Edge's
+  `org_debugging` page, printed with `edge://policy/` (the scratch job first printed Edge's new-tab
+  page through `chrome://policy/`), lists the setting, but pypdf joins the name's last letter to its
+  value, so that cell is `notrun cause=policy_not_seen` (runs 43368925419 and 43384012622). The runs
+  before 43347520562 lost cells to the
   harness: in 43339621990 the workflow's own 300 s limit stopped Chrome's `org_debugging` at 9 of 9
   ok runs (ten runs of the 30 s first-reply deadline take about 303 s), the stopped call's fixture
   kept port 18190 for both `org_proxy` calls, and the runner's PDFKit put the pieces of Edge's
