@@ -45,7 +45,7 @@ impl TextFilterPoint for IdentityPoint {
 }
 
 /// A point that records each call and returns a marker in place of the text:
-/// `marker-1` for the first call, `marker-2` for the second.
+/// `marker-1.example` for the first call, `marker-2.example` for the second.
 pub(crate) struct RecordingPoint {
     calls: std::cell::RefCell<Vec<(TextField, String)>>,
 }
@@ -68,13 +68,13 @@ impl TextFilterPoint for RecordingPoint {
     fn filter(&self, field: TextField, text: &str) -> String {
         let mut calls = self.calls.borrow_mut();
         calls.push((field, text.to_owned()));
-        format!("marker-{}", calls.len())
+        format!("marker-{}.example", calls.len())
     }
 }
 
 /// A point that returns every app id and title unchanged and a site of
-/// [`super::site::SITE_MAX_BYTES`] letters: with texts of control characters at
-/// their cap it gives the longest record.
+/// [`super::site::SITE_MAX_BYTES`] bytes in four labels: with texts of control
+/// characters at their cap it gives the longest record.
 pub(crate) struct LongestPoint;
 
 impl TextFilterPoint for LongestPoint {
@@ -82,7 +82,13 @@ impl TextFilterPoint for LongestPoint {
 
     fn filter(&self, field: TextField, text: &str) -> String {
         match field {
-            TextField::Site => "a".repeat(super::site::SITE_MAX_BYTES),
+            TextField::Site => format!(
+                "{}.{}.{}.{}",
+                "a".repeat(63),
+                "b".repeat(63),
+                "c".repeat(63),
+                "d".repeat(super::site::SITE_MAX_BYTES - 3 * 64)
+            ),
             TextField::BundleId | TextField::ExecutablePath | TextField::Title => text.to_owned(),
         }
     }

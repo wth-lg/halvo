@@ -388,8 +388,8 @@ mod tests {
         let received = FloorReceived::for_test(event, ArrivalNumber::for_test(41));
         let line = encode(&received, &IdentityPoint).unwrap();
         let decoded = decode(line.as_str()).expect("the decoder reads the record");
-        assert_eq!(decoded.id.hyphenated().to_string(), id);
-        assert_eq!(decoded.seq, 41);
+        assert_eq!(decoded.id().hyphenated().to_string(), id);
+        assert_eq!(decoded.seq(), 41);
         line.as_str().replacen(&id, "ID", 1)
     }
 
@@ -488,8 +488,10 @@ mod tests {
             let event = FloorEvent::window_title(keep, title, None, EventClock::system());
             let received = FloorReceived::for_test(event, ArrivalNumber::for_test(0));
             let line = encode(&received, &IdentityPoint).unwrap();
-            match decode(line.as_str()).unwrap().payload {
-                DecodedPayload::WindowTitle { site, .. } => site,
+            match decode(line.as_str()).unwrap().payload() {
+                DecodedPayload::WindowTitle { site, .. } => {
+                    site.as_ref().map(|site| site.as_str().to_string())
+                }
                 _ => panic!("not a title"),
             }
         }
@@ -520,16 +522,19 @@ mod tests {
         let line = line.as_str();
         assert!(!line.to_lowercase().contains("planted"), "{line}");
         let decoded = decode(line).unwrap();
-        assert_eq!(decoded.app.as_deref(), Some("marker-1"));
+        assert_eq!(decoded.app(), Some("marker-1.example"));
         let DecodedPayload::WindowTitle {
             text, cut, site, ..
-        } = decoded.payload
+        } = decoded.payload()
         else {
             panic!("not a title");
         };
-        assert_eq!(text, "marker-2");
+        assert_eq!(text.as_str(), "marker-2.example");
         assert!(cut, "the point changed the title");
-        assert_eq!(site.as_deref(), Some("marker-3"));
+        assert_eq!(
+            site.as_ref().map(|site| site.as_str()),
+            Some("marker-3.example")
+        );
         let unknown =
             FloorEvent::foreground_app(keep(AppIdentity::unknown(), 7), None, EventClock::system());
         let received = FloorReceived::for_test(unknown, ArrivalNumber::for_test(1));
@@ -554,11 +559,11 @@ mod tests {
         let event = FloorEvent::window_title(keep(app(), 7), title, None, EventClock::system());
         let received = FloorReceived::for_test(event, ArrivalNumber::for_test(0));
         let line = encode(&received, &IdentityPoint).unwrap();
-        let DecodedPayload::WindowTitle { text, cut, .. } = decode(line.as_str()).unwrap().payload
-        else {
+        let decoded = decode(line.as_str()).unwrap();
+        let DecodedPayload::WindowTitle { text, cut, .. } = decoded.payload() else {
             panic!("not a title");
         };
-        assert_eq!(text, "h".repeat(TEXT_MAX_BYTES));
+        assert_eq!(text.as_str(), "h".repeat(TEXT_MAX_BYTES));
         assert!(cut);
     }
 }

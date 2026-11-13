@@ -9,13 +9,14 @@ use std::str::FromStr;
 
 use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde_json::{Map, Value};
-use uuid::Uuid;
+use uuid::{Uuid, Variant};
 use zeroize::Zeroizing;
 
 use super::payload::{is_recorded, Button, FoldClass, KeyClass, Observation, TitleWhy};
 use super::site::SITE_MAX_BYTES;
-use super::text::{write_through, TextField, TextFilterPoint, TEXT_MAX_BYTES};
-use crate::event::Modality;
+use super::text::{push_json_string, write_through, TextField, TextFilterPoint, TEXT_MAX_BYTES};
+use super::{KEY_TIME_RESOLUTION, TIME_RESOLUTION};
+use crate::event::{coarsened, FloorEvent, Modality};
 use crate::sink::FloorReceived;
 
 /// The shape version `v` of every record.
@@ -87,22 +88,23 @@ pub fn encode<P: TextFilterPoint>(
 ) -> Result<EncodedRecord, RecordTooLong> {
     let event = received.event();
     let mut out = Zeroizing::new(String::with_capacity(LARGEST_RECORD_BYTES));
-    head(
-        &mut out,
-        event.id().uuid(),
-        event.at(),
-        received.number().get(),
-        event.kind().as_str(),
-    );
-    match event.app().text() {
-        Some((text, field)) => {
-            write_through(text, field, point, &mut out);
-        }
-        None => out.push_str("null"),
-    }
-    out.push_str(",\"p\":");
-    payload(&mut out, event.observation(), point);
-    out.push('}');
+    let shape = match event.observation() {
+        Observation::ForegroundApp | Observation::ScreenFrame => Shape::Empty,
+        Observation::WindowTitle(title) => Shape::Title {
+            why: title.why,
+            site: title.site.is_some(),
+        },
+        Observation::Keystroke(class) => Shape::Key(*class),
+        Observation::Click(button) => Shape::Click(*button),
+        Observation::Fold(fold) => Shape::Fold(fold.class(), fold.count().get()),
+    };
+    let head = Head {
+        id: event.id().uuid(),
+        at: event.at(),
+        seq: received.number().get(),
+        kind: event.kind().as_str(),
+    };
+    write_record(&mut out, &head, &shape, &mut ThroughPoint { event, point });
     if out.len() > LARGEST_RECORD_BYTES {
         return Err(RecordTooLong {
             len: out.len(),
@@ -112,47 +114,141 @@ pub fn encode<P: TextFilterPoint>(
     Ok(EncodedRecord(out))
 }
 
-fn head(out: &mut String, id: Uuid, at: i64, seq: u64, kind: &str) {
-    let _ = write!(
-        out,
-        "{{\"v\":{SHAPE_VERSION},\"id\":\"{}\",\"at\":{at},\"seq\":{seq},\"kind\":\"{kind}\",\"app\":",
-        id.hyphenated()
-    );
+struct Head<'a> {
+    id: Uuid,
+    at: i64,
+    seq: u64,
+    kind: &'a str,
 }
 
-fn payload<P: TextFilterPoint>(out: &mut String, observation: &Observation, point: &P) {
-    match observation {
-        Observation::ForegroundApp | Observation::ScreenFrame => out.push_str("{}"),
-        Observation::WindowTitle(title) => {
-            out.push_str("{\"text\":");
-            let changed = write_through(&title.text, TextField::Title, point, out);
-            let cut = title.text.was_cut() || changed;
-            let _ = write!(out, ",\"cut\":{cut},\"why\":\"{}\"", title.why.as_str());
+/// What `p` holds, apart from its captured strings.
+enum Shape {
+    Empty,
+    Title {
+        why: TitleWhy,
+        site: bool,
+    },
+    Key(KeyClass),
+    Click(Button),
+    Fold(FoldClass, u64),
+    #[cfg(feature = "r2")]
+    Free(Map<String, Value>),
+}
+
+/// The writer of the captured strings of one record.
+trait Texts {
+    /// Writes the app as a JSON string, or `null`.
+    fn app(&mut self, out: &mut String);
+    /// Writes the title text as a JSON string and gives the value of `cut`.
+    fn title(&mut self, out: &mut String) -> bool;
+    /// Writes the site's domain as a JSON string.
+    fn site(&mut self, out: &mut String);
+}
+
+struct ThroughPoint<'a, P> {
+    event: &'a FloorEvent,
+    point: &'a P,
+}
+
+impl<P: TextFilterPoint> Texts for ThroughPoint<'_, P> {
+    fn app(&mut self, out: &mut String) {
+        match self.event.app().text() {
+            Some((text, field)) => {
+                write_through(text, field, self.point, out);
+            }
+            None => out.push_str("null"),
+        }
+    }
+
+    fn title(&mut self, out: &mut String) -> bool {
+        match self.event.observation() {
+            Observation::WindowTitle(title) => {
+                let changed = write_through(&title.text, TextField::Title, self.point, out);
+                title.text.was_cut() || changed
+            }
+            _ => false,
+        }
+    }
+
+    fn site(&mut self, out: &mut String) {
+        if let Observation::WindowTitle(title) = self.event.observation() {
             if let Some(site) = &title.site {
+                write_through(site.domain(), TextField::Site, self.point, out);
+            }
+        }
+    }
+}
+
+/// The one writer of a record, for the encoder and for the decoder's check of
+/// the form.
+fn write_record(out: &mut String, head: &Head<'_>, shape: &Shape, texts: &mut impl Texts) {
+    let _ = write!(
+        out,
+        "{{\"v\":{SHAPE_VERSION},\"id\":\"{}\",\"at\":{},\"seq\":{},\"kind\":\"{}\",\"app\":",
+        head.id.hyphenated(),
+        head.at,
+        head.seq,
+        head.kind
+    );
+    texts.app(out);
+    out.push_str(",\"p\":");
+    match shape {
+        Shape::Empty => out.push_str("{}"),
+        Shape::Title { why, site } => {
+            out.push_str("{\"text\":");
+            let cut = texts.title(out);
+            let _ = write!(out, ",\"cut\":{cut},\"why\":\"{}\"", why.as_str());
+            if *site {
                 out.push_str(",\"site\":{\"domain\":");
-                write_through(site.domain(), TextField::Site, point, out);
+                texts.site(out);
                 out.push_str(",\"source\":\"address_field\"}");
             }
             out.push('}');
         }
-        Observation::Keystroke(class) => {
+        Shape::Key(class) => {
             let _ = write!(out, "{{\"class\":\"{}\"}}", class.as_str());
         }
-        Observation::Click(button) => {
+        Shape::Click(button) => {
             let _ = write!(
                 out,
                 "{{\"class\":\"click\",\"button\":\"{}\"}}",
                 button.as_str()
             );
         }
-        Observation::Fold(fold) => {
+        Shape::Fold(class, count) => {
             let _ = write!(
                 out,
-                "{{\"class\":\"{}\",\"count\":{}}}",
-                fold.class().as_str(),
-                fold.count().get()
+                "{{\"class\":\"{}\",\"count\":{count}}}",
+                class.as_str()
             );
         }
+        #[cfg(feature = "r2")]
+        Shape::Free(p) => out.push_str(&Value::Object(p.clone()).to_string()),
+    }
+    out.push('}');
+}
+
+/// A text of a decoded record: an app id or a title of at most
+/// [`TEXT_MAX_BYTES`] bytes. Only the decoder makes one.
+#[derive(Clone, PartialEq, Eq)]
+pub struct DecodedText(String);
+
+impl DecodedText {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// The domain of a decoded site, of the shape that the cut keeps: 1 to
+/// [`SITE_MAX_BYTES`] bytes of two or more labels of 1 to 63 bytes of `a` to
+/// `z`, `0` to `9` and the hyphen, no hyphen at either end of a label, and a
+/// last label that is not all digits. Only the decoder makes one.
+#[derive(Clone, PartialEq, Eq)]
+pub struct DecodedSite(String);
+
+impl DecodedSite {
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
 
@@ -160,11 +256,11 @@ fn payload<P: TextFilterPoint>(out: &mut String, observation: &Observation, poin
 /// into the sink. Its `Debug` prints a placeholder.
 #[derive(Clone, PartialEq, Eq)]
 pub struct DecodedRecord {
-    pub id: Uuid,
-    pub at: i64,
-    pub seq: u64,
-    pub app: Option<String>,
-    pub payload: DecodedPayload,
+    id: Uuid,
+    at: i64,
+    seq: u64,
+    app: Option<DecodedText>,
+    payload: DecodedPayload,
 }
 
 /// The payload `p` of a decoded record, by kind.
@@ -172,10 +268,10 @@ pub struct DecodedRecord {
 pub enum DecodedPayload {
     ForegroundApp,
     WindowTitle {
-        text: String,
+        text: DecodedText,
         cut: bool,
         why: TitleWhy,
-        site: Option<String>,
+        site: Option<DecodedSite>,
     },
     Keystroke(KeyClass),
     Click(Button),
@@ -189,6 +285,27 @@ pub enum DecodedPayload {
 }
 
 impl DecodedRecord {
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    /// The instant in signed unix nanoseconds.
+    pub fn at(&self) -> i64 {
+        self.at
+    }
+
+    pub fn seq(&self) -> u64 {
+        self.seq
+    }
+
+    pub fn app(&self) -> Option<&str> {
+        self.app.as_ref().map(DecodedText::as_str)
+    }
+
+    pub fn payload(&self) -> &DecodedPayload {
+        &self.payload
+    }
+
     /// The kind text of the record.
     pub fn kind(&self) -> &'static str {
         match &self.payload {
@@ -200,6 +317,18 @@ impl DecodedRecord {
             #[cfg(feature = "r2")]
             DecodedPayload::RunMark(_) => RUN_MARK_KIND,
         }
+    }
+}
+
+impl fmt::Debug for DecodedText {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("DecodedText(..)")
+    }
+}
+
+impl fmt::Debug for DecodedSite {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("DecodedSite(..)")
     }
 }
 
@@ -221,34 +350,76 @@ impl fmt::Debug for DecodedRecord {
     }
 }
 
-/// Why the decoder refused a line.
+/// The object of a record that held a refused key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Object {
+    /// The record itself.
+    Record,
+    /// The payload `p`.
+    Payload,
+    /// The `site` of a title.
+    Site,
+}
+
+impl fmt::Display for Object {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Object::Record => "the record",
+            Object::Payload => "p",
+            Object::Site => "site",
+        })
+    }
+}
+
+/// Why the decoder refused a line. No variant holds a text or a number of the
+/// line.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum DecodeError {
+    #[error("the line is longer than the largest record")]
+    LineTooLong,
     #[error("the line is not one JSON object")]
     NotAnObject,
     #[error("a key stands twice in one object of the record")]
     DuplicateField,
-    #[error("the record holds a field that is not in its shape: {0}")]
-    UnknownField(String),
+    #[error("{0} holds a field that is not in its shape")]
+    UnknownField(Object),
     #[error("the record lacks the field {0}")]
     MissingField(&'static str),
     #[error("the field {0} has a value of the wrong form")]
     BadValue(&'static str),
-    #[error("the record has shape version {0}, not 1")]
-    Version(u64),
+    #[error("the record has a shape version other than 1")]
+    Version,
     #[error("the kind run_mark is reserved")]
     ReservedKind,
     #[error("the kind {0} has no record")]
     UnrecordedKind(&'static str),
     #[error("the kind is not one of the kinds")]
     UnknownKind,
+    #[error("the {0} is empty")]
+    EmptyText(&'static str),
+    #[error("the {0} is longer than its cap")]
+    TextTooLong(&'static str),
+    #[error("the site is not of the shape that the cut keeps")]
+    BadSite,
+    #[error("the instant is finer than the stored resolution of its kind")]
+    FinerInstant,
+    #[error("the line is not the form that the encoder writes")]
+    NotEncoderForm,
 }
 
 const RECORD_FIELDS: [&str; 7] = ["v", "id", "at", "seq", "kind", "app", "p"];
 
-/// The strict decoder: one record of the shape above, with no field more and
-/// none less, in `p` as in the record.
+/// The strict decoder. It refuses a line longer than [`LARGEST_RECORD_BYTES`],
+/// a field more or less in any object, an id that is not an RFC 4122 version 7
+/// UUID, an empty app, an app or a title above [`TEXT_MAX_BYTES`], a site that
+/// the cut could not have kept, an instant finer than its kind's resolution,
+/// and any line that is not byte for byte what the encoder writes for the
+/// decoded value. It cannot see a short title that no filter saw, or a domain
+/// of the right shape that is not the page's.
 pub fn decode(line: &str) -> Result<DecodedRecord, DecodeError> {
+    if line.len() > LARGEST_RECORD_BYTES {
+        return Err(DecodeError::LineTooLong);
+    }
     let mut record = match serde_json::from_str::<Unique>(line) {
         Ok(Unique(Value::Object(record))) => record,
         Ok(_) => return Err(DecodeError::NotAnObject),
@@ -257,14 +428,13 @@ pub fn decode(line: &str) -> Result<DecodedRecord, DecodeError> {
         }
         Err(_) => return Err(DecodeError::NotAnObject),
     };
-    exact_fields(&record, &RECORD_FIELDS, &[])?;
-    let version = take_u64(&mut record, "v")?;
-    if version != SHAPE_VERSION {
-        return Err(DecodeError::Version(version));
+    exact_fields(&record, Object::Record, &RECORD_FIELDS, &[])?;
+    if take_u64(&mut record, "v")? != SHAPE_VERSION {
+        return Err(DecodeError::Version);
     }
     let id = take_string(&mut record, "id")?;
     let id = Uuid::parse_str(&id).map_err(|_| DecodeError::BadValue("id"))?;
-    if id.get_version_num() != 7 {
+    if id.get_version_num() != 7 || id.get_variant() != Variant::RFC4122 {
         return Err(DecodeError::BadValue("id"));
     }
     let at = match record.remove("at") {
@@ -275,20 +445,118 @@ pub fn decode(line: &str) -> Result<DecodedRecord, DecodeError> {
     let kind = take_string(&mut record, "kind")?;
     let app = match record.remove("app") {
         Some(Value::Null) => None,
-        Some(Value::String(app)) => Some(app),
+        Some(Value::String(app)) if app.is_empty() => return Err(DecodeError::EmptyText("app")),
+        Some(Value::String(app)) => Some(capped(app, "app")?),
         _ => return Err(DecodeError::BadValue("app")),
     };
     let Some(Value::Object(p)) = record.remove("p") else {
         return Err(DecodeError::BadValue("p"));
     };
     let payload = decoded_payload(&kind, app.is_none(), p)?;
-    Ok(DecodedRecord {
+    let resolution = match payload {
+        DecodedPayload::Keystroke(_) | DecodedPayload::Click(_) => KEY_TIME_RESOLUTION,
+        _ => TIME_RESOLUTION,
+    };
+    if coarsened(at, resolution) != at {
+        return Err(DecodeError::FinerInstant);
+    }
+    let decoded = DecodedRecord {
         id,
         at,
         seq,
         app,
         payload,
-    })
+    };
+    if encoder_form(&decoded).as_str() != line {
+        return Err(DecodeError::NotEncoderForm);
+    }
+    Ok(decoded)
+}
+
+fn capped(text: String, field: &'static str) -> Result<DecodedText, DecodeError> {
+    if text.len() > TEXT_MAX_BYTES {
+        return Err(DecodeError::TextTooLong(field));
+    }
+    Ok(DecodedText(text))
+}
+
+fn site_of_the_cut(domain: String) -> Result<DecodedSite, DecodeError> {
+    let label = |label: &str| {
+        (1..=63).contains(&label.len())
+            && !label.starts_with('-')
+            && !label.ends_with('-')
+            && label
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+    };
+    let labels: Vec<&str> = domain.split('.').collect();
+    let shaped = (1..=SITE_MAX_BYTES).contains(&domain.len())
+        && labels.len() >= 2
+        && labels.iter().all(|l| label(l))
+        && !labels
+            .last()
+            .is_some_and(|last| last.bytes().all(|b| b.is_ascii_digit()));
+    if shaped {
+        Ok(DecodedSite(domain))
+    } else {
+        Err(DecodeError::BadSite)
+    }
+}
+
+/// What the encoder writes for `record`, in a buffer that is wiped when it
+/// drops.
+fn encoder_form(record: &DecodedRecord) -> Zeroizing<String> {
+    let mut out = Zeroizing::new(String::with_capacity(LARGEST_RECORD_BYTES));
+    let shape = match &record.payload {
+        DecodedPayload::ForegroundApp | DecodedPayload::ScreenFrame => Shape::Empty,
+        DecodedPayload::WindowTitle { why, site, .. } => Shape::Title {
+            why: *why,
+            site: site.is_some(),
+        },
+        DecodedPayload::Keystroke(class) => Shape::Key(*class),
+        DecodedPayload::Click(button) => Shape::Click(*button),
+        DecodedPayload::Fold { class, count } => Shape::Fold(*class, *count),
+        #[cfg(feature = "r2")]
+        DecodedPayload::RunMark(p) => Shape::Free(p.clone()),
+    };
+    let head = Head {
+        id: record.id,
+        at: record.at,
+        seq: record.seq,
+        kind: record.kind(),
+    };
+    write_record(&mut out, &head, &shape, &mut AsDecoded(record));
+    out
+}
+
+struct AsDecoded<'a>(&'a DecodedRecord);
+
+impl Texts for AsDecoded<'_> {
+    fn app(&mut self, out: &mut String) {
+        match &self.0.app {
+            Some(app) => push_json_string(out, app.as_str()),
+            None => out.push_str("null"),
+        }
+    }
+
+    fn title(&mut self, out: &mut String) -> bool {
+        match &self.0.payload {
+            DecodedPayload::WindowTitle { text, cut, .. } => {
+                push_json_string(out, text.as_str());
+                *cut
+            }
+            _ => false,
+        }
+    }
+
+    fn site(&mut self, out: &mut String) {
+        if let DecodedPayload::WindowTitle {
+            site: Some(site), ..
+        } = &self.0.payload
+        {
+            push_json_string(out, site.as_str());
+        }
+    }
 }
 
 const DUPLICATE: &str = "a key stands twice";
@@ -374,7 +642,7 @@ fn decoded_payload(
     }
     match modality {
         Modality::ForegroundApp | Modality::ScreenFrame => {
-            exact_fields(&p, &[], &[])?;
+            exact_fields(&p, Object::Payload, &[], &[])?;
             Ok(if modality == Modality::ForegroundApp {
                 DecodedPayload::ForegroundApp
             } else {
@@ -382,8 +650,8 @@ fn decoded_payload(
             })
         }
         Modality::WindowTitle => {
-            exact_fields(&p, &["text", "cut", "why"], &["site"])?;
-            let text = take_string(&mut p, "text")?;
+            exact_fields(&p, Object::Payload, &["text", "cut", "why"], &["site"])?;
+            let text = capped(take_string(&mut p, "text")?, "text")?;
             let cut = match p.remove("cut") {
                 Some(Value::Bool(cut)) => cut,
                 _ => return Err(DecodeError::BadValue("cut")),
@@ -396,11 +664,11 @@ fn decoded_payload(
             let site = match p.remove("site") {
                 None => None,
                 Some(Value::Object(mut site)) => {
-                    exact_fields(&site, &["domain", "source"], &[])?;
+                    exact_fields(&site, Object::Site, &["domain", "source"], &[])?;
                     if take_string(&mut site, "source")? != "address_field" {
                         return Err(DecodeError::BadValue("source"));
                     }
-                    Some(take_string(&mut site, "domain")?)
+                    Some(site_of_the_cut(take_string(&mut site, "domain")?)?)
                 }
                 Some(_) => return Err(DecodeError::BadValue("site")),
             };
@@ -412,7 +680,7 @@ fn decoded_payload(
             })
         }
         Modality::Keystroke => {
-            exact_fields(&p, &["class"], &[])?;
+            exact_fields(&p, Object::Payload, &["class"], &[])?;
             let class = take_string(&mut p, "class")?;
             KeyClass::ALL
                 .into_iter()
@@ -426,7 +694,7 @@ fn decoded_payload(
                 _ => return Err(DecodeError::BadValue("class")),
             };
             if class == "click" {
-                exact_fields(&p, &["class", "button"], &[])?;
+                exact_fields(&p, Object::Payload, &["class", "button"], &[])?;
                 let button = take_string(&mut p, "button")?;
                 return Button::ALL
                     .into_iter()
@@ -434,7 +702,7 @@ fn decoded_payload(
                     .map(DecodedPayload::Click)
                     .ok_or(DecodeError::BadValue("button"));
             }
-            exact_fields(&p, &["class", "count"], &[])?;
+            exact_fields(&p, Object::Payload, &["class", "count"], &[])?;
             let class = FoldClass::ALL
                 .into_iter()
                 .find(|known| known.as_str() == class)
@@ -472,14 +740,15 @@ fn run_mark_payload(
 
 fn exact_fields(
     object: &Map<String, Value>,
+    which: Object,
     required: &[&'static str],
     optional: &[&'static str],
 ) -> Result<(), DecodeError> {
-    if let Some(extra) = object
+    if object
         .keys()
-        .find(|key| !required.contains(&key.as_str()) && !optional.contains(&key.as_str()))
+        .any(|key| !required.contains(&key.as_str()) && !optional.contains(&key.as_str()))
     {
-        return Err(DecodeError::UnknownField(extra.clone()));
+        return Err(DecodeError::UnknownField(which));
     }
     match required.iter().find(|key| !object.contains_key(**key)) {
         Some(missing) => Err(DecodeError::MissingField(missing)),
@@ -541,67 +810,361 @@ impl RunMark {
 
     fn line(&self, seq: u64) -> Zeroizing<String> {
         let mut out = Zeroizing::new(String::new());
-        head(&mut out, self.id.uuid(), self.at, seq, RUN_MARK_KIND);
-        out.push_str("null,\"p\":");
-        out.push_str(&Value::Object(self.p.clone()).to_string());
-        out.push('}');
+        let head = Head {
+            id: self.id.uuid(),
+            at: self.at,
+            seq,
+            kind: RUN_MARK_KIND,
+        };
+        write_record(&mut out, &head, &Shape::Free(self.p.clone()), &mut NoTexts);
         out
     }
+}
+
+/// The captured strings of a record that holds none: a run mark.
+#[cfg(feature = "r2")]
+struct NoTexts;
+
+#[cfg(feature = "r2")]
+impl Texts for NoTexts {
+    fn app(&mut self, out: &mut String) {
+        out.push_str("null");
+    }
+
+    fn title(&mut self, _out: &mut String) -> bool {
+        false
+    }
+
+    fn site(&mut self, _out: &mut String) {}
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::event::{AppIdentity, EventClock, FloorEvent};
-    use crate::floor::cases::{keep, LongestPoint, RecordingPoint};
-    use crate::floor::payload::Title;
+    use crate::event::{AppIdentity, EventClock, FloorEvent, FoldEvent};
+    use crate::floor::cases::{keep, IdentityPoint, LongestPoint, RecordingPoint};
+    use crate::floor::payload::{FoldCount, PointerFold, Title};
+    use crate::floor::site::Site;
+    use crate::secure_input::{check, FixedProbe, SecureInputReading};
     use crate::sink::{ArrivalNumber, FloorReceived};
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+    const ID: &str = "0190a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b";
+
     fn line(kind: &str, app: &str, p: &str) -> String {
-        let id = Uuid::now_v7().hyphenated().to_string();
-        format!(r#"{{"v":1,"id":"{id}","at":-5,"seq":3,"kind":"{kind}","app":{app},"p":{p}}}"#)
+        format!(
+            r#"{{"v":1,"id":"{ID}","at":-5000000000,"seq":3,"kind":"{kind}","app":{app},"p":{p}}}"#
+        )
+    }
+
+    fn title(text: &str, site: &str) -> String {
+        let site = if site.is_empty() {
+            String::new()
+        } else {
+            format!(r#","site":{{"domain":{site},"source":"address_field"}}"#)
+        };
+        line(
+            "window_title",
+            r#""com.apple.Safari""#,
+            &format!(r#"{{"text":{text},"cut":false,"why":"app_change"{site}}}"#),
+        )
+    }
+
+    #[test]
+    fn the_decoder_refuses_every_form_that_the_encoder_never_writes() {
+        const ID: &str = "0190a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b";
+        let base = |kind: &str, at: &str, app: &str, p: &str| {
+            format!(
+                r#"{{"v":1,"id":"{ID}","at":{at},"seq":3,"kind":"{kind}","app":{app},"p":{p}}}"#
+            )
+        };
+        let title = |text: String, site: Option<String>| {
+            let site = site.map_or(String::new(), |domain| {
+                format!(r#","site":{{"domain":"{domain}","source":"address_field"}}"#)
+            });
+            base(
+                "window_title",
+                "-5000000000",
+                r#""com.apple.Safari""#,
+                &format!(r#"{{"text":"{text}","cut":false,"why":"app_change"{site}}}"#),
+            )
+        };
+        let app = |app: String| {
+            base(
+                "foreground_app",
+                "-5000000000",
+                &format!(r#""{app}""#),
+                "{}",
+            )
+        };
+        let site = |domain: &str| title("Inbox".to_string(), Some(domain.to_string()));
+        let good = base("keystroke", "-5000000000", "null", r#"{"class":"tab"}"#);
+        let with_id = |id: &str| good.replacen(ID, id, 1);
+        let mut forms: Vec<(&str, String)> = vec![
+            ("title of 1,025 bytes", title("a".repeat(1025), None)),
+            (
+                "title of 1,025 bytes in two-byte letters",
+                title(format!("{}a", "\u{e9}".repeat(512)), None),
+            ),
+            ("title of 100,000 bytes", title("a".repeat(100_000), None)),
+            (
+                "title of four times the largest record",
+                title("a".repeat(4 * 12_771), None),
+            ),
+            ("app of 1,025 bytes", app("a".repeat(1025))),
+            ("app of 5,000 bytes", app("a".repeat(5000))),
+            ("an empty app", app(String::new())),
+            ("site with a path", site("example.com/inbox")),
+            ("site with a port", site("example.com:8080")),
+            ("site with a user", site("jane@example.com")),
+            (
+                "site with a user and a password",
+                site("jane:pw@example.com"),
+            ),
+            ("site with a query", site("example.com?q=1")),
+            ("site with a fragment", site("example.com#top")),
+            (
+                "site that is a full url",
+                site("https://jane:pw@www.example.com:8080/a?b=c#d"),
+            ),
+            ("site in upper case", site("Example.com")),
+            ("site of one label", site("example")),
+            ("site that is empty", site("")),
+            ("site with a space", site("exa mple.com")),
+            ("site with a nul", site("exa\\u0000mple.com")),
+            ("site with a byte above ascii", site("b\u{fc}cher.de")),
+            (
+                "site of 254 bytes",
+                site(&format!(
+                    "{}.{}.{}.{}.com",
+                    "a".repeat(63),
+                    "b".repeat(63),
+                    "c".repeat(63),
+                    "d".repeat(58)
+                )),
+            ),
+            ("site with a trailing dot", site("example.com.")),
+            ("site in brackets", site("[::1]")),
+            ("site that is localhost", site("localhost")),
+            ("site that is a dotted number", site("192.168.1.10")),
+            ("site with a backslash", site("example.com\\\\x")),
+            (
+                "site with a label of 64 bytes",
+                site(&format!("{}.com", "a".repeat(64))),
+            ),
+            ("site with a hyphen at a label's end", site("example-.com")),
+            (
+                "line longer than the largest record by padding",
+                format!("{good}{}", " ".repeat(12_771)),
+            ),
+            (
+                "line longer than the largest record by escapes",
+                title("\\u0061".repeat(2200), None),
+            ),
+            ("id in upper case", with_id(&ID.to_uppercase())),
+            ("id in braces", with_id(&format!("{{{ID}}}"))),
+            ("id as a urn", with_id(&format!("urn:uuid:{ID}"))),
+            ("id without hyphens", with_id(&ID.replace('-', ""))),
+            (
+                "id of another variant",
+                with_id("0190a1b2-c3d4-7e5f-ca6b-7c8d9e0f1a2b"),
+            ),
+            (
+                "keystroke instant finer than 1,000 ms",
+                base("keystroke", "-5000000001", "null", r#"{"class":"tab"}"#),
+            ),
+            (
+                "click instant finer than 1,000 ms",
+                base(
+                    "pointer",
+                    "1800000000500000000",
+                    "null",
+                    r#"{"class":"click","button":"primary"}"#,
+                ),
+            ),
+            (
+                "title instant finer than 1 ms",
+                base(
+                    "window_title",
+                    "1800000000000000001",
+                    "null",
+                    r#"{"text":"t","cut":false,"why":"app_change"}"#,
+                ),
+            ),
+            ("a space after the object", format!("{good} ")),
+            ("a tab after the object", format!("{good}\t")),
+            ("a carriage return after the object", format!("{good}\r")),
+            ("a line feed after the object", format!("{good}\n")),
+            ("a space before the object", format!(" {good}")),
+            (
+                "a space between tokens",
+                good.replacen(r#""v":1"#, r#""v": 1"#, 1),
+            ),
+            (
+                "a line feed between tokens",
+                good.replacen(r#","seq""#, "\n,\"seq\"", 1),
+            ),
+            (
+                "a carriage return between tokens",
+                good.replacen(r#","seq""#, "\r,\"seq\"", 1),
+            ),
+            (
+                "keys in another order",
+                good.replacen(r#""v":1,"id":"#, r#""id":"#, 1).replacen(
+                    r#""seq":3,"#,
+                    r#""seq":3,"v":1,"#,
+                    1,
+                ),
+            ),
+            ("an escaped slash", title("a\\/b".to_string(), None)),
+            (
+                "a plain letter as an escape",
+                title("\\u0061b".to_string(), None),
+            ),
+        ];
+        forms.push(("an upper-case escape", title("\\u001F".to_string(), None)));
+        let taken: Vec<&str> = forms
+            .iter()
+            .filter(|(_, line)| decode(line).is_ok())
+            .map(|(name, _)| *name)
+            .collect();
+        assert!(decode(&good).is_ok());
+        assert_eq!(taken, Vec::<&str>::new(), "forms that the decoder took");
+    }
+
+    #[test]
+    fn each_refused_form_names_its_rule() {
+        let refused = |line: &str| decode(line).expect_err("the line was taken");
+        let good = line("keystroke", "null", r#"{"class":"tab"}"#);
+        assert!(decode(&good).is_ok());
+        let padded = format!("{good}{}", " ".repeat(LARGEST_RECORD_BYTES));
+        assert_eq!(refused(&padded), DecodeError::LineTooLong);
+        let long_title = title(&format!("\"{}\"", "a".repeat(TEXT_MAX_BYTES + 1)), "");
+        assert_eq!(refused(&long_title), DecodeError::TextTooLong("text"));
+        let at_cap = title(&format!("\"{}\"", "a".repeat(TEXT_MAX_BYTES)), "");
+        assert!(decode(&at_cap).is_ok());
+        let long_app = line(
+            "foreground_app",
+            &format!("\"{}\"", "a".repeat(TEXT_MAX_BYTES + 1)),
+            "{}",
+        );
+        assert_eq!(refused(&long_app), DecodeError::TextTooLong("app"));
+        assert_eq!(
+            refused(&line("foreground_app", r#""""#, "{}")),
+            DecodeError::EmptyText("app")
+        );
+        assert!(decode(&title(r#""""#, "")).is_ok());
+        for domain in [
+            "example.com/x",
+            "Example.com",
+            "example",
+            "192.168.1.10",
+            "a-.com",
+            "-a.com",
+            "example..com",
+        ] {
+            let site = title(r#""Inbox""#, &format!("\"{domain}\""));
+            assert_eq!(refused(&site), DecodeError::BadSite, "{domain}");
+        }
+        let longest = format!(
+            "{}.{}.{}.{}.com",
+            "a".repeat(63),
+            "b".repeat(63),
+            "c".repeat(63),
+            "d".repeat(57)
+        );
+        assert_eq!(longest.len(), SITE_MAX_BYTES);
+        assert!(decode(&title(r#""Inbox""#, &format!("\"{longest}\""))).is_ok());
+        assert!(decode(&title(r#""Inbox""#, r#""x-1.co.uk""#)).is_ok());
+        let fine = good.replacen("-5000000000", "-5000000001", 1);
+        assert_eq!(refused(&fine), DecodeError::FinerInstant);
+        let frame = line("screen_frame", "null", "{}").replacen("-5000000000", "-5001000000", 1);
+        assert!(decode(&frame).is_ok());
+        let frame_fine = frame.replacen("-5001000000", "-5001000001", 1);
+        assert_eq!(refused(&frame_fine), DecodeError::FinerInstant);
+        let variant = good.replacen("-8a6b-", "-ca6b-", 1);
+        assert_eq!(refused(&variant), DecodeError::BadValue("id"));
+        for form in [
+            good.replacen(ID, &ID.to_uppercase(), 1),
+            good.replacen(ID, &format!("urn:uuid:{ID}"), 1),
+            format!("{good} "),
+            good.replacen(r#""v":1"#, r#""v": 1"#, 1),
+            title(r#""a\/b""#, ""),
+            title(r#""\u0061""#, ""),
+            title(r#""\u001F""#, ""),
+        ] {
+            assert_eq!(refused(&form), DecodeError::NotEncoderForm, "{form}");
+        }
+    }
+
+    #[test]
+    fn the_payload_of_each_kind_refuses_a_field_more() {
+        let unknown = Err(DecodeError::UnknownField(Object::Payload));
+        let cases = [
+            ("keystroke", r#"{"class":"tab","key_code":48}"#),
+            ("screen_frame", r#"{"pixels":"AAAA"}"#),
+            ("foreground_app", r#"{"pixels":"AAAA"}"#),
+            ("pointer", r#"{"class":"click","button":"primary","x":10}"#),
+            ("pointer", r#"{"class":"move","count":3,"dx":4}"#),
+            (
+                "window_title",
+                r#"{"text":"t","cut":false,"why":"app_change","len":1}"#,
+            ),
+        ];
+        for (kind, p) in cases {
+            assert_eq!(decode(&line(kind, "null", p)), unknown, "{kind} {p}");
+        }
+        assert_eq!(
+            decode(&line("keystroke", "null", r#"{"class":"tab"}"#).replacen(
+                r#""v":1,"#,
+                r#""v":1,"len":4,"#,
+                1
+            )),
+            Err(DecodeError::UnknownField(Object::Record))
+        );
+        let site = r#"{"text":"t","cut":false,"why":"app_change","site":{"domain":"example.com","source":"address_field","path":"/x"}}"#;
+        assert_eq!(
+            decode(&line("window_title", "null", site)),
+            Err(DecodeError::UnknownField(Object::Site))
+        );
+    }
+
+    #[test]
+    fn a_site_of_another_source_is_refused() {
+        let site = |source: &str| {
+            line(
+                "window_title",
+                "null",
+                &format!(
+                    r#"{{"text":"t","cut":false,"why":"app_change","site":{{"domain":"example.com","source":"{source}"}}}}"#
+                ),
+            )
+        };
+        assert!(decode(&site("address_field")).is_ok());
+        for source in ["page_title", "tab_url", "", "Address_field"] {
+            assert_eq!(
+                decode(&site(source)),
+                Err(DecodeError::BadValue("source")),
+                "{source}"
+            );
+        }
     }
 
     #[test]
     fn the_decoder_rejects_an_unknown_field() {
         let good = line("keystroke", "null", r#"{"class":"tab"}"#);
         let decoded = decode(&good).unwrap();
-        assert_eq!(decoded.payload, DecodedPayload::Keystroke(KeyClass::Tab));
+        assert_eq!(decoded.payload(), &DecodedPayload::Keystroke(KeyClass::Tab));
         assert_eq!(
-            (decoded.at, decoded.seq, decoded.app.as_deref()),
-            (-5, 3, None)
-        );
-        let unknown = |field: &str| Err(DecodeError::UnknownField(field.to_string()));
-        let extra = good.replacen(r#""v":1,"#, r#""v":1,"len":4,"#, 1);
-        assert_eq!(decode(&extra), unknown("len"));
-        let in_p = line("keystroke", "null", r#"{"class":"tab","code":48}"#);
-        assert_eq!(decode(&in_p), unknown("code"));
-        let title = r#"{"text":"t","cut":false,"why":"app_change","site":{"domain":"example.com","source":"address_field","path":"/x"}}"#;
-        assert_eq!(
-            decode(&line("window_title", r#""a""#, title)),
-            unknown("path")
-        );
-        let title = r#"{"text":"t","cut":false,"why":"app_change","url":"https://example.com/"}"#;
-        assert_eq!(
-            decode(&line("window_title", r#""a""#, title)),
-            unknown("url")
-        );
-        let click = r#"{"class":"click","button":"primary","x":10}"#;
-        assert_eq!(decode(&line("pointer", "null", click)), unknown("x"));
-        let fold = r#"{"class":"move","count":3,"dx":4}"#;
-        assert_eq!(decode(&line("pointer", "null", fold)), unknown("dx"));
-        assert_eq!(
-            decode(&line("screen_frame", "null", r#"{"width":10}"#)),
-            unknown("width")
+            (decoded.at(), decoded.seq(), decoded.app()),
+            (-5_000_000_000, 3, None)
         );
         let missing = good.replacen(r#""seq":3,"#, "", 1);
         assert_eq!(decode(&missing), Err(DecodeError::MissingField("seq")));
         let version = good.replacen(r#""v":1"#, r#""v":2"#, 1);
-        assert_eq!(decode(&version), Err(DecodeError::Version(2)));
-        let v4 = line("keystroke", "null", r#"{"class":"tab"}"#);
+        assert_eq!(decode(&version), Err(DecodeError::Version));
         let random = uuid::Builder::from_random_bytes([7; 16]).into_uuid();
-        let v4 = v4.replacen(&v4[13..49], &random.hyphenated().to_string(), 1);
+        let v4 = good.replacen(ID, &random.hyphenated().to_string(), 1);
         assert_eq!(decode(&v4), Err(DecodeError::BadValue("id")));
         assert_eq!(
             decode(&line("camera", "null", "{}")),
@@ -616,30 +1179,120 @@ mod tests {
             decode(&line("pointer", "null", fold)),
             Err(DecodeError::BadValue("count"))
         );
-        let key = r#"{"class":"a"}"#;
         assert_eq!(
-            decode(&line("keystroke", "null", key)),
+            decode(&line("keystroke", "null", r#"{"class":"a"}"#)),
             Err(DecodeError::BadValue("class"))
         );
-        let float = good.replacen(r#""at":-5"#, r#""at":-5.5"#, 1);
+        let float = good.replacen(r#""at":-5000000000"#, r#""at":-5.5"#, 1);
         assert_eq!(decode(&float), Err(DecodeError::BadValue("at")));
         assert_eq!(decode("[1]"), Err(DecodeError::NotAnObject));
         let twice_v = good.replacen(r#""v":1,"#, r#""v":1,"v":1,"#, 1);
         assert_eq!(decode(&twice_v), Err(DecodeError::DuplicateField));
         let twice_app = good.replacen(r#""app":null"#, r#""app":"a","app":null"#, 1);
         assert_eq!(decode(&twice_app), Err(DecodeError::DuplicateField));
-        let title = r#"{"text":"raw","text":"t","cut":false,"why":"app_change"}"#;
+        let twice_text = r#"{"text":"raw","text":"t","cut":false,"why":"app_change"}"#;
         assert_eq!(
-            decode(&line("window_title", "null", title)),
+            decode(&line("window_title", "null", twice_text)),
             Err(DecodeError::DuplicateField)
         );
-        let site = r#"{"text":"t","cut":false,"why":"app_change","site":{"domain":"a.com","domain":"example.com","source":"address_field"}}"#;
+        let twice_domain = r#"{"text":"t","cut":false,"why":"app_change","site":{"domain":"a.com","domain":"example.com","source":"address_field"}}"#;
         assert_eq!(
-            decode(&line("window_title", "null", site)),
+            decode(&line("window_title", "null", twice_domain)),
             Err(DecodeError::DuplicateField)
         );
         assert_eq!(decode("{\"v\":"), Err(DecodeError::NotAnObject));
         assert_eq!(format!("{decoded:?}"), "DecodedRecord(keystroke)");
+    }
+
+    #[test]
+    fn no_refusal_shows_a_planted_marker() {
+        let marker = "PlantedMarkerZq7Xw9Kd";
+        let digits = "8273645190827364519";
+        let line = |p: &str| {
+            format!(
+                r#"{{"v":1,"id":"0190a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b","at":-5000000000,"seq":3,"kind":"keystroke","app":null,"p":{p}}}"#
+            )
+        };
+        let refused = [
+            line(r#"{"class":"tab"}"#).replacen(r#""v":1,"#, &format!(r#""v":1,"{marker}":4,"#), 1),
+            line(&format!(r#"{{"class":"tab","{marker}":1}}"#)),
+            line(r#"{"class":"tab"}"#).replacen(r#""v":1"#, &format!(r#""v":{digits}"#), 1),
+        ];
+        let mut shown = Vec::new();
+        for form in &refused {
+            let error = decode(form).expect_err("refused");
+            for text in [
+                error.to_string(),
+                format!("{error:?}"),
+                format!("{error:#?}"),
+            ] {
+                if text.contains(marker) || text.contains(digits) {
+                    shown.push(text);
+                }
+            }
+        }
+        assert_eq!(shown, Vec::<String>::new());
+    }
+
+    #[test]
+    fn no_error_holds_a_text_or_a_number_of_the_line() {
+        let marker = "PlantedMarkerZq7Xw9Kd";
+        assert!(marker.len() >= 20);
+        let digits = "8273645190827364519";
+        let unknown_key = [
+            line("keystroke", "null", r#"{"class":"tab"}"#).replacen(
+                r#""v":1,"#,
+                &format!(r#""v":1,"{marker}":4,"#),
+                1,
+            ),
+            line(
+                "keystroke",
+                "null",
+                &format!(r#"{{"class":"tab","{marker}":1}}"#),
+            ),
+            line(
+                "window_title",
+                "null",
+                &format!(
+                    r#"{{"text":"t","cut":false,"why":"app_change","site":{{"domain":"example.com","source":"address_field","{marker}":1}}}}"#
+                ),
+            ),
+        ];
+        let version = line("keystroke", "null", r#"{"class":"tab"}"#).replacen(
+            r#""v":1"#,
+            &format!(r#""v":{digits}"#),
+            1,
+        );
+        let mut errors = Vec::new();
+        for refused in unknown_key.iter().chain([&version]) {
+            errors.push(decode(refused).expect_err("refused"));
+        }
+        assert_eq!(errors[0], DecodeError::UnknownField(Object::Record));
+        assert_eq!(errors[1], DecodeError::UnknownField(Object::Payload));
+        assert_eq!(errors[2], DecodeError::UnknownField(Object::Site));
+        assert_eq!(errors[3], DecodeError::Version);
+        for error in &errors {
+            for shown in [
+                error.to_string(),
+                format!("{error:?}"),
+                format!("{error:#?}"),
+            ] {
+                assert!(!shown.contains(marker), "{shown}");
+                assert!(!shown.contains(digits), "{shown}");
+            }
+        }
+        assert_eq!(
+            errors[0].to_string(),
+            "the record holds a field that is not in its shape"
+        );
+        assert_eq!(
+            errors[1].to_string(),
+            "p holds a field that is not in its shape"
+        );
+        assert_eq!(
+            errors[2].to_string(),
+            "site holds a field that is not in its shape"
+        );
     }
 
     fn smallest() -> SystemTime {
@@ -650,7 +1303,7 @@ mod tests {
         let clock = EventClock::new(smallest);
         let control = "\u{1}".repeat(2 * TEXT_MAX_BYTES);
         let app = AppIdentity::executable_path(control.clone());
-        let site = crate::floor::site::Site::cut("https://example.com/".to_string());
+        let site = Site::cut("https://example.com/".to_string());
         let title = Title::new(
             control[..TEXT_MAX_BYTES].to_string(),
             TitleWhy::TitleChange,
@@ -694,6 +1347,144 @@ mod tests {
         assert!(encode(&received, &point).unwrap().len() < LARGEST_RECORD_BYTES);
     }
 
+    /// A small generator with a fixed seed, so that a failure repeats.
+    struct Draw(u64);
+
+    impl Draw {
+        fn next(&mut self) -> u64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            self.0 >> 33
+        }
+
+        fn below(&mut self, n: u64) -> u64 {
+            self.next() % n
+        }
+
+        fn text(&mut self, max: usize) -> String {
+            let pieces = [
+                "a",
+                "Z",
+                "7",
+                " ",
+                "\"",
+                "\\",
+                "/",
+                "\u{e9}",
+                "\u{1F600}",
+                "\u{2028}",
+                "\u{7f}",
+            ];
+            let len = self.below(max as u64 + 1) as usize;
+            let mut text = String::new();
+            while text.len() < len {
+                let piece = if self.below(4) == 0 {
+                    char::from_u32(self.below(0x20) as u32).unwrap().to_string()
+                } else {
+                    pieces[self.below(pieces.len() as u64) as usize].to_string()
+                };
+                if text.len() + piece.len() > len {
+                    break;
+                }
+                text.push_str(&piece);
+            }
+            text
+        }
+    }
+
+    #[test]
+    fn a_round_trip_of_drawn_records_decodes_to_what_went_in() {
+        fn fixed() -> SystemTime {
+            UNIX_EPOCH + Duration::new(1_800_000_000, 123_456_789)
+        }
+        let clock = EventClock::new(fixed);
+        let mut draw = Draw(0x5eed_c0de);
+        let domains = [
+            "example.com",
+            "mail.example.co.uk",
+            "a-b.example.org",
+            "x.y.z.example.net",
+        ];
+        let mut kinds = [0usize; 6];
+        for number in 0..600u64 {
+            let app_text = draw.text(TEXT_MAX_BYTES);
+            let app = match draw.below(3) {
+                0 => AppIdentity::bundle_id(app_text.clone()),
+                1 => AppIdentity::executable_path(app_text.clone()),
+                _ => AppIdentity::unknown(),
+            };
+            let expected_app = if app.is_unknown() {
+                None
+            } else {
+                Some(app_text.clone())
+            };
+            let kind = draw.below(6) as usize;
+            kinds[kind] += 1;
+            let mut expected_title = None;
+            let event = match kind {
+                0 => FloorEvent::foreground_app(keep(app, 7), None, &clock),
+                1 => {
+                    let words = if draw.below(5) == 0 {
+                        "\u{1f}".repeat(TEXT_MAX_BYTES)
+                    } else {
+                        draw.text(TEXT_MAX_BYTES)
+                    };
+                    let site = if draw.below(2) == 0 {
+                        let domain = domains[draw.below(domains.len() as u64) as usize];
+                        Site::cut(format!("https://www.{domain}/path?q=1"))
+                    } else {
+                        None
+                    };
+                    expected_title = Some((words.clone(), site.is_some()));
+                    let title = Title::new(words, TitleWhy::TitleChange, site);
+                    FloorEvent::window_title(keep(app, 7), title, None, &clock)
+                }
+                2 => {
+                    let cleared = check(&FixedProbe(SecureInputReading::Inactive), None).unwrap();
+                    let class = KeyClass::ALL[draw.below(7) as usize];
+                    FloorEvent::keystroke(keep(app, 7), cleared, class, &clock)
+                }
+                3 => {
+                    let button = Button::ALL[draw.below(3) as usize];
+                    FloorEvent::click(keep(app, 7), button, None, &clock)
+                }
+                4 => {
+                    let mut count = FoldCount::one();
+                    for _ in 0..draw.below(50) {
+                        count.add_one();
+                    }
+                    let class = FoldClass::ALL[draw.below(3) as usize];
+                    FoldEvent::new(keep(app, 7), PointerFold::new(class, count), None, &clock)
+                        .into_event()
+                }
+                _ => FloorEvent::screen_frame(keep(app, 7), None, &clock),
+            };
+            let (id, at) = (event.id().uuid(), event.at());
+            let received = FloorReceived::for_test(event, ArrivalNumber::for_test(number));
+            let line = encode(&received, &IdentityPoint).unwrap();
+            let decoded = decode(line.as_str()).unwrap_or_else(|e| panic!("record {number}: {e}"));
+            assert_eq!(
+                (decoded.id(), decoded.at(), decoded.seq()),
+                (id, at, number)
+            );
+            assert_eq!(decoded.app(), expected_app.as_deref(), "record {number}");
+            if let Some((words, has_site)) = expected_title {
+                let DecodedPayload::WindowTitle {
+                    text, cut, site, ..
+                } = decoded.payload()
+                else {
+                    panic!("record {number}: not a title");
+                };
+                assert_eq!(text.as_str(), words, "record {number}");
+                assert!(!cut);
+                assert_eq!(site.is_some(), has_site);
+            }
+        }
+        assert!(kinds.iter().all(|n| *n > 50), "{kinds:?}");
+    }
+
     #[cfg(not(feature = "r2"))]
     #[test]
     fn the_reserved_run_mark_kind_is_a_typed_error_and_has_no_constructor() {
@@ -725,16 +1516,18 @@ mod tests {
         let record = mark.encode(number);
         let decoded = decode(record.as_str()).unwrap();
         assert_eq!(decoded.kind(), RUN_MARK_KIND);
-        assert_eq!(decoded.app, None);
-        assert_eq!(decoded.seq, number.get());
-        assert_eq!(decoded.at, crate::event::unix_nanos(instant()));
-        assert_eq!(decoded.id, mark.id.uuid());
-        assert_eq!(decoded.id.get_version_num(), 7);
-        let (seconds, nanos) = decoded.id.get_timestamp().unwrap().to_unix();
+        assert_eq!(decoded.app(), None);
+        assert_eq!(decoded.seq(), number.get());
+        assert_eq!(decoded.at(), crate::event::unix_nanos(instant()));
+        assert_eq!(decoded.id(), mark.id.uuid());
+        assert_eq!(decoded.id().get_version_num(), 7);
+        let (seconds, nanos) = decoded.id().get_timestamp().unwrap().to_unix();
         assert!(seconds * 1_000 + u64::from(nanos) / 1_000_000 >= 1_800_000_000_123);
-        assert_eq!(decoded.payload, DecodedPayload::RunMark(p));
+        assert_eq!(decoded.payload(), &DecodedPayload::RunMark(p));
         let with_app = record.as_str().replacen(r#""app":null"#, r#""app":"x""#, 1);
         assert_eq!(decode(&with_app), Err(DecodeError::BadValue("app")));
+        let spaced = record.as_str().replacen(r#""step":3"#, r#""step": 3"#, 1);
+        assert_eq!(decode(&spaced), Err(DecodeError::NotEncoderForm));
     }
 
     #[cfg(all(test, feature = "r2"))]
