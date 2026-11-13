@@ -1661,6 +1661,15 @@ static SEQ: KindEntry = KindEntry {
     example: r#"{"v":1,"workflow":"10000000000000000000000000000001","seq":0}"#,
 };
 
+/// The type of `Store::commit_batch` when it takes the store by `&mut`.
+type CommitBatch = fn(
+    &mut Store,
+    &halvo_schema_core::ids::StoreId,
+    &[halvo_schema_core::record::Episode],
+    halvo_schema_core::ids::Position,
+    &mut dyn halvo_derived::IdSource,
+) -> Result<halvo_derived::CommitOutcome, Error>;
+
 /// C25.5 and the agent-setup run's ruling CP-132 (d): two requests of one family never interleave at the test host.
 /// The store takes every call that writes by `&mut Store`, `Store::handle` among them, so a host holds the store
 /// itself, which holds the writer lock of every family, from a request's first read to its last commit: the test
@@ -1670,13 +1679,7 @@ static SEQ: KindEntry = KindEntry {
 #[test]
 fn two_requests_of_one_family_never_interleave_at_the_test_host() {
     let handle: fn(&mut Store, &RawRequest) -> Result<Box<RawValue>, Error> = Store::handle;
-    let _: fn(
-        &mut Store,
-        &halvo_schema_core::ids::StoreId,
-        &[halvo_schema_core::record::Episode],
-        halvo_schema_core::ids::Position,
-        &mut dyn halvo_derived::IdSource,
-    ) -> Result<halvo_derived::CommitOutcome, Error> = Store::commit_batch;
+    let _: CommitBatch = Store::commit_batch;
     let _: fn(&mut Store, &halvo_schema_core::request::InterfaceDecision) -> Result<(), Error> =
         Store::decide;
     let _: fn(&mut Store, &[Ordinal]) -> Result<u64, halvo_derived::Fault> = Store::purge;
