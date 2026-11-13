@@ -139,6 +139,7 @@ esac
 #= tests/startup.rs stores_opened_at_once_on_many_threads_of_a_new_process_all_open
 #= tests/privacy.rs privacy_scrub
 #= tests/privacy.rs privacy_window
+#= tests/privacy.rs privacy_bounded
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"

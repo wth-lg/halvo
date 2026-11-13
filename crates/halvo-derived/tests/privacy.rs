@@ -4,11 +4,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use common::{
-    episode, key, listed, own_note_body, position, raw, raw_request, registry, store_id, token,
-    Grouping, OwnNote, Scratch, Seq, TestClock, DAY_NS, FAR, OWN, TRACE,
+    episode, key, listed, open_host, own_note_body, position, raw, raw_request, registry,
+    store_id, summary_id, token, Grouping, NoProposals, OwnNote, Scratch, Seq, TestClock, DAY_NS,
+    FAR, OWN, TRACE,
 };
 use halvo_derived::test_host::open_keyless;
-use halvo_derived::{Committed, Host, Store, Takes};
+use halvo_derived::{Committed, Host, Report, Store, Takes};
 use halvo_schema_core::category::SeedCategory;
 use halvo_schema_core::ids::RequestId;
 use halvo_schema_core::kinds::KindEntry;
@@ -347,4 +348,69 @@ fn window_case(keyed: bool) {
 fn privacy_window() {
     window_case(true);
     window_case(false);
+}
+
+fn summary_ids(conn: &Connection) -> Vec<String> {
+    let mut statement = conn
+        .prepare("SELECT summary FROM rows WHERE kind = 'summary' ORDER BY summary")
+        .unwrap();
+    statement
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+}
+
+/// A host whose report sink keeps the last report in `last`.
+fn reporting(clock: &TestClock, last: &Rc<RefCell<Option<Report>>>) -> Host {
+    let last = Rc::clone(last);
+    Host::new(Box::new(clock.clone()), Box::new(NoProposals))
+        .on_report(Box::new(move |report: &Report| *last.borrow_mut() = Some(report.clone())))
+}
+
+/// privacy_bounded: the store, reopened on an injected clock, keeps a summary on the last day inside its bound of 93
+/// days and removes one a day past it and one stamped 400 days after the clock. Each is read as kept or gone by the
+/// stored rows that the test's own connection counts and by the counts of the report that the open hands its host,
+/// and never through a read of the store.
+#[test]
+fn privacy_bounded() {
+    let scratch = Scratch::new("privacy-bounded");
+    let last = Rc::new(RefCell::new(None));
+    let clock = TestClock::at_day(DAY - 1);
+    let mut store = open_host(&scratch, reporting(&clock, &last)).unwrap();
+    let inside = episode(1, DAY - 92, None);
+    let past = episode(2, DAY - 93, None);
+    let stored = store
+        .commit_batch(&store_id(1), &[inside, past], position(1, 0), &mut Seq(100))
+        .unwrap();
+    clock.set_day(DAY + 400);
+    let ahead = store
+        .commit_batch(
+            &store_id(1),
+            &[episode(3, DAY + 400, None)],
+            position(2, 0),
+            &mut Seq(200),
+        )
+        .unwrap();
+    assert_eq!((stored.summaries, ahead.summaries), (2, 1));
+    assert_eq!(
+        last.borrow().as_ref().map(|r| r.counts.bounded),
+        Some(3),
+        "the report's count of bounded rows before the reopen"
+    );
+    drop(store);
+    assert_eq!(summary_ids(&raw(&scratch)).len(), 3, "summaries stored before the reopen");
+    let clock = TestClock::at_day(DAY);
+    let store = open_host(&scratch, reporting(&clock, &last)).unwrap();
+    assert_eq!(
+        last.borrow().as_ref().map(|r| r.counts.bounded),
+        Some(1),
+        "the report's count of bounded rows after the open on the day"
+    );
+    drop(store);
+    assert_eq!(
+        summary_ids(&raw(&scratch)),
+        vec![summary_id(1).as_str().to_owned()],
+        "the summaries that the test's own connection counts after the reopen"
+    );
 }
