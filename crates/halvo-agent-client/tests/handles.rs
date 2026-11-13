@@ -636,3 +636,164 @@ fn a_holder_that_the_test_starts_with_a_bound_of_one_second_exits_by_itself_with
         "the holder's exit status"
     );
 }
+
+const RUN_RECORD: &str = r#"{"v":1,"workflow":"{workflow}","agent":"{agent}","run":"{run}","day":20768,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":2,"handbacks":1,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":41,"model":null}"#;
+
+const SHORT_LINK_END: Duration = Duration::from_secs(4);
+
+fn ask_finish() -> String {
+    let finish = r#"{"op":"finish","agent":"{agent}","run":"{run}","record":RECORD}"#
+        .replace("RECORD", RUN_RECORD);
+    common::ask_store(&common::id(0x51), &finish)
+}
+
+fn alive(script: &Script) -> bool {
+    let runner = script.logged("runner");
+    runner.len() == 1 && !common::gone(runner[0].0, runner[0].1)
+}
+
+fn short_rig(name: &str) -> common::Rig {
+    common::Rig::configured(name, |c| c.link_end = SHORT_LINK_END)
+}
+
+fn start_held(
+    rig: &common::Rig,
+    after: &[&str],
+) -> (halvo_schema::executable::text::RunId, Script, Holder) {
+    let go = rig.dir.join("go");
+    let wait = format!("wait-for {}", go.display());
+    let mut lines = vec!["hello", "holder", "on-eof hang", wait.as_str(), "log held"];
+    lines.extend_from_slice(after);
+    let script = rig.script(&lines);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    assert_eq!(rig.sup.start(spec), Ok(()), "the start");
+    let holder = hold_the_link(&script, &go);
+    assert!(script.wait_log("held", SHORT), "{}", script.log());
+    (run, script, holder)
+}
+
+#[test]
+fn a_runner_that_outlives_its_stored_finish_after_closing_its_output_while_a_helper_holds_its_link_is_ended_within_twice_link_end(
+) {
+    let rig = short_rig("finish-closed-held");
+    let finish = ask_finish();
+    let (run, script, mut holder) = start_held(
+        &rig,
+        &[finish.as_str(), "log finished", "close-stdout", "idle"],
+    );
+    assert!(script.wait_log("stdout-closed", SHORT), "{}", script.log());
+    let closed = std::time::Instant::now();
+    std::thread::sleep(2 * SHORT_LINK_END - Duration::from_millis(1500));
+    assert!(
+        alive(&script),
+        "the runner was ended before twice link_end less 1.5 s after it closed its output"
+    );
+    let bound = 2 * SHORT_LINK_END + Duration::from_secs(3);
+    assert!(
+        rig.rec
+            .wait_end(&run, bound.saturating_sub(closed.elapsed()))
+            .is_some(),
+        "the library reported no end within twice link_end and 3 s after the runner closed its output: {}",
+        script.log()
+    );
+    assert!(runner_gone(&script), "the runner is gone: {}", script.log());
+    assert!(
+        holder.lives(&script),
+        "the helper that holds the link still lives after the run ended, so the bound was long enough"
+    );
+}
+
+#[test]
+fn a_runner_that_outlives_its_stored_finish_with_its_output_open_is_ended_within_twice_link_end() {
+    let rig = short_rig("finish-open");
+    let finish = ask_finish();
+    let script = rig.script(&[
+        "hello",
+        "on-eof hang",
+        finish.as_str(),
+        "log finished",
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    assert_eq!(rig.sup.start(spec), Ok(()), "the start");
+    assert!(script.wait_log("finished", SHORT), "{}", script.log());
+    let stored = std::time::Instant::now();
+    std::thread::sleep(2 * SHORT_LINK_END - Duration::from_millis(1500));
+    assert!(
+        alive(&script),
+        "the runner was ended before twice link_end less 1.5 s after its finish was stored"
+    );
+    let bound = 2 * SHORT_LINK_END + Duration::from_secs(3);
+    assert!(
+        rig.rec
+            .wait_end(&run, bound.saturating_sub(stored.elapsed()))
+            .is_some(),
+        "the library reported no end within twice link_end and 3 s after the runner's finish was stored: {}",
+        script.log()
+    );
+    assert!(runner_gone(&script), "the runner is gone: {}", script.log());
+}
+
+#[test]
+fn a_run_with_no_stored_finish_is_not_ended_by_the_clock_and_ends_at_the_librarys_kill() {
+    let rig = short_rig("no-finish-held");
+    let (run, script, mut holder) = start_held(&rig, &["idle"]);
+    let started = std::time::Instant::now();
+    std::thread::sleep(2 * SHORT_LINK_END + Duration::from_secs(2));
+    assert!(
+        alive(&script),
+        "a runner with no stored finish was ended twice link_end and 2 s after its start: {}",
+        script.log()
+    );
+    assert!(
+        rig.rec.wait_end(&run, Duration::ZERO).is_none(),
+        "the end of a run with no stored finish was reported after {:?}",
+        started.elapsed()
+    );
+    assert_eq!(rig.sup.kill(&run), Ok(()), "the kill");
+    assert!(runner_gone(&script), "the runner is gone: {}", script.log());
+    assert!(
+        rig.rec
+            .wait_end(&run, halvo_agent_client::LINK_END)
+            .is_some(),
+        "the library reported the run's end after the kill"
+    );
+    assert!(
+        holder.lives(&script),
+        "the helper that holds the link still lives after the run ended"
+    );
+}
+
+#[test]
+fn a_runner_that_stores_its_finish_sends_done_and_exits_ends_as_before_within_a_second_and_a_half()
+{
+    let rig = short_rig("finish-done-exit");
+    let finish = ask_finish();
+    let script = rig.script(&[
+        "hello",
+        finish.as_str(),
+        "log finished",
+        r#"send {"t":"done","outcome":"completed"}"#,
+        "exit 0",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    assert_eq!(rig.sup.start(spec), Ok(()), "the start");
+    assert!(script.wait_log("\nexit", SHORT), "{}", script.log());
+    let end = rig.rec.wait_end(&run, Duration::from_millis(1500));
+    let end = end.expect("the library reported the run's end within 1.5 s of the runner's exit");
+    assert_eq!(
+        end.outcome,
+        Some(halvo_schema::executable::names::Outcome::Completed),
+        "the outcome of the runner's done"
+    );
+    assert!(end.finish.is_some(), "the end carries the stored record");
+    let log = script.log();
+    let exit = log.find("\nexit").unwrap_or(usize::MAX);
+    assert!(
+        !log[..exit.min(log.len())].contains("\neof"),
+        "the runner's input ended before it exited: {log}"
+    );
+}
