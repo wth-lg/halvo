@@ -1005,6 +1005,43 @@ mod tests {
     }
 
     #[test]
+    fn e2_an_error_of_the_typed_client_prints_and_exits_as_the_error_reply_does() {
+        let mut wrong = Vec::new();
+        for (code, message, want) in [
+            (ErrorCode::Busy, "another mutation is in flight", 75),
+            (
+                ErrorCode::InvalidArgument,
+                "delete-all - is taken only when the status shows no store id",
+                64,
+            ),
+            (ErrorCode::Internal, "a\u{1b}[2Kb", 1),
+        ] {
+            let reply = ErrorReply {
+                code,
+                message: message.into(),
+            };
+            let as_reply = print(&Verb::Pause, Ok(Reply::Error(reply.clone())), &data_dir());
+            let as_error = print(&Verb::Pause, Err(ClientError::Daemon(reply)), &data_dir());
+            if as_error != as_reply || as_error.status != want {
+                wrong.push(code.as_str());
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:?}");
+        let busy = print(
+            &Verb::Pause,
+            Err(ClientError::Daemon(ErrorReply {
+                code: ErrorCode::Busy,
+                message: "another mutation is in flight".into(),
+            })),
+            &data_dir(),
+        );
+        assert_eq!(
+            busy.stderr,
+            "halvo-capture: another mutation is in flight\n"
+        );
+    }
+
+    #[test]
     fn busy_exits_75_an_invalid_argument_64_and_another_error_1_with_its_message() {
         for (code, status) in [
             (ErrorCode::Busy, 75),
