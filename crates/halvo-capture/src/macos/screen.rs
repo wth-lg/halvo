@@ -949,6 +949,54 @@ mod tests {
         );
     }
 
+    struct DroppingStream;
+
+    impl StopStream for DroppingStream {
+        fn ask_stop(&self, reply: Sender<StopReply>) {
+            drop(reply);
+        }
+    }
+
+    #[test]
+    fn a_stop_whose_reply_is_dropped_unanswered_waits_its_wait_and_answers_timeout() {
+        let (handle, writer) = sink::channel(8);
+        let (_fg_writer, reader) = foreground_state_for_test();
+        let mut source = ScreenSource::new(SCREEN_FRAME_CAP, reader);
+        source
+            .begin_with(handle.clone(), |sink, foreground, _cap| {
+                Ok((
+                    Box::new(DroppingStream),
+                    ScreenOutput::new(sink, foreground),
+                    DispatchQueue::new("dropping", None),
+                ))
+            })
+            .expect("the source starts with a stream that drops its reply");
+        let called = Instant::now();
+        let shut = source.shutdown();
+        let took = called.elapsed();
+        let (output, queue) = (source.output.is_none(), source.queue.is_none());
+        source.stream = None;
+        assert_eq!(
+            shut,
+            Err(CaptureError::Timeout {
+                stage: "stop_capture",
+                ms: 5000
+            })
+        );
+        assert!(
+            took >= SCREEN_STOP_WAIT,
+            "a Timeout was answered after {took:?}, before the wait had run"
+        );
+        assert!(
+            output && queue,
+            "the output or the queue was left in the source"
+        );
+        assert!(
+            sink_closed(handle, &writer),
+            "the kept output still holds the sink"
+        );
+    }
+
     #[test]
     fn a_stop_that_reports_an_error_keeps_the_output_and_answers_its_code() {
         let (mut source, handle, writer, _asks, weak) = started(&[
