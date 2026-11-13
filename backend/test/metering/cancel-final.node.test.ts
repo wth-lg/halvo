@@ -602,3 +602,39 @@ describe("the line cancel-overrides-order (ruling P7-80, part 8; contracts 1.4 a
     done(w);
   });
 });
+
+describe("what the one-rule changes of unit 5.5's record asked for", () => {
+  const LINE = '{"event":"cancel-overrides-order"}';
+
+  test("a cancel in the same second as a stored active state is neither case: no mark and no line", async () => {
+    const w = await world();
+    await w.clock(START + 10 * MINUTE);
+    const lines: string[] = [];
+    await deliver(w, [at("evt_active_same_second", 5, "active"), CANCEL], lines);
+    expect({ lines, mark: markOf(await account(w)), state: (await account(w))?.state }).toEqual({ lines: [], mark: NO_MARK, state: "cancelled" });
+    done(w);
+  });
+
+  test("an account that is not metered, with no customer id, still gets the line for a cancel of M2", async () => {
+    const w = await world({ customer: false });
+    await w.clock(START + 10 * MINUTE);
+    const lines: string[] = [];
+    await deliver(w, [ACTIVE_AGAIN, CANCEL], lines);
+    expect({ lines, mark: markOf(await account(w)) }).toEqual({ lines: [LINE], mark: { m1_count: 0, m1_newest: null, m2_count: 1, m2_newest: START + 5 * MINUTE } });
+    done(w);
+  });
+
+  test("an older cancel that states an earlier end over a cancelled row moves the cut back and writes no line", async () => {
+    const w = await world();
+    await w.use("r0", 12_345);
+    await w.clock(START + 10 * MINUTE);
+    const lines: string[] = [];
+    await deliver(w, [CANCEL, at("evt_cancel_earlier_end", 4, "cancelled", { endedAt: START + 3 * MINUTE })], lines);
+    expect({ lines, mark: markOf(await account(w)), cut: await metered(w) }).toEqual({
+      lines: [],
+      mark: NO_MARK,
+      cut: [{ cut_kind: "cancel", cut_at: START + 3 * MINUTE, carry: 0, written_off: null }],
+    });
+    done(w);
+  });
+});
