@@ -23,6 +23,7 @@ mod sources;
 
 pub use handlers::{CoordinatorAnswer, LearnHandlers, Refused};
 pub use host::{Clock, LearnHost};
+pub use routine::LearnStep;
 
 #[cfg(test)]
 mod tests;

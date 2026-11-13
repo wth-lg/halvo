@@ -10,7 +10,7 @@ fn same_site_key(a: &SiteValue, b: &SiteValue) -> bool {
     }
 }
 
-fn users_doing(routine: &LearnRoutine, summary: &Summary) -> bool {
+pub(super) fn users_doing(routine: &LearnRoutine, summary: &Summary) -> bool {
     summary.category == routine.category
         && match (&summary.site, &routine.site) {
             (Some(a), Some(b)) => same_site_key(a, b),
