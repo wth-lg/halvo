@@ -1084,6 +1084,53 @@ fn a_page_of_25_rows_with_their_25_ids_blocked_fits_with_ids_of_775_bytes_and_no
     length(value_of(&over).to_json(), "LoadRepliesReply", "json_length");
 }
 
+fn page_of_25_blocked_with_escaped_ids_written_in(written: usize) -> String {
+    let escapes = (written - 3) / 2;
+    assert_eq!(2 + 2 * escapes + 1, written);
+    let names: Vec<String> = (0..25)
+        .map(|i| format!("{i:02}{}m", "\\\\".repeat(escapes)))
+        .collect();
+    let rows: Vec<String> = names
+        .iter()
+        .map(|m| {
+            largest_row(m).replacen(
+                &format!(r#""draft":"{}""#, "d".repeat(1024)),
+                &format!(r#""draft":"{m}""#),
+                1,
+            )
+        })
+        .collect();
+    let listed: Vec<&str> = names.iter().map(String::as_str).collect();
+    replies_text(&rows, &listed, &[])
+}
+
+#[test]
+fn the_775_bytes_of_an_id_are_the_bytes_that_compact_json_writes_backslashes_counted_twice() {
+    let fits = page_of_25_blocked_with_escaped_ids_written_in(775);
+    assert_eq!(fits.len(), 65_397);
+    let read = LoadRepliesReply::parse(fits.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    for row in &read.replies {
+        assert_eq!(row.message.as_str().len(), 389);
+        assert_eq!(row.draft.as_ref().unwrap().as_str().len(), 389);
+    }
+    assert!(read.blocked.iter().all(|id| id.as_str().len() == 389));
+    assert_eq!(read.to_json().unwrap(), fits);
+    let over = page_of_25_blocked_with_escaped_ids_written_in(777);
+    assert_eq!(over.len(), 65_547);
+    length(
+        LoadRepliesReply::parse(over.as_bytes()),
+        "LoadRepliesReply",
+        "reply_bytes",
+    );
+    let value = value_of(&over);
+    assert!(value
+        .replies
+        .iter()
+        .all(|r| r.message.as_str().len() == 390));
+    assert!(value.replies.iter().all(|r| r.message.as_str().len() < 400));
+    length(value.to_json(), "LoadRepliesReply", "json_length");
+}
+
 #[test]
 fn twenty_five_rows_at_their_largest_fit_a_frame_and_with_25_bare_ids_beside_them_do_not() {
     let names: Vec<String> = (0..25)
