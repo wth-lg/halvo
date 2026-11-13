@@ -200,6 +200,56 @@ pub struct SnapshotLine {
     pub frame: Option<String>,
 }
 
+/// The refs of an executor's snapshots (A11.1, CP-170 E9): a ref's number is never given out twice
+/// in the executor's life; a new snapshot and an `open` make every earlier ref stale; `resolve`
+/// adds to the newest list. A ref of an older list is refused with the cause `stale`, a ref that
+/// never existed with the cause `ref`.
+pub(crate) struct RefTable<T> {
+    next: u64,
+    first: u64,
+    newest: Vec<T>,
+}
+
+impl<T> RefTable<T> {
+    pub(crate) fn new() -> RefTable<T> {
+        RefTable {
+            next: 1,
+            first: 1,
+            newest: Vec::new(),
+        }
+    }
+
+    /// Makes every ref given out so far stale.
+    pub(crate) fn new_snapshot(&mut self) {
+        self.first = self.next;
+        self.newest.clear();
+    }
+
+    /// Adds a target to the newest list and gives its ref.
+    pub(crate) fn add(&mut self, target: T) -> String {
+        let n = self.next;
+        self.next += 1;
+        self.newest.push(target);
+        format!("e{n}")
+    }
+
+    /// The target of `reference` in the newest list.
+    pub(crate) fn get(&self, reference: &str) -> Res<&T> {
+        let n = reference
+            .strip_prefix('e')
+            .filter(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|d| d.parse::<u64>().ok())
+            .filter(|n| *n >= 1 && *n < self.next)
+            .ok_or_else(|| Fault::new("ref", reference.to_string()))?;
+        if n < self.first {
+            return Err(Fault::new("stale", reference.to_string()));
+        }
+        self.newest
+            .get((n - self.first) as usize)
+            .ok_or_else(|| Fault::new("ref", reference.to_string()))
+    }
+}
+
 /// The value that a snapshot line carries (A11.1, A8.2): none for a credential field, whatever its
 /// role and text; for a `textbox` or a `combobox` its text with line breaks and tabs as spaces, none
 /// when that is empty; none for every other role.
@@ -275,7 +325,7 @@ pub struct Executor {
     home: String,
     pipe_ids: start::PipeIds,
     first_reply: Duration,
-    refs: Vec<Target>,
+    refs: RefTable<Target>,
     profile: Option<PathBuf>,
     temp: Option<PathBuf>,
     wire: wire::Wire,
@@ -542,7 +592,7 @@ impl Executor {
             home,
             pipe_ids,
             first_reply,
-            refs: Vec::new(),
+            refs: RefTable::new(),
             profile: None,
             temp: None,
             wire,
@@ -786,6 +836,7 @@ impl Executor {
     }
 
     pub async fn open(&mut self, url: &str) -> Res<()> {
+        self.refs.new_snapshot();
         let frame = self.main_frame().await?;
         let before = self.loader(&frame).await?;
         let r = self
@@ -794,7 +845,6 @@ impl Executor {
         if let Some(err) = r.error_text {
             return Err(Fault::new("navigate", err));
         }
-        self.refs.clear();
         self.wait_loaded_after(&frame, Some(&before)).await
     }
 
@@ -875,7 +925,7 @@ impl Executor {
     }
 
     pub async fn snapshot(&mut self) -> Res<Vec<SnapshotLine>> {
-        self.refs.clear();
+        self.refs.new_snapshot();
         let main = self.main_frame().await?;
         let mut lines = Vec::new();
         self.snapshot_frame(&main, None, &mut lines).await?;
@@ -905,8 +955,7 @@ impl Executor {
     }
 
     fn add_ref(&mut self, target: Target) -> String {
-        self.refs.push(target);
-        format!("e{}", self.refs.len())
+        self.refs.add(target)
     }
 
     async fn snapshot_frame(
@@ -1133,13 +1182,7 @@ impl Executor {
     }
 
     fn target(&self, reference: &str) -> Res<Target> {
-        reference
-            .strip_prefix('e')
-            .and_then(|n| n.parse::<usize>().ok())
-            .and_then(|n| n.checked_sub(1))
-            .and_then(|n| self.refs.get(n))
-            .cloned()
-            .ok_or_else(|| Fault::new("ref", reference.to_string()))
+        self.refs.get(reference).cloned()
     }
 
     pub async fn frame_of(&self, reference: &str) -> Res<FrameId> {
@@ -2056,6 +2099,33 @@ pub(crate) mod tests {
             line.render(),
             "e4 textbox \"Note\" value=\"x'' credential\""
         );
+    }
+
+    /// CP-170 E9: a ref of an older snapshot is refused as stale and reaches nothing; a ref of the
+    /// newest snapshot and one that resolve added act; after an open every earlier ref is stale; a
+    /// ref that never existed is told apart; no number is given out twice.
+    #[test]
+    fn a_ref_of_an_older_snapshot_is_stale() {
+        let mut refs: RefTable<&str> = RefTable::new();
+        let first: Vec<String> = ["a", "b", "c"].iter().map(|t| refs.add(*t)).collect();
+        assert_eq!(first, ["e1", "e2", "e3"]);
+        assert_eq!(refs.get("e2").ok(), Some(&"b"));
+        refs.new_snapshot();
+        let second: Vec<String> = ["x", "y"].iter().map(|t| refs.add(*t)).collect();
+        assert_eq!(second, ["e4", "e5"]);
+        assert_eq!(refs.get("e2").err().map(|f| f.0), Some("stale"));
+        assert_eq!(refs.get("e5").ok(), Some(&"y"));
+        let resolved = refs.add("z");
+        assert_eq!(resolved, "e6");
+        assert_eq!(refs.get("e6").ok(), Some(&"z"));
+        for never in ["e7", "e0", "e", "x1", "e+1", "e01x"] {
+            assert_eq!(refs.get(never).err().map(|f| f.0), Some("ref"), "{never}");
+        }
+        refs.new_snapshot();
+        for old in ["e1", "e4", "e6"] {
+            assert_eq!(refs.get(old).err().map(|f| f.0), Some("stale"), "{old}");
+        }
+        assert_eq!(refs.add("n"), "e7");
     }
 
     #[test]
