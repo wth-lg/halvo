@@ -283,9 +283,12 @@ export function judge({
   let streams = null;
   if (cell.kind === "wave") {
     streams = [...sent.values()].filter((request) => request.status === 200).length;
-    const answeredAt = [...sent.values()].filter((request) => request.headersAt !== null).map((request) => request.headersAt);
-    const lastAnswerAt = answeredAt.length === 0 ? null : Math.max(...answeredAt);
-    held = lastAnswerAt !== null && [...rows.values()].every((row) => row.ended_at === null || row.ended_at >= lastAnswerAt);
+    const reserveAnsweredAt = [...sent.values()].flatMap((request) => {
+      if (request.receipt) return [request.receipt.now ?? request.headersAt];
+      return request.status === chatStatus.refused && request.headersAt !== null ? [request.headersAt] : [];
+    });
+    const lastReserveAnsweredAt = reserveAnsweredAt.length === 0 ? null : Math.max(...reserveAnsweredAt);
+    held = lastReserveAnsweredAt !== null && [...rows.values()].every((row) => row.ended_at === null || row.ended_at >= lastReserveAnsweredAt);
     const unsent = [...rows.keys()].filter((id) => !sent.has(id)).length;
     if (held && !slow && (rows.size !== cell.k || unsent > 0)) {
       bad("wave-admits-k", null, `the held wave has ${rows.size} hold rows, ${unsent} of them under an id the driver did not send; K is ${cell.k}`);

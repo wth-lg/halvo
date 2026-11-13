@@ -1,7 +1,7 @@
 {
   "kind": "judge",
-  "ruling": "B-37",
-  "about": "a hold of the wave settled at 1,150 ms, before the last reserve was answered at 1,200 ms: the wave does not count, and its 3 rows where K is 2 are not read",
+  "ruling": "B-37, read by P7-69 F1",
+  "about": "a hold of the wave settled at 1,025 ms, before the last reserve was answered: the receipt of the third reserve carries 1,030 ms. The wave does not count, and its 3 rows where K is 2 are not read",
   "source": "by hand",
   "top": {
     "cell": {
@@ -19,7 +19,7 @@
         "body": "",
         "sentAt": 1000,
         "headersAt": 1100,
-        "endedAt": 1155,
+        "endedAt": 1030,
         "hold": 100,
         "receipt": {
           "requestId": "w0",
@@ -101,7 +101,7 @@
         "ev": "request"
       },
       {
-        "t": 1100,
+        "t": 975,
         "id": "w0",
         "ev": "usage",
         "final": true,
@@ -109,7 +109,7 @@
         "output_tokens": 1
       },
       {
-        "t": 1140,
+        "t": 1015,
         "id": "w0",
         "ev": "end",
         "clean": true
@@ -178,8 +178,8 @@
           "dispatched": 1,
           "created_at": 1010,
           "created_seq": 1,
-          "ended_at": 1150,
-          "ended_seq": 10,
+          "ended_at": 1025,
+          "ended_seq": 3,
           "ended_by": "settle",
           "input_tokens": 1,
           "output_tokens": 1,
@@ -215,7 +215,7 @@
           "state": "settled",
           "dispatched": 1,
           "created_at": 1030,
-          "created_seq": 3,
+          "created_seq": 4,
           "ended_at": 3200,
           "ended_seq": 12,
           "ended_by": "settle",
