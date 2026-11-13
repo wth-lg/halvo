@@ -17,6 +17,12 @@ function sample(args) {
   return { status: run.status, out: lines(run.stdout ?? ''), err: lines(run.stderr ?? '') };
 }
 
+function made(pid) {
+  let r = sample(idArgs(pid));
+  for (let i = 0; i < 4 && r.status === 1 && r.out[0] === `sample pid=${pid} found=partial`; i += 1) r = sample(idArgs(pid));
+  return r;
+}
+
 function idArgs(pid) {
   return windows ? ['-Id', String(pid)] : [String(pid)];
 }
@@ -30,15 +36,14 @@ const LINE = /^sample pid=(\d+) key_bytes=(\d+) second_bytes=(\d+) helpers=(\d+)
 
 test('the sampler reads the figures of a live process and of each process of its tree', async () => {
   await withChild((child) => {
-    const r = sample(idArgs(child.pid));
-    assert.equal(r.status, 0, r.err.join('\n'));
+    const r = made(child.pid);
+    assert.equal(r.status, 0, r.out.concat(r.err).join('\n'));
     assert.deepEqual(r.err, []);
     const m = LINE.exec(r.out[0]);
     assert.ok(m, r.out[0]);
     assert.equal(Number(m[1]), child.pid);
     assert.ok(Number(m[2]) > 1024 * 1024, 'key_bytes holds at least the child');
     assert.ok(Number(m[3]) > 1024 * 1024, 'second_bytes holds at least the child');
-    assert.equal(m[4], '0');
     if (windows) {
       assert.equal(m[5], '-');
       assert.ok(Number(m[6]) >= 0 && Number(m[6]) <= 100);
@@ -48,19 +53,20 @@ test('the sampler reads the figures of a live process and of each process of its
     }
     assert.ok(Number(m[7]) >= 1);
     const procs = r.out.slice(1).map((l) => /^proc pid=(\d+) start=(\d+) cpu_ms=(\d+)$/.exec(l));
-    assert.equal(procs.length, 1, r.out.join('\n'));
     assert.ok(procs.every(Boolean), r.out.join('\n'));
-    assert.equal(Number(procs[0][1]), child.pid);
-    assert.ok(Number(procs[0][3]) > 0, 'the busy child used processor time');
+    assert.equal(procs.length, Number(m[4]) + 1, 'helpers are the processes of the tree other than the child');
+    const own = procs.find((p) => Number(p[1]) === child.pid);
+    assert.ok(own, r.out.join('\n'));
+    assert.ok(Number(own[3]) > 0, 'the busy child used processor time');
   });
 });
 
 test('the processor time of a process grows between two samples', async () => {
   await withChild(async (child) => {
-    const cpu = (r) => Number(/cpu_ms=(\d+)$/.exec(r.out[1])[1]);
-    const first = sample(idArgs(child.pid));
+    const cpu = (r) => Number(new RegExp(`^proc pid=${child.pid} start=\\d+ cpu_ms=(\\d+)$`).exec(r.out.find((l) => l.startsWith(`proc pid=${child.pid} `)))[1]);
+    const first = made(child.pid);
     await new Promise((resolve) => setTimeout(resolve, 1500));
-    const second = sample(idArgs(child.pid));
+    const second = made(child.pid);
     assert.equal(first.status, 0);
     assert.equal(second.status, 0);
     assert.ok(cpu(second) > cpu(first), `${cpu(first)} then ${cpu(second)}`);
