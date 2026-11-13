@@ -28,6 +28,15 @@ fn padded(head: &str, tail: &str, len: usize) -> Vec<u8> {
     bytes
 }
 
+fn accented(head: &str, len: usize) -> Vec<u8> {
+    let room = len - head.len() - "\"\"}".len();
+    let value = "é".repeat(room / 2) + &"a".repeat(room % 2);
+    let text = format!("{head}\"{value}\"}}");
+    assert_eq!(text.len(), len);
+    assert!(text.chars().count() < REPLY_MAX);
+    text.into_bytes()
+}
+
 #[test]
 fn decode_reply_reads_a_reply_of_reply_max_bytes_and_refuses_one_byte_more_before_it_reads_anything(
 ) {
@@ -68,6 +77,11 @@ fn decode_reply_reads_a_reply_of_reply_max_bytes_and_refuses_one_byte_more_befor
         }),
         "a reply of REPLY_MAX bytes with a key too many is read, and its id with it"
     );
+    let exact = accented(&head, REPLY_MAX);
+    let reply =
+        decode_reply(&exact).expect("a reply of REPLY_MAX bytes in two-byte characters is read");
+    assert_eq!(reply.id.as_ref(), Some(&id));
+    assert!(matches!(reply.outcome, Ok(ReplyResult::Raw(_))));
 
     let above = REPLY_MAX + 1;
     let refused: Vec<(&str, Vec<u8>)> = vec![
@@ -95,6 +109,10 @@ fn decode_reply_reads_a_reply_of_reply_max_bytes_and_refuses_one_byte_more_befor
                 "null}",
                 above,
             ),
+        ),
+        (
+            "fewer characters than the bound in more bytes",
+            accented(&head, above),
         ),
         ("bytes that are no JSON", vec![b'x'; above]),
         ("bytes that are no UTF-8", vec![0xff; above]),
