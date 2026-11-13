@@ -179,6 +179,9 @@ check() {
   out=$( (judge "$work/$1.txt" final) 2>&1)
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
+  if [ -n "${5:-}" ] && [ "$last" != "$5" ]; then
+    code=line
+  fi
   case $code:$last in
     "0:") got=PASS ;;
     "1:FAIL $name ("*")") got=FAIL ;;
@@ -217,6 +220,14 @@ self_test() {
   check unknown-result FAIL 's/^//' 'gen-dev-other 0'
   check unseen-labels-missing FAIL '/^gen-unseen-labels /d'
   check golden-files-missing FAIL '/^golden-files /d'
+  check golden-files-name-the-first FAIL 's|^golden-files same$|golden-files differ 2 streams/golden/day-003.jsonl|' '' \
+    "FAIL $name (golden-files: files that differ from HEAD: 2, the first streams/golden/day-003.jsonl)"
+  check dev-files-name-a-file-of-the-body FAIL 's|^gen-dev-files same$|gen-dev-files differ 1 manifest.toml|' '' \
+    "FAIL $name (gen-dev-files: files that differ from HEAD: 1, the first manifest.toml)"
+  check unseen-files-count-alone-for-another-path FAIL 's|^gen-unseen-files same$|gen-unseen-files differ 4 notes/x.txt|' '' \
+    "FAIL $name (gen-unseen-files: files that differ from HEAD: 4)"
+  check dev-files-count-alone-for-a-short-day FAIL 's|^gen-dev-files same$|gen-dev-files differ 3 streams/gen-dev-s001/day-1.jsonl|' '' \
+    "FAIL $name (gen-dev-files: files that differ from HEAD: 3)"
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
