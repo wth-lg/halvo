@@ -1378,6 +1378,25 @@ fn a_load_reply_whose_start_row_is_of_another_agent_does_not_answer_the_asking_a
     assert!(!other.answers(&load(A)));
 }
 
+#[test]
+fn a_load_reply_with_no_start_row_answers_only_the_load_of_its_config_s_agent() {
+    let load = |agent: &str| {
+        RunnerCall::parse(format!(r#"{{"op":"load","agent":"{agent}","run":"{R}"}}"#).as_bytes())
+            .unwrap()
+    };
+    let own = RunnerReply::parse(load_reply("null").as_bytes()).unwrap();
+    assert!(own.answers(&load(A)));
+    assert!(!own.answers(&load(A2)));
+    let text = swap(
+        &load_reply("null"),
+        &format!(r#""agent":"{A}""#),
+        &format!(r#""agent":"{A2}""#),
+    );
+    let other = RunnerReply::parse(text.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    assert!(other.answers(&load(A2)));
+    assert!(!other.answers(&load(A)));
+}
+
 fn golden_lines(file: &str) -> Vec<String> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/golden/r3")

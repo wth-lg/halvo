@@ -614,13 +614,13 @@ reply_enum! {
 
 impl RunnerReply {
     /// Whether the reply has the form that the body's call answers with; a reply of `load_replies` answers its call
-    /// only as `LoadRepliesReply::answers` says, and a reply of `load` only when its start row, if it holds one, is
-    /// of the body's agent.
+    /// only as `LoadRepliesReply::answers` says, and a reply of `load` only when its config, and its start row if it
+    /// holds one, are of the body's agent.
     pub fn answers(&self, call: &RunnerCall) -> bool {
         match (self, call) {
             (RunnerReply::Replies(r), RunnerCall::LoadReplies(b)) => r.answers(b).is_ok(),
             (RunnerReply::Load(r), RunnerCall::Load(b)) => {
-                r.start.as_ref().is_none_or(|s| s.agent == b.agent)
+                r.config.agent == b.agent && r.start.as_ref().is_none_or(|s| s.agent == b.agent)
             }
             _ => matches!(
                 (self, call),
