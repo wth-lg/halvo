@@ -336,3 +336,44 @@ fn under_the_recorded_rule_a_range_with_only_another_steps_title_fails() {
     assert!(o.stdout.contains(" failures=1\n"), "{}", o.stdout);
 }
 
+#[test]
+fn a_title_event_of_a_step_of_each_negative_kind_outside_every_range_fails() {
+    let rows = [
+        (
+            "one_off",
+            r#""step":"g-budget-sheet","start":1770652800000000000,"#,
+            r#""step":"g-budget-sheet","start":1770652801000000000,"#,
+            "FAIL outside golden 1770652800000000000 g-budget-sheet",
+        ),
+        (
+            "twice",
+            r#""step":"g-power-bill","start":1767607220000000000,"#,
+            r#""step":"g-power-bill","start":1767607221000000000,"#,
+            "FAIL outside golden 1767607220000000000 g-power-bill",
+        ),
+        (
+            "near_miss",
+            r#""step":"g-rides-fares","start":1767787215000000000,"#,
+            r#""step":"g-rides-fares","start":1767787216000000000,"#,
+            "FAIL outside golden 1767787215000000000 g-rides-fares",
+        ),
+        (
+            "marked",
+            r#""step":"g-agenda-clear","start":1771509632000000000,"#,
+            r#""step":"g-agenda-clear","start":1771509633000000000,"#,
+            "FAIL outside golden 1771509632000000000 g-agenda-clear",
+        ),
+    ];
+    for (kind, from, to, line) in rows {
+        let dir = copy_golden(&format!("outside-{kind}"));
+        edit_labels(&dir, from, to);
+        let o = run(&["check-labels", &s(&dir)]);
+        assert_eq!(o.code, 1, "{kind}");
+        let outside: Vec<&str> = o
+            .stdout
+            .lines()
+            .filter(|l| l.starts_with("FAIL outside"))
+            .collect();
+        assert_eq!(outside, vec![line], "{kind}: {}", o.stdout);
+    }
+}
