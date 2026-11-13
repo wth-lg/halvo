@@ -753,11 +753,21 @@ fn run_passes_a_conforming_server_and_fails_each_broken_one_in_the_case_that_sho
     check(ShredNothing, [Pass, Fail(shown), Pass, Pass]);
     check(
         IgnoreKinds,
-        [Pass, Pass, Fail("the filter foreground_app: "), Pass],
+        [
+            Pass,
+            Pass,
+            Fail("the filter foreground_app: "),
+            Fail("check filtered_stops: "),
+        ],
     );
     check(
         IgnoreRange,
-        [Pass, Pass, Fail("the filter the range: "), Pass],
+        [
+            Pass,
+            Pass,
+            Fail("the filter the range: "),
+            Fail("check filtered_stops: "),
+        ],
     );
     check(
         LoadKeepsTheOldStore,
@@ -805,7 +815,7 @@ fn control_a_next_that_falls() {
             Fail("next fell"),
             Fail("next fell"),
             Fail("the filter foreground_app from {seg 2, idx 10}: next fell"),
-            Pass,
+            Fail("check filtered_stops: "),
         ],
     );
 }
@@ -1144,7 +1154,7 @@ fn control_a_filtered_cursor_opened_past_the_zero_position_that_serves_from_the_
             Pass,
             Pass,
             Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 1, idx 0} does not rise"),
-            Pass,
+            Fail("check filtered_stops: "),
         ],
     );
 }
@@ -1170,7 +1180,7 @@ fn control_a_kinds_list_out_of_the_order_of_c4_4_that_gets_bad_request() {
             Pass,
             Pass,
             Fail("the filter window_title and foreground_app: open_cursor at {seg 0, idx 0} got the error bad-request"),
-            Pass,
+            Fail("check filtered_stops: the filter keystroke and window_title on the fourth text of set A and set C from {seg 0, idx 0}: open_cursor at {seg 0, idx 0} got the error bad-request"),
         ],
     );
 }
@@ -1208,7 +1218,7 @@ fn control_a_read_before_the_replace_that_gets_closed() {
         [
             Pass,
             Pass,
-            Pass,
+            Fail("check open_while_open: the read before an open_cursor while a cursor stands at the watermark: read_batch got a reply other than batch or error"),
             Fail("the read before replace_live got a reply other than batch or error"),
         ],
     );

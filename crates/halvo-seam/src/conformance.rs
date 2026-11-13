@@ -38,6 +38,50 @@ pub trait Subject {
 /// The names of the four cases, in the order in which `run` runs them.
 pub const CASES: [&str; 4] = ["resume", "shredded", "filters", "store_changed"];
 
+/// The names of the checks of C5.13 item 12, in the order of its servers S1 to S5. The four cases make them
+/// beside the checks of items 4 to 9, so `run` makes them too, and the failure text of each holds
+/// `check <name>: `; where two names stand in one text, the last one names the check that failed.
+/// `store_changed_names_the_current_id`, in the case `store_changed`: the `store-changed` of the read after
+/// `replace_live` names the store that a null-store open serves next; after `load(B)`, three opens with the
+/// old id, at a non-zero position, at the zero position, and at the non-zero position with the kinds filter
+/// `keystroke` and a range, each get a `store-changed` that names the new store's id and not the old one.
+/// `open_while_open`, in the cases `resume` after its restart and `filters` on the connection of the reference
+/// read, whose first open had a null store, and on a second connection: with a cursor
+/// open at the zero position, four `open_cursor` messages sent without the `close` that C5.6 asks for each get
+/// `bad-request`: S at another position with the kinds filter `keystroke` and a range after every record,
+/// another store id with that range, a null store at the zero position with that range, and S at a position
+/// after the watermark with that range; the cursor then serves the whole reference read. A cursor read to the
+/// watermark and not closed gets `bad-request` for a further open, and a `read_batch` after it serves nothing
+/// and stands at the watermark. In `store_changed`, a cursor on the two-file store of `filtered_stops` that
+/// has read one Batch, whose `next` is below the watermark, gets `bad-request` for a further open and then
+/// serves the rest of that store.
+/// `open_at_the_watermark_after_a_shred`, in the case `shredded`: after one `shred_oldest`, an `open_cursor`
+/// with S at W, and at the highest watermark of the replies after the shred where that is above W, is no
+/// error and serves no entry. Then `shred_oldest` is called once more for each segment that holds an entry
+/// of the reference read, but for the first, so as many times in all as there are such segments, and an
+/// `open_cursor` with S at W is no error, serves no entry, and neither its reply nor a Batch of its read names
+/// a watermark below W.
+/// `filtered_stops`, in the case `store_changed` after its read of set C: `load` of the fourth text of set A
+/// and the text of set C, two batch files, whose read from the zero position must serve their records of a
+/// served kind in order; then reads of that store under five filters (`window_title`, `keystroke` and
+/// `window_title`, the range from the `at` of its 101st entry to that of its 401st, that range with
+/// `window_title`, and `keystroke`), from the zero position and from its 151st entry, in which the 262,144
+/// bytes of C5.7 item 5 stop Batches (a server that takes as many lines as the bound allows crosses from the
+/// first file into the second before its first stop); each Batch holds every entry of that store that passes
+/// the filter from the cursor's position up to its `next`, at its position, and no other, compared entry by
+/// entry.
+/// `one_expiry_instant`, in every case: each `expiry` entry for a segment of one store id holds the instant
+/// that the first entry for that segment held in the case, in every reply to `read_batch`, on every cursor and
+/// connection and after a restart, among them a second connection of the case `filters` to the store that its
+/// first connection read, with no restart between; the check makes no claim across two cases.
+pub const CHECKS: [&str; 5] = [
+    "store_changed_names_the_current_id",
+    "open_while_open",
+    "open_at_the_watermark_after_a_shred",
+    "filtered_stops",
+    "one_expiry_instant",
+];
+
 /// The most `read_batch` messages of one read to the watermark.
 pub const MAX_READS: usize = 1_000;
 
@@ -183,20 +227,51 @@ pub fn run<S: Subject>(subject: &mut S) -> Vec<(&'static str, Result<(), String>
     ]
 }
 
+type Instants = Vec<(StoreId, u64, Instant)>;
+
 struct Conn<S: Subject> {
     writer: S::Writer,
     reader: S::Reader,
+    instants: Instants,
 }
 
 const READ_BATCH: &str = r#"{"msg":"read_batch"}"#;
 const CLOSE: &str = r#"{"msg":"close"}"#;
 
-fn connect<S: Subject>(subject: &mut S) -> Result<Conn<S>, String> {
+fn connect<S: Subject>(subject: &mut S, instants: Instants) -> Result<Conn<S>, String> {
     let (writer, reader) = subject.connect()?;
-    Ok(Conn { writer, reader })
+    Ok(Conn {
+        writer,
+        reader,
+        instants,
+    })
 }
 
 impl<S: Subject> Conn<S> {
+    fn end(self) -> Instants {
+        self.instants
+    }
+
+    fn one_instant(&mut self, b: &Batch) -> Result<(), String> {
+        for x in &b.expiry {
+            let seen = self
+                .instants
+                .iter()
+                .find(|(store, seg, _)| store == &b.store && *seg == x.seg);
+            match seen {
+                Some((_, _, at)) if *at != x.at => {
+                    return Err(format!(
+                        "check {}: segment {} of one store got the expiry instant {} in one reply and {} in another",
+                        CHECKS[4], x.seg, at.0, x.at.0
+                    ))
+                }
+                Some(_) => {}
+                None => self.instants.push((b.store.clone(), x.seg, x.at)),
+            }
+        }
+        Ok(())
+    }
+
     fn send(&mut self, payload: &str) -> Result<ServerMessage, String> {
         write_frame(&mut self.writer, payload.as_bytes(), CLIENT_FRAME_MAX)
             .map_err(|e| format!("a frame could not be written: {e:?}"))?;
@@ -265,6 +340,7 @@ struct Reading {
     first_full_next: Option<Position>,
     tail: Option<(Position, Position)>,
     batches: Vec<(Option<Position>, Position, Position)>,
+    spans: Vec<(Position, Position, usize)>,
     expiry_segs: Vec<u64>,
 }
 
@@ -371,6 +447,15 @@ fn read<S: Subject>(
     range: Option<(Instant, Instant)>,
 ) -> Result<Reading, String> {
     let opened = open(conn, store, position, kinds, range)?;
+    drain(conn, opened, position, true)
+}
+
+fn drain<S: Subject>(
+    conn: &mut Conn<S>,
+    opened: Batch,
+    position: Position,
+    close: bool,
+) -> Result<Reading, String> {
     let mut reading = Reading {
         store: opened.store.clone(),
         entries: Vec::new(),
@@ -380,6 +465,7 @@ fn read<S: Subject>(
         first_full_next: None,
         tail: None,
         batches: Vec::new(),
+        spans: Vec::new(),
         expiry_segs: Vec::new(),
     };
     let mut cursor = position;
@@ -394,6 +480,7 @@ fn read<S: Subject>(
             _ => return Err("read_batch got a reply other than batch or error".to_owned()),
         };
         check(&b, &reading.store, cursor, last, watermark)?;
+        conn.one_instant(&b)?;
         if !b.records.is_empty() && reading.first_full_next.is_none() {
             reading.first_full_next = Some(b.next);
         }
@@ -403,6 +490,7 @@ fn read<S: Subject>(
         reading
             .batches
             .push((b.records.first().map(|e| e.pos), b.next, b.watermark));
+        reading.spans.push((cursor, b.next, b.records.len()));
         last = b.records.last().map(|e| e.pos).or(last);
         cursor = b.next;
         watermark = b.watermark;
@@ -412,7 +500,9 @@ fn read<S: Subject>(
         reading.entries.extend(b.records);
         if b.next == b.watermark {
             reading.watermark = b.watermark;
-            conn.close()?;
+            if close {
+                conn.close()?;
+            }
             return Ok(reading);
         }
     }
@@ -457,7 +547,7 @@ struct Reference {
 
 fn reference<S: Subject>(subject: &mut S) -> Result<(Conn<S>, Reference), String> {
     subject.load(&SET_A)?;
-    let mut conn = connect(subject)?;
+    let mut conn = connect(subject, Vec::new())?;
     let reading =
         read(&mut conn, None, ZERO, None, None).map_err(|e| format!("the reference read: {e}"))?;
     let data = records_of(&SET_A)?;
@@ -508,12 +598,13 @@ fn reference<S: Subject>(subject: &mut S) -> Result<(Conn<S>, Reference), String
 /// past the last entry of the first segment and the index 2^63 - 1 of that segment, which a server reads as
 /// the first position of the next segment), at the same positions, from the same store; a position
 /// beyond every watermark and the index 1 of the segment of the highest watermark after the restart get
-/// `bad-position`, and a legal open after them works.
+/// `bad-position`, and a legal open after them works; before those two opens, the check `open_while_open` of
+/// `CHECKS`.
 pub fn resume<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (conn, rf) = reference(subject)?;
-    drop(conn);
+    let instants = conn.end();
     subject.restart()?;
-    let mut conn = connect(subject)?;
+    let mut conn = connect(subject, instants)?;
     let second =
         rf.r.iter()
             .find(|e| e.pos.seg != rf.r[0].pos.seg)
@@ -564,6 +655,7 @@ pub fn resume<S: Subject>(subject: &mut S) -> Result<(), String> {
         }
         top = top.max(reading.top);
     }
+    open_while_open(&mut conn, &rf).map_err(|e| format!("check {}: {e}", CHECKS[1]))?;
     let beyond = Position {
         seg: top.seg + 1,
         idx: 0,
@@ -586,10 +678,11 @@ pub fn resume<S: Subject>(subject: &mut S) -> Result<(), String> {
 
 /// The case `shredded` (C5.13 item 7): after `shred_oldest`, a read from the last position of the lowest
 /// segment and one from the zero position serve the entries above that segment, at the same positions, and
-/// no `expiry` names it.
+/// no `expiry` names it; last, the check `open_at_the_watermark_after_a_shred` of `CHECKS`, which shreds every
+/// segment of the reference read.
 pub fn shredded<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (conn, rf) = reference(subject)?;
-    drop(conn);
+    let instants = conn.end();
     let s = rf.r[0].pos.seg;
     let p =
         rf.r.iter()
@@ -597,8 +690,9 @@ pub fn shredded<S: Subject>(subject: &mut S) -> Result<(), String> {
             .map(|e| e.pos)
             .ok_or("the reference read is empty")?;
     subject.shred_oldest()?;
-    let mut conn = connect(subject)?;
+    let mut conn = connect(subject, instants)?;
     let want: Vec<Entry> = rf.r.iter().filter(|e| e.pos.seg > s).cloned().collect();
+    let mut top = rf.w;
     for start in [p, ZERO] {
         let reading = read(&mut conn, Some(&rf.s), start, None, None)
             .map_err(|e| format!("after shred_oldest, from {}: {e}", show(start)))?;
@@ -618,6 +712,65 @@ pub fn shredded<S: Subject>(subject: &mut S) -> Result<(), String> {
                 "after shred_oldest, a watermark below that of the reference read".to_owned(),
             );
         }
+        top = top.max(reading.top);
+    }
+    at_the_watermark(&mut conn, &rf, top).map_err(|e| format!("check {}: {e}", CHECKS[2]))?;
+    every_segment_shredded(subject, conn, &rf).map_err(|e| format!("check {}: {e}", CHECKS[2]))
+}
+
+fn every_segment_shredded<S: Subject>(
+    subject: &mut S,
+    conn: Conn<S>,
+    rf: &Reference,
+) -> Result<(), String> {
+    let mut segs: Vec<u64> = rf.r.iter().map(|e| e.pos.seg).collect();
+    segs.dedup();
+    let instants = conn.end();
+    for _ in 1..segs.len() {
+        subject.shred_oldest()?;
+    }
+    let mut conn = connect(subject, instants)?;
+    let what = "after shred_oldest of every segment of the reference read";
+    let reading = read(&mut conn, Some(&rf.s), rf.w, None, None)
+        .map_err(|e| format!("{what}, the read from the watermark {}: {e}", show(rf.w)))?;
+    if !reading.entries.is_empty() {
+        return Err(format!(
+            "{what}, the read from the watermark {} served {} entries; want none",
+            show(rf.w),
+            reading.entries.len()
+        ));
+    }
+    if reading.low < rf.w {
+        return Err(format!(
+            "{what}, a watermark below that of the reference read"
+        ));
+    }
+    Ok(())
+}
+
+fn at_the_watermark<S: Subject>(
+    conn: &mut Conn<S>,
+    rf: &Reference,
+    top: Position,
+) -> Result<(), String> {
+    let mut marks = vec![rf.w];
+    if top != rf.w {
+        marks.push(top);
+    }
+    for at in marks {
+        let reading = read(conn, Some(&rf.s), at, None, None).map_err(|e| {
+            format!(
+                "after shred_oldest, the read from the watermark {}: {e}",
+                show(at)
+            )
+        })?;
+        if !reading.entries.is_empty() {
+            return Err(format!(
+                "after shred_oldest, the read from the watermark {} served {} entries; want none",
+                show(at),
+                reading.entries.len()
+            ));
+        }
     }
     Ok(())
 }
@@ -625,7 +778,9 @@ pub fn shredded<S: Subject>(subject: &mut S) -> Result<(), String> {
 /// The case `filters` (C5.13 item 8): each kinds filter, a list of two kinds in either order, the run-mark
 /// filter, a time range with and without a kind, and a range after every record serve exactly the entries of
 /// the reference read that pass them, at their positions, from the zero position and from the position of
-/// the 21st entry; four illegal opens get `bad-request` and leave the connection usable.
+/// the 21st entry; four illegal opens get `bad-request` and leave the connection usable; then the check
+/// `open_while_open` of `CHECKS` on that connection, a read of the reference read on a second connection,
+/// with no restart between, and `open_while_open` again on the second connection.
 pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (mut conn, rf) = reference(subject)?;
     let pick = |kinds: &[Kind], range: Option<(Instant, Instant)>| -> Vec<Entry> {
@@ -735,18 +890,138 @@ pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
             ));
         }
     }
-    Ok(())
+    open_while_open(&mut conn, &rf).map_err(|e| format!("check {}: {e}", CHECKS[1]))?;
+    let instants = conn.end();
+    let mut conn = connect(subject, instants)?;
+    let again = read(&mut conn, Some(&rf.s), ZERO, None, None)
+        .map_err(|e| format!("check {}: the read on a second connection: {e}", CHECKS[4]))?;
+    if !same(&again.entries, &rf.r) {
+        return Err(format!(
+            "check {}: the read on a second connection differs from the reference read",
+            CHECKS[4]
+        ));
+    }
+    open_while_open(&mut conn, &rf).map_err(|e| format!("check {}: {e}", CHECKS[1]))
+}
+
+fn another(store: &StoreId) -> Result<StoreId, String> {
+    let s = store.as_str();
+    let first = if s.starts_with('0') { "1" } else { "0" };
+    StoreId::parse(&format!("{first}{}", &s[1..]))
+        .map_err(|_| "a store id of the reply does not parse".to_owned())
+}
+
+fn open_while_open<S: Subject>(conn: &mut Conn<S>, rf: &Reference) -> Result<(), String> {
+    let after =
+        rf.r.iter()
+            .map(|e| e.record.at())
+            .max()
+            .unwrap_or(Instant(0));
+    let late = (
+        Instant(after.0.saturating_add(1)),
+        Instant(after.0.saturating_add(2)),
+    );
+    let opened =
+        open(conn, Some(&rf.s), ZERO, None, None).map_err(|e| format!("the first open: {e}"))?;
+    let seconds = [
+        (
+            "an open_cursor with S at another position with a filter, while a cursor is open",
+            open_text(Some(&rf.s), rf.r[10].pos, Some(&["keystroke"]), Some(late)),
+        ),
+        (
+            "an open_cursor with another store id, while a cursor is open",
+            open_text(Some(&another(&rf.s)?), ZERO, None, Some(late)),
+        ),
+        (
+            "an open_cursor with a null store at the zero position, while a cursor is open",
+            open_text(None, ZERO, None, Some(late)),
+        ),
+        (
+            "an open_cursor with S after the watermark, while a cursor is open",
+            open_text(
+                Some(&rf.s),
+                Position {
+                    seg: opened.watermark.seg + 1,
+                    idx: 0,
+                },
+                None,
+                Some(late),
+            ),
+        ),
+    ];
+    for (what, text) in &seconds {
+        let cause = conn.error(text, what)?;
+        if cause != Cause::BadRequest {
+            return Err(format!("{what} got {}; want bad-request", cause.name()));
+        }
+    }
+    let reading = drain(conn, opened, ZERO, true)
+        .map_err(|e| format!("the cursor that was open, after the refused opens: {e}"))?;
+    if !same(&reading.entries, &rf.r) {
+        return Err(format!(
+            "the cursor that was open served {} entries after the refused opens; want the {} entries of the reference read",
+            reading.entries.len(),
+            rf.r.len()
+        ));
+    }
+    let what = "an open_cursor while a cursor stands at the watermark";
+    let opened = open(conn, Some(&rf.s), ZERO, None, None)
+        .map_err(|e| format!("the open before {what}: {e}"))?;
+    let store = opened.store.clone();
+    let reading =
+        drain(conn, opened, ZERO, false).map_err(|e| format!("the read before {what}: {e}"))?;
+    let cause = conn.error(&open_text(Some(&rf.s), ZERO, None, None), what)?;
+    if cause != Cause::BadRequest {
+        return Err(format!("{what} got {}; want bad-request", cause.name()));
+    }
+    match conn.send(READ_BATCH)? {
+        ServerMessage::Batch(b) => {
+            check(
+                &b,
+                &store,
+                reading.watermark,
+                reading.entries.last().map(|e| e.pos),
+                reading.watermark,
+            )
+            .map_err(|e| format!("the read_batch after {what}: {e}"))?;
+            if !b.records.is_empty() || b.next != b.watermark {
+                return Err(format!(
+                    "the read_batch after {what} served {} entries with next {}; want none at the watermark",
+                    b.records.len(),
+                    show(b.next)
+                ));
+            }
+        }
+        ServerMessage::Error(e) => {
+            return Err(format!(
+                "the read_batch after {what} got the error {}",
+                e.cause().name()
+            ))
+        }
+        _ => {
+            return Err(format!(
+                "the read_batch after {what} got a reply other than batch or error"
+            ))
+        }
+    }
+    conn.close()
 }
 
 fn old_store<S: Subject>(
     conn: &mut Conn<S>,
     old: &StoreId,
     at: Position,
+    filter: (Option<&[&str]>, Span),
     what: &str,
 ) -> Result<StoreId, String> {
-    let new = match conn.error(&open_text(Some(old), at, None, None), what)? {
+    let new = match conn.error(&open_text(Some(old), at, filter.0, filter.1), what)? {
         Cause::StoreChanged(id) if &id != old => id,
-        Cause::StoreChanged(_) => return Err("store-changed names the old store id".to_owned()),
+        Cause::StoreChanged(_) => {
+            return Err(format!(
+                "check {}: store-changed names the old store id",
+                CHECKS[0]
+            ))
+        }
         other => return Err(format!("{what} got {}; want store-changed", other.name())),
     };
     let cause = conn.error(READ_BATCH, "read_batch after store-changed")?;
@@ -761,19 +1036,24 @@ fn old_store<S: Subject>(
 
 /// The case `store_changed` (C5.13 item 9): first, on the connection of the reference read, a cursor opened
 /// with S that took one Batch gets `store-changed` with another id at its next `read_batch` after
-/// `replace_live`, a further `read_batch` gets `bad-request`, and a cursor opened then serves nothing. Then,
-/// after `load(B)`, the old store id, at a position other than zero and at the zero position, gets
-/// `store-changed` with another id and opens no cursor, a null store with a non-zero position gets `bad-request`, and the new
+/// `replace_live`, a further `read_batch` gets `bad-request`, and a cursor opened then serves nothing from the
+/// store that the error named. Then, after `load(B)`, the old store id, at a position other than zero and at
+/// the zero position, gets `store-changed` with the new store's id and opens no cursor, a null store with a
+/// non-zero position gets `bad-request`, and the new
 /// store serves the records of set B from the zero position, with a null store and with its new id. Last,
 /// after `load(C)`, a read from the zero position serves the records of set C in order, each once; at least
-/// two of its Batches end before the store ends, and the Batch after each such stop starts at its `next`.
+/// two of its Batches end before the store ends, and the Batch after each such stop starts at its `next`;
+/// then the check `filtered_stops` of `CHECKS`, and `open_while_open` on the store that it loads.
 pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (mut conn, rf) = reference(subject)?;
     let opened = open(&mut conn, Some(&rf.s), ZERO, None, None)
         .map_err(|e| format!("the open before replace_live: {e}"))?;
     match conn.send(READ_BATCH)? {
-        ServerMessage::Batch(b) => check(&b, &opened.store, ZERO, None, opened.watermark)
-            .map_err(|e| format!("the read before replace_live: {e}"))?,
+        ServerMessage::Batch(b) => {
+            check(&b, &opened.store, ZERO, None, opened.watermark)
+                .map_err(|e| format!("the read before replace_live: {e}"))?;
+            conn.one_instant(&b)?;
+        }
         ServerMessage::Error(e) => {
             return Err(format!(
                 "the read before replace_live got the error {}",
@@ -787,8 +1067,8 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
         }
     }
     subject.replace_live()?;
-    match conn.error(READ_BATCH, "read_batch after replace_live")? {
-        Cause::StoreChanged(id) if id != rf.s => {}
+    let replaced = match conn.error(READ_BATCH, "read_batch after replace_live")? {
+        Cause::StoreChanged(id) if id != rf.s => id,
         Cause::StoreChanged(_) => {
             return Err("store-changed after replace_live names the old store id".to_owned())
         }
@@ -798,7 +1078,7 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
                 other.name()
             ))
         }
-    }
+    };
     let cause = conn.error(READ_BATCH, "a second read_batch after replace_live")?;
     if cause != Cause::BadRequest {
         return Err(format!(
@@ -814,16 +1094,36 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
             empty.entries.len()
         ));
     }
-    drop(conn);
+    if empty.store != replaced {
+        return Err(format!(
+            "check {}: store-changed after replace_live names another id than the store that an open with a null store serves then",
+            CHECKS[0]
+        ));
+    }
+    let instants = conn.end();
     let p = rf.r[10].pos;
     subject.load(&SET_B)?;
-    let mut conn = connect(subject)?;
-    let new = old_store(&mut conn, &rf.s, p, "an open_cursor with the old store id")?;
-    old_store(
+    let mut conn = connect(subject, instants)?;
+    let new = old_store(
+        &mut conn,
+        &rf.s,
+        p,
+        (None, None),
+        "an open_cursor with the old store id",
+    )?;
+    let at_zero = old_store(
         &mut conn,
         &rf.s,
         ZERO,
+        (None, None),
         "an open_cursor with the old store id at the zero position",
+    )?;
+    let filtered = old_store(
+        &mut conn,
+        &rf.s,
+        p,
+        (Some(&["keystroke"]), Some((Instant(0), Instant(i64::MAX)))),
+        "an open_cursor with the old store id, a kinds filter and a range",
     )?;
     let cause = conn.error(
         &open_text(None, p, None, None),
@@ -839,7 +1139,22 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
     let first = read(&mut conn, None, ZERO, None, None)
         .map_err(|e| format!("the new store with a null store id: {e}"))?;
     if first.store != new {
-        return Err("the new store's reply names another id than store-changed did".to_owned());
+        return Err(format!(
+            "check {}: the new store's reply names another id than store-changed did",
+            CHECKS[0]
+        ));
+    }
+    if first.store != at_zero {
+        return Err(format!(
+            "check {}: store-changed to an open_cursor with the old store id at the zero position names another id than the new store's reply",
+            CHECKS[0]
+        ));
+    }
+    if first.store != filtered {
+        return Err(format!(
+            "check {}: store-changed to an open_cursor with the old store id, a kinds filter and a range names another id than the new store's reply",
+            CHECKS[0]
+        ));
     }
     let matches = first.entries.len() == data.len()
         && first
@@ -858,9 +1173,9 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
     if !same(&again.entries, &first.entries) {
         return Err("the new store served other entries with its new id".to_owned());
     }
-    drop(conn);
+    let instants = conn.end();
     subject.load(&SET_C)?;
-    let mut conn = connect(subject)?;
+    let mut conn = connect(subject, instants)?;
     let c =
         read(&mut conn, None, ZERO, None, None).map_err(|e| format!("the read of set C: {e}"))?;
     let stops: Vec<usize> = (0..c.batches.len())
@@ -905,5 +1220,140 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
             data_c.len()
         ));
     }
+    let (mut conn, c) =
+        filtered_stops(subject, conn).map_err(|e| format!("check {}: {e}", CHECKS[3]))?;
+    open_while_open_mid_read(&mut conn, &c).map_err(|e| format!("check {}: {e}", CHECKS[1]))
+}
+
+fn open_while_open_mid_read<S: Subject>(conn: &mut Conn<S>, c: &Reading) -> Result<(), String> {
+    let what = "an open_cursor while a cursor that has read one Batch is open";
+    let opened = open(conn, Some(&c.store), ZERO, None, None)
+        .map_err(|e| format!("the open before {what}: {e}"))?;
+    let first = match conn.send(READ_BATCH)? {
+        ServerMessage::Batch(b) => b,
+        ServerMessage::Error(e) => {
+            return Err(format!(
+                "the read before {what} got the error {}",
+                e.cause().name()
+            ))
+        }
+        _ => {
+            return Err(format!(
+                "the read before {what} got a reply other than batch or error"
+            ))
+        }
+    };
+    check(&first, &opened.store, ZERO, None, opened.watermark)
+        .map_err(|e| format!("the read before {what}: {e}"))?;
+    conn.one_instant(&first)?;
+    if first.next == first.watermark {
+        return Err(format!(
+            "the first Batch before {what} reached the watermark; want one that stops before it"
+        ));
+    }
+    let cause = conn.error(&open_text(Some(&c.store), ZERO, None, None), what)?;
+    if cause != Cause::BadRequest {
+        return Err(format!("{what} got {}; want bad-request", cause.name()));
+    }
+    let rest = Batch {
+        store: first.store.clone(),
+        watermark: first.watermark,
+        records: Vec::new(),
+        expiry: Vec::new(),
+        next: first.next,
+    };
+    let reading = drain(conn, rest, first.next, true)
+        .map_err(|e| format!("the cursor that was open, after {what}: {e}"))?;
+    let mut served = first.records;
+    served.extend(reading.entries);
+    if !same(&served, &c.entries) {
+        return Err(format!(
+            "the cursor that was open served {} entries in all after {what}; want the {} entries of the store",
+            served.len(),
+            c.entries.len()
+        ));
+    }
     Ok(())
+}
+
+fn filtered_stops<S: Subject>(
+    subject: &mut S,
+    conn: Conn<S>,
+) -> Result<(Conn<S>, Reading), String> {
+    let texts = [SET_A[3], SET_C[0]];
+    let instants = conn.end();
+    subject.load(&texts)?;
+    let mut conn = connect(subject, instants)?;
+    let what = "the read of the fourth text of set A and set C";
+    let c = read(&mut conn, None, ZERO, None, None).map_err(|e| format!("{what}: {e}"))?;
+    let data = records_of(&texts)?;
+    let matches = c.entries.len() == data.len()
+        && c.entries
+            .iter()
+            .zip(&data)
+            .all(|(e, d)| alike(&e.record, d));
+    if !matches {
+        return Err(format!(
+            "{what} served {} entries; want the {} records of a served kind in order",
+            c.entries.len(),
+            data.len()
+        ));
+    }
+    let entry = |i: usize| c.entries.get(i).ok_or("the store served too few entries");
+    let range = (entry(100)?.record.at(), entry(400)?.record.at());
+    let filters: [Filter; 5] = [
+        ("window_title", Some(&["window_title"]), None),
+        (
+            "keystroke and window_title",
+            Some(&["keystroke", "window_title"]),
+            None,
+        ),
+        ("the range", None, Some(range)),
+        (
+            "the range with window_title",
+            Some(&["window_title"]),
+            Some(range),
+        ),
+        ("keystroke", Some(&["keystroke"]), None),
+    ];
+    for start in [ZERO, entry(150)?.pos] {
+        for (name, kinds, range) in filters {
+            let name = format!(
+                "the filter {name} on the fourth text of set A and set C from {}",
+                show(start)
+            );
+            let want: Vec<Entry> = c
+                .entries
+                .iter()
+                .filter(|e| kinds.is_none_or(|k| k.contains(&e.record.kind().as_str())))
+                .filter(|e| range.is_none_or(|(a, b)| e.record.at() >= a && e.record.at() < b))
+                .cloned()
+                .collect();
+            let reading = read(&mut conn, Some(&c.store), start, kinds, range)
+                .map_err(|e| format!("{name}: {e}"))?;
+            let mut from = 0;
+            for &(cursor, next, n) in &reading.spans {
+                let got = reading
+                    .entries
+                    .get(from..from + n)
+                    .ok_or("the read lost count of its entries")?;
+                from += n;
+                let due: Vec<Entry> = want
+                    .iter()
+                    .filter(|e| e.pos >= cursor && e.pos < next)
+                    .cloned()
+                    .collect();
+                if !same(got, &due) {
+                    return Err(format!(
+                        "{name}: the Batch from {} to next {} served {} entries; want the {} records of that store that pass the filter from its position up to next, each once",
+                        show(cursor),
+                        show(next),
+                        got.len(),
+                        due.len()
+                    ));
+                }
+            }
+        }
+    }
+    Ok((conn, c))
 }
