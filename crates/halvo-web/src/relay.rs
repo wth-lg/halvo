@@ -52,7 +52,7 @@ struct Shared {
     list: Mutex<List>,
     names: Names,
     refusals: Mutex<Vec<HostPort>>,
-    open: Mutex<HashMap<u64, (HostPort, AbortHandle)>>,
+    open: Mutex<HashMap<u64, Open>>,
     closed: Mutex<Vec<HostPort>>,
     next: AtomicU64,
     tunnels: AtomicU64,
@@ -63,6 +63,14 @@ struct Shared {
     over_bound: AtomicU64,
     unkept: AtomicU64,
     accept_errors: AtomicU64,
+}
+
+/// An open tunnel: its host and port, whether a change of the list closed it, and the task that
+/// copies its bytes once that task runs.
+struct Open {
+    hp: HostPort,
+    closed: Arc<std::sync::atomic::AtomicBool>,
+    copy: Option<AbortHandle>,
 }
 
 /// The relay's listener as the system names it, for a start that places it in the guard.
@@ -456,21 +464,22 @@ impl RelayHandle {
     }
 
     fn close_outside(&self, list: &List) {
-        let leaving: Vec<(u64, HostPort, AbortHandle)> = match self.shared.open.lock() {
+        let leaving: Vec<Open> = match self.shared.open.lock() {
             Ok(mut open) => {
                 let ids: Vec<u64> = open
                     .iter()
-                    .filter(|(_, (hp, _))| !list.holds(hp))
+                    .filter(|(_, o)| !list.holds(&o.hp))
                     .map(|(id, _)| *id)
                     .collect();
-                ids.into_iter()
-                    .filter_map(|id| open.remove(&id).map(|(hp, a)| (id, hp, a)))
-                    .collect()
+                ids.into_iter().filter_map(|id| open.remove(&id)).collect()
             }
             Err(_) => return,
         };
-        for (_, hp, abort) in leaving {
-            abort.abort();
+        for Open { hp, closed, copy } in leaving {
+            closed.store(true, Ordering::SeqCst);
+            if let Some(abort) = copy {
+                abort.abort();
+            }
             keep(&self.shared.closed, hp, &self.shared.unkept);
         }
     }
@@ -509,7 +518,7 @@ impl RelayHandle {
         self.shared
             .open
             .lock()
-            .map(|o| o.values().map(|(hp, _)| hp.clone()).collect())
+            .map(|o| o.values().map(|t| t.hp.clone()).collect())
             .unwrap_or_default()
     }
 
@@ -540,10 +549,19 @@ async fn refuse(socket: &mut TcpStream, shared: &Shared, hp: HostPort, code: u8)
 /// Checks the peer of a new connection while it holds the socket, before it reads a byte: a
 /// foreign peer is recorded apart and its socket closed unread.
 async fn accept(socket: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
-    let peer_port = socket.peer_addr()?.port();
+    let peer = socket.peer_addr()?;
+    let peer_port = peer.port();
     let root = shared.browser.lock().ok().and_then(|b| b.clone());
     let relay_port = shared.port;
     let verdict = tokio::task::spawn_blocking(move || {
+        if peer.ip() != IpAddr::V4(Ipv4Addr::LOCALHOST) {
+            return Err(ForeignPeer {
+                peer_port,
+                owners: 0,
+                in_tree: 0,
+                cause: "peer_address",
+            });
+        }
         crate::peer::check_peer(root.as_ref(), peer_port, relay_port)
     })
     .await
@@ -623,18 +641,50 @@ async fn tunnel(mut socket: TcpStream, shared: Arc<Shared>) -> std::io::Result<(
     };
     #[cfg(test)]
     tests::connect_pause(port).await;
-    if !handle.listed(&hp) {
+    let id = shared.next.fetch_add(1, Ordering::SeqCst);
+    let closed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let registered = match shared.list.lock() {
+        Ok(list) if list.holds(&hp) => match shared.open.lock() {
+            Ok(mut open) => {
+                open.insert(
+                    id,
+                    Open {
+                        hp: hp.clone(),
+                        closed: closed.clone(),
+                        copy: None,
+                    },
+                );
+                true
+            }
+            Err(_) => false,
+        },
+        _ => false,
+    };
+    if !registered {
         refuse(&mut socket, &shared, hp, 2).await;
         return Ok(());
     }
     shared.tunnels.fetch_add(1, Ordering::SeqCst);
-    socket.write_all(&[5, 0, 0, 1, 0, 0, 0, 0, 0, 0]).await?;
-    let id = shared.next.fetch_add(1, Ordering::SeqCst);
+    if socket
+        .write_all(&[5, 0, 0, 1, 0, 0, 0, 0, 0, 0])
+        .await
+        .is_err()
+        || closed.load(Ordering::SeqCst)
+    {
+        if let Ok(mut open) = shared.open.lock() {
+            open.remove(&id);
+        }
+        return Ok(());
+    }
     let copy = tokio::spawn(async move {
         let _ = tokio::io::copy_bidirectional(&mut socket, &mut upstream).await;
     });
-    if let Ok(mut open) = shared.open.lock() {
-        open.insert(id, (hp, copy.abort_handle()));
+    match shared.open.lock() {
+        Ok(mut open) => match open.get_mut(&id) {
+            Some(o) if !closed.load(Ordering::SeqCst) => o.copy = Some(copy.abort_handle()),
+            _ => copy.abort(),
+        },
+        Err(_) => copy.abort(),
     }
     let _ = copy.await;
     if let Ok(mut open) = shared.open.lock() {
@@ -1233,5 +1283,177 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert!(h.open_tunnels().is_empty());
         relay.stop();
+    }
+}
+
+/// The review of 85b6d770 (evidence/builder-44/review, finder b, case 2): a remove that lands
+/// between the list's second read and the tunnel's registration closes the tunnel.
+#[cfg(test)]
+mod review_tunnel_race {
+    use super::*;
+
+    fn own() -> Proc {
+        procs::table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == std::process::id())
+            .unwrap()
+    }
+
+    fn client(port: u16) -> TcpStream {
+        let c = {
+            let _held = crate::start::lock();
+            std::net::TcpStream::connect((Ipv4Addr::LOCALHOST, port)).unwrap()
+        };
+        c.set_nonblocking(true).unwrap();
+        TcpStream::from_std(c).unwrap()
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_tunnel_registered_while_its_host_leaves_the_list_is_closed() {
+        let echo = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let echo_port = echo.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            let mut held = Vec::new();
+            while let Ok((s, _)) = echo.accept().await {
+                held.push(s);
+            }
+        });
+        let relay = Relay::start(Names::Fixture).await.unwrap();
+        let port = relay.port;
+        let h = relay.handle();
+        h.trust(Some(own()));
+        let host = "race.agent.test";
+        let mut escaped = 0;
+        let mut kept = Vec::new();
+        for _ in 0..30 {
+            h.allow(host, echo_port);
+            let before = h.tunnels();
+            let watcher = {
+                let h = h.clone();
+                std::thread::spawn(move || {
+                    let until = std::time::Instant::now() + Duration::from_secs(10);
+                    while h.tunnels() == before && std::time::Instant::now() < until {
+                        std::hint::spin_loop();
+                    }
+                    h.remove(host, echo_port);
+                })
+            };
+            let mut c = client(port);
+            c.write_all(&[5, 1, 0]).await.unwrap();
+            let mut r = [0u8; 2];
+            c.read_exact(&mut r).await.unwrap();
+            let mut req = vec![5, 1, 0, 3, host.len() as u8];
+            req.extend_from_slice(host.as_bytes());
+            req.extend_from_slice(&echo_port.to_be_bytes());
+            c.write_all(&req).await.unwrap();
+            let mut reply = [0u8; 10];
+            let _ = tokio::time::timeout(Duration::from_secs(10), c.read_exact(&mut reply)).await;
+            watcher.join().unwrap();
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            let k = key(host, echo_port);
+            if !h.list().holds(&k) && h.open_tunnels().contains(&k) {
+                escaped += 1;
+            }
+            kept.push(c);
+        }
+        relay.stop();
+        assert_eq!(
+            escaped, 0,
+            "a tunnel to a host that left the list stayed open in {escaped} of 30 tries"
+        );
+    }
+}
+
+/// The review of 85b6d770 (finder c, case 1): a process outside the tree that connects from
+/// another local address with the source port of a tree process's connection gets no tunnel.
+#[cfg(all(test, target_os = "macos"))]
+mod review_peer_address {
+    use super::*;
+
+    /// A second local IPv4 address from which a TCP connection to 127.0.0.1 can be made: 127.0.0.2
+    /// where the system has it, else the host's own address. The UDP connect sends no packet.
+    #[cfg(target_os = "macos")]
+    fn second_address() -> Option<Ipv4Addr> {
+        let mut tries = vec![Ipv4Addr::new(127, 0, 0, 2)];
+        if let Ok(u) = std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)) {
+            if u.connect((Ipv4Addr::new(192, 0, 2, 1), 9)).is_ok() {
+                if let Ok(SocketAddr::V4(a)) = u.local_addr() {
+                    tries.push(*a.ip());
+                }
+            }
+        }
+        tries
+            .into_iter()
+            .find(|ip| std::net::TcpListener::bind((*ip, 0)).is_ok())
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_peer_from_another_local_address_with_a_tree_port_is_refused() {
+        let Some(other) = second_address() else {
+            eprintln!("setup: no second local address; nothing shown");
+            return;
+        };
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let relay = Relay::start(Names::Fixture).await.unwrap();
+            let rp = relay.port;
+            // A: a connection from 127.0.0.1:P to the relay that a /bin/sleep child alone holds.
+            let held = crate::start::lock();
+            let a = std::net::TcpStream::connect((Ipv4Addr::LOCALHOST, rp)).unwrap();
+            let p = a.local_addr().unwrap().port();
+            let spec = crate::start::Spec {
+                program: std::path::Path::new("/bin/sleep"),
+                args: vec!["20".into()],
+                env: Vec::new(),
+                dir: &crate::start::system_dir().unwrap(),
+            };
+            let mut sleeper =
+                crate::start::start_with(&held, &spec, std::os::fd::AsRawFd::as_raw_fd(&a))
+                    .unwrap();
+            drop(a);
+            drop(held);
+            std::thread::sleep(Duration::from_millis(300));
+            let root = procs::table()
+                .unwrap()
+                .into_iter()
+                .find(|q| q.pid == sleeper.pid())
+                .unwrap();
+            relay.handle().trust(Some(root));
+            relay.handle().allow("utility.a.test", 9);
+            let before = relay.handle().foreign_count();
+            // B: this process, outside the trusted tree, connects from <other>:P.
+            let made = {
+                let _held = crate::start::lock();
+                tokio::net::TcpSocket::new_v4()
+                    .and_then(|s| s.bind(SocketAddr::from((other, p))).map(|_| s))
+            };
+            let connected = match made {
+                Ok(s) => s
+                    .connect(SocketAddr::from((Ipv4Addr::LOCALHOST, rp)))
+                    .await
+                    .ok(),
+                Err(_) => None,
+            };
+            let Some(mut b) = connected else {
+                sleeper.kill();
+                eprintln!("setup: could not connect from {other}:{p}; nothing shown");
+                return;
+            };
+            let _ = b.write_all(&[5, 1, 0]).await;
+            let mut got = [0u8; 2];
+            let read = tokio::time::timeout(Duration::from_secs(5), b.read(&mut got)).await;
+            sleeper.kill();
+            let tunnel_offered = matches!(read, Ok(Ok(2))) && got == [5, 0];
+            assert!(
+                !tunnel_offered,
+                "a process outside the tree got the SOCKS5 greeting reply from {other}:{p}"
+            );
+            assert_eq!(relay.handle().foreign_count(), before + 1);
+        });
     }
 }

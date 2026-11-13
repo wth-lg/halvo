@@ -465,7 +465,6 @@ async fn one(
         browser: browser.to_path_buf(),
         profile: ctx.scratch.join(format!("profile-{name}")),
         headless,
-        flags: Vec::new(),
         relay: relay.clone(),
         guard,
     };

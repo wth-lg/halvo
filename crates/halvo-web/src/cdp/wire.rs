@@ -62,7 +62,6 @@ pub(crate) struct Book {
     pub on_main_document: Option<Hook>,
     pub policy_counts: std::collections::BTreeMap<String, u64>,
     pub storage_pages: HashSet<String>,
-    pub only: Option<String>,
     pub bindings: Vec<(String, String)>,
     pub closed: bool,
 }
@@ -292,24 +291,6 @@ impl Wire {
         }
     }
 
-    /// Arms the rule on the one target of `session` and on no other target and not at the browser
-    /// level: a control of the trial, which no operation of A11.1 does.
-    pub(crate) async fn arm_one(&self, session: &str, rule: Rule) -> Res<()> {
-        let policy = rule.policy.is_some();
-        {
-            let mut b = self.book.lock().map_err(|_| Fault::new("rule", "book"))?;
-            b.rule = Some(rule);
-            b.only = Some(session.to_string());
-            b.version += 1;
-            b.paused.clear();
-            b.answered.clear();
-        }
-        self.call(Some(session), intercept_all(policy))
-            .await
-            .map(|_| ())
-            .map_err(|f| Fault::new("rule", f.1))
-    }
-
     /// Arms the rule at the browser level and on every target that the connection holds, and from
     /// then on on every new target before it runs. Neither level alone sees every request: the
     /// browser level misses keepalive requests and beacons, and a target's own level misses the
@@ -319,7 +300,6 @@ impl Wire {
         let sessions: Vec<(String, String)> = {
             let mut b = self.book.lock().map_err(|_| Fault::new("rule", "book"))?;
             b.rule = Some(rule);
-            b.only = None;
             b.version += 1;
             b.paused.clear();
             b.answered.clear();
@@ -546,7 +526,7 @@ impl Wire {
         let mut nested = !nests(&kind);
         let home = loop {
             let (version, armed) = match self.book.lock() {
-                Ok(b) => (b.version, b.rule.is_some() && b.only.is_none()),
+                Ok(b) => (b.version, b.rule.is_some()),
                 Err(_) => return,
             };
             if armed {

@@ -39,7 +39,6 @@ fn options(browser: &Path, profile: PathBuf, relay: &Relay) -> Option<StartOptio
         browser: browser.to_path_buf(),
         profile,
         headless: true,
-        flags: Vec::new(),
         relay: relay.handle(),
         guard: GuardProgram::this_program().ok()?,
     })

@@ -92,8 +92,6 @@ pub struct StartOptions {
     /// temporary directory is made beside it.
     pub profile: PathBuf,
     pub headless: bool,
-    /// Flags after the product's own (`launch_args`).
-    pub flags: Vec<String>,
     /// The relay that is the browser's only route: the start names the browser's first process to
     /// it, starts its guard, and asks for `PROBE_HOST` before the agent acts.
     pub relay: crate::relay::RelayHandle,
@@ -280,13 +278,13 @@ fn write_settings(profile: &Path, local_state: Option<&str>) -> Res<()> {
     Ok(())
 }
 
-/// The browser's command line after its path: the product's flags (`crate::PRODUCT_FLAGS`, the
-/// relay's flags), the caller's flags, headless when asked, the profile, the debugging pipe and the
-/// first page. No flag names a bound site, and the product carries no mock keychain (A8.3).
+/// The browser's command line after its path, every flag the executor's own: the product's flags
+/// (`crate::PRODUCT_FLAGS`), the relay's flags, headless when asked, the profile, the debugging pipe
+/// and the first page. A caller adds no flag, so none can name a port or a route beside the relay.
+/// No flag names a bound site, and the product carries no mock keychain (A8.3).
 pub fn launch_args(opts: &StartOptions) -> Vec<String> {
     let mut args: Vec<String> = crate::PRODUCT_FLAGS.iter().map(|f| f.to_string()).collect();
     args.extend(crate::relay::relay_flags(opts.relay.port()));
-    args.extend(opts.flags.iter().cloned());
     if opts.headless {
         args.push("--headless=new".into());
     }
@@ -1376,47 +1374,6 @@ impl Executor {
         self.wire.policy_counts()
     }
 
-    /// For the row `same_site_rule` of U0.7c alone, and no operation of A11.1: arms the rule as
-    /// `arm_rule` does on the executor's own page target and on nothing else, neither at the
-    /// browser's level nor on a target that the page opens or holds apart.
-    pub async fn arm_rule_on_page_only(
-        &mut self,
-        allowed_origins: Vec<String>,
-        state_changing: bool,
-    ) -> Res<()> {
-        let home = self.home.clone();
-        self.wire
-            .arm_one(
-                &home,
-                wire::Rule {
-                    allowed: allowed_origins,
-                    state_changing,
-                    hold: false,
-                    policy: None,
-                },
-            )
-            .await
-    }
-
-    /// Runs a script of the trial in an isolated world of the first frame of the page whose
-    /// address starts with `prefix`, and returns its value; no operation of A11.1.
-    pub async fn run_frame_script(&self, prefix: &str, source: &str) -> Res<serde_json::Value> {
-        fn find(t: &FrameTree, prefix: &str) -> Option<FrameId> {
-            for c in t.child_frames.iter().flatten() {
-                if c.frame.url.starts_with(prefix) {
-                    return Some(c.frame.id.clone());
-                }
-                if let Some(f) = find(c, prefix) {
-                    return Some(f);
-                }
-            }
-            None
-        }
-        let tree = self.frame_tree().await?;
-        let frame = find(&tree, prefix).ok_or_else(|| Fault::new("frame", "no frame"))?;
-        self.eval_value(&frame, source).await
-    }
-
     /// For the trial of a driver that dies while a request is paused (U0.7, CP-22), and no
     /// operation of A11.1: arms a rule that lets through the reads of `allowed_origins` and leaves
     /// every other request paused with no answer, recorded with the outcome `Held`.
@@ -1453,22 +1410,6 @@ impl Executor {
             None
         }
         Ok(walk(&self.frame_tree().await?, frame))
-    }
-
-    /// Runs a script of the trial in the page's own world of the main frame, through the debugging
-    /// protocol, and returns its value. It is no operation of A11.1: the rows of A13.7 change the
-    /// page with it.
-    pub async fn run_page_script(&self, source: &str) -> Res<serde_json::Value> {
-        let params = EvaluateParams::builder()
-            .expression(source)
-            .return_by_value(true)
-            .build()
-            .map_err(|e| Fault::new("script", e))?;
-        let r = self.exec(&Place::Page, "script", params).await?;
-        if r.exception_details.is_some() {
-            return Err(Fault::new("script", "exception"));
-        }
-        Ok(r.result.value.unwrap_or(serde_json::Value::Null))
     }
 
     /// The frames that the browser runs as targets of their own, out of the process of the page
@@ -1657,7 +1598,6 @@ pub(crate) mod tests {
             browser,
             profile,
             headless: true,
-            flags: Vec::new(),
             relay,
             guard: test_guard(),
         }
@@ -1733,21 +1673,37 @@ pub(crate) mod tests {
         assert!(!dir.join("q").exists());
     }
 
+    /// The review of 85b6d770 (finder a, cases 1 and 2; finder b, case 1): the command line is the
+    /// executor's alone, in a closed list, so no flag of a caller names a port or a route beside
+    /// the relay, and the relay's proxy is the one value of its switches.
     #[test]
-    fn the_command_line_holds_the_product_s_flags_and_no_port_and_no_mock_keychain() {
+    fn the_command_line_is_the_executor_s_closed_list() {
         let relay = crate::relay::RelayHandle::for_tests(18999);
         let opts = options_with(
             PathBuf::from("/b/chrome"),
             PathBuf::from("/p/profile"),
             relay,
         );
+        let mut want: Vec<String> = crate::PRODUCT_FLAGS.iter().map(|f| f.to_string()).collect();
+        want.extend(crate::relay::relay_flags(18999));
+        want.extend(
+            [
+                "--headless=new",
+                "--user-data-dir=/p/profile",
+                "--remote-debugging-pipe",
+                "about:blank",
+            ]
+            .map(String::from),
+        );
+        assert_eq!(launch_args(&opts), want);
         let args = launch_args(&opts);
-        for f in crate::PRODUCT_FLAGS {
-            assert!(args.iter().any(|a| a == f), "{f}");
+        for switch in ["--proxy-server", "--proxy-bypass-list", "--no-proxy-server"] {
+            let n = args
+                .iter()
+                .filter(|a| a.split('=').next() == Some(switch))
+                .count();
+            assert_eq!(n, usize::from(switch != "--no-proxy-server"), "{switch}");
         }
-        assert!(args.contains(&"--proxy-server=socks5://127.0.0.1:18999".to_string()));
-        assert!(args.contains(&"--remote-debugging-pipe".to_string()));
-        assert!(args.contains(&"--user-data-dir=/p/profile".to_string()));
         assert!(!args.iter().any(|a| crate::checks::names_a_port(a)));
         assert!(!args.iter().any(|a| a.contains("mock-keychain")));
         assert!(!args.iter().any(|a| a.contains("host-resolver-rules")));
