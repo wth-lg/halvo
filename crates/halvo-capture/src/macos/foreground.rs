@@ -364,7 +364,7 @@ struct TitleThread {
 }
 
 impl TitleThread {
-    fn spawn(mut read_title: TitleReader) -> Result<Self, CaptureError> {
+    fn spawn(mut read_title: TitleReader) -> Result<(Self, JoinHandle<()>), CaptureError> {
         let queue = Arc::new((
             Mutex::new(TitleQueue {
                 latest: None,
@@ -374,7 +374,7 @@ impl TitleThread {
         ));
         let (tx, answers) = channel();
         let shared = queue.clone();
-        std::thread::Builder::new()
+        let thread = std::thread::Builder::new()
             .name("halvo-window-title".into())
             .spawn(move || {
                 while let Some(request) = next_request(&shared) {
@@ -390,7 +390,7 @@ impl TitleThread {
                 }
             })
             .map_err(thread_start_failure)?;
-        Ok(Self { queue, answers })
+        Ok((Self { queue, answers }, thread))
     }
 
     fn ask(&self, request: TitleRequest) {
@@ -451,7 +451,15 @@ fn poll_loop(
 
 struct Running {
     stop: Sender<()>,
+    stop_sent: bool,
     thread: JoinHandle<()>,
+    title: JoinHandle<()>,
+}
+
+impl Running {
+    fn ended(&self) -> bool {
+        self.thread.is_finished() && self.title.is_finished()
+    }
 }
 
 /// The foreground-app source; it also emits one window-title event for each
@@ -525,15 +533,21 @@ impl CaptureSource for ForegroundSource {
         let (stop, stop_rx) = channel();
         let sink = ctx.sink().clone();
         let interval = self.interval;
-        let started = TitleThread::spawn(read_title).and_then(|titles| {
+        let started = TitleThread::spawn(read_title).and_then(|(titles, title)| {
             std::thread::Builder::new()
                 .name("halvo-foreground".into())
                 .spawn(move || poll_loop(read_front, poller, titles, sink, interval, stop_rx))
+                .map(|thread| (thread, title))
                 .map_err(thread_start_failure)
         });
         match started {
-            Ok(thread) => {
-                self.running = Some(Running { stop, thread });
+            Ok((thread, title)) => {
+                self.running = Some(Running {
+                    stop,
+                    stop_sent: false,
+                    thread,
+                    title,
+                });
                 self.failure = None;
                 self.stopped = false;
                 Ok(Started::Running)
@@ -546,13 +560,14 @@ impl CaptureSource for ForegroundSource {
     }
 
     fn shutdown(&mut self) -> Result<(), CaptureError> {
-        let Some(running) = self.running.as_ref() else {
+        let Some(running) = self.running.as_mut() else {
             return Ok(());
         };
-        let ended_before = running.thread.is_finished();
+        let ended_before = !running.stop_sent && running.thread.is_finished();
         let _ = running.stop.send(());
+        running.stop_sent = true;
         let called = Instant::now();
-        while !running.thread.is_finished() {
+        while !running.ended() {
             if called.elapsed() >= FOREGROUND_STOP_DEADLINE {
                 return Err(CaptureError::Timeout {
                     stage: "foreground_join",
@@ -561,11 +576,16 @@ impl CaptureSource for ForegroundSource {
             }
             std::thread::sleep(Duration::from_millis(2));
         }
-        let joined = self.running.take().map(|running| running.thread.join());
-        self.stopped = true;
-        match (ended_before, joined) {
-            (false, Some(Ok(()))) => Ok(()),
-            _ => Err(CaptureError::ThreadEnded),
+        let joined = self
+            .running
+            .take()
+            .map(|running| (running.thread.join(), running.title.join()));
+        if let (false, Some((Ok(()), Ok(())))) = (ended_before, joined) {
+            self.stopped = true;
+            Ok(())
+        } else {
+            self.failure = Some(CaptureError::ThreadEnded);
+            Err(CaptureError::ThreadEnded)
         }
     }
 
@@ -1043,7 +1063,8 @@ mod tests {
     }
 
     #[test]
-    fn a_title_read_that_blocks_1500_ms_delays_neither_the_next_change_nor_shutdown() {
+    fn a_title_read_that_blocks_1500_ms_delays_no_change_and_shutdown_waits_for_it_up_to_its_deadline(
+    ) {
         let (handle, writer) = sink::channel(64);
         let switched = Arc::new(AtomicBool::new(false));
         let reading = Arc::new(AtomicBool::new(false));
@@ -1086,14 +1107,61 @@ mod tests {
         let called = Instant::now();
         let shut = source.shutdown();
         let stopped_in = called.elapsed();
+        let again = source.shutdown();
         assert_eq!(next, Ok("b".to_string()));
         assert!(
             reached <= FOREGROUND_POLL + Duration::from_millis(100),
             "the next change reached the sink {reached:?} after it happened"
         );
+        assert_eq!(
+            shut,
+            Err(CaptureError::Timeout {
+                stage: "foreground_join",
+                ms: 1000
+            })
+        );
         assert!(
-            shut == Ok(()) && stopped_in <= FOREGROUND_POLL,
-            "shutdown {shut:?} after {stopped_in:?}"
+            stopped_in >= FOREGROUND_STOP_DEADLINE
+                && stopped_in < FOREGROUND_STOP_DEADLINE + Duration::from_millis(200),
+            "the first shutdown returned after {stopped_in:?}"
+        );
+        assert_eq!(again, Ok(()), "the shutdown after the read ended");
+    }
+
+    #[test]
+    fn shutdown_answers_ok_only_after_the_title_thread_left_its_read() {
+        let (handle, _writer) = sink::channel(64);
+        let (entered_tx, entered_rx) = channel::<()>();
+        let (left_tx, left_rx) = channel::<()>();
+        let read_title: TitleReader = Box::new(move |_pid| {
+            let _ = entered_tx.send(());
+            std::thread::sleep(Duration::from_millis(300));
+            let _ = left_tx.send(());
+            Ok(None)
+        });
+        let (mut source, _reader) = source_with(
+            FOREGROUND_POLL,
+            fresh_turns(),
+            Box::new(|| app("a", 1)),
+            read_title,
+        );
+        source
+            .begin(SourceContext::new(handle))
+            .expect("the source starts");
+        entered_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("a title read began");
+        let called = Instant::now();
+        let shut = source.shutdown();
+        let took = called.elapsed();
+        assert!(
+            shut == Ok(()) && took <= FOREGROUND_STOP_DEADLINE,
+            "shutdown {shut:?} after {took:?}"
+        );
+        assert_eq!(
+            left_rx.try_recv(),
+            Ok(()),
+            "shutdown answered Ok while the title thread was inside its read"
         );
     }
 
@@ -1165,6 +1233,29 @@ mod tests {
             }
         );
         assert_eq!(shut, Err(CaptureError::ThreadEnded));
+        assert_eq!(
+            source.health().state,
+            state,
+            "a poll thread that ended on its own reads as stopped once shutdown ran"
+        );
+    }
+
+    #[test]
+    fn a_missing_grant_reads_impaired_and_counts_no_title_read_error() {
+        let (writer, _reader) = foreground_state();
+        let health = Arc::new(TitleHealth::default());
+        let mut poller = Poller::new(writer, 5, health.clone());
+        let (handle, _sink_writer) = sink::channel(64);
+        poller.step(app("com.example.a", 10), Vec::new(), &handle);
+        let again = poller.step(
+            app("com.example.a", 10),
+            answer(1, Err(TitleError::NotTrusted)),
+            &handle,
+        );
+        assert_eq!(again, None);
+        assert_eq!(health.errors.load(Ordering::Relaxed), 0);
+        assert!(health.not_trusted.load(Ordering::Relaxed));
+        assert!(!health.failing.load(Ordering::Relaxed));
     }
 
     #[test]

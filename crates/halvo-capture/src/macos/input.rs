@@ -574,7 +574,7 @@ impl TapThread {
     }
 
     fn stop_within(&mut self, deadline: Duration) -> Result<(), CaptureError> {
-        let ended_before = self.ended();
+        let ended_before = !self.stop.load(Ordering::SeqCst) && self.ended();
         self.request_stop();
         let called = Instant::now();
         while !self.ended() {
@@ -660,6 +660,7 @@ impl InputSource {
         if self.tap.is_some() {
             return Err(CaptureError::AlreadyStarted);
         }
+        *self.refusal.lock().unwrap_or_else(PoisonError::into_inner) = None;
         let settings = tap_settings();
         let ctx = tap_context(
             sink,
@@ -699,9 +700,16 @@ impl CaptureSource for InputSource {
             return Ok(());
         };
         let answer = tap.stop_within(INPUT_STOP_DEADLINE);
-        if matches!(answer, Ok(()) | Err(CaptureError::ThreadEnded)) {
-            self.tap = None;
-            self.stopped = true;
+        match &answer {
+            Ok(()) => {
+                self.tap = None;
+                self.stopped = true;
+            }
+            Err(CaptureError::ThreadEnded) => {
+                self.tap = None;
+                self.failure = Some(CaptureError::ThreadEnded);
+            }
+            Err(_) => {}
         }
         answer
     }
@@ -1296,6 +1304,11 @@ mod tests {
             }
         );
         assert_eq!(shut, Err(CaptureError::ThreadEnded));
+        assert_eq!(
+            source.health().state,
+            state,
+            "a tap thread that ended on its own reads as stopped once shutdown ran"
+        );
     }
 
     #[test]
@@ -1561,6 +1574,76 @@ mod tests {
         );
         assert_eq!(steps, ["enable", "tap enable", "loop end"]);
         assert_eq!(refusal, Some(SecureInputRefused(-50)));
+    }
+
+    #[test]
+    fn a_later_begin_reports_no_refusal_of_an_earlier_one() {
+        let _one = HOLD_LOG_TESTS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let (handle, _writer) = sink::channel(8);
+        let mut source = source_with(HoldPlan::After(Duration::ZERO));
+        source.hold = shim_refused_hold;
+        source
+            .begin_with(handle.clone(), LoggingMaker, || {})
+            .expect("the first begin starts");
+        source.shutdown().expect("the first run stops");
+        let first = source.hold_refusal();
+        source.hold = shim_hold;
+        source
+            .begin_with(handle, LoggingMaker, || {})
+            .expect("the second begin starts");
+        source.shutdown().expect("the second run stops");
+        assert_eq!(first, Some(SecureInputRefused(-50)));
+        assert_eq!(source.hold_refusal(), None);
+    }
+
+    struct FailingMaker;
+
+    impl TapMaker for FailingMaker {
+        type Tap = ();
+        type Enabled = ();
+
+        fn make<F>(self, _settings: TapSettings, _callback: F) -> Result<(), ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            log_step("make refused");
+            Err(())
+        }
+
+        fn listen_denied() -> bool {
+            true
+        }
+
+        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_hold_taken_before_a_tap_that_is_not_made_is_released_on_the_tap_thread() {
+        let _one = HOLD_LOG_TESTS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        HOLD_LOG
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
+        let (handle, _writer) = sink::channel(8);
+        let mut source = source_with(HoldPlan::After(Duration::ZERO));
+        source.hold = shim_hold;
+        let started = source.begin_with(handle, FailingMaker, || {});
+        let log = std::mem::take(&mut *HOLD_LOG.lock().unwrap_or_else(PoisonError::into_inner));
+        let steps: Vec<&str> = log.iter().map(|&(step, _)| step).collect();
+        let threads: std::collections::HashSet<_> = log.iter().map(|&(_, id)| id).collect();
+        assert_eq!(
+            started,
+            Err(CaptureError::PermissionDenied(Modality::Keystroke))
+        );
+        assert_eq!(steps, ["enable", "make refused", "disable"]);
+        assert_eq!(threads.len(), 1);
+        assert!(!threads.contains(&std::thread::current().id()));
     }
 
     #[test]

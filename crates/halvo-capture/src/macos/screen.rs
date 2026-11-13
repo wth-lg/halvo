@@ -970,6 +970,23 @@ mod tests {
     }
 
     #[test]
+    fn a_clean_stop_gives_back_the_sink_while_another_holder_keeps_the_output() {
+        let (mut source, handle, writer, _asks, _weak) = started(&[Some(None)]);
+        let held_elsewhere = source
+            .output
+            .clone()
+            .expect("a started source holds its output");
+        let shut = source.shutdown();
+        let closed = sink_closed(handle, &writer);
+        drop(held_elsewhere);
+        assert_eq!(shut, Ok(()));
+        assert!(
+            closed,
+            "the output that a holder keeps still holds the sink"
+        );
+    }
+
+    #[test]
     fn a_dropped_started_source_asks_the_stream_to_stop_and_releases_the_output() {
         let (source, handle, writer, asks, weak) = started(&[Some(None)]);
         drop(source);
