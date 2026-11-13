@@ -210,7 +210,6 @@ pub enum Names {
     Fixture,
 }
 
-
 /// The relay's list (A11.1): the hosts and ports that a tunnel may reach, or every host and port,
 /// as in the person's handback.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -363,6 +362,21 @@ impl RelayHandle {
         #[cfg(windows)]
         let placed = raw as crate::start::RawPlaced;
         crate::start::start_with(&held, &spec, placed).map_err(|_| "guard_start")
+    }
+
+    #[cfg(test)]
+    pub(crate) fn for_tests(port: u16) -> RelayHandle {
+        RelayHandle {
+            shared: Arc::new(Shared {
+                port,
+                ..Shared::default()
+            }),
+        }
+    }
+
+    /// The relay's loopback port.
+    pub fn port(&self) -> u16 {
+        self.shared.port
     }
 
     /// Names the first process of the browser whose tree the relay serves, or none: from now on a

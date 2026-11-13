@@ -1748,7 +1748,9 @@ dependencies = [
 name = "halvo-web"
 version = "0.0.0"
 dependencies = [
+ "base64 0.22.1",
  "chromiumoxide",
+ "futures",
  "libc",
  "serde_json",
  "tokio",
