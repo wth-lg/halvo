@@ -184,13 +184,15 @@ fn remove_entry_below(parent: &Dir, name: &OsStr, depth: u32, removal: &mut Segm
         removal.not_followed += 1;
     }
     if entry.kind == EntryKind::Dir {
-        if let Ok(below) = parent.open_dir(name) {
-            if let Ok(children) = below.entries() {
-                for child in children {
-                    remove_entry_below(&below, &child.name, depth + 1, removal);
-                }
+        let listed = parent.open_dir(name).and_then(|below| {
+            let children = below.entries()?;
+            for child in children {
+                remove_entry_below(&below, &child.name, depth + 1, removal);
             }
-            let _ = below.sync();
+            below.sync()
+        });
+        if matches!(&listed, Err(e) if e.kind() != io::ErrorKind::NotFound) {
+            removal.left += 1;
         }
     }
     match parent.remove_entry(name) {

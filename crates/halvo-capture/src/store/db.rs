@@ -104,6 +104,14 @@ pub(crate) struct KeyFilePlace {
     temp: OsString,
 }
 
+/// What a key file says about roots, for the clearing of `create.pending`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum KeyNames {
+    Absent,
+    Root(RootId),
+    Unknown,
+}
+
 /// What a removal of a key file did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Removal {
@@ -228,16 +236,23 @@ impl KeyFilePlace {
         RootId::parse(&older.root_id)
     }
 
-    /// The root id that the key file names, whatever its label.
+    /// The root id that the key file names, whatever its label and version.
     pub(crate) fn named_root(&self) -> Option<RootId> {
         let json = self.bytes().ok()?;
-        let head: KeyFileVersion = serde_json::from_slice(&json).ok()?;
-        if head.version != KEY_FILE_VERSION {
-            return None;
+        let named: OlderKeyFile = serde_json::from_slice(&json).ok()?;
+        RootId::parse(&named.root_id)
+    }
+
+    /// What the key file says about roots: no entry at its name, the root id
+    /// that it names, or an entry whose root id cannot be read.
+    fn names(&self) -> KeyNames {
+        match self.dir.entry(&self.name) {
+            Err(e) if e.kind() == ErrorKind::NotFound => KeyNames::Absent,
+            _ => match self.named_root() {
+                Some(root_id) => KeyNames::Root(root_id),
+                None => KeyNames::Unknown,
+            },
         }
-        serde_json::from_slice::<KeyFile>(&json)
-            .ok()
-            .map(|key_file| key_file.root_id)
     }
 
     fn present(&self) -> StoreResult<bool> {
@@ -325,11 +340,20 @@ fn zero_and_remove(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
     }
 }
 
-fn zero_fill(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
+/// Zeroes the regular file `name` of `dir` when it has no other name, and
+/// answers whether it did; a file with a second name is left as it is,
+/// because its bytes belong to that name too.
+fn zero_fill(dir: &Dir, name: &OsStr) -> std::io::Result<bool> {
     let mut file = dir.open_file_for_write(name)?;
-    let len = file.metadata()?.len() as usize;
+    let meta = file.metadata()?;
+    #[cfg(unix)]
+    if std::os::unix::fs::MetadataExt::nlink(&meta) > 1 {
+        return Ok(false);
+    }
+    let len = meta.len() as usize;
     file.write_all(&vec![0u8; len])?;
-    file.sync_all()
+    file.sync_all()?;
+    Ok(true)
 }
 
 fn refused_at(name: StoreName, e: std::io::Error) -> StoreError {
@@ -948,16 +972,18 @@ fn remove_pending(store_dir: &Dir) -> StoreResult<()> {
 }
 
 /// Finishes what a create that stopped left in `create.pending`: the root
-/// that it names is destroyed unless the key file names that root, and the
-/// file is removed.
-fn clear_pending(store_dir: &Dir, roots: &Path, keyed: Option<RootId>) -> StoreResult<()> {
+/// that it names is destroyed when no key file stands at the store's name or
+/// the key file names another root, and the file is removed. When an entry
+/// stands at the key file's name whose root id cannot be read, nothing is
+/// destroyed or removed.
+fn clear_pending(store_dir: &Dir, roots: &Path, keyed: KeyNames) -> StoreResult<()> {
     let present = store_dir.entry(OsStr::new(CREATE_PENDING)).is_ok()
         || store_dir.entry(OsStr::new(CREATE_PENDING_TEMP)).is_ok();
-    if !present {
+    if !present || keyed == KeyNames::Unknown {
         return Ok(());
     }
     if let Some(pending) = read_pending(store_dir) {
-        if Some(pending.root_id) != keyed {
+        if keyed != KeyNames::Root(pending.root_id) {
             file_root::destroy_root_at(roots, pending.root_id)?;
         }
     }
@@ -1744,15 +1770,18 @@ impl EncryptedStore {
         let dir = &store;
         let _writer_lock = DirLock::take(dir)?;
         let key_file = KeyFile::of_store(dir)?;
-        if let Some(roots) = custody.roots() {
-            clear_pending(dir, roots, key_file.named_root())?;
-        }
-        if key_file.present()? {
-            return Err(StoreError::AlreadyExists);
-        }
         match Db::refuse_a_live_holder(dir) {
             Ok(()) | Err(StoreError::Obstructed { .. }) => {}
             Err(e) => return Err(e),
+        }
+        if let Some(roots) = custody.roots() {
+            clear_pending(dir, roots, key_file.names())?;
+            if file_root::root_file_present(roots, custody.root_id()) {
+                return Err(StoreError::Custody(CustodyError::RootExists));
+            }
+        }
+        if key_file.present()? {
+            return Err(StoreError::AlreadyExists);
         }
         failpoint::hit("create_before_the_database_step")?;
         #[cfg(test)]
@@ -1873,7 +1902,7 @@ impl EncryptedStore {
         store.make_private().map_err(io_error)?;
         let _writer_lock = DirLock::take(&store)?;
         let place = KeyFile::of_store(&store)?;
-        clear_pending(&store, roots, place.named_root())?;
+        clear_pending(&store, roots, place.names())?;
         let key_file = place.read(KeyLabel::STORE)?;
         let wrapped = key_file.wrapped_store_key()?;
         segment::refuse_a_linked_segments_root(&store)?;

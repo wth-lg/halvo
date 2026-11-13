@@ -8554,3 +8554,318 @@ fn a_key_file_is_published_create_only_and_an_entry_at_its_name_stays() {
     assert_eq!(std::fs::read(KeyFile::path(&store_dir)).unwrap(), before);
     assert!(!store_dir.join("store.key.tmp").exists());
 }
+
+#[cfg(unix)]
+#[test]
+fn delete_all_counts_a_shard_that_it_cannot_list_as_left() {
+    use std::os::unix::fs::PermissionsExt;
+    println!("CASE-NOTE: a segments shard that cannot be opened keeps its segment file; delete_all must not answer Ok while that file is left");
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
+    let file = segment_path(&store_dir, segment_id);
+    let shard = file.parent().unwrap().to_path_buf();
+    assert!(file.exists());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let answer = store.delete_all();
+    std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let left = file.exists();
+    println!(
+        "CASE-NOTE: answer {} segment file left {left}",
+        answer_text(&answer)
+    );
+    assert!(
+        !(answer.is_ok() && left),
+        "delete_all answered Ok, but the segment file under an unreadable shard is still there"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn the_tail_counts_a_shard_that_it_cannot_list_as_left() {
+    use std::os::unix::fs::PermissionsExt;
+    println!("CASE-NOTE: delete_store_dir must not answer Ok while a segment file under an unreadable shard is left");
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, _root_id, segment_id) = file_root_store(dir.path());
+    let file = segment_path(&store_dir, segment_id);
+    let shard = file.parent().unwrap().to_path_buf();
+    std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let left = file.exists();
+    println!(
+        "CASE-NOTE: answer {} segment file left {left}",
+        answer_text(&answer)
+    );
+    assert!(
+        !(answer.is_ok() && left),
+        "delete_store_dir answered Ok, but the segment file under an unreadable shard is still there"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn the_root_step_zeroes_no_file_that_has_a_second_name() {
+    println!("CASE-NOTE: a hard link at another root name to a file outside the roots directory must not have its outside bytes zeroed by the root step");
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _segment_id) = file_root_store(dir.path());
+    let outside = dir.path().join("outside-document");
+    std::fs::write(&outside, b"a person's document").unwrap();
+    std::fs::hard_link(
+        &outside,
+        roots_dir.join(format!("{}.root", RootId::fresh().unwrap())),
+    )
+    .unwrap();
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let answer = store.delete_all();
+    let bytes = std::fs::read(&outside).unwrap();
+    println!(
+        "CASE-NOTE: answer {} outside bytes {bytes:?}",
+        answer_text(&answer)
+    );
+    assert_eq!(
+        bytes,
+        b"a person's document".to_vec(),
+        "the root step wrote zeros into a file outside the roots directory"
+    );
+}
+
+#[test]
+fn a_create_under_the_id_of_a_live_root_is_refused_before_it_records_anything() {
+    let dir = tempfile::tempdir().unwrap();
+    let (_, roots_dir, root_id, _) = file_root_store(dir.path());
+    let before = std::fs::read(roots_dir.join(format!("{root_id}.root"))).unwrap();
+    let other = dir.path().join("other");
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+    let created = answer_text(&EncryptedStore::create(
+        &other,
+        Box::new(custody),
+        DEFAULT_RETENTION,
+    ));
+    assert_eq!(created, "Custody(RootExists)");
+    assert!(!other.join("create.pending").exists());
+    assert_eq!(
+        std::fs::read(roots_dir.join(format!("{root_id}.root"))).unwrap(),
+        before
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_pending_create_beside_an_unreadable_key_file_destroys_no_root() {
+    use super::db::SEAM_BEFORE_THE_MODE_STEP;
+    use super::failpoint;
+    use std::os::unix::fs::PermissionsExt;
+    println!("CASE-NOTE: a store whose create stopped after publishing store.key and before removing create.pending keeps its root when an open cannot read store.key for a moment; the open must refuse, not destroy the root that store.key names");
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let before = root_files_in(&roots_dir);
+    assert_eq!(before.len(), 1);
+    // A create.pending that names this store's root, made by a create that stops
+    // after writing it, in a scratch directory with a roots directory of its own.
+    let scratch = dir.path().join("scratch");
+    let pending = scratch.join("create.pending");
+    let seen = pending.clone();
+    let seam = failpoint::at(SEAM_BEFORE_THE_MODE_STEP, move || {
+        if seen.exists() {
+            panic!("review_create_02: the scratch create stops here");
+        }
+    });
+    let custody = file_root_custody(
+        &dir.path().join("scratch-roots"),
+        TestProtector::new(0x5a).0,
+        root_id,
+    );
+    let stopped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        EncryptedStore::create(&scratch, Box::new(custody), DEFAULT_RETENTION).is_ok()
+    }));
+    drop(seam);
+    assert!(stopped.is_err());
+    std::fs::copy(&pending, store_dir.join("create.pending")).unwrap();
+    // The state a create leaves when it stops between the key file and the
+    // removal of create.pending: store.key and create.pending both name the root.
+    let key = store_dir.join("store.key");
+    let mode = std::fs::metadata(&key).unwrap().permissions().mode();
+    std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let answer = EncryptedStore::open_with(
+        &store_dir,
+        &roots_dir,
+        DEFAULT_RETENTION,
+        |_: &crate::custody::CustodyLocator| {
+            Ok(Box::new(file_root_custody(
+                &roots_dir,
+                TestProtector::new(0x5a).0,
+                root_id,
+            )))
+        },
+    );
+    std::fs::set_permissions(&key, std::fs::Permissions::from_mode(mode)).unwrap();
+    println!(
+        "CASE-NOTE: the open over the unreadable key file answered {}",
+        answer_text(&answer)
+    );
+    drop(answer);
+    assert_eq!(
+        root_files_in(&roots_dir),
+        before,
+        "an open that could not read store.key destroyed the root that store.key names"
+    );
+    assert!(
+        open_over_file_root(&store_dir, &roots_dir, root_id).is_ok(),
+        "the store no longer opens once its key file can be read again"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_pending_create_beside_a_key_file_of_a_newer_version_destroys_no_root() {
+    use super::db::SEAM_BEFORE_THE_MODE_STEP;
+    use super::failpoint;
+    use std::os::unix::fs::PermissionsExt;
+    println!("CASE-NOTE: named_root answers None for a store.key of another version, so clear_pending destroys the root that both store.key and create.pending name; an open must refuse the version and keep the root");
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let before = root_files_in(&roots_dir);
+    assert_eq!(before.len(), 1);
+    let scratch = dir.path().join("scratch");
+    let pending = scratch.join("create.pending");
+    let seen = pending.clone();
+    let seam = failpoint::at(SEAM_BEFORE_THE_MODE_STEP, move || {
+        if seen.exists() {
+            panic!("review_create_03: the scratch create stops here");
+        }
+    });
+    let custody = file_root_custody(
+        &dir.path().join("scratch-roots"),
+        TestProtector::new(0x5a).0,
+        root_id,
+    );
+    let stopped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        EncryptedStore::create(&scratch, Box::new(custody), DEFAULT_RETENTION).is_ok()
+    }));
+    drop(seam);
+    assert!(stopped.is_err());
+    std::fs::copy(&pending, store_dir.join("create.pending")).unwrap();
+    let key = store_dir.join("store.key");
+    let original = std::fs::read(&key).unwrap();
+    let mode = std::fs::metadata(&key).unwrap().permissions().mode();
+    let mut json: serde_json::Value = serde_json::from_slice(&original).unwrap();
+    let version = json["version"]
+        .as_u64()
+        .expect("store.key has a numeric version");
+    json["version"] = serde_json::Value::from(version + 1);
+    std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+    std::fs::write(&key, serde_json::to_vec_pretty(&json).unwrap()).unwrap();
+    let answer = EncryptedStore::open_with(
+        &store_dir,
+        &roots_dir,
+        DEFAULT_RETENTION,
+        |_: &crate::custody::CustodyLocator| {
+            Ok(Box::new(file_root_custody(
+                &roots_dir,
+                TestProtector::new(0x5a).0,
+                root_id,
+            )))
+        },
+    );
+    println!(
+        "CASE-NOTE: the open over the newer key file answered {}",
+        answer_text(&answer)
+    );
+    drop(answer);
+    std::fs::write(&key, &original).unwrap();
+    std::fs::set_permissions(&key, std::fs::Permissions::from_mode(mode)).unwrap();
+    assert_eq!(
+        root_files_in(&roots_dir),
+        before,
+        "an open that met a store.key of another version destroyed the root that it names"
+    );
+    assert!(
+        open_over_file_root(&store_dir, &roots_dir, root_id).is_ok(),
+        "the store no longer opens once its key file is back"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_create_answers_locked_before_it_clears_a_pending_create() {
+    println!("CASE-NOTE: create runs clear_pending, which destroys the root that create.pending names, before Db::refuse_a_live_holder; its doc says Locked comes with nothing removed, so while another process holds store.db the pending root and create.pending should stay, and I expect both gone");
+    let killed = tempfile::tempdir().unwrap();
+    let pending_root = RootId::fresh().unwrap();
+    std::fs::write(killed.path().join("root-id"), pending_root.to_string()).unwrap();
+    let status = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "store::hardening_tests::kill_a_create_after_its_root_for_parent",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("HALVO_TEST_KILLED_CREATE_DIR", killed.path())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+    assert!(!status.success(), "the child was not killed: {status:?}");
+    let pending_file = killed.path().join("store").join("create.pending");
+    let pending_root_file = killed
+        .path()
+        .join("roots")
+        .join(format!("{pending_root}.root"));
+    assert!(pending_file.exists() && pending_root_file.exists());
+
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let key = *store.store_key().unwrap().expose();
+    drop(store);
+    std::fs::write(dir.path().join("raw-key"), key).unwrap();
+    std::fs::rename(
+        store_dir.join("store.key"),
+        dir.path().join("store.key-aside"),
+    )
+    .unwrap();
+    std::fs::copy(&pending_file, store_dir.join("create.pending")).unwrap();
+    std::fs::copy(
+        &pending_root_file,
+        roots_dir.join(format!("{pending_root}.root")),
+    )
+    .unwrap();
+
+    let mut child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "store::hardening_tests::hold_the_database_for_parent",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("HALVO_TEST_HOLD_DATABASE", dir.path())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .unwrap();
+    wait_for(&dir.path().join("child-ready"), &mut child);
+    let custody = file_root_custody(
+        &roots_dir,
+        TestProtector::new(0x5a).0,
+        RootId::fresh().unwrap(),
+    );
+    let created = EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION);
+    let answer = answer_text(&created);
+    drop(created);
+    let roots_while_held = root_files_in(&roots_dir);
+    let pending_while_held = store_dir.join("create.pending").exists();
+    std::fs::write(dir.path().join("child-stop"), b"").unwrap();
+    let _ = child.wait();
+    println!("answer={answer} roots={roots_while_held:?} pending={pending_while_held}");
+    assert_eq!(answer, "Locked");
+    let mut expected = vec![format!("{root_id}.root"), format!("{pending_root}.root")];
+    expected.sort();
+    assert_eq!(
+        roots_while_held, expected,
+        "create removed the pending root before it answered Locked"
+    );
+    assert!(
+        pending_while_held,
+        "create removed create.pending before it answered Locked"
+    );
+}

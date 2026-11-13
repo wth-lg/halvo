@@ -975,7 +975,26 @@ set, and the root's own volume name answers the root.
   the store's name before it reads `store.key`.
 - A second name of a file (a hard link) is no refusal: another process can
   make one after any check, and a store that a backup tool restored with
-  shared names still opens.
+  shared names still opens The zero-fill of `store.key` and of a root file
+  writes no zeros into a file that has a second name, so that the bytes of
+  that other name stay; the name is removed, and a root that another name
+  still holds is a copy of the root, as a copy of the whole data directory
+  is (`the_root_step_zeroes_no_file_that_has_a_second_name`).
+- What the review of store-3 found and left as it is, each by its reason. A
+  link at a root file's name under the roots directory is removed and not
+  followed, and it is not counted in `not_followed`, which counts the store's
+  own names. The delete tail does not ask SQLite whether another program
+  holds `store.db`, because it never opens the database: a holder that does
+  not hold the directory lock is not refused. The tail on a name where no
+  directory stands still destroys every root file under the roots directory,
+  as ruling ST-30 (1)(d) has the product's delete do; the daemon's instance
+  lock on the data directory keeps it from running beside a live daemon. A
+  program that takes `store.db` between the probe and the open makes `open`
+  answer `Locked` after it asked its custody. A caller that gives a create
+  another roots directory than the one where a stopped create made its root
+  leaves that root, because `create.pending` names a root id and no roots
+  directory.
+
 - On Windows the store sets no access rule on its files and directories,
   syncs no directory after a rename or an unlink, and opens a link at a
   name itself; a link that arrives at the log's name after the look stays a

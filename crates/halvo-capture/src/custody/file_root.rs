@@ -86,7 +86,7 @@ impl RootFile {
 /// made durable (or nothing was there to zero) and the removal's own result.
 pub(crate) fn scrub_and_remove(dir: &Dir, name: &OsStr) -> (bool, std::io::Result<()>) {
     let zeroed = match dir.entry(name) {
-        Ok(entry) if entry.kind == EntryKind::File => zero_fill(dir, name).is_ok(),
+        Ok(entry) if entry.kind == EntryKind::File => matches!(zero_fill(dir, name), Ok(true)),
         Ok(_) => false,
         Err(e) if e.kind() == ErrorKind::NotFound => return (true, Ok(())),
         Err(e) => return (false, Err(e)),
@@ -98,11 +98,20 @@ pub(crate) fn scrub_and_remove(dir: &Dir, name: &OsStr) -> (bool, std::io::Resul
     (zeroed, removed)
 }
 
-fn zero_fill(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
+/// Zeroes the regular file `name` of `dir` when it has no other name, and
+/// answers whether it did; a file with a second name is left as it is,
+/// because its bytes belong to that name too.
+fn zero_fill(dir: &Dir, name: &OsStr) -> std::io::Result<bool> {
     let mut file = dir.open_file_for_write(name)?;
-    let len = file.metadata()?.len() as usize;
+    let meta = file.metadata()?;
+    #[cfg(unix)]
+    if std::os::unix::fs::MetadataExt::nlink(&meta) > 1 {
+        return Ok(false);
+    }
+    let len = meta.len() as usize;
     file.write_all(&vec![0u8; len])?;
-    file.sync_all()
+    file.sync_all()?;
+    Ok(true)
 }
 
 fn seal(
@@ -179,6 +188,17 @@ pub(crate) fn destroy_every_root(roots: &Path, first: Option<RootId>) -> RootsLe
             left: first.into_iter().collect(),
             listed: false,
         },
+    }
+}
+
+/// Whether an entry stands at the root file's name of `root_id` under
+/// `roots`; a roots directory that cannot be read counts as one where it may.
+pub(crate) fn root_file_present(roots: &Path, root_id: RootId) -> bool {
+    match Dir::open(roots) {
+        Ok(dir) => {
+            !matches!(dir.entry(&root_name(root_id)), Err(e) if e.kind() == ErrorKind::NotFound)
+        }
+        Err(e) => e.kind() != ErrorKind::NotFound,
     }
 }
 
