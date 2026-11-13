@@ -19,7 +19,7 @@ root=${CI_D_SCRIPTS:-scripts}
 st_jobs_set=${CI_D_SELF_TEST_JOBS+set}
 st_jobs=${CI_D_SELF_TEST_JOBS-}
 st_limit=${CI_D_SCRIPT_LIMIT_S-1200}
-st_perl="setpgrp(0, 0); \$SIG{INT} = \$SIG{QUIT} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;"
+st_perl="setpgrp(0, 0); my \$f = delete \$ENV{RUN_CI_D_PID_FILE}; if (defined \$f) { open(my \$h, '>', \$f) or exit 127; print \$h \"\$\$\\n\"; close(\$h) or exit 127; } \$SIG{INT} = \$SIG{QUIT} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;"
 mode=run
 job=
 wanted=
@@ -269,18 +269,32 @@ tree_state() {
     git status --porcelain --untracked-files=no 2>/dev/null || printf 'status failed\n'
     git ls-files -v >"$tmp/ls-files" 2>/dev/null || printf 'status failed\n'
     sed -n 's/^\([^H]\) /!\1 /p' "$tmp/ls-files"
+    for tree_f in config info/attributes; do
+      tree_h=none
+      tree_p=$(git rev-parse --git-path "$tree_f" 2>/dev/null) || tree_p=
+      [ ! -f "$tree_p" ] || tree_h=$(git hash-object --no-filters -- "$tree_p" 2>/dev/null) || tree_h=unreadable
+      printf 'GIT %s %s\n' "$tree_f" "$tree_h"
+    done
+    git for-each-ref --format='GIT %(refname) %(objectname)' refs/replace/ 2>/dev/null || printf 'status failed\n'
   } >"$1"
 }
 
 tree_report() {
   case $1:$2 in
-    ':HEAD '*) return ;;
+    ':HEAD '* | ':GIT '*) return ;;
     *':HEAD '*) tree_msg="$1 moved HEAD" ;;
+    *':GIT '*)
+      tree_msg=${2#GIT }
+      tree_msg="$1 changed the git settings of the checkout: ${tree_msg%% *}"
+      ;;
     ':status failed') tree_msg='git cannot read the tracked files before the first script' ;;
     *':status failed') tree_msg="git cannot read the tracked files after $1" ;;
     *)
       if [ -z "$1" ]; then
-        tree_msg="a tracked file differs from HEAD before the first script: ${2#???}"
+        case $2 in
+          '!'*) tree_msg="a tracked file is marked assume-unchanged or skip-worktree before the first script: ${2#???}" ;;
+          *) tree_msg="a tracked file differs from HEAD before the first script: ${2#???}" ;;
+        esac
       else
         tree_msg="$1 changed a tracked file: ${2#???}"
       fi
@@ -296,7 +310,7 @@ tree_check() {
   done <"$tmp/tree.after"
   while IFS= read -r tree_line; do
     case $tree_line in
-      'HEAD '*) continue ;;
+      'HEAD '* | 'GIT config '* | 'GIT info/attributes '*) continue ;;
     esac
     grep -qxF -e "$tree_line" "$tmp/tree.after" || tree_report "$1" "$tree_line"
   done <"$tmp/tree.before"
@@ -380,8 +394,7 @@ st_queue() {
       export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR
       st_t0=$(date +%s)
       {
-        perl -e "$st_perl" sh "$st_q_file" --self-test </dev/null 2>"$st_d/err" &
-        printf '%s\n' "$!" >"$st_d/pid"
+        RUN_CI_D_PID_FILE=$st_d/pid perl -e "$st_perl" sh "$st_q_file" --self-test </dev/null 2>"$st_d/err" &
         wait "$!"
         printf '%s\n' "$?" >"$st_d/status"
       } | cat >"$st_d/out"
@@ -400,8 +413,7 @@ st_queue() {
       export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR
       st_t0=$(date +%s)
       {
-        perl -e "$st_perl" sh "$st_q_file" </dev/null &
-        printf '%s\n' "$!" >"$st_d/pid"
+        RUN_CI_D_PID_FILE=$st_d/pid perl -e "$st_perl" sh "$st_q_file" </dev/null &
         wait "$!"
         printf '%s\n' "$?" >"$st_d/status"
       } | tee "$st_d/out"
@@ -456,26 +468,39 @@ st_interrupt() {
   exit "$2"
 }
 
+st_end_group() {
+  st_grace=0
+  while st_group 0 "$1" && [ "$st_grace" -lt "$(($2 + 60))" ]; do
+    [ "$st_grace" -ne "$2" ] || st_group TERM "$1"
+    [ "$st_grace" -ne "$(($2 + 50))" ] || st_group KILL "$1"
+    sleep 0.1
+    st_grace=$((st_grace + 1))
+  done
+}
+
+st_leave() {
+  eval "st_d=\$st_dir_$1 st_t=\$st_name_$1"
+  st_sp=
+  [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"
+  [ -z "$st_sp" ] || st_end_group "$st_sp" "$2"
+  [ "$mode" = self-test ] && st_t=self-test:$st_t
+  st_clear "$st_d/tmp" || record FAIL "FAIL $st_t (its TMPDIR cannot be removed)"
+}
+
 st_stop() {
   eval "st_d=\$st_dir_$1 st_p=\$st_pid_$1 st_state_$1=timeout"
   st_sp=
   [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"
   if [ -n "$st_sp" ]; then
-    st_group TERM "$st_sp"
+    st_end_group "$st_sp" 0
   else
     kill -TERM "$st_p" 2>/dev/null
+    st_grace=0
+    while [ ! -e "$st_d/done" ] && kill -0 "$st_p" 2>/dev/null && [ "$st_grace" -lt 50 ]; do
+      sleep 0.1
+      st_grace=$((st_grace + 1))
+    done
   fi
-  st_grace=0
-  while [ "$st_grace" -lt 50 ]; do
-    if [ -n "$st_sp" ]; then
-      st_group 0 "$st_sp" || break
-    elif [ -e "$st_d/done" ] || ! kill -0 "$st_p" 2>/dev/null; then
-      break
-    fi
-    sleep 0.1
-    st_grace=$((st_grace + 1))
-  done
-  [ -z "$st_sp" ] || st_group KILL "$st_sp"
   st_grace=0
   while [ ! -e "$st_d/done" ] && kill -0 "$st_p" 2>/dev/null && [ "$st_grace" -lt 20 ]; do
     sleep 0.1
@@ -550,8 +575,10 @@ st_print() {
     lost:* | *:none) record FAIL "FAIL $st_tag (it ended without an exit status)" ;;
     *) judge ;;
   esac
-  st_clear "$st_d/tmp" || record FAIL "FAIL $st_tag (its TMPDIR cannot be removed)"
-  [ "$mode" = self-test ] || tree_check "$script_name"
+  [ "$mode" = self-test ] || {
+    st_leave "$1" 0
+    tree_check "$script_name"
+  }
 }
 
 st_clear() {
@@ -653,6 +680,8 @@ own_run() {
     procs_env=NUMBER_OF_PROCESSORS=$case_procs
     [ "$case_procs" != none ] || procs_env=-uNUMBER_OF_PROCESSORS
     CARGO_HOME=$tmp/cargo-home
+    CALLER_VALUE=kept
+    export CALLER_VALUE
     TMPDIR=${case_tmpdir:-$tmp}
     export CARGO_HOME TMPDIR
     printf 'a line on standard input\n' | RUN_CI_D_NESTED=${case_nested:-yes} ${case_procs:+env "$procs_env"} "$perl_bin" -e "$case_perl" sh "$self" "$@" 2>&1 &
@@ -938,6 +967,17 @@ own_self_test() {
   own_case tracked-file-differs-before-the-first-script 1 'FAIL run-ci-d (a tracked file differs from HEAD before the first script: tracked.txt)' macos
   new_repo && track_file && add_script r1 10-a.sh "$good" 'git -C "$CI_D_REPO" checkout -q -- tracked.txt; printf "PASS 10-a\n"' && printf 'x\n' >>"$fixture/tracked.txt"
   own_case script-restores-a-file-that-differed-before 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" 'git -C "$CI_D_REPO" config core.checkStat minimal; printf "PASS 10-a\n"'
+  own_case script-changes-the-git-settings 1 'FAIL run-ci-d (10-a changed the git settings of the checkout: config)' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" 'r=$CI_D_REPO; p=$(git -C "$r" rev-parse HEAD); t=$(git -C "$r" write-tree); c=$(printf "tree %s\nauthor f <f@example.invalid> 2 +0000\ncommitter f <f@example.invalid> 2 +0000\n\nf\n" "$t" | git -C "$r" hash-object -t commit -w --stdin); git -C "$r" update-ref "refs/replace/$p" "$c"; printf "PASS 10-a\n"'
+  own_case script-adds-a-replace-ref 1 "FAIL run-ci-d (10-a changed the git settings of the checkout: refs/replace/$fixture_head)" macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" "$pass_a" && git -C "$fixture" update-index --skip-worktree tracked.txt
+  own_case tracked-file-marked-skip-worktree-before-the-first-script 1 'FAIL run-ci-d (a tracked file is marked assume-unchanged or skip-worktree before the first script: tracked.txt)' macos
+  new_repo && track_file &&
+    add_script r1 10-a.sh "$good" '( sleep 1; mkdir "$TMPDIR/late"; printf "x\n" >>"$CI_D_REPO/tracked.txt" ) >/dev/null 2>&1 & printf "%s\n" "$!" >>"$CI_D_REPO/pids"; printf "%s\n" "$TMPDIR" >>"$CI_D_REPO/tmpdirs"; printf "PASS 10-a\n"' &&
+    add_script r1 20-b.sh "$good" 'sleep 3; printf "PASS 20-b\n"'
+  case_gone=1
+  own_case child-that-a-script-leaves-is-ended 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
 
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
   own_case self-test-rejects-two 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
@@ -974,7 +1014,7 @@ own_self_test() {
   case_then='PASS 10-a'
   case_once='line of 10-a'
   own_case seconds-line-after-the-output-of-a-script 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
-  new_repo && add_script r1 10-a.sh "$good" 'here=$(pwd); [ "$CI_D_REPO" = "$here" ] && [ "$CI_D_JOB" = macos ] && [ "$CI_D_ARTIFACTS" = "$here/target/ci-artifacts/10-a" ] && [ -d "$CI_D_ARTIFACTS" ] && [ "$LC_ALL" = C ] && [ "${PATH%%:*}" = "$CARGO_HOME/bin" ] || { printf "FAIL 10-a (environment)\n"; exit 1; }; printf "PASS 10-a\n"'
+  new_repo && add_script r1 10-a.sh "$good" 'here=$(pwd); [ "$CI_D_REPO" = "$here" ] && [ "$CI_D_JOB" = macos ] && [ "$CI_D_ARTIFACTS" = "$here/target/ci-artifacts/10-a" ] && [ -d "$CI_D_ARTIFACTS" ] && [ "$LC_ALL" = C ] && [ "${PATH%%:*}" = "$CARGO_HOME/bin" ] && [ "${CALLER_VALUE:-}" = kept ] || { printf "FAIL 10-a (environment)\n"; exit 1; }; printf "PASS 10-a\n"'
   case_locale=en_US.UTF-8
   own_case environment 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
   leaves='[ -d "$TMPDIR" ] && [ -z "$(ls -A "$TMPDIR")" ] || { printf "FAIL %s (its TMPDIR is no empty directory)\n" "$me"; exit 1; }; printf "%s\n" "$TMPDIR" >>"$CI_D_REPO/tmpdirs"; mkdir "$TMPDIR/left" && : >"$TMPDIR/left/file"'
@@ -1045,6 +1085,11 @@ own_self_test() {
   case_jobs=2
   case_gone=2
   own_case tmpdir-of-each-self-test-removed 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; ( sleep 30 ) >/dev/null 2>&1 & printf '%s\\n' \"\$!\" >>\"\$CI_D_REPO/pids\"; $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; $passes"
+  case_jobs=2
+  case_max_s=25
+  own_case child-that-a-self-test-leaves-is-ended-at-the-end-of-the-step 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" && add_script r1 20-b.sh "$good" "$prelude; $passes"
   case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX")
   case_empty=yes
@@ -1184,7 +1229,7 @@ own_self_test() {
     add_script r1 20-b.sh "$good" "$prelude_any; $alone; $ends; printf 'PASS %s\\n' \"\$me\""
   case_jobs=2
   own_case step-ci.d-one-script-at-a-time-whatever-ci-d-self-test-jobs-says 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
-  new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; here=$(pwd); [ "$CI_D_REPO" = "$here" ] && [ "$CI_D_JOB" = windows ] && [ "$CI_D_ARTIFACTS" = "$here/target/ci-artifacts/10-a" ] && [ -d "$CI_D_ARTIFACTS" ] && [ "$LC_ALL" = C ] && [ "${PATH%%:*}" = "$CARGO_HOME/bin" ] && ! read -r line || { printf "FAIL self-test:10-a (environment)\n"; exit 1; }; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"'
+  new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; here=$(pwd); [ "$CI_D_REPO" = "$here" ] && [ "$CI_D_JOB" = windows ] && [ "$CI_D_ARTIFACTS" = "$here/target/ci-artifacts/10-a" ] && [ -d "$CI_D_ARTIFACTS" ] && [ "$LC_ALL" = C ] && [ "${PATH%%:*}" = "$CARGO_HOME/bin" ] && [ "${CALLER_VALUE:-}" = kept ] && ! read -r line || { printf "FAIL self-test:10-a (environment)\n"; exit 1; }; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"'
   case_locale=en_US.UTF-8
   own_case environment-of-a-self-test 0 'ci.d windows self-test: 1 passed, 0 failed' windows --self-test 10-a
   for signal in INT QUIT HUP TERM; do
@@ -1378,6 +1423,12 @@ if [ "$mode" = self-test ]; then
   st_wait_below 1
   st_flush
   wait
+  st_i=0
+  while [ "$st_i" -lt "$st_n" ]; do
+    eval "st_k=\$st_kind_$st_i"
+    [ "$st_k" != script ] || st_leave "$st_i" 50
+    st_i=$((st_i + 1))
+  done
   st_i=0
   while [ "$st_i" -lt "$st_n" ]; do
     eval "st_k=\$st_kind_$st_i"
