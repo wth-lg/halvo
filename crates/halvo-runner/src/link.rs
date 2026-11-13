@@ -1,4 +1,5 @@
 use std::io::{Read, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -29,12 +30,15 @@ struct Held {
     frame: Option<ToRunner>,
     cancelled: bool,
     end: Option<Broken>,
-    reading: bool,
 }
 
 struct Shared {
     held: Mutex<Held>,
     changed: Condvar,
+    /// The mark that the reader stands in its read. The reader sets it under the lock as it enters a read, with a
+    /// wake-up, and clears it without the lock as the first thing after the read returns, so that the run's thread
+    /// never delays it.
+    reading: AtomicBool,
 }
 
 impl Shared {
@@ -107,20 +111,21 @@ pub(crate) fn start_grace() {
 /// The reader: it reads standard input apart from the run's steps and never waits for the run. It holds at most one
 /// frame that the run has not taken; any number of `cancel` frames leave one note; a second frame that is no
 /// `cancel` while one waits is a frame out of turn, after which, as after a close or a refused frame, it reads no
-/// further and the process ends `LINK_GRACE` later.
+/// further and the process ends `LINK_GRACE` later. The first thing that it does when a read returns is to clear
+/// the mark that it stands in its read, before it calls `end_later` and before it takes the lock to note what it
+/// read.
 fn read_all(shared: &Shared, input: &mut dyn Read, end_later: &mut dyn FnMut()) {
     loop {
-        {
-            let mut held = shared.lock();
-            held.reading = true;
-            shared.changed.notify_all();
-        }
+        let held = shared.lock();
+        shared.reading.store(true, Ordering::SeqCst);
+        shared.changed.notify_all();
+        drop(held);
         let read = read_one(input);
+        shared.reading.store(false, Ordering::SeqCst);
         if matches!(read, Read1::End(_)) {
             end_later();
         }
         let mut held = shared.lock();
-        held.reading = false;
         let last = match read {
             Read1::Cancel => {
                 held.cancelled = true;
@@ -154,12 +159,13 @@ fn read_all(shared: &Shared, input: &mut dyn Read, end_later: &mut dyn FnMut()) 
 /// The runner's end of the link. A thread of its own reads standard input apart from the run's steps, so that a
 /// close is seen while a step waits.
 ///
-/// Before an effect row and before the request of an effect leaves, the run waits until the reader has handed
-/// over everything that it read and stands in its next read, and it writes the row, or lets the request leave,
-/// under the one lock under which the reader notes an end of file, so that no row follows that note. A propose or
-/// begin row can still leave after an end of file that stands at the input but that the reader's read has not yet
-/// returned; it is never followed by its effect, since no answer to its row can come through a closed input. The
-/// supervisor drops what it reads from a runner after its close.
+/// Before an effect row, and before the replace that follows an answered begin row, the run waits until the
+/// reader has handed over everything that it read and stands in its next read, and it writes the row, or lets the
+/// effect act, under the one lock under which the reader notes what it read, and only while the reader's mark says
+/// that it stands in its read. A propose or begin row, or the replace after an answered begin row, can go while
+/// the system has not yet given the end of file to the reader's read; the reader marks the end as the first thing
+/// after that read returns, and nothing of an effect follows the mark. The supervisor drops what it reads from a
+/// runner after its close.
 pub(crate) struct Link {
     out: Box<dyn Write + Send>,
     shared: Arc<Shared>,
@@ -177,6 +183,7 @@ impl Link {
         let shared = Arc::new(Shared {
             held: Mutex::new(Held::default()),
             changed: Condvar::new(),
+            reading: AtomicBool::new(false),
         });
         let reader = Arc::clone(&shared);
         std::thread::spawn(move || {
@@ -255,13 +262,13 @@ impl Link {
         self.reply()
     }
 
-    /// Waits until the reader has handed over everything that it read and stands in its next read, and gives the
-    /// lock under which the reader notes the link's end; or the end, or a frame out of turn.
+    /// Waits until the reader has handed over everything that it read and its mark says that it stands in its next
+    /// read, and gives the lock under which the reader notes the link's end; or the end, or a frame out of turn.
     fn settled(shared: &Shared) -> Result<MutexGuard<'_, Held>, Broken> {
         let mut held = shared.lock();
         loop {
             Self::look(&mut held)?;
-            if held.reading {
+            if shared.reading.load(Ordering::SeqCst) {
                 return Ok(held);
             }
             held = shared.wait(held);
@@ -315,7 +322,6 @@ mod tests {
     use super::*;
     use halvo_schema::executable::frame::{Cancel, Done, SecretReply};
     use halvo_schema::executable::Outcome;
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{mpsc, OnceLock};
     use std::time::Instant;
 

@@ -88,12 +88,13 @@ impl Runner {
     /// A `file` `write`, one file edit (A5.2, A11.3): `prepare` makes the checkpoint and a checked copy; the effect
     /// is proposed with the `Decided` of the configuration as it stands then, and under its permission `user_files`;
     /// `begin` is stored before the `replace` and `commit` after it. A cancel or a passed `wall` limit before the
-    /// `propose` or the `begin` ends the run there. A close that the runner has got before the `replace`, or a
-    /// cancel, lets nothing reach the workbook. A propose or begin row can leave after an end of file that the
-    /// runner's reader has not yet returned, and it is never followed by its effect; the supervisor drops what it
-    /// reads after its close. The prepared copy goes when its value is
-    /// dropped, and stays beside the workbook after the two exits that drop no value: the panic hook's exit and the
-    /// reader's exit `LINK_GRACE` after a close.
+    /// `propose` or the `begin` ends the run there. A close that the runner's reader has returned before the
+    /// `replace`, or a cancel, lets nothing reach the workbook. A propose or begin row, or the replace after an
+    /// answered begin row, can go while the system has not yet given the end of file to the reader's read; the
+    /// reader marks the end as the first thing after that read returns, and nothing of an effect follows the mark;
+    /// the supervisor drops what it reads after its close. The prepared copy goes when its value is dropped, and
+    /// stays beside the workbook after the two exits that drop no value: the panic hook's exit and the reader's exit
+    /// `LINK_GRACE` after a close.
     pub(crate) fn file_write(
         &mut self,
         step: &ExecutableStep,
