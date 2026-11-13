@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use support::{
     agent, app, ask, calls_since, fixture, invoke, mark, started, world, Counts, Dialogs, Shared,
-    DAY, T0,
+    T0,
 };
 
 fn confirming(class: Class) -> (Arc<Hub<Shared>>, Dialogs, String) {
@@ -86,7 +86,7 @@ fn agents_answer_with_allow_for_a_native_item_answers_presenter_also_while_its_d
     hub.coordinator()
         .ports()
         .inner()
-        .with(|p| p.set_clock(T0 + arm, DAY));
+        .with(|p| p.set_now(T0 + arm));
     hub.coordinator().tick();
     assert_eq!(open[0].answer(ConfirmAnswer::Allow), Ok(()));
     assert_eq!(
@@ -155,7 +155,7 @@ fn arm(hub: &Hub<Shared>, at: u64) {
     hub.coordinator()
         .ports()
         .inner()
-        .with(|p| p.set_clock(T0 + at, DAY));
+        .with(|p| p.set_now(T0 + at));
     hub.coordinator().tick();
 }
 

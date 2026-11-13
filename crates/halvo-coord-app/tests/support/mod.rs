@@ -63,7 +63,7 @@ impl Shared {
         Turn(self)
     }
 
-    /// From the next `Runs::cancel` on, `Clock::now` and `Clock::today` fail with `no_service`.
+    /// From the next `Runs::cancel` on, `Clock::now` and `Clock::day` fail with `no_service`.
     pub fn fail_clock_at_cancel(&self) {
         self.clock_fails_at_cancel.store(true, Ordering::SeqCst);
     }
@@ -460,12 +460,12 @@ impl Clock for Shared {
         self.ports.now()
     }
 
-    fn today(&self) -> Result<u32, PortError> {
+    fn day(&self, at: u64) -> Result<u32, PortError> {
         let _turn = self.enter();
         if self.clock_failing.load(Ordering::SeqCst) {
             return Err(PortError::NoService);
         }
-        self.ports.today()
+        self.ports.day(at)
     }
 }
 
