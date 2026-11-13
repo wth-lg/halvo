@@ -131,7 +131,8 @@ pub fn beyond(with: &[File], without: &[File]) -> Vec<File> {
 }
 
 /// The row's result of one system and browser (CP-165 (2) (b)): `notrun` when the control left no
-/// dump, for then nothing showed that the crash was taken as one; `miss` when the crash with the
+/// dump at any place of the listing, the profile among them (`control` is everything that changed
+/// in the control's reading), for then nothing showed that the crash was taken as one; `miss` when the crash with the
 /// means left a file outside the profile that the start with no crash did not leave, or when
 /// anything was sent after the crash; `ok` otherwise. A file in a report place of the system
 /// (`Place::system`) is recorded with no promise and decides nothing (CP-165 (2) (d) and (g)).
@@ -453,6 +454,8 @@ mod tests {
         assert_eq!(result(&places, &[], &[], &[], 0), "notrun");
         let control = vec![file("crashpad", "pending/abc.dmp", 4096)];
         assert_eq!(result(&places, &[], &[], &control, 0), "ok");
+        let inside = vec![file("profile", "Crashpad/reports/abc.dmp", 4096)];
+        assert_eq!(result(&places, &[], &[], &inside, 0), "ok");
     }
 
     /// CP-167 E3: a row whose crash with the means left a file that the start with no crash did

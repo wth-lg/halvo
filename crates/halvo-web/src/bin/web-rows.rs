@@ -77,6 +77,7 @@ const STOP_WAIT: Duration = Duration::from_secs(15);
 struct Reading {
     places: Vec<crash_row::Place>,
     left: Vec<crash_row::File>,
+    changed: Vec<crash_row::File>,
     inside_dumps: usize,
     handler: &'static str,
     sent: usize,
@@ -186,6 +187,7 @@ async fn crash_reading(
     Ok(Reading {
         places,
         left,
+        changed: changed.clone(),
         inside_dumps,
         handler,
         sent,
@@ -327,8 +329,9 @@ async fn crash(argv: &[String]) -> (usize, usize) {
             (Ok(w), Ok(c)) => {
                 let beyond = crash_row::beyond(&w.left, &baseline.left);
                 let control_dumps: Vec<&crash_row::File> =
-                    c.left.iter().filter(|f| crash_row::is_dump(f)).collect();
-                let result = crash_row::result(&w.places, &baseline.left, &w.left, &c.left, w.sent);
+                    c.changed.iter().filter(|f| crash_row::is_dump(f)).collect();
+                let result =
+                    crash_row::result(&w.places, &baseline.left, &w.left, &c.changed, w.sent);
                 if name == "product" {
                     product_ok = result == "ok";
                 }
@@ -340,7 +343,7 @@ async fn crash(argv: &[String]) -> (usize, usize) {
                     by_place(&beyond),
                     control_dumps.len(),
                     control_dumps.iter().map(|f| f.size).sum::<u64>(),
-                    by_place(&c.left.iter().filter(|f| crash_row::is_dump(f)).cloned().collect::<Vec<_>>()),
+                    by_place(&c.changed.iter().filter(|f| crash_row::is_dump(f)).cloned().collect::<Vec<_>>()),
                     w.sent,
                     if w.inside_dumps > 0 { "yes" } else { "no" },
                     w.handler,
