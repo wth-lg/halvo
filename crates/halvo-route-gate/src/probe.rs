@@ -229,9 +229,12 @@ mod tests {
             .env(CHILD, "1")
             .output()
             .expect("the test binary runs");
-        let text = String::from_utf8_lossy(&output.stdout);
+        let out = String::from_utf8_lossy(&output.stdout);
+        let err = String::from_utf8_lossy(&output.stderr);
+        let text =
+            format!("the child's standard output:\n{out}\nthe child's standard error:\n{err}");
         assert!(output.status.success(), "{text}");
-        assert!(text.contains("test result: ok. 1 passed"), "{text}");
+        assert!(out.contains("test result: ok. 1 passed"), "{text}");
         false
     }
 
