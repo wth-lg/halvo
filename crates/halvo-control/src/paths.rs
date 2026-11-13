@@ -167,6 +167,57 @@ pub struct KeychainItem {
 
 pub const KEYCHAIN_ITEMS: [KeychainItem; 0] = [];
 
+/// The name of the store directory of the billing run's account helper, which its release
+/// build computes under the system's folder for an app's local data; a test of that run
+/// pins the same text.
+pub const ACCOUNT_HELPER_STORE_DIR: &str = "com.halvo.account";
+
+/// A directory outside the data directory that a run of Halvo keeps files in (contracts.md
+/// C17 items 1 and 2), with what removes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OutsidePlace {
+    name: &'static str,
+    owner: &'static str,
+    removed_by: RemovedBy,
+}
+
+impl OutsidePlace {
+    pub const fn name(&self) -> &'static str {
+        self.name
+    }
+
+    pub const fn owner(&self) -> &'static str {
+        self.owner
+    }
+
+    pub const fn removed_by(&self) -> RemovedBy {
+        self.removed_by
+    }
+
+    /// The directory under the account's folder for an app's local data:
+    /// `~/Library/Application Support` on macOS, LocalAppData on Windows.
+    pub fn path(&self, account: &dyn AccountLookup) -> Result<PathBuf, PathError> {
+        let mut path = base_dir(account)?;
+        path.extend(LOCAL_DATA_FOLDER);
+        path.push(self.name);
+        checked(path)
+    }
+}
+
+#[cfg(windows)]
+const LOCAL_DATA_FOLDER: &[&str] = &[];
+#[cfg(not(windows))]
+const LOCAL_DATA_FOLDER: &[&str] = &["Library", "Application Support"];
+
+/// A saved sign-in stays through a delete-all and goes with Remove Halvo (C17 item 7).
+pub const ACCOUNT_HELPER_STORE: OutsidePlace = OutsidePlace {
+    name: ACCOUNT_HELPER_STORE_DIR,
+    owner: "the account helper of run 20261109-halvo-r7-billing",
+    removed_by: RemovedBy::RemoveHalvo,
+};
+
+pub const OUTSIDE_PLACES: [OutsidePlace; 1] = [ACCOUNT_HELPER_STORE];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDir(PathBuf);
 
@@ -1167,6 +1218,46 @@ mod tests {
                 Err(PathError::InsideDataDir)
             );
         }
+    }
+
+    #[test]
+    fn the_account_helper_s_store_directory_has_this_name_on_both_systems() {
+        assert_eq!(ACCOUNT_HELPER_STORE_DIR, "com.halvo.account");
+        assert_eq!(ACCOUNT_HELPER_STORE.name(), ACCOUNT_HELPER_STORE_DIR);
+        assert_eq!(OUTSIDE_PLACES, [ACCOUNT_HELPER_STORE]);
+    }
+
+    #[test]
+    fn delete_all_leaves_a_saved_sign_in_and_remove_halvo_takes_it_away() {
+        assert_eq!(ACCOUNT_HELPER_STORE.removed_by(), RemovedBy::RemoveHalvo);
+        for place in OUTSIDE_PLACES {
+            assert!(ENTRIES.iter().all(|entry| entry.name() != place.name()));
+            assert!(!RESERVED_ENTRY_NAMES.contains(&place.name()));
+        }
+    }
+
+    #[test]
+    fn the_account_helper_s_store_directory_lies_in_the_local_data_folder_and_outside_the_data_directory(
+    ) {
+        let home = tempfile::tempdir().unwrap();
+        let user = At(home.path().to_path_buf());
+        let place = ACCOUNT_HELPER_STORE.path(&user).unwrap();
+        let folder: &[&str] = if cfg!(windows) {
+            &[]
+        } else {
+            &["Library", "Application Support"]
+        };
+        let mut want = home.path().to_path_buf();
+        want.extend(folder);
+        want.push("com.halvo.account");
+        assert_eq!(place, want);
+        let data = DataDir::for_account(&user).unwrap();
+        assert!(!place.starts_with(data.path()));
+        assert!(!data.path().starts_with(&place));
+        assert_eq!(
+            ACCOUNT_HELPER_STORE.path(&account("relative")),
+            Err(PathError::Relative)
+        );
     }
 
     #[test]
