@@ -229,8 +229,35 @@ self_test() {
   printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
 }
 
+usage() {
+  cat <<'EOF'
+usage: sh scripts/r1/ci.d/23-daemon-port-only.sh [--self-test | --help]
+Start it at the root of the repository, or run it through
+sh scripts/ci/run-ci-d.sh <job> 23-daemon-port-only.
+With no argument it reads every file under crates/halvo-capture/src/daemon/
+as text and prints PASS, or FAIL with the file and the cause. --self-test runs
+it over fixture trees that must pass or fail. The rule that it holds is the
+line "# rule:" of this file, which sh scripts/ci/run-ci-d.sh --rules prints.
+
+Limit: checks 22 and 23 read text. The two checks refuse the listed spellings
+alone, and a daemon file that reaches the store's database type by another
+spelling is refused by review and not by a check. Ruling DM-7 moves the
+boundary to the compiler in a later unit. Until it lands, these forms pass
+this check and reach the store's database type in the real crate:
+- a use line with the name store right behind the brace:
+  use {store as backing, sink};
+- self::store after the one allowed use super::*; in daemon/mod.rs, where the
+  parent is the crate root: use super::*; then use self::store as backing;
+- self::store after a glob of the crate root written with doubled braces,
+  use crate::{{*}};, or with a comment before the star, use crate::/* x */*;
+- a macro in a daemon file that joins its arguments by a repetition,
+  ($($seg:ident),+) => { $($seg)::+ }, called as p!(crate, store, db, Db).
+EOF
+}
+
 case ${1:-} in
   --self-test) self_test ;;
+  -h | --help) usage ;;
   '') measure ;;
   *) exit 64 ;;
 esac

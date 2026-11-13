@@ -479,8 +479,33 @@ self_test() {
   printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
 }
 
+usage() {
+  cat <<'EOF'
+usage: sh scripts/r1/ci.d/22-daemon-no-dead-allow.sh [--self-test | --help]
+Start it at the root of the repository, or run it through
+sh scripts/ci/run-ci-d.sh <job> 22-daemon-no-dead-allow.
+With no argument it reads every file under crates/halvo-capture/src/daemon/
+and crates/halvo-capture/src/bin/halvo-capture.rs as text and prints PASS, or
+FAIL with the file and the cause. --self-test runs it over fixture trees that
+must pass or fail. The rule that it holds is the line "# rule:" of this file,
+which sh scripts/ci/run-ci-d.sh --rules prints.
+
+Limit: checks 22 and 23 read text. The two checks refuse the listed spellings
+alone, and a daemon file that reaches the store's database type by another
+spelling is refused by review and not by a check. In the same way this check
+refuses the listed forms of a module of the daemon alone. Ruling DM-7 moves
+the boundary to the compiler in a later unit. Until it lands, this form
+passes this check:
+- a line mod state; inside a block comment of daemon/mod.rs, which the check
+  counts as the plain mod line that names daemon/state.rs. With it, a macro
+  defined in lib.rs that declares the module under cfg(test), called in
+  daemon/mod.rs with no argument, builds the module in the test build alone.
+EOF
+}
+
 case ${1:-} in
   --self-test) self_test ;;
+  -h | --help) usage ;;
   '') measure ;;
   *) exit 64 ;;
 esac
