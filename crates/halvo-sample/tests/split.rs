@@ -275,3 +275,88 @@ fn the_check_and_heldout_pair_names_its_two_sides() {
     }
     assert_eq!(stream_lines.len(), 4);
 }
+
+/// A script file of one stream: a planted routine on one step, and where given a noise item on another.
+fn linked_stream(
+    dir: &Path,
+    id: &str,
+    step: (&str, &str, &str),
+    noise: Option<(&str, &str, &str)>,
+) -> String {
+    let (step_id, site, title) = step;
+    let mut lines = vec![
+        HEADER.to_owned(),
+        format!(r#"{{"line":"stream","stream":"{id}","sites":"seen"}}"#),
+        step_line(step_id, site, title, false),
+    ];
+    for day in 1..=3 {
+        lines.push(episode(
+            id,
+            &format!("{id}-e{day}"),
+            &format!("{id}-t1"),
+            "email",
+            "planted",
+            day,
+            &[item(step_id, 0, 30 * SEC, 0, 1, 0)],
+        ));
+    }
+    if let Some((noise_id, noise_site, noise_title)) = noise {
+        lines.push(step_line(noise_id, noise_site, noise_title, false));
+        lines.push(format!(
+            r#"{{"line":"noise","stream":"{id}","day":9,"item":{}}}"#,
+            item(noise_id, 0, 30 * SEC, 0, 1, 0)
+        ));
+    }
+    let p = dir.join(format!("{id}.jsonl"));
+    write(
+        &p,
+        &lines.iter().map(|l| format!("{l}\n")).collect::<String>(),
+    );
+    s(&p)
+}
+
+/// Splits the files and returns the side of each of the named streams, after asserting two groups.
+fn sides_of(dir: &Path, files: &[String], streams: &[&str]) -> Vec<String> {
+    let o = split(dir, "3", "x", files);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    assert_eq!(o.stdout.lines().next(), Some("groups 2"), "{}", o.stdout);
+    streams
+        .iter()
+        .map(|id| {
+            let seen = fs::read_to_string(dir.join("x/seen").join(format!("{id}.jsonl")))
+                .expect("seen file");
+            if seen.lines().count() > 1 {
+                "seen".to_owned()
+            } else {
+                "unseen".to_owned()
+            }
+        })
+        .collect()
+}
+
+#[test]
+fn two_streams_that_share_a_site_through_episode_items_alone_are_one_group() {
+    let dir = scratch("link-episode-site");
+    let files = [
+        linked_stream(&dir, "x1", ("x1-a", "hub-x.test", "Alpha ledger"), None),
+        linked_stream(&dir, "x2", ("x2-a", "hub-x.test", "Beta folder"), None),
+        linked_stream(&dir, "y1", ("y1-a", "far-y.test", "Gamma board"), None),
+    ];
+    let sides = sides_of(&dir, &files, &["x1", "x2", "y1"]);
+    assert_eq!(sides[0], sides[1]);
+    assert_ne!(sides[0], sides[2]);
+}
+
+#[test]
+fn two_streams_that_share_only_the_site_of_a_noise_item_are_one_group() {
+    let dir = scratch("link-noise-site");
+    let noise = Some(("zz-news", "news-z.test", "Daily digest"));
+    let files = [
+        linked_stream(&dir, "z1", ("z1-a", "own-one.test", "Alpha ledger"), noise),
+        linked_stream(&dir, "z2", ("z2-a", "own-two.test", "Beta folder"), noise),
+        linked_stream(&dir, "y1", ("y1-a", "far-y.test", "Gamma board"), None),
+    ];
+    let sides = sides_of(&dir, &files, &["z1", "z2", "y1"]);
+    assert_eq!(sides[0], sides[1]);
+    assert_ne!(sides[0], sides[2]);
+}
