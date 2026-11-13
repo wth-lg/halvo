@@ -237,7 +237,7 @@ fn main_window<R: Runtime>(
 }
 
 #[cfg(windows)]
-pub const ENGINE_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --host-resolver-rules=\"MAP * ~NOTFOUND, EXCLUDE tauri.localhost, EXCLUDE ipc.localhost\" --force-webrtc-ip-handling-policy=disable_non_proxied_udp";
+pub const ENGINE_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --host-resolver-rules=\"MAP * ~NOTFOUND, EXCLUDE tauri.localhost, EXCLUDE ipc.localhost\" --proxy-server=http://255.255.255.255:9 --force-webrtc-ip-handling-policy=disable_non_proxied_udp";
 
 pub fn blank() -> Url {
     Url::parse("about:blank").expect("about:blank is an address")
