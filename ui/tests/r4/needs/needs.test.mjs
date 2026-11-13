@@ -985,6 +985,7 @@ async function region(origin, dir) {
   await step('a_confirmation_arrives_and_holds_the_focus', [stuck], sel('done', stuck.item), [stuck, confirm], [], 'alertdialog:-');
   await step('one_goes_and_one_arrives', [stuck], null, [ready], ['Stuck went.', 'Ready came.'], null);
   await step('one_goes_with_the_focus_in_it_and_one_arrives', [stuck], sel('done', stuck.item), [ready], ['Ready came.'], null);
+  await step('an_item_with_no_sentence_adds_nothing', [stuck], null, [stuck, { ...ready, say_new: '' }], [], null);
   const h = await open({ origin, state: 'test_many', views: [VIEW] });
   try {
     await mark(h);
@@ -1088,6 +1089,20 @@ async function bound(origin, dir) {
     } finally {
       await h.close();
     }
+  }
+  const same = await open({ origin, state: 'setup_three', views: [VIEW], out: outDir() });
+  try {
+    const t = 'the_same_letter_over_a_selection_at_the_bound_keeps_the_bound';
+    await same.page.locator(line).fill(xs(1022));
+    await same.page.locator(line).pressSequentially(cp(0x20ac));
+    await same.page.locator(line).evaluate((x) => x.setSelectionRange(1021, 1022));
+    await same.page.locator(line).pressSequentially('x');
+    await same.page.locator(line).pressSequentially('a');
+    const f = await typedFacts(same, p.name);
+    if (f.value !== xs(1022)) faults.push(t + ':line_ends_in=' + f.value.slice(-2));
+    shows(t, f, true);
+  } finally {
+    await same.close();
   }
   const out = outDir();
   const h = await open({ origin, state: 'setup_three', views: [VIEW], out });
