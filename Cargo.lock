@@ -1578,6 +1578,7 @@ name = "halvo-route-gate"
 version = "0.0.0"
 dependencies = [
  "halvo-route",
+ "halvo-route-wire",
 ]
 
 [[package]]
