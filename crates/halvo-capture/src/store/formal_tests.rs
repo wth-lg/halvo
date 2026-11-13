@@ -14,7 +14,6 @@ use proptest::prelude::*;
 use proptest::test_runner::{contextualize_config, FileFailurePersistence, TestRunner};
 use uuid::Uuid;
 
-use crate::custody::dev_fallback::{dev_root_bytes, replace_dev_root, DevFallbackCustody};
 use crate::custody::{
     custody_for, opens_under_an_all_zero_root, CustodyError, KeyCustody, RootId, WrappedKey,
 };
@@ -209,7 +208,7 @@ impl Drop for Harness {
     fn drop(&mut self) {
         self.store = None;
         for root in &self.roots {
-            DevFallbackCustody::new(*root)
+            crate::store::roots::custody(*root)
                 .destroy_root()
                 .expect("the harness's dev-fallback root is destroyed when the case ends");
         }
@@ -233,11 +232,11 @@ impl Harness {
     }
 
     fn create_store(&mut self) {
-        let root = RootId::fresh();
+        let root = RootId::fresh().unwrap();
         self.roots.push(root);
         let store = EncryptedStore::create(
             &self.dir,
-            Box::new(DevFallbackCustody::new(root)),
+            Box::new(crate::store::roots::custody(root)),
             DEFAULT_RETENTION,
         )
         .expect("create on a free directory");
@@ -246,7 +245,7 @@ impl Harness {
             .wrapped_store_key()
             .expect("the fresh store's wrapped key decodes");
         assert!(
-            !opens_under_an_all_zero_root(key_file.root_id, &wrapped),
+            !opens_under_an_all_zero_root(key_file.root_id, crate::custody::KeyLabel::STORE, &wrapped),
             "the wrapped store key of a fresh store opens under an all-zero key, so no root seals it"
         );
         let key_file_aside = tempfile::tempdir().expect("a temp dir for a copy of store.key");
@@ -483,7 +482,7 @@ impl Harness {
         if !self.deleted_since_last_create {
             widen_the_database_file(&self.dir);
         }
-        match EncryptedStore::open(&self.dir, DEFAULT_RETENTION) {
+        match crate::store::roots::open(&self.dir, DEFAULT_RETENTION) {
             Ok(store) => {
                 prop_assert!(!self.deleted_since_last_create, "a deleted store reopened");
                 self.store = Some(store);
@@ -494,10 +493,11 @@ impl Harness {
                     "a store whose delete-all did not finish reopened as Sealed"
                 );
             }
-            Err(StoreError::Custody(CustodyError::RootMissing)) => {
+            Err(StoreError::Custody(CustodyError::RootMissing) | StoreError::DatabaseMissing) => {
                 prop_assert!(
                     self.delete_all_owes_its_files,
-                    "a store whose delete-all did not stop after its root step reopened as RootMissing"
+                    "a store whose delete-all did not stop after its root step reopened as RootMissing \
+                     or DatabaseMissing"
                 );
             }
             Err(e) => prop_assert!(false, "reopen failed: {e}"),
@@ -510,17 +510,21 @@ impl Harness {
             return self.does_not_apply();
         }
         let root_id = *self.roots.last().expect("the root id of the store");
-        let root = dev_root_bytes(root_id)
+        let root = crate::store::roots::custody(root_id)
+            .root_bytes()
             .expect("the root of the store reads")
             .expect("the root of the store exists");
         let mut another_root = *root;
         another_root[0] ^= 0x01;
         self.store = None;
-        replace_dev_root(root_id, &another_root)
+        crate::store::roots::custody(root_id)
+            .replace_root(&another_root)
             .expect("other bytes are put under the id of the root");
-        let under_another_root = EncryptedStore::open(&self.dir, DEFAULT_RETENTION).map(drop);
-        replace_dev_root(root_id, &root).expect("the bytes of the root are put back");
-        let under_its_root = EncryptedStore::open(&self.dir, DEFAULT_RETENTION);
+        let under_another_root = crate::store::roots::open(&self.dir, DEFAULT_RETENTION).map(drop);
+        crate::store::roots::custody(root_id)
+            .replace_root(&root)
+            .expect("the bytes of the root are put back");
+        let under_its_root = crate::store::roots::open(&self.dir, DEFAULT_RETENTION);
         prop_assert!(
             matches!(
                 under_another_root,
@@ -545,18 +549,15 @@ impl Harness {
             self.create_store();
             return Ok(());
         }
-        let refused_root = RootId::fresh();
+        let refused_root = RootId::fresh().unwrap();
         self.roots.insert(0, refused_root);
         let result = EncryptedStore::create(
             &self.dir,
-            Box::new(DevFallbackCustody::new(refused_root)),
+            Box::new(crate::store::roots::custody(refused_root)),
             DEFAULT_RETENTION,
         );
         prop_assert!(
-            matches!(
-                result,
-                Err(StoreError::Locked(_) | StoreError::AlreadyExists(_))
-            ),
+            matches!(result, Err(StoreError::Locked | StoreError::AlreadyExists)),
             "create on a directory that holds a store did not refuse: {:?}",
             result.err()
         );
@@ -568,12 +569,12 @@ impl Harness {
             return self.does_not_apply();
         }
         self.store = None;
-        let root = RootId::fresh();
+        let root = RootId::fresh().unwrap();
         self.roots.push(root);
         failpoint::arm("db_open");
         let result = EncryptedStore::create(
             &self.dir,
-            Box::new(DevFallbackCustody::new(root)),
+            Box::new(crate::store::roots::custody(root)),
             DEFAULT_RETENTION,
         );
         let reached_its_database = failpoint::hit("db_open").is_ok();
@@ -586,7 +587,8 @@ impl Harness {
             "a create whose database failed after it was made returned {:?}",
             result.as_ref().err()
         );
-        let root_left = dev_root_bytes(root)
+        let root_left = crate::store::roots::custody(root)
+            .root_bytes()
             .expect("the custody says whether the root exists")
             .is_some();
         prop_assert!(
@@ -610,7 +612,7 @@ impl Harness {
         let another_dir = tempfile::tempdir().expect("a temp dir for a second store");
         let result = EncryptedStore::create(
             another_dir.path(),
-            Box::new(DevFallbackCustody::new(root)),
+            Box::new(crate::store::roots::custody(root)),
             DEFAULT_RETENTION,
         );
         prop_assert!(
@@ -625,7 +627,7 @@ impl Harness {
             );
         }
         self.store = None;
-        match EncryptedStore::open(&self.dir, DEFAULT_RETENTION) {
+        match crate::store::roots::open(&self.dir, DEFAULT_RETENTION) {
             Ok(store) => self.store = Some(store),
             Err(e) => prop_assert!(
                 false,
@@ -691,7 +693,8 @@ impl Harness {
             result
         );
         prop_assert!(
-            matches!(result, Err(StoreError::Io(ErrorKind::Other))),
+            matches!(&result, Err(StoreError::DeleteIncomplete(report))
+                if !report.key_file_gone && report.root_destroyed()),
             "a delete-all whose key file could not be removed returned {:?}",
             result
         );
@@ -707,7 +710,7 @@ impl Harness {
             .as_ref()
             .expect("the deleted store's key file")
             .root_id;
-        require_a_root_that_destroys_again(&DevFallbackCustody::new(root))
+        require_a_root_that_destroys_again(&crate::store::roots::custody(root))
     }
 
     fn remaining_keys(&self, store: &EncryptedStore) -> Vec<SegmentKey> {
@@ -866,8 +869,9 @@ impl Harness {
             .latest_created_key_file
             .as_ref()
             .expect("the deleted store's key file");
-        let custody = custody_for(key_file.custody_kind, key_file.root_id)
-            .expect("the dev-fallback custody rebuilds");
+        let custody =
+            custody_for(&key_file.locator(&crate::store::roots::roots_of(key_file.root_id)))
+                .expect("the dev-fallback custody rebuilds");
         let wrapped = key_file
             .wrapped_store_key()
             .expect("the retained wrapped key decodes");
@@ -943,9 +947,17 @@ impl KeyCustody for AStandInCustody {
         crate::custody::CustodyKind::DevFallback
     }
     fn root_id(&self) -> RootId {
-        RootId::fresh()
+        RootId::fresh().unwrap()
     }
-    fn wrap_store_key(&self, _key: &crate::custody::StoreKey) -> Result<WrappedKey, CustodyError> {
+    fn roots(&self) -> Option<&std::path::Path> {
+        None
+    }
+
+    fn wrap_store_key(
+        &self,
+        _key: &crate::custody::StoreKey,
+        _label: crate::custody::KeyLabel,
+    ) -> Result<WrappedKey, CustodyError> {
         Ok(WrappedKey(Vec::new()))
     }
     fn create_root(&self) -> Result<(), CustodyError> {
@@ -954,6 +966,7 @@ impl KeyCustody for AStandInCustody {
     fn unwrap_store_key(
         &self,
         _wrapped: &WrappedKey,
+        _label: crate::custody::KeyLabel,
     ) -> Result<crate::custody::StoreKey, CustodyError> {
         (self.unwrap)()
     }
@@ -983,7 +996,15 @@ impl KeyCustody for ACustodyWhoseRootStepFails {
     fn root_id(&self) -> RootId {
         self.root_id
     }
-    fn wrap_store_key(&self, _key: &crate::custody::StoreKey) -> Result<WrappedKey, CustodyError> {
+    fn roots(&self) -> Option<&std::path::Path> {
+        None
+    }
+
+    fn wrap_store_key(
+        &self,
+        _key: &crate::custody::StoreKey,
+        _label: crate::custody::KeyLabel,
+    ) -> Result<WrappedKey, CustodyError> {
         Ok(WrappedKey(vec![0u8; 72]))
     }
     fn create_root(&self) -> Result<(), CustodyError> {
@@ -992,6 +1013,7 @@ impl KeyCustody for ACustodyWhoseRootStepFails {
     fn unwrap_store_key(
         &self,
         _wrapped: &WrappedKey,
+        _label: crate::custody::KeyLabel,
     ) -> Result<crate::custody::StoreKey, CustodyError> {
         Err(CustodyError::RootMissing)
     }
@@ -1340,7 +1362,7 @@ enum Refusal {
 
 fn writer_refusal(error: &StoreError) -> Option<Refusal> {
     match error {
-        StoreError::Locked(_) => Some(Refusal::Locked),
+        StoreError::Locked => Some(Refusal::Locked),
         StoreError::Io(ErrorKind::PermissionDenied) if cfg!(windows) => Some(Refusal::AccessDenied),
         _ => None,
     }
@@ -1488,11 +1510,15 @@ fn contend_for_store_for_parent() {
         let mut store = loop {
             let asked_its_custody = Cell::new(false);
             let open_started = now_nanos();
-            let opened =
-                EncryptedStore::open_with(&store_dir, DEFAULT_RETENTION, |kind, root_id| {
+            let opened = EncryptedStore::open_with(
+                &store_dir,
+                &crate::store::roots::roots_for_store(&store_dir),
+                DEFAULT_RETENTION,
+                |locator: &crate::custody::CustodyLocator| {
                     asked_its_custody.set(true);
-                    custody_for(kind, root_id)
-                });
+                    custody_for(locator)
+                },
+            );
             match opened {
                 Ok(store) => break store,
                 Err(error) => {
@@ -1542,6 +1568,10 @@ fn spawn_contender(dir: &Path, index: usize, plan: &Contender, hold_ms: u64) -> 
             "--test-threads=1",
         ])
         .env(CONTEND_DIR, dir)
+        .env(
+            crate::store::roots::ROOTS_OF_THE_PARENT,
+            crate::store::roots::roots_for_store(&dir.join("store")),
+        )
         .env(CONTEND_INDEX, index.to_string())
         .env(CONTEND_ACQUISITIONS, plan.acquisitions.to_string())
         .env(CONTEND_HOLD_MS, hold_ms.to_string())
@@ -1631,11 +1661,11 @@ fn holder_through_the_whole_open(refused: &Logged, held: &[(usize, u128, u128)])
 fn one_race(race: &Race, refusals: &RefusalsSeen) -> Result<(), TestCaseError> {
     let dir = tempfile::tempdir().expect("a temp dir for the race");
     let store_dir = dir.path().join("store");
-    let root = RootId::fresh();
+    let root = RootId::fresh().unwrap();
     drop(
         EncryptedStore::create(
             &store_dir,
-            Box::new(DevFallbackCustody::new(root)),
+            Box::new(crate::store::roots::custody(root)),
             DEFAULT_RETENTION,
         )
         .expect("the race's store creates"),
@@ -1643,7 +1673,7 @@ fn one_race(race: &Race, refusals: &RefusalsSeen) -> Result<(), TestCaseError> {
 
     let statuses = run_race(dir.path(), race);
     let text = std::fs::read_to_string(dir.path().join("race.log")).unwrap_or_default();
-    DevFallbackCustody::new(root)
+    crate::store::roots::custody(root)
         .destroy_root()
         .expect("the race's root is destroyed");
 

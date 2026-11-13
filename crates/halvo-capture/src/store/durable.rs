@@ -111,6 +111,20 @@ impl Dir {
         &self.path
     }
 
+    /// Removes the entry `name` as the entry that it is, in one call: a file,
+    /// a link or another kind of entry is unlinked, and a directory is removed
+    /// only when it is empty. Nothing behind a link is touched.
+    pub(crate) fn remove_entry(&self, name: &OsStr) -> io::Result<()> {
+        match self.entry(name)?.kind {
+            EntryKind::Dir => self.remove_dir(name),
+            EntryKind::Link => match self.remove_file(name) {
+                Err(e) if e.kind() != io::ErrorKind::NotFound => self.remove_dir(name),
+                other => other,
+            },
+            EntryKind::File | EntryKind::Other => self.remove_file(name),
+        }
+    }
+
     /// Removes the entry `name` and, when it is a directory, everything below
     /// it, each directory opened through the handle of its parent; a link is
     /// removed and not followed, and a name that is gone is no error.
@@ -156,7 +170,7 @@ mod unix_dir {
     use std::os::unix::ffi::{OsStrExt, OsStringExt};
     use std::path::{Path, PathBuf};
 
-    use super::{refused, Dir, Entry, EntryKind, Refused};
+    use super::{refusal, refused, Dir, Entry, EntryKind, Refused};
 
     fn c_name(name: &OsStr) -> io::Result<CString> {
         CString::new(name.as_bytes()).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
@@ -359,7 +373,8 @@ mod unix_dir {
             let at = self.fd.as_raw_fd();
             // SAFETY: c is NUL-terminated, and at is this handle's descriptor, open
             // while self lives.
-            let fd = opened(unsafe { libc::openat(at, c.as_ptr(), flags) }, at, &c)?;
+            let fd = opened(unsafe { libc::openat(at, c.as_ptr(), flags) }, at, &c)
+                .map_err(|e| self.no_file_or(name, e))?;
             match kind(&stat_of(fd.as_raw_fd())?) {
                 EntryKind::File => Ok(File::from(fd)),
                 EntryKind::Dir => Err(io::Error::from_raw_os_error(libc::EISDIR)),
@@ -407,6 +422,61 @@ mod unix_dir {
             let c = c_name(name)?;
             // SAFETY: c is NUL-terminated, and the descriptor is this handle's.
             checked(unsafe { libc::unlinkat(self.fd.as_raw_fd(), c.as_ptr(), libc::AT_REMOVEDIR) })
+        }
+
+        /// Opens the regular file `name` for writing, following no link and
+        /// without a wait; any other kind of entry is refused.
+        pub(crate) fn open_file_for_write(&self, name: &OsStr) -> io::Result<File> {
+            let c = c_name(name)?;
+            let flags = libc::O_WRONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC;
+            let at = self.fd.as_raw_fd();
+            // SAFETY: c is NUL-terminated, and at is this handle's descriptor, open
+            // while self lives.
+            let fd = opened(unsafe { libc::openat(at, c.as_ptr(), flags) }, at, &c)
+                .map_err(|e| self.no_file_or(name, e))?;
+            match kind(&stat_of(fd.as_raw_fd())?) {
+                EntryKind::File => Ok(File::from(fd)),
+                _ => Err(refused(Refused::NotARegularFile)),
+            }
+        }
+
+        /// An open that failed at an entry that is no regular file and no
+        /// directory, such as a socket, answers that refusal.
+        fn no_file_or(&self, name: &OsStr, e: io::Error) -> io::Error {
+            if e.kind() == io::ErrorKind::NotFound || refusal(&e).is_some() {
+                return e;
+            }
+            match stat_at(self.fd.as_raw_fd(), name).map(|st| kind(&st)) {
+                Ok(EntryKind::Other) => refused(Refused::NotARegularFile),
+                _ => e,
+            }
+        }
+
+        /// Gives the file `from` the second name `to` in this directory; an
+        /// entry at `to` answers AlreadyExists and stays.
+        pub(crate) fn link(&self, from: &OsStr, to: &OsStr) -> io::Result<()> {
+            let (from, to) = (c_name(from)?, c_name(to)?);
+            let fd = self.fd.as_raw_fd();
+            // SAFETY: from and to are NUL-terminated, and fd is this handle's
+            // descriptor, open while self lives; flag 0 follows no link at from.
+            checked(unsafe { libc::linkat(fd, from.as_ptr(), fd, to.as_ptr(), 0) })
+        }
+
+        /// The device and file number of this handle's directory.
+        pub(crate) fn identity(&self) -> io::Result<(u64, u64)> {
+            let st = stat_of(self.fd.as_raw_fd())?;
+            Ok((st.st_dev as u64, st.st_ino))
+        }
+
+        /// The device and file number of the entry `name`, read through this
+        /// handle without following a link.
+        pub(crate) fn entry_identity(&self, name: &OsStr) -> io::Result<(EntryKind, u64, u64)> {
+            let st = stat_at(self.fd.as_raw_fd(), name)?;
+            Ok((kind(&st), st.st_dev as u64, st.st_ino))
+        }
+
+        pub(crate) fn into_file(self) -> File {
+            File::from(self.fd)
         }
 
         pub(crate) fn still_named(&self) -> io::Result<bool> {
@@ -666,6 +736,39 @@ mod windows_dir {
             std::fs::remove_dir(self.path.join(name))
         }
 
+        pub(crate) fn open_file_for_write(&self, name: &OsStr) -> io::Result<File> {
+            let file = File::options()
+                .write(true)
+                .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+                .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+                .open(self.path.join(name))?;
+            match kind_of(&file.metadata()?) {
+                EntryKind::File => Ok(file),
+                _ => Err(refused(Refused::NotARegularFile)),
+            }
+        }
+
+        pub(crate) fn link(&self, from: &OsStr, to: &OsStr) -> io::Result<()> {
+            std::fs::hard_link(self.path.join(from), self.path.join(to))
+        }
+
+        pub(crate) fn open_lock_file(&self, name: &OsStr) -> io::Result<File> {
+            let file = File::options()
+                .read(true)
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+                .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+                .open(self.path.join(name))?;
+            match kind_of(&file.metadata()?) {
+                EntryKind::File => Ok(file),
+                EntryKind::Link => Err(refused(Refused::Link)),
+                EntryKind::Dir => Err(io::Error::from(io::ErrorKind::IsADirectory)),
+                EntryKind::Other => Err(refused(Refused::NotARegularFile)),
+            }
+        }
+
         /// Always yes: the held handle shares no delete, so the name cannot be
         /// moved or removed while the handle is held.
         pub(crate) fn still_named(&self) -> io::Result<bool> {
@@ -741,18 +844,6 @@ fn fill_and_publish<T, E>(
     Ok(value)
 }
 
-#[cfg(target_os = "macos")]
-pub(crate) fn no_follow(options: &mut std::fs::OpenOptions) -> &mut std::fs::OpenOptions {
-    std::os::unix::fs::OpenOptionsExt::custom_flags(options, libc::O_NOFOLLOW);
-    options
-}
-
-#[cfg(windows)]
-pub(crate) fn no_follow(options: &mut std::fs::OpenOptions) -> &mut std::fs::OpenOptions {
-    std::os::windows::fs::OpenOptionsExt::custom_flags(options, FILE_FLAG_OPEN_REPARSE_POINT);
-    options
-}
-
 #[cfg(windows)]
 const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 
@@ -762,20 +853,6 @@ pub(crate) fn create_private_dir_all(dir: &Path) -> io::Result<()> {
     #[cfg(unix)]
     std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
     builder.create(dir)
-}
-
-#[cfg(test)]
-pub(crate) fn make_private(dir: &Path) -> io::Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = dir;
-        Ok(())
-    }
 }
 
 pub(crate) fn remove_durably(fs: &dyn DurableFs, dir: &Dir, name: &OsStr) -> io::Result<()> {

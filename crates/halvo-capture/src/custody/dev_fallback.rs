@@ -4,7 +4,10 @@ use aead::{Aead, KeyInit};
 use chacha20poly1305::{XChaCha20Poly1305, XNonce};
 use zeroize::Zeroizing;
 
-use super::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey};
+use std::path::{Path, PathBuf};
+
+use super::file_root::{FileRoots, Protector};
+use super::{CustodyError, CustodyKind, KeyCustody, KeyLabel, RootId, StoreKey, WrappedKey};
 
 const XNONCE_LEN: usize = size_of::<XNonce>();
 
@@ -96,233 +99,63 @@ pub(crate) fn store_key_from(plain: Zeroizing<Vec<u8>>) -> Result<StoreKey, Cust
     Ok(key)
 }
 
-#[cfg(target_os = "macos")]
-mod keychain {
-    use security_framework::base::Error as KeychainError;
-    use security_framework::passwords::{
-        delete_generic_password, get_generic_password, set_generic_password,
-    };
-    use security_framework_sys::base::{errSecAuthFailed, errSecItemNotFound};
-    use zeroize::Zeroizing;
+/// The protector of a root file on macOS without the feature `secure-enclave`:
+/// none. The file holds the 32 random bytes, and its mode alone protects it.
+#[cfg(not(target_os = "windows"))]
+pub(crate) struct Plain;
 
-    use super::{aead_open, aead_seal, fill_random, store_key_from};
-    use crate::custody::{CustodyError, RootId, StoreKey, WrappedKey};
-
-    const SERVICE: &str = "com.halvo.capture.dev-fallback";
-    const ERR_SEC_INTERACTION_NOT_ALLOWED: i32 = -25308;
-
-    fn classify(e: &KeychainError) -> CustodyError {
-        match e.code() {
-            code if code == errSecItemNotFound => CustodyError::RootMissing,
-            code if code == errSecAuthFailed => CustodyError::RootDenied,
-            code if code == ERR_SEC_INTERACTION_NOT_ALLOWED => CustodyError::RootLocked(code),
-            code => CustodyError::Os(Some(code)),
-        }
+#[cfg(not(target_os = "windows"))]
+impl Protector for Plain {
+    fn protect(&self, plain: &[u8], _label: &[u8]) -> Result<Vec<u8>, CustodyError> {
+        Ok(plain.to_vec())
     }
 
-    pub(super) fn absent_is_none<T>(
-        result: Result<T, KeychainError>,
-    ) -> Result<Option<T>, CustodyError> {
-        match result {
-            Ok(value) => Ok(Some(value)),
-            Err(e) if e.code() == errSecItemNotFound => Ok(None),
-            Err(e) => Err(classify(&e)),
-        }
-    }
-
-    fn existing_root(root_id: RootId) -> Result<Option<Zeroizing<[u8; 32]>>, CustodyError> {
-        let Some(bytes) = absent_is_none(get_generic_password(SERVICE, &root_id.to_string()))?
-        else {
-            return Ok(None);
-        };
-        let bytes = Zeroizing::new(bytes);
-        let root: [u8; 32] = bytes
-            .as_slice()
-            .try_into()
-            .map_err(|_| CustodyError::RootCorrupt)?;
-        Ok(Some(Zeroizing::new(root)))
-    }
-
-    fn make_root(root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
-        let mut root = Zeroizing::new([0u8; 32]);
-        fill_random(root.as_mut_slice())?;
-        set_generic_password(SERVICE, &root_id.to_string(), root.as_slice())
-            .map_err(|e| classify(&e))?;
-        Ok(root)
-    }
-
-    fn existing_or_new_root(root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
-        match existing_root(root_id)? {
-            Some(root) => Ok(root),
-            None => make_root(root_id),
-        }
-    }
-
-    pub(super) fn create_root(root_id: RootId) -> Result<(), CustodyError> {
-        match existing_root(root_id)? {
-            Some(_) => Err(CustodyError::RootExists),
-            None => make_root(root_id).map(drop),
-        }
-    }
-
-    fn seal(
-        root_id: RootId,
-        root: Zeroizing<[u8; 32]>,
-        key: &StoreKey,
-    ) -> Result<WrappedKey, CustodyError> {
-        let sealed = aead_seal(&root, key.expose(), root_id.as_bytes())
-            .map_err(|_| CustodyError::Crypto("sealing the store key failed".to_string()))?;
-        Ok(WrappedKey(sealed))
-    }
-
-    pub(super) fn wrap(root_id: RootId, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        seal(root_id, existing_or_new_root(root_id)?, key)
-    }
-
-    pub(super) fn unwrap(root_id: RootId, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
-        let root = existing_root(root_id)?.ok_or(CustodyError::RootMissing)?;
-        let plain = aead_open(&root, &wrapped.0, root_id.as_bytes())
-            .map_err(|_| CustodyError::WrapAuthFailed)?;
-        store_key_from(plain)
-    }
-
-    pub(super) fn destroy_root(root_id: RootId) -> Result<(), CustodyError> {
-        absent_is_none(delete_generic_password(SERVICE, &root_id.to_string())).map(|_| ())
-    }
-
-    #[cfg(test)]
-    pub(super) fn root_exists(root_id: RootId) -> Result<bool, CustodyError> {
-        existing_root(root_id).map(|root| root.is_some())
-    }
-
-    #[cfg(test)]
-    pub(super) fn root_bytes(root_id: RootId) -> Result<Option<Zeroizing<[u8; 32]>>, CustodyError> {
-        existing_root(root_id)
-    }
-
-    #[cfg(test)]
-    pub(super) fn replace_root(root_id: RootId, root: &[u8; 32]) -> Result<(), CustodyError> {
-        set_generic_password(SERVICE, &root_id.to_string(), root).map_err(|e| classify(&e))
+    fn unprotect(&self, blob: &[u8], _label: &[u8]) -> Result<Zeroizing<Vec<u8>>, CustodyError> {
+        Ok(Zeroizing::new(blob.to_vec()))
     }
 }
 
+#[cfg(not(target_os = "windows"))]
+type PlatformProtector = Plain;
 #[cfg(target_os = "windows")]
-mod dpapi {
-    use crate::custody::windows::user_roots;
-    use crate::custody::{CustodyError, RootId, StoreKey, WrappedKey};
+type PlatformProtector = crate::custody::windows::Dpapi;
 
-    pub(super) fn wrap(root_id: RootId, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        user_roots()?.wrap(root_id, key)
-    }
-
-    pub(super) fn create_root(root_id: RootId) -> Result<(), CustodyError> {
-        user_roots()?.create_root(root_id)
-    }
-
-    pub(super) fn unwrap(root_id: RootId, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
-        user_roots()?.unwrap(root_id, wrapped)
-    }
-
-    pub(super) fn destroy_root(root_id: RootId) -> Result<(), CustodyError> {
-        user_roots()?.destroy_root(root_id)
-    }
-
-    #[cfg(test)]
-    pub(super) fn root_exists(root_id: RootId) -> Result<bool, CustodyError> {
-        user_roots()?.root_exists(root_id)
-    }
-
-    #[cfg(test)]
-    pub(super) fn root_bytes(
-        root_id: RootId,
-    ) -> Result<Option<zeroize::Zeroizing<[u8; 32]>>, CustodyError> {
-        user_roots()?.root_bytes(root_id)
-    }
-
-    #[cfg(test)]
-    pub(super) fn replace_root(root_id: RootId, root: &[u8; 32]) -> Result<(), CustodyError> {
-        user_roots()?.replace_root(root_id, root)
-    }
-}
-
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
-mod unsupported {
-    use crate::custody::{CustodyError, CustodyKind, RootId, StoreKey, WrappedKey};
-
-    fn no_root() -> CustodyError {
-        CustodyError::CustodyKindUnsupported(CustodyKind::DevFallback)
-    }
-
-    pub(super) fn wrap(_root_id: RootId, _key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        Err(no_root())
-    }
-
-    pub(super) fn create_root(_root_id: RootId) -> Result<(), CustodyError> {
-        Err(no_root())
-    }
-
-    pub(super) fn unwrap(
-        _root_id: RootId,
-        _wrapped: &WrappedKey,
-    ) -> Result<StoreKey, CustodyError> {
-        Err(no_root())
-    }
-
-    pub(super) fn destroy_root(_root_id: RootId) -> Result<(), CustodyError> {
-        Ok(())
-    }
-
-    #[cfg(test)]
-    pub(super) fn root_exists(_root_id: RootId) -> Result<bool, CustodyError> {
-        Ok(false)
-    }
-
-    #[cfg(test)]
-    pub(super) fn root_bytes(
-        _root_id: RootId,
-    ) -> Result<Option<zeroize::Zeroizing<[u8; 32]>>, CustodyError> {
-        Ok(None)
-    }
-
-    #[cfg(test)]
-    pub(super) fn replace_root(_root_id: RootId, _root: &[u8; 32]) -> Result<(), CustodyError> {
-        Err(no_root())
-    }
-}
-
+#[cfg(not(target_os = "windows"))]
+const PLATFORM_PROTECTOR: PlatformProtector = Plain;
 #[cfg(target_os = "windows")]
-use dpapi as platform;
-#[cfg(target_os = "macos")]
-use keychain as platform;
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
-use unsupported as platform;
+const PLATFORM_PROTECTOR: PlatformProtector = crate::custody::windows::Dpapi;
 
-#[cfg(test)]
-pub(crate) fn dev_root_exists(root_id: RootId) -> Result<bool, CustodyError> {
-    platform::root_exists(root_id)
-}
-
-#[cfg(test)]
-pub(crate) fn dev_root_bytes(root_id: RootId) -> Result<Option<Zeroizing<[u8; 32]>>, CustodyError> {
-    platform::root_bytes(root_id)
-}
-
-#[cfg(test)]
-pub(crate) fn replace_dev_root(root_id: RootId, root: &[u8; 32]) -> Result<(), CustodyError> {
-    platform::replace_root(root_id, root)
-}
-
-/// Dev-fallback custody over the one store key. `root_id` is a non-secret
-/// per-store locator (a UUID): on
-/// macOS it is the keychain account, on Windows the DPAPI entropy label.
+/// The custody of a build without the feature `secure-enclave`: the root is a
+/// file `<root id>.root` under the roots directory that the caller passes, of
+/// mode 0600 in a directory of mode 0700. On macOS the file holds the 32 random
+/// bytes; on Windows DPAPI protects them for this user.
 pub struct DevFallbackCustody {
     root_id: RootId,
+    roots: FileRoots<PlatformProtector>,
 }
 
 impl DevFallbackCustody {
-    /// Build a custody bound to a per-store root locator.
-    pub fn new(root_id: RootId) -> Self {
-        Self { root_id }
+    /// A custody bound to a per-store root id and the roots directory in use.
+    pub fn new(root_id: RootId, roots: PathBuf) -> Self {
+        Self {
+            root_id,
+            roots: FileRoots::new(roots, PLATFORM_PROTECTOR),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn root_bytes(&self) -> Result<Option<Zeroizing<[u8; 32]>>, CustodyError> {
+        self.roots.root_bytes(self.root_id)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn replace_root(&self, root: &[u8; 32]) -> Result<(), CustodyError> {
+        self.roots.replace_root(self.root_id, root)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn root_exists(&self) -> Result<bool, CustodyError> {
+        self.roots.root_exists(self.root_id)
     }
 }
 
@@ -335,20 +168,28 @@ impl KeyCustody for DevFallbackCustody {
         self.root_id
     }
 
-    fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        platform::wrap(self.root_id, key)
+    fn roots(&self) -> Option<&Path> {
+        Some(self.roots.dir())
+    }
+
+    fn wrap_store_key(&self, key: &StoreKey, label: KeyLabel) -> Result<WrappedKey, CustodyError> {
+        self.roots.wrap(self.root_id, label, key)
     }
 
     fn create_root(&self) -> Result<(), CustodyError> {
-        platform::create_root(self.root_id)
+        self.roots.create_root(self.root_id)
     }
 
-    fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
-        platform::unwrap(self.root_id, wrapped)
+    fn unwrap_store_key(
+        &self,
+        wrapped: &WrappedKey,
+        label: KeyLabel,
+    ) -> Result<StoreKey, CustodyError> {
+        self.roots.unwrap(self.root_id, label, wrapped)
     }
 
     fn destroy_root(&self) -> Result<(), CustodyError> {
-        platform::destroy_root(self.root_id)
+        self.roots.destroy_root(self.root_id)
     }
 }
 
@@ -365,12 +206,12 @@ mod tests {
 
     impl RootHooks for DevFallbackCustody {
         fn root(&self) -> Zeroizing<[u8; 32]> {
-            dev_root_bytes(self.root_id())
+            self.root_bytes()
                 .unwrap()
-                .expect("the platform holds the root after a wrap")
+                .expect("the root file exists after a wrap")
         }
         fn replace(&self, root: &[u8; 32]) {
-            replace_dev_root(self.root_id(), root).unwrap();
+            self.replace_root(root).unwrap();
         }
     }
 
@@ -397,7 +238,7 @@ mod tests {
     fn file_root_custody(dir: &std::path::Path) -> FileRootCustody<TestProtector> {
         FileRootCustody {
             roots: FileRoots::new(dir.join("roots"), TestProtector::new(0x5a).0),
-            root_id: RootId::fresh(),
+            root_id: RootId::fresh().unwrap(),
         }
     }
 
@@ -410,12 +251,20 @@ mod tests {
     fn the_wrap_opens_under_its_root_and_no_other_key(custody: &dyn RootHooks) {
         let _destroyed = DestroyedAtTheEnd(custody);
         let wrapped = custody
-            .wrap_store_key(&StoreKey::from_bytes([0x3c; 32]))
+            .wrap_store_key(
+                &StoreKey::from_bytes([0x3c; 32]),
+                crate::custody::KeyLabel::STORE,
+            )
             .unwrap();
         let root = custody.root();
         let label = custody.root_id();
         assert!(
-            aead_open(&root, &wrapped.0, label.as_bytes()).is_ok(),
+            aead_open(
+                &root,
+                &wrapped.0,
+                &crate::custody::associated_data(label, KeyLabel::STORE)
+            )
+            .is_ok(),
             "the wrapped store key does not open under its root"
         );
         let replacement = a_key_that_is_no_root();
@@ -425,19 +274,26 @@ mod tests {
             ("random", replacement),
         ] {
             assert!(
-                aead_open(&other, &wrapped.0, label.as_bytes()).is_err(),
+                aead_open(
+                    &other,
+                    &wrapped.0,
+                    &crate::custody::associated_data(label, KeyLabel::STORE)
+                )
+                .is_err(),
                 "the wrapped store key opens under a key that is not its root ({name})"
             );
         }
         custody.replace(&replacement);
-        let under_replacement = custody.unwrap_store_key(&wrapped);
+        let under_replacement = custody.unwrap_store_key(&wrapped, crate::custody::KeyLabel::STORE);
         assert!(
             matches!(under_replacement, Err(CustodyError::WrapAuthFailed)),
             "with the root replaced under the same id, unwrap answered {:?}",
             under_replacement.err()
         );
         custody.replace(&root);
-        let restored = custody.unwrap_store_key(&wrapped).unwrap();
+        let restored = custody
+            .unwrap_store_key(&wrapped, crate::custody::KeyLabel::STORE)
+            .unwrap();
         assert!(
             restored.expose() == &[0x3c; 32],
             "the restored root does not give back the store key"
@@ -448,26 +304,44 @@ mod tests {
         let _first = DestroyedAtTheEnd(first);
         let _second = DestroyedAtTheEnd(second);
         let wrapped = first
-            .wrap_store_key(&StoreKey::from_bytes([0x3c; 32]))
+            .wrap_store_key(
+                &StoreKey::from_bytes([0x3c; 32]),
+                crate::custody::KeyLabel::STORE,
+            )
             .unwrap();
         second
-            .wrap_store_key(&StoreKey::from_bytes([0x4d; 32]))
+            .wrap_store_key(
+                &StoreKey::from_bytes([0x4d; 32]),
+                crate::custody::KeyLabel::STORE,
+            )
             .unwrap();
         let (root, other_store_root) = (first.root(), second.root());
         let label = first.root_id();
         assert!(root.iter().any(|&b| b != 0), "the root is all zero");
         assert!(*root != *other_store_root, "two stores have one root");
         assert!(
-            aead_open(&[0u8; 32], &wrapped.0, label.as_bytes()).is_err(),
+            aead_open(
+                &[0u8; 32],
+                &wrapped.0,
+                &crate::custody::associated_data(label, KeyLabel::STORE)
+            )
+            .is_err(),
             "the wrapped store key opens under an all-zero root"
         );
         assert!(
-            aead_open(&other_store_root, &wrapped.0, label.as_bytes()).is_err(),
+            aead_open(
+                &other_store_root,
+                &wrapped.0,
+                &crate::custody::associated_data(label, KeyLabel::STORE)
+            )
+            .is_err(),
             "the wrapped store key opens under the root of a second store"
         );
         first.replace(&[0u8; 32]);
         assert!(
-            first.unwrap_store_key(&wrapped).is_err(),
+            first
+                .unwrap_store_key(&wrapped, crate::custody::KeyLabel::STORE)
+                .is_err(),
             "the wrapped store key unwraps with an all-zero root in place"
         );
     }
@@ -480,7 +354,10 @@ mod tests {
         let _fresh = DestroyedAtTheEnd(fresh);
         first.create_root().unwrap();
         let wrapped = first
-            .wrap_store_key(&StoreKey::from_bytes([0x3c; 32]))
+            .wrap_store_key(
+                &StoreKey::from_bytes([0x3c; 32]),
+                crate::custody::KeyLabel::STORE,
+            )
             .unwrap();
         let first_root = first.root();
         first.destroy_root().unwrap();
@@ -490,7 +367,7 @@ mod tests {
             *first_root != *fresh_root,
             "two roots made under one root id hold the same bytes"
         );
-        let from_the_id_alone = fresh.unwrap_store_key(&wrapped);
+        let from_the_id_alone = fresh.unwrap_store_key(&wrapped, crate::custody::KeyLabel::STORE);
         assert!(
             matches!(from_the_id_alone, Err(CustodyError::WrapAuthFailed)),
             "the wrapped store key and its public root id opened the store key under a new root: {:?}",
@@ -500,16 +377,16 @@ mod tests {
 
     #[test]
     fn two_creates_under_one_root_id_make_two_roots_and_the_id_alone_opens_no_store_key() {
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
         {
-            let root_id = RootId::fresh();
+            let dev = tempfile::tempdir().unwrap();
+            let root_id = RootId::fresh().unwrap();
             a_root_made_again_under_one_id_differs_and_opens_no_wrap_of_the_first(
-                &DevFallbackCustody::new(root_id),
-                &DevFallbackCustody::new(root_id),
+                &DevFallbackCustody::new(root_id, dev.path().join("roots")),
+                &DevFallbackCustody::new(root_id, dev.path().join("roots")),
             );
         }
         let dir = tempfile::tempdir().unwrap();
-        let root_id = RootId::fresh();
+        let root_id = RootId::fresh().unwrap();
         a_root_made_again_under_one_id_differs_and_opens_no_wrap_of_the_first(
             &FileRootCustody {
                 roots: FileRoots::new(dir.path().join("first"), TestProtector::new(0x5a).0),
@@ -549,10 +426,10 @@ mod tests {
 
     #[test]
     fn a_wrapped_store_key_opens_under_no_all_zero_root_and_no_other_store_root() {
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        let dev = tempfile::tempdir().unwrap();
         no_all_zero_root_and_no_other_store_root(
-            &DevFallbackCustody::new(RootId::fresh()),
-            &DevFallbackCustody::new(RootId::fresh()),
+            &DevFallbackCustody::new(RootId::fresh().unwrap(), dev.path().join("roots")),
+            &DevFallbackCustody::new(RootId::fresh().unwrap(), dev.path().join("roots")),
         );
         let dir = tempfile::tempdir().unwrap();
         no_all_zero_root_and_no_other_store_root(
@@ -563,8 +440,11 @@ mod tests {
 
     #[test]
     fn the_store_key_wrap_opens_under_its_root_and_under_no_other_key() {
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
-        the_wrap_opens_under_its_root_and_no_other_key(&DevFallbackCustody::new(RootId::fresh()));
+        let dev = tempfile::tempdir().unwrap();
+        the_wrap_opens_under_its_root_and_no_other_key(&DevFallbackCustody::new(
+            RootId::fresh().unwrap(),
+            dev.path().join("roots"),
+        ));
         let dir = tempfile::tempdir().unwrap();
         the_wrap_opens_under_its_root_and_no_other_key(&file_root_custody(dir.path()));
     }
@@ -594,12 +474,17 @@ mod tests {
 
     #[test]
     fn a_release_accepts_only_a_kind_whose_custody_this_build_can_rebuild() {
+        let dev = tempfile::tempdir().unwrap();
         let mut wrong = Vec::new();
         for kind in every_custody_kind() {
             if !kind.is_acceptable_for_release() {
                 continue;
             }
-            if let Err(e) = crate::custody::custody_for(kind, RootId::fresh()) {
+            if let Err(e) = crate::custody::custody_for(&crate::custody::CustodyLocator {
+                kind,
+                root_id: RootId::fresh().unwrap(),
+                roots: dev.path().join("roots"),
+            }) {
                 wrong.push(format!(
                     "{kind:?} is accepted for a release and custody_for answers {e:?}"
                 ));
@@ -632,11 +517,15 @@ mod tests {
 
     #[test]
     fn destroying_a_root_twice_is_no_error_for_each_custody_the_product_builds() {
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
-        destroying_its_root_twice_is_no_error(&DevFallbackCustody::new(RootId::fresh()));
+        let dev = tempfile::tempdir().unwrap();
+        destroying_its_root_twice_is_no_error(&DevFallbackCustody::new(
+            RootId::fresh().unwrap(),
+            dev.path().join("roots"),
+        ));
         #[cfg(target_os = "windows")]
         destroying_its_root_twice_is_no_error(&crate::custody::windows::DpapiCustody::new(
-            RootId::fresh(),
+            RootId::fresh().unwrap(),
+            dev.path().join("dpapi-roots"),
         ));
         let dir = tempfile::tempdir().unwrap();
         destroying_its_root_twice_is_no_error(&file_root_custody(dir.path()));
@@ -659,54 +548,13 @@ mod tests {
 
     #[test]
     fn reject_helper_matches_kind() {
-        let custody = DevFallbackCustody::new(RootId::fresh());
+        let dev = tempfile::tempdir().unwrap();
+        let custody = DevFallbackCustody::new(RootId::fresh().unwrap(), dev.path().join("roots"));
         assert!(matches!(
             reject_fallback_for_release(&custody),
             Err(CustodyError::CustodyKindUnsupported(
                 CustodyKind::DevFallback
             ))
-        ));
-    }
-
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn mac_wrap_unwrap_roundtrips_with_no_prompt() {
-        let root = crate::store::roots::RootGuard::fresh();
-        let custody = DevFallbackCustody::new(root.id());
-        let key = StoreKey::from_bytes([42u8; 32]);
-        let wrapped = custody.wrap_store_key(&key).unwrap();
-        let unwrapped = custody.unwrap_store_key(&wrapped).unwrap();
-        assert_eq!(unwrapped.expose(), &[42u8; 32]);
-        custody.destroy_root().unwrap();
-        assert!(matches!(
-            custody.unwrap_store_key(&wrapped),
-            Err(CustodyError::RootMissing)
-        ));
-        assert!(custody.destroy_root().is_ok());
-    }
-
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn only_a_missing_keychain_item_counts_as_absent() {
-        use security_framework::base::Error;
-        use security_framework_sys::base::{errSecAuthFailed, errSecItemNotFound};
-
-        assert_eq!(keychain::absent_is_none(Ok(7u8)).unwrap(), Some(7));
-        assert_eq!(
-            keychain::absent_is_none::<u8>(Err(Error::from_code(errSecItemNotFound))).unwrap(),
-            None
-        );
-        assert!(matches!(
-            keychain::absent_is_none::<u8>(Err(Error::from_code(errSecAuthFailed))),
-            Err(CustodyError::RootDenied)
-        ));
-        assert!(matches!(
-            keychain::absent_is_none::<u8>(Err(Error::from_code(-25308))),
-            Err(CustodyError::RootLocked(-25308))
-        ));
-        assert!(matches!(
-            keychain::absent_is_none::<u8>(Err(Error::from_code(-25291))),
-            Err(CustodyError::Os(Some(-25291)))
         ));
     }
 }

@@ -5,7 +5,7 @@
 use security_framework::key::{Algorithm, SecKey};
 use zeroize::Zeroizing;
 
-use super::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey};
+use super::{CustodyError, CustodyKind, KeyCustody, KeyLabel, RootId, StoreKey, WrappedKey};
 
 const ECIES: Algorithm = Algorithm::ECIESEncryptionCofactorX963SHA256AESGCM;
 
@@ -30,7 +30,11 @@ impl KeyCustody for SecureEnclaveCustody {
         self.root_id
     }
 
-    fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+    fn roots(&self) -> Option<&std::path::Path> {
+        None
+    }
+
+    fn wrap_store_key(&self, key: &StoreKey, _label: KeyLabel) -> Result<WrappedKey, CustodyError> {
         let public = self
             .key
             .public_key()
@@ -45,7 +49,11 @@ impl KeyCustody for SecureEnclaveCustody {
         Err(CustodyError::NotImplemented("secure-enclave root creation"))
     }
 
-    fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
+    fn unwrap_store_key(
+        &self,
+        wrapped: &WrappedKey,
+        _label: KeyLabel,
+    ) -> Result<StoreKey, CustodyError> {
         let plain = self
             .key
             .decrypt_data(ECIES, &wrapped.0)

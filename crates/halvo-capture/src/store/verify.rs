@@ -13,9 +13,10 @@ use uuid::Uuid;
 use zeroize::Zeroizing;
 
 use crate::custody::dev_fallback::DevFallbackCustody;
+use crate::custody::file_root::destroy_root_at;
 use crate::custody::{
-    custody_for, opens_under_an_all_zero_root, CustodyError, CustodyKind, KeyCustody, RootId,
-    WrappedKey,
+    custody_for, opens_under_an_all_zero_root, CustodyError, CustodyLocator, KeyCustody, KeyLabel,
+    RootId, WrappedKey,
 };
 use crate::event::{CaptureStreamEvent, CapturedAt, Modality, MonotonicSequence};
 
@@ -25,9 +26,7 @@ use super::{SegmentExpiry, SegmentStore, StoreError, StoreResult, DEFAULT_RETENT
 
 pub const MARKER_ROWS: u64 = 2000;
 pub const DECRYPTABLE: &str = "decryptable";
-
-/// An unwrap slower than this is reported as `prompt=shown`.
-pub const PROMPT_BOUND_MS: u128 = 1000;
+const ROOTS: &str = "roots";
 
 fn yes_no(value: bool) -> &'static str {
     if value {
@@ -69,12 +68,26 @@ impl Drop for StoreDir {
     }
 }
 
-struct DestroyRootOnDrop(RootId);
+struct DestroyRootOnDrop(RootId, PathBuf);
 
 impl Drop for DestroyRootOnDrop {
     fn drop(&mut self) {
-        let _ = DevFallbackCustody::new(self.0).destroy_root();
+        let _ = destroy_root_at(&self.1, self.0);
     }
+}
+
+/// A fresh store in `dir` under the root-file custody, its root kept in the
+/// directory `roots` inside `dir`.
+fn scratch_store(dir: &Path) -> StoreResult<(EncryptedStore, DestroyRootOnDrop)> {
+    let root_id = RootId::fresh()?;
+    let roots = dir.join(ROOTS);
+    let guard = DestroyRootOnDrop(root_id, roots.clone());
+    let store = EncryptedStore::create(
+        dir,
+        Box::new(DevFallbackCustody::new(root_id, roots)),
+        DEFAULT_RETENTION,
+    )?;
+    Ok((store, guard))
 }
 
 fn at(seq: u64) -> CapturedAt {
@@ -98,18 +111,12 @@ pub struct StoreCheck {
     pub unwrap_ms: u128,
 }
 
-impl StoreCheck {
-    pub fn prompt_shown(&self) -> bool {
-        self.unwrap_ms > PROMPT_BOUND_MS
-    }
-}
-
 impl fmt::Display for StoreCheck {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
             "store rows={} secure_delete={} temp_store={} fts_secure_delete={} \
-             cipher_provider={} segment_roundtrip={} unwrap=ok unwrap_ms={} prompt={}",
+             cipher_provider={} segment_roundtrip={} unwrap=ok unwrap_ms={} prompt=none",
             self.rows,
             self.secure_delete,
             self.temp_store,
@@ -117,7 +124,6 @@ impl fmt::Display for StoreCheck {
             self.cipher_provider,
             if self.segment_roundtrip { "ok" } else { "fail" },
             self.unwrap_ms,
-            if self.prompt_shown() { "shown" } else { "none" },
         )
     }
 }
@@ -127,18 +133,12 @@ pub(crate) fn marker_from_env() -> String {
 }
 
 pub(crate) fn run_store_check_in(dir: &Path, marker: &str) -> StoreResult<StoreCheck> {
-    let root_id = RootId::fresh();
-    let _root = DestroyRootOnDrop(root_id);
-    let store = EncryptedStore::create(
-        dir,
-        Box::new(DevFallbackCustody::new(root_id)),
-        DEFAULT_RETENTION,
-    )?;
+    let (store, _root) = scratch_store(dir)?;
     check_store(store, marker, &custody_for)
 }
 
 pub(crate) type RebuildCustody<'a> =
-    &'a dyn Fn(CustodyKind, RootId) -> Result<Box<dyn KeyCustody + Send>, CustodyError>;
+    &'a dyn Fn(&CustodyLocator) -> Result<Box<dyn KeyCustody + Send>, CustodyError>;
 
 pub(crate) fn check_store(
     mut store: EncryptedStore,
@@ -173,7 +173,7 @@ pub(crate) fn check_store(
     };
     drop(store);
 
-    let reopened = EncryptedStore::open_with(dir, DEFAULT_RETENTION, rebuild)?;
+    let reopened = EncryptedStore::open_with(dir, &dir.join(ROOTS), DEFAULT_RETENTION, rebuild)?;
     let unwrap_ms = reopened.unwrap_time().as_millis();
     let db = reopened.db()?;
     let rows: i64 = db
@@ -316,7 +316,7 @@ pub(crate) enum RootState {
 }
 
 pub(crate) fn root_state(custody: &dyn KeyCustody, wrapped: &WrappedKey) -> RootState {
-    match custody.unwrap_store_key(wrapped) {
+    match custody.unwrap_store_key(wrapped, KeyLabel::STORE) {
         Ok(_) => RootState::Alive,
         Err(CustodyError::RootMissing) => RootState::Destroyed,
         Err(other) => RootState::Unknown(other),
@@ -363,13 +363,7 @@ impl fmt::Display for DeletionCheck {
 }
 
 pub(crate) fn run_deletion_check_in(dir: &Path) -> StoreResult<DeletionCheck> {
-    let root_id = RootId::fresh();
-    let _root = DestroyRootOnDrop(root_id);
-    let store = EncryptedStore::create(
-        dir,
-        Box::new(DevFallbackCustody::new(root_id)),
-        DEFAULT_RETENTION,
-    )?;
+    let (store, _root) = scratch_store(dir)?;
     check_deletion(store, &custody_for)
 }
 
@@ -403,18 +397,21 @@ pub(crate) fn check_deletion(
         .read_segment(sibling.segment_id, &mut Vec::new())
         .is_ok();
 
-    let key_file = KeyFile::read(dir)?;
+    let roots = dir.join(ROOTS);
+    let key_file = KeyFile::at(&dir.join("store.key"))?.read(KeyLabel::STORE)?;
     let all = store.crypto_shred_all()?;
     drop(store);
     let retained = key_file.wrapped_store_key()?;
-    let custody = rebuild(key_file.custody_kind, key_file.root_id)?;
+    let custody = rebuild(&key_file.locator(&roots))?;
     let root_destroyed = match root_state(custody.as_ref(), &retained) {
-        RootState::Destroyed => !opens_under_an_all_zero_root(key_file.root_id, &retained),
+        RootState::Destroyed => {
+            !opens_under_an_all_zero_root(key_file.root_id, KeyLabel::STORE, &retained)
+        }
         RootState::Alive => false,
         RootState::Unknown(e) => return Err(StoreError::Custody(e)),
     };
     let store_sealed = matches!(
-        EncryptedStore::open_with(dir, DEFAULT_RETENTION, rebuild),
+        EncryptedStore::open_with(dir, &roots, DEFAULT_RETENTION, rebuild),
         Err(StoreError::Sealed)
     );
 
@@ -458,6 +455,7 @@ mod tests {
     use super::*;
     use crate::custody::file_root::test_support::{FileRootCustody, TestProtector};
     use crate::custody::file_root::FileRoots;
+    use crate::custody::CustodyKind;
     use crate::store::db::test_support::make_store;
     use base64::engine::general_purpose::{STANDARD, URL_SAFE};
 
@@ -488,11 +486,16 @@ mod tests {
             crate::custody::CustodyKind::DevFallback
         }
         fn root_id(&self) -> RootId {
-            RootId::fresh()
+            RootId::fresh().unwrap()
         }
+        fn roots(&self) -> Option<&std::path::Path> {
+            None
+        }
+
         fn wrap_store_key(
             &self,
             _key: &crate::custody::StoreKey,
+            _label: crate::custody::KeyLabel,
         ) -> Result<WrappedKey, CustodyError> {
             Ok(WrappedKey(Vec::new()))
         }
@@ -502,6 +505,7 @@ mod tests {
         fn unwrap_store_key(
             &self,
             _wrapped: &WrappedKey,
+            _label: crate::custody::KeyLabel,
         ) -> Result<crate::custody::StoreKey, CustodyError> {
             (self.0)()
         }
@@ -589,7 +593,7 @@ mod tests {
 
     fn file_root_store(dir: &Path) -> (EncryptedStore, PathBuf, RootId) {
         let roots_dir = dir.join("roots");
-        let root_id = RootId::fresh();
+        let root_id = RootId::fresh().unwrap();
         let store = EncryptedStore::create(
             &dir.join("store"),
             Box::new(file_root_custody(&roots_dir, root_id)),
@@ -603,10 +607,9 @@ mod tests {
     fn the_store_check_fails_when_the_store_key_file_holds_the_raw_store_key() {
         let dir = tempfile::tempdir().unwrap();
         let (store, roots_dir, root_id) = file_root_store(&dir.path().join("healthy"));
-        let rebuild =
-            |_: CustodyKind, _: RootId| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
-                Ok(Box::new(file_root_custody(&roots_dir, root_id)))
-            };
+        let rebuild = |_: &CustodyLocator| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
+            Ok(Box::new(file_root_custody(&roots_dir, root_id)))
+        };
         let healthy = check_store(store, "MARKER-OF-A-HEALTHY-STORE", &rebuild);
         assert!(
             healthy.is_ok(),
@@ -614,10 +617,9 @@ mod tests {
         );
 
         let (store, roots_dir, root_id) = file_root_store(&dir.path().join("leaky"));
-        let rebuild =
-            |_: CustodyKind, _: RootId| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
-                Ok(Box::new(file_root_custody(&roots_dir, root_id)))
-            };
+        let rebuild = |_: &CustodyLocator| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
+            Ok(Box::new(file_root_custody(&roots_dir, root_id)))
+        };
         let key_hex: String = store
             .store_key()
             .unwrap()
@@ -648,11 +650,16 @@ mod tests {
         fn root_id(&self) -> RootId {
             self.0.root_id()
         }
+        fn roots(&self) -> Option<&std::path::Path> {
+            None
+        }
+
         fn wrap_store_key(
             &self,
             key: &crate::custody::StoreKey,
+            _label: crate::custody::KeyLabel,
         ) -> Result<WrappedKey, CustodyError> {
-            self.0.wrap_store_key(key)
+            self.0.wrap_store_key(key, crate::custody::KeyLabel::STORE)
         }
         fn create_root(&self) -> Result<(), CustodyError> {
             self.0.create_root()
@@ -660,9 +667,11 @@ mod tests {
         fn unwrap_store_key(
             &self,
             wrapped: &WrappedKey,
+            _label: crate::custody::KeyLabel,
         ) -> Result<crate::custody::StoreKey, CustodyError> {
             std::thread::sleep(std::time::Duration::from_millis(SLOW_UNWRAP_MS));
-            self.0.unwrap_store_key(wrapped)
+            self.0
+                .unwrap_store_key(wrapped, crate::custody::KeyLabel::STORE)
         }
         fn destroy_root(&self) -> Result<(), CustodyError> {
             self.0.destroy_root()
@@ -673,10 +682,9 @@ mod tests {
     fn the_store_check_prints_the_time_of_the_unwrap_that_opened_the_store() {
         let dir = tempfile::tempdir().unwrap();
         let (store, roots_dir, root_id) = file_root_store(dir.path());
-        let rebuild =
-            |_: CustodyKind, _: RootId| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
-                Ok(Box::new(SlowUnwrap(file_root_custody(&roots_dir, root_id))))
-            };
+        let rebuild = |_: &CustodyLocator| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
+            Ok(Box::new(SlowUnwrap(file_root_custody(&roots_dir, root_id))))
+        };
         let check = check_store(store, "MARKER-OF-A-SLOW-UNWRAP", &rebuild).unwrap();
         assert!(
             check.unwrap_ms >= u128::from(SLOW_UNWRAP_MS),
@@ -688,16 +696,19 @@ mod tests {
             line.contains(&format!(" unwrap=ok unwrap_ms={} ", check.unwrap_ms)),
             "{line}"
         );
+        assert!(
+            line.trim_end().ends_with(" prompt=none"),
+            "an unwrap of {SLOW_UNWRAP_MS} ms printed: {line}"
+        );
     }
 
     #[test]
     fn the_deletion_check_fails_when_it_cannot_tell_the_state_of_the_root() {
         let dir = tempfile::tempdir().unwrap();
         let (store, _, _) = file_root_store(dir.path());
-        let rebuild =
-            |_: CustodyKind, _: RootId| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
-                Ok(Box::new(Answers(|| Err(CustodyError::RootLocked(5)))))
-            };
+        let rebuild = |_: &CustodyLocator| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
+            Ok(Box::new(Answers(|| Err(CustodyError::RootLocked(5)))))
+        };
         let check = check_deletion(store, &rebuild);
         assert!(
             matches!(check, Err(StoreError::Custody(CustodyError::RootLocked(5)))),
@@ -714,13 +725,22 @@ mod tests {
         fn root_id(&self) -> RootId {
             self.0
         }
+        fn roots(&self) -> Option<&std::path::Path> {
+            None
+        }
+
         fn wrap_store_key(
             &self,
             key: &crate::custody::StoreKey,
+            _label: crate::custody::KeyLabel,
         ) -> Result<WrappedKey, CustodyError> {
-            crate::custody::dev_fallback::aead_seal(&[0u8; 32], key.expose(), self.0.as_bytes())
-                .map(WrappedKey)
-                .map_err(|_| CustodyError::Crypto("the seal failed".to_string()))
+            crate::custody::dev_fallback::aead_seal(
+                &[0u8; 32],
+                key.expose(),
+                &crate::custody::associated_data(self.0, KeyLabel::STORE),
+            )
+            .map(WrappedKey)
+            .map_err(|_| CustodyError::Crypto("the seal failed".to_string()))
         }
         fn create_root(&self) -> Result<(), CustodyError> {
             Ok(())
@@ -728,6 +748,7 @@ mod tests {
         fn unwrap_store_key(
             &self,
             _wrapped: &WrappedKey,
+            _label: crate::custody::KeyLabel,
         ) -> Result<crate::custody::StoreKey, CustodyError> {
             Err(CustodyError::RootMissing)
         }
@@ -741,10 +762,9 @@ mod tests {
     ) {
         let dir = tempfile::tempdir().unwrap();
         let (store, roots_dir, root_id) = file_root_store(&dir.path().join("healthy"));
-        let rebuild =
-            |_: CustodyKind, _: RootId| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
-                Ok(Box::new(file_root_custody(&roots_dir, root_id)))
-            };
+        let rebuild = |_: &CustodyLocator| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
+            Ok(Box::new(file_root_custody(&roots_dir, root_id)))
+        };
         let healthy = check_deletion(store, &rebuild).unwrap();
         assert!(healthy.root_destroyed, "{healthy}");
         assert!(healthy.store_sealed, "{healthy}");
@@ -752,13 +772,13 @@ mod tests {
         let zero_dir = dir.path().join("all-zero");
         let store = EncryptedStore::create(
             &zero_dir,
-            Box::new(AllZeroRoot(RootId::fresh())),
+            Box::new(AllZeroRoot(RootId::fresh().unwrap())),
             DEFAULT_RETENTION,
         )
         .unwrap();
         let rebuild =
-            |_: CustodyKind, root_id: RootId| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
-                Ok(Box::new(AllZeroRoot(root_id)))
+            |locator: &CustodyLocator| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
+                Ok(Box::new(AllZeroRoot(locator.root_id)))
             };
         let zero = check_deletion(store, &rebuild).unwrap();
         assert!(
@@ -777,11 +797,16 @@ mod tests {
         fn root_id(&self) -> RootId {
             self.0.root_id()
         }
+        fn roots(&self) -> Option<&std::path::Path> {
+            None
+        }
+
         fn wrap_store_key(
             &self,
             key: &crate::custody::StoreKey,
+            _label: crate::custody::KeyLabel,
         ) -> Result<WrappedKey, CustodyError> {
-            self.0.wrap_store_key(key)
+            self.0.wrap_store_key(key, crate::custody::KeyLabel::STORE)
         }
         fn create_root(&self) -> Result<(), CustodyError> {
             self.0.create_root()
@@ -789,8 +814,10 @@ mod tests {
         fn unwrap_store_key(
             &self,
             wrapped: &WrappedKey,
+            _label: crate::custody::KeyLabel,
         ) -> Result<crate::custody::StoreKey, CustodyError> {
-            self.0.unwrap_store_key(wrapped)
+            self.0
+                .unwrap_store_key(wrapped, crate::custody::KeyLabel::STORE)
         }
         fn destroy_root(&self) -> Result<(), CustodyError> {
             Ok(())
@@ -801,17 +828,16 @@ mod tests {
     fn the_deletion_check_takes_a_root_that_still_unwraps_the_retained_key_as_alive() {
         let dir = tempfile::tempdir().unwrap();
         let roots_dir = dir.path().join("roots");
-        let root_id = RootId::fresh();
+        let root_id = RootId::fresh().unwrap();
         let store = EncryptedStore::create(
             &dir.path().join("store"),
             Box::new(DestroysNothing(file_root_custody(&roots_dir, root_id))),
             DEFAULT_RETENTION,
         )
         .unwrap();
-        let rebuild =
-            |_: CustodyKind, _: RootId| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
-                Ok(Box::new(file_root_custody(&roots_dir, root_id)))
-            };
+        let rebuild = |_: &CustodyLocator| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
+            Ok(Box::new(file_root_custody(&roots_dir, root_id)))
+        };
         let check = check_deletion(store, &rebuild).unwrap();
         assert!(
             !check.root_destroyed,
@@ -826,27 +852,27 @@ mod tests {
         let (store, roots_dir, root_id) = file_root_store(dir.path());
         let key_file = KeyFile::path(store.dir());
         let left_by_a_stopped_delete_all = std::fs::read(&key_file).unwrap();
-        let rebuild =
-            |_: CustodyKind, _: RootId| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
-                if !key_file.exists() {
-                    std::fs::write(&key_file, &left_by_a_stopped_delete_all).unwrap();
-                }
-                Ok(Box::new(file_root_custody(&roots_dir, root_id)))
-            };
+        let rebuild = |_: &CustodyLocator| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
+            if !key_file.exists() {
+                std::fs::write(&key_file, &left_by_a_stopped_delete_all).unwrap();
+            }
+            Ok(Box::new(file_root_custody(&roots_dir, root_id)))
+        };
         let check = check_deletion(store, &rebuild).unwrap();
         let open = EncryptedStore::open_with(
             dir.path().join("store").as_path(),
+            &roots_dir,
             DEFAULT_RETENTION,
             rebuild,
         )
         .map(drop);
         assert!(
-            matches!(open, Err(StoreError::Custody(CustodyError::RootMissing))),
+            matches!(open, Err(StoreError::DatabaseMissing)),
             "the open after delete-all with a store.key left in place answered {open:?}"
         );
         assert!(
             !check.store_sealed,
-            "an open that answered Custody(RootMissing) counted as sealed: {check}"
+            "an open that answered DatabaseMissing counted as sealed: {check}"
         );
         assert!(check.to_string().contains(" store_sealed=no"), "{check}");
     }
@@ -862,10 +888,9 @@ mod tests {
                 1,
             )
             .unwrap();
-        let rebuild =
-            |_: CustodyKind, _: RootId| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
-                Ok(Box::new(file_root_custody(&roots_dir, root_id)))
-            };
+        let rebuild = |_: &CustodyLocator| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
+            Ok(Box::new(file_root_custody(&roots_dir, root_id)))
+        };
         let check = check_deletion(store, &rebuild);
         assert!(
             matches!(&check, Err(StoreError::Corrupt(why)) if why == "expected 1 shredded segment, got 2"),
@@ -883,10 +908,9 @@ mod tests {
         let unreadable = store.dir().join("a-file-that-the-scan-cannot-read");
         std::fs::write(&unreadable, b"bytes that the scan must read").unwrap();
         std::fs::set_permissions(&unreadable, std::fs::Permissions::from_mode(0o000)).unwrap();
-        let rebuild =
-            |_: CustodyKind, _: RootId| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
-                Ok(Box::new(file_root_custody(&roots_dir, root_id)))
-            };
+        let rebuild = |_: &CustodyLocator| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
+            Ok(Box::new(file_root_custody(&roots_dir, root_id)))
+        };
         let check = check_store(store, "MARKER-BESIDE-AN-UNREADABLE-FILE", &rebuild);
         std::fs::set_permissions(&unreadable, std::fs::Permissions::from_mode(0o600)).unwrap();
         assert!(
@@ -900,19 +924,28 @@ mod tests {
 
     #[test]
     fn the_all_zero_root_probe_opens_only_a_key_wrapped_under_an_all_zero_root() {
-        let root_id = RootId::fresh();
+        let root_id = RootId::fresh().unwrap();
         let key = [0x37u8; 32];
-        let under_zero =
-            crate::custody::dev_fallback::aead_seal(&[0u8; 32], &key, root_id.as_bytes()).unwrap();
-        let under_a_root =
-            crate::custody::dev_fallback::aead_seal(&[0x91u8; 32], &key, root_id.as_bytes())
-                .unwrap();
+        let under_zero = crate::custody::dev_fallback::aead_seal(
+            &[0u8; 32],
+            &key,
+            &crate::custody::associated_data(root_id, KeyLabel::STORE),
+        )
+        .unwrap();
+        let under_a_root = crate::custody::dev_fallback::aead_seal(
+            &[0x91u8; 32],
+            &key,
+            &crate::custody::associated_data(root_id, KeyLabel::STORE),
+        )
+        .unwrap();
         assert!(opens_under_an_all_zero_root(
             root_id,
+            KeyLabel::STORE,
             &WrappedKey(under_zero)
         ));
         assert!(!opens_under_an_all_zero_root(
             root_id,
+            KeyLabel::STORE,
             &WrappedKey(under_a_root)
         ));
     }
@@ -1037,7 +1070,6 @@ mod tests {
         assert_eq!(check.rows, MARKER_ROWS as i64);
         assert!(check.segment_roundtrip);
         assert_eq!(check.cipher_provider, "libtomcrypt");
-        assert!(!check.prompt_shown(), "unwrap took {} ms", check.unwrap_ms);
         let line = check.to_string();
         assert!(line.contains(" segment_roundtrip=ok "), "{line}");
         assert!(line.contains(" prompt=none"), "{line}");

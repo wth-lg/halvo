@@ -5,6 +5,7 @@ pub(crate) mod durable;
 pub mod expiry;
 #[cfg(test)]
 pub(crate) mod failpoint;
+pub(crate) mod lock;
 #[cfg(not(test))]
 pub(crate) mod failpoint {
     pub(crate) fn hit(_name: &'static str) -> super::StoreResult<()> {
@@ -25,13 +26,12 @@ pub(crate) mod pages;
 #[path = "test_support/roots.rs"]
 pub(crate) mod roots;
 
+use std::fmt;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Duration;
 
-use uuid::Uuid;
-
-use crate::custody::CustodyError;
+use crate::custody::{CustodyError, RootId};
 use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
 pub const DEFAULT_RETENTION: Duration = Duration::from_secs(14 * 24 * 60 * 60);
@@ -58,18 +58,13 @@ pub trait SegmentExpiry {
     /// Crypto-shred every segment past its retention bound.
     fn crypto_shred_expired(&mut self) -> StoreResult<ShredReport>;
 
-    /// Crypto-shred everything and destroy the store key (delete-all). A call
-    /// that stopped after its root step is finished by a second call on the
-    /// same handle, which destroys the root, the key file, the database files
-    /// and the segments directory again where they are left, and returns an
-    /// empty report. Once that handle is gone, no call finishes it while the
-    /// key file is left: `open` answers [`StoreError::Custody`] with
-    /// [`CustodyError::RootMissing`] for a whole key file and
-    /// [`StoreError::KeyFileUnparseable`] for one that the stop left zeroed,
-    /// and `create` answers [`StoreError::AlreadyExists`]. Once the key file is
-    /// gone, `open` answers [`StoreError::Sealed`], and `create` removes what is
-    /// left and makes a new store. It opens `store.key` by name to zero it,
-    /// without `O_NONBLOCK`, so a FIFO there makes it wait for good.
+    /// Crypto-shred everything and destroy the store key (delete-all), in the
+    /// order of [`db::EncryptedStore::delete_all`], which it calls: `Ok` with
+    /// the count of keyed segments, and that count plus the store key as the
+    /// keys destroyed, when the root is gone and nothing is left (an empty
+    /// report when the count could not be read or a second call finished the
+    /// work); otherwise [`StoreError::DeleteIncomplete`] with the report, after
+    /// every step ran. A second call on the same handle resumes.
     fn crypto_shred_all(&mut self) -> StoreResult<ShredReport>;
 }
 
@@ -80,14 +75,106 @@ pub struct ShredReport {
     pub keys_destroyed: u64,
 }
 
+/// A name of the store, for [`StoreError::Obstructed`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StoreName {
+    StoreDirectory,
+    Parent,
+    KeyFile,
+    Database,
+    Log,
+    SharedMemory,
+    Journal,
+    WriterLock,
+    Segments,
+    Shard,
+    SegmentFile,
+}
+
+/// What stood at a store name in place of the store's own entry, for
+/// [`StoreError::Obstructed`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Met {
+    Link,
+    OtherKind,
+    DirectoryNotAtItsName,
+    DatabaseOutsideTheDirectory,
+}
+
+impl fmt::Display for StoreName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            StoreName::StoreDirectory => "the store directory",
+            StoreName::Parent => "a parent of the store directory",
+            StoreName::KeyFile => "the store-key file",
+            StoreName::Database => "the database file",
+            StoreName::Log => "the write-ahead log",
+            StoreName::SharedMemory => "the shared-memory file",
+            StoreName::Journal => "the journal",
+            StoreName::WriterLock => "the writer lock",
+            StoreName::Segments => "the segments directory",
+            StoreName::Shard => "a shard directory",
+            StoreName::SegmentFile => "a segment file",
+        })
+    }
+}
+
+impl fmt::Display for Met {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Met::Link => "a link",
+            Met::OtherKind => "an entry of another kind than the store keeps there",
+            Met::DirectoryNotAtItsName => "a directory that is no longer at its name",
+            Met::DatabaseOutsideTheDirectory => {
+                "a database that SQLite holds outside the store directory"
+            }
+        })
+    }
+}
+
+/// What a delete-all, or the delete tail on a directory, did: each step was
+/// attempted. `keyed_segments` is the count of keyed segments read before the
+/// root step, `None` when it could not be read. `roots` lists the root files
+/// that stay under the roots directory after the root step; `root_not_handled`
+/// names the root of a version 1 key file of an older build, which this build
+/// cannot destroy. `not_followed` counts the store names, the store
+/// directory's own name among them, at which the delete met a link, an entry
+/// of another kind or a directory that was not the handle's.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeleteReport {
+    pub keyed_segments: Option<u64>,
+    pub roots: RootsLeft,
+    pub root_not_handled: Option<RootId>,
+    pub key_file_gone: bool,
+    pub database_left: bool,
+    pub files_left: u64,
+    pub not_followed: u64,
+}
+
+pub use crate::custody::file_root::RootsLeft;
+
+impl DeleteReport {
+    /// The roots directory holds no root file.
+    pub fn root_destroyed(&self) -> bool {
+        self.roots.none_left() && self.root_not_handled.is_none()
+    }
+
+    /// The root is gone and the delete left nothing of the store.
+    pub fn complete(&self) -> bool {
+        self.root_destroyed() && self.key_file_gone && !self.database_left && self.files_left == 0
+    }
+}
+
 /// Why a store call failed. A custody failure, also one of `open`'s unwrap,
-/// arrives as [`StoreError::Custody`] with its own variant.
+/// arrives as [`StoreError::Custody`] with its own variant. No Display or
+/// Debug form holds a path, a file name of the account, a segment id or a
+/// text that another library built.
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
     #[error("store i/o failed: {0}")]
     Io(std::io::ErrorKind),
-    /// SQLite returned this extended result code; a database that cannot grow
-    /// returns `SQLITE_FULL`.
+    /// SQLite returned this extended result code at a write or a shred; `open`
+    /// and `create` hand on no code.
     #[error("the store database failed with SQLite code {0}")]
     Db(i32),
     /// Sealing a segment or a segment key failed: the random source or the
@@ -101,15 +188,24 @@ pub enum StoreError {
     /// the handle was sealed by delete-all, or the segment was shredded.
     #[error("the store is sealed; its key is not available")]
     Sealed,
+    /// Damage: data that does not decode or authenticate.
     #[error("the store holds corrupt or tampered data: {0}")]
     Corrupt(String),
-    #[error("another writer holds the store at {0}")]
-    Locked(PathBuf),
-    #[error("a store already exists at {0}")]
-    AlreadyExists(PathBuf),
+    /// At a store name stands something that is not the store's own entry, or
+    /// the store directory does not stand at its name. The store looked
+    /// behind nothing.
+    #[error("the store is obstructed: at {name} stands {met}")]
+    Obstructed { name: StoreName, met: Met },
+    #[error("another writer holds the store")]
+    Locked,
+    #[error("a store already exists")]
+    AlreadyExists,
     /// store.key is empty, zeroed or does not parse.
     #[error("the store-key file does not parse")]
     KeyFileUnparseable,
+    /// The key file's namespace is a valid label other than the one asked for.
+    #[error("the key file holds a key of another label")]
+    KeyFileOfAnotherLabel,
     /// store.db is missing or empty: `open` makes no database in its place.
     #[error("the store database is missing or empty")]
     DatabaseMissing,
@@ -118,27 +214,32 @@ pub enum StoreError {
     #[error("the store key does not open the store database")]
     DatabaseUnreadable,
     /// store.key or store.db has a format version above the one this build
-    /// reads. The refused open writes to no file of the store but writer.lock,
-    /// which it makes when it is missing, and it narrows the directory to its
-    /// owner.
+    /// reads. The refused open writes to no file of the store, and it narrows
+    /// the directory to its owner.
     #[error(
         "the store has format version {found}, above version {supported} that this build reads"
     )]
     NewerStore { found: i64, supported: i64 },
     /// store.key or store.db has a format version below the one this build
-    /// reads. No migration exists. The refused open writes to no file of the
-    /// store but writer.lock, which it makes when it is missing, and it narrows
-    /// the directory to its owner.
+    /// reads, among them a key file of version 1, which an older build wrote.
+    /// No migration exists; the delete tail of
+    /// [`db::EncryptedStore::delete_store_dir`] removes such a store. The
+    /// refused open writes to no file of the store, and it narrows the
+    /// directory to its owner.
     #[error(
         "the store has format version {found}, below version {supported} that this build reads"
     )]
     OlderStore { found: i64, supported: i64 },
     /// A segment whose key is live has no file.
     #[error("a segment whose key is live has no file")]
-    SegmentMissing(Uuid),
+    SegmentMissing,
     /// A setting that the store requires does not read back.
     #[error("the store database does not have {0} in effect")]
     SettingNotInEffect(&'static str),
+    /// A delete-all ran every step and left part of the store; the report
+    /// says what.
+    #[error("delete-all left part of the store")]
+    DeleteIncomplete(Box<DeleteReport>),
     #[error(transparent)]
     Custody(#[from] CustodyError),
     #[error("{0} is not implemented in this phase")]

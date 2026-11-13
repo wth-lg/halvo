@@ -1,11 +1,12 @@
+use std::ffi::{OsStr, OsString};
 use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 
 use zeroize::Zeroizing;
 
 use super::dev_fallback::{aead_open, aead_seal, fill_random, store_key_from};
-use super::{CustodyError, RootId, StoreKey, WrappedKey};
-use crate::store::durable::{self, Dir, OsFs};
+use super::{associated_data, CustodyError, KeyLabel, RootId, StoreKey, WrappedKey};
+use crate::store::durable::{self, Dir, EntryKind};
 
 const ROOT_EXT: &str = "root";
 const PARTIAL_EXT: &str = "root.tmp";
@@ -35,57 +36,175 @@ fn root_io(e: std::io::Error) -> CustodyError {
     }
 }
 
-fn write_complete(dir: &Dir, partial: &Path, path: &Path, blob: &[u8]) -> Result<(), CustodyError> {
-    let (Some(partial_name), Some(name)) = (partial.file_name(), path.file_name()) else {
-        return Err(CustodyError::Os(None));
-    };
-    durable::write_durably(
-        &OsFs,
-        dir,
-        partial_name,
-        name,
-        root_io,
-        |_| Ok(()),
-        |_, _| scrub_and_remove(partial),
-        |out| out.write_all(blob).map_err(root_io),
-    )
+fn root_name(root_id: RootId) -> OsString {
+    OsString::from(format!("{root_id}.{ROOT_EXT}"))
 }
 
-fn scrub_and_remove(path: &Path) -> Result<(), CustodyError> {
-    match std::fs::symlink_metadata(path) {
-        Ok(meta) if meta.file_type().is_symlink() => return remove_if_present(path),
-        Ok(_) => {}
-        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
-        Err(e) => return Err(root_io(e)),
-    }
-    match durable::no_follow(std::fs::File::options().write(true)).open(path) {
-        Ok(mut file) => {
-            let len = file.metadata().map_err(root_io)?.len() as usize;
-            file.write_all(&vec![0u8; len]).map_err(root_io)?;
-            file.sync_all().map_err(root_io)?;
+fn partial_name(root_id: RootId) -> Result<OsString, CustodyError> {
+    let mut tag = [0u8; 8];
+    fill_random(&mut tag)?;
+    let tag: String = tag.iter().map(|b| format!("{b:02x}")).collect();
+    Ok(OsString::from(format!("{root_id}.{tag}.{PARTIAL_EXT}")))
+}
+
+/// What a name under the roots directory is: the root file of an id, a
+/// partial root file of an id, or no file of the custody.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RootFile {
+    Root(RootId),
+    Partial(RootId),
+}
+
+impl RootFile {
+    pub(crate) fn named(name: &OsStr) -> Option<Self> {
+        let name = name.to_str()?;
+        if let Some(stem) = name.strip_suffix(&format!(".{PARTIAL_EXT}")) {
+            let (id, tag) = stem.split_once('.')?;
+            let tagged = tag.len() == 16 && tag.bytes().all(|b| b.is_ascii_hexdigit());
+            return match RootId::parse(id) {
+                Some(root_id) if tagged && id.len() == 32 => Some(RootFile::Partial(root_id)),
+                _ => None,
+            };
         }
-        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
-        Err(e) => return Err(root_io(e)),
+        let id = name.strip_suffix(&format!(".{ROOT_EXT}"))?;
+        match RootId::parse(id) {
+            Some(root_id) if id.len() == 32 => Some(RootFile::Root(root_id)),
+            _ => None,
+        }
     }
-    remove_if_present(path)
+
+    fn id(self) -> RootId {
+        match self {
+            RootFile::Root(id) | RootFile::Partial(id) => id,
+        }
+    }
 }
 
-fn remove_if_present(path: &Path) -> Result<(), CustodyError> {
-    match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
+/// Zeroes the entry `name` of `dir` when it is a regular file, and removes it
+/// whatever the zero-fill did: a link or an entry of another kind is removed
+/// as the entry that it is and never opened. Answers whether the zeros were
+/// made durable (or nothing was there to zero) and the removal's own result.
+pub(crate) fn scrub_and_remove(dir: &Dir, name: &OsStr) -> (bool, std::io::Result<()>) {
+    let zeroed = match dir.entry(name) {
+        Ok(entry) if entry.kind == EntryKind::File => zero_fill(dir, name).is_ok(),
+        Ok(_) => false,
+        Err(e) if e.kind() == ErrorKind::NotFound => return (true, Ok(())),
+        Err(e) => return (false, Err(e)),
+    };
+    let removed = match dir.remove_entry(name) {
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(root_io(e)),
-    }
+        other => other,
+    };
+    (zeroed, removed)
+}
+
+fn zero_fill(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
+    let mut file = dir.open_file_for_write(name)?;
+    let len = file.metadata()?.len() as usize;
+    file.write_all(&vec![0u8; len])?;
+    file.sync_all()
 }
 
 fn seal(
     root_id: RootId,
+    label: KeyLabel,
     root: Zeroizing<[u8; 32]>,
     key: &StoreKey,
 ) -> Result<WrappedKey, CustodyError> {
-    let sealed = aead_seal(&root, key.expose(), root_id.as_bytes())
+    let sealed = aead_seal(&root, key.expose(), &associated_data(root_id, label))
         .map_err(|_| CustodyError::Crypto("sealing the store key failed".to_string()))?;
     Ok(WrappedKey(sealed))
+}
+
+/// What the destruction of every root file under a roots directory left: the
+/// ids of the root files that stay, and whether the directory could be listed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootsLeft {
+    pub left: Vec<RootId>,
+    pub listed: bool,
+}
+
+impl RootsLeft {
+    pub fn none_left(&self) -> bool {
+        self.listed && self.left.is_empty()
+    }
+}
+
+/// Destroys every root file and every partial root file under `roots`, the
+/// one of `first` before the others, and lists the directory again. A link or
+/// an entry of another kind with a root file's name is removed and never
+/// followed; a missing directory holds no root. Nothing outside `roots` is
+/// read or removed.
+pub(crate) fn destroy_every_root(roots: &Path, first: Option<RootId>) -> RootsLeft {
+    let dir = match Dir::open(roots) {
+        Ok(dir) => dir,
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            return RootsLeft {
+                left: Vec::new(),
+                listed: true,
+            }
+        }
+        Err(_) => {
+            return RootsLeft {
+                left: first.into_iter().collect(),
+                listed: false,
+            }
+        }
+    };
+    let mut names: Vec<(RootFile, OsString)> = match dir.entries() {
+        Ok(entries) => entries
+            .into_iter()
+            .filter_map(|entry| RootFile::named(&entry.name).map(|file| (file, entry.name)))
+            .collect(),
+        Err(_) => Vec::new(),
+    };
+    names.sort_by_key(|(file, _)| Some(file.id()) != first);
+    for (_, name) in &names {
+        let _ = scrub_and_remove(&dir, name);
+    }
+    let _ = dir.sync();
+    match dir.entries() {
+        Ok(entries) => {
+            let mut left: Vec<RootId> = entries
+                .iter()
+                .filter_map(|entry| match RootFile::named(&entry.name) {
+                    Some(RootFile::Root(id)) => Some(id),
+                    _ => None,
+                })
+                .collect();
+            left.sort_by_key(|id| id.to_string());
+            RootsLeft { left, listed: true }
+        }
+        Err(_) => RootsLeft {
+            left: first.into_iter().collect(),
+            listed: false,
+        },
+    }
+}
+
+/// Destroys the root file of `root_id` under `roots` and its partial files,
+/// as [`FileRoots::destroy_root`] does; it needs no protector.
+pub(crate) fn destroy_root_at(roots: &Path, root_id: RootId) -> Result<(), CustodyError> {
+    let dir = match Dir::open(roots) {
+        Ok(dir) => dir,
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(e) if durable::refusal(&e).is_some() => return Err(CustodyError::RootCorrupt),
+        Err(e) => return Err(root_io(e)),
+    };
+    if let Ok(entries) = dir.entries() {
+        for entry in entries {
+            if RootFile::named(&entry.name) == Some(RootFile::Partial(root_id)) {
+                let _ = scrub_and_remove(&dir, &entry.name);
+            }
+        }
+    }
+    let (zeroed, removed) = scrub_and_remove(&dir, &root_name(root_id));
+    let _ = dir.sync();
+    match removed {
+        Ok(()) => Ok(()),
+        Err(_) if zeroed => Ok(()),
+        Err(e) => Err(root_io(e)),
+    }
 }
 
 impl<P: Protector> FileRoots<P> {
@@ -93,8 +212,13 @@ impl<P: Protector> FileRoots<P> {
         Self { dir, protector }
     }
 
+    pub(crate) fn dir(&self) -> &Path {
+        &self.dir
+    }
+
+    #[cfg(test)]
     fn path(&self, root_id: RootId) -> PathBuf {
-        self.dir.join(format!("{root_id}.{ROOT_EXT}"))
+        self.dir.join(root_name(root_id))
     }
 
     /// The roots directory, made when it is missing and taken by one handle
@@ -114,12 +238,10 @@ impl<P: Protector> FileRoots<P> {
             Err(e) if durable::refusal(&e).is_some() => return Err(CustodyError::RootCorrupt),
             Err(e) => return Err(root_io(e)),
         };
-        let mut blob = Vec::new();
-        let read = self
-            .path(root_id)
-            .file_name()
-            .ok_or(CustodyError::Os(None))
-            .and_then(|name| dir.open_file(name).map_err(read_error))
+        let mut blob = Zeroizing::new(Vec::new());
+        let read = dir
+            .open_file(&root_name(root_id))
+            .map_err(read_error)
             .and_then(|mut file| file.read_to_end(&mut blob).map_err(read_error));
         match read {
             Ok(_) => {}
@@ -138,13 +260,6 @@ impl<P: Protector> FileRoots<P> {
         Ok(Some(root))
     }
 
-    fn existing_or_new_root(&self, root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
-        match self.existing_root(root_id)? {
-            Some(root) => Ok(root),
-            None => self.make_root(root_id),
-        }
-    }
-
     pub(crate) fn create_root(&self, root_id: RootId) -> Result<(), CustodyError> {
         match self.existing_root(root_id)? {
             Some(_) => Err(CustodyError::RootExists),
@@ -152,6 +267,10 @@ impl<P: Protector> FileRoots<P> {
         }
     }
 
+    /// Writes a new root under a partial name of its own and publishes it with
+    /// a hard link, which never replaces an entry: a root of the id that
+    /// stands at the name, also one that appeared after the look, answers
+    /// [`CustodyError::RootExists`] and stays as it was.
     fn make_root(&self, root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
         let mut root = Zeroizing::new([0u8; 32]);
         fill_random(root.as_mut_slice())?;
@@ -159,33 +278,70 @@ impl<P: Protector> FileRoots<P> {
             .protector
             .protect(root.as_slice(), root_id.as_bytes())?;
         let dir = self.roots_dir()?;
-        let path = self.path(root_id);
-        write_complete(&dir, &path.with_extension(PARTIAL_EXT), &path, &blob)?;
+        let partial = partial_name(root_id)?;
+        let written = write_partial(&dir, &partial, &blob);
+        let published = written.and_then(|()| {
+            dir.link(&partial, &root_name(root_id))
+                .map_err(|e| match e.kind() {
+                    ErrorKind::AlreadyExists => CustodyError::RootExists,
+                    _ => root_io(e),
+                })
+        });
+        let discarded = match published {
+            Ok(()) => dir.remove_file(&partial),
+            Err(_) => scrub_and_remove(&dir, &partial).1,
+        };
+        published?;
+        discarded.map_err(root_io)?;
+        dir.sync().map_err(root_io)?;
         Ok(root)
     }
 
-    pub(crate) fn wrap(&self, root_id: RootId, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        seal(root_id, self.existing_or_new_root(root_id)?, key)
+    pub(crate) fn wrap(
+        &self,
+        root_id: RootId,
+        label: KeyLabel,
+        key: &StoreKey,
+    ) -> Result<WrappedKey, CustodyError> {
+        let root = match self.existing_root(root_id)? {
+            Some(root) => root,
+            None => match self.make_root(root_id) {
+                Err(CustodyError::RootExists) => self
+                    .existing_root(root_id)?
+                    .ok_or(CustodyError::RootMissing)?,
+                made => made?,
+            },
+        };
+        seal(root_id, label, root, key)
     }
 
     pub(crate) fn unwrap(
         &self,
         root_id: RootId,
+        label: KeyLabel,
         wrapped: &WrappedKey,
     ) -> Result<StoreKey, CustodyError> {
         let root = self
             .existing_root(root_id)?
             .ok_or(CustodyError::RootMissing)?;
-        let plain = aead_open(&root, &wrapped.0, root_id.as_bytes())
+        let plain = aead_open(&root, &wrapped.0, &associated_data(root_id, label))
             .map_err(|_| CustodyError::WrapAuthFailed)?;
         store_key_from(plain)
     }
 
+    /// Zeroes and removes the root file of `root_id` and its partial files.
+    /// Answers Ok once the root's zeros are durable, also when its removal
+    /// failed: an all-zero root reads as missing, and a delete counts what is
+    /// left by listing the directory. When the zero-fill failed it still
+    /// removes the file, and answers the error only when that removal failed
+    /// as well.
     pub(crate) fn destroy_root(&self, root_id: RootId) -> Result<(), CustodyError> {
-        let path = self.path(root_id);
-        let root = scrub_and_remove(&path);
-        let partial = scrub_and_remove(&path.with_extension(PARTIAL_EXT));
-        root.and(partial)
+        destroy_root_at(&self.dir, root_id)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn create_root_without_a_look(&self, root_id: RootId) -> Result<(), CustodyError> {
+        self.make_root(root_id).map(drop)
     }
 
     #[cfg(test)]
@@ -214,9 +370,16 @@ impl<P: Protector> FileRoots<P> {
     ) -> Result<(), CustodyError> {
         let blob = self.protector.protect(root, root_id.as_bytes())?;
         let dir = self.roots_dir()?;
-        let path = self.path(root_id);
-        write_complete(&dir, &path.with_extension(PARTIAL_EXT), &path, &blob)
+        let partial = partial_name(root_id)?;
+        write_partial(&dir, &partial, &blob)?;
+        dir.rename(&partial, &root_name(root_id)).map_err(root_io)
     }
+}
+
+fn write_partial(dir: &Dir, partial: &OsStr, blob: &[u8]) -> Result<(), CustodyError> {
+    let mut file = dir.create_new(partial).map_err(root_io)?;
+    file.write_all(blob).map_err(root_io)?;
+    file.sync_all().map_err(root_io)
 }
 
 #[cfg(test)]
@@ -299,16 +462,28 @@ pub(crate) mod test_support {
             self.root_id
         }
 
-        fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-            self.roots.wrap(self.root_id, key)
+        fn roots(&self) -> Option<&std::path::Path> {
+            Some(self.roots.dir())
+        }
+
+        fn wrap_store_key(
+            &self,
+            key: &StoreKey,
+            _label: crate::custody::KeyLabel,
+        ) -> Result<WrappedKey, CustodyError> {
+            self.roots.wrap(self.root_id, _label, key)
         }
 
         fn create_root(&self) -> Result<(), CustodyError> {
             self.roots.create_root(self.root_id)
         }
 
-        fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
-            self.roots.unwrap(self.root_id, wrapped)
+        fn unwrap_store_key(
+            &self,
+            wrapped: &WrappedKey,
+            _label: crate::custody::KeyLabel,
+        ) -> Result<StoreKey, CustodyError> {
+            self.roots.unwrap(self.root_id, _label, wrapped)
         }
 
         fn destroy_root(&self) -> Result<(), CustodyError> {
@@ -344,40 +519,45 @@ mod tests {
     fn wrap_unwrap_roundtrips_and_the_root_file_holds_no_raw_root() {
         let dir = tempfile::tempdir().unwrap();
         let roots = roots(dir.path());
-        let root_id = RootId::fresh();
+        let root_id = RootId::fresh().unwrap();
         let key = StoreKey::from_bytes([42u8; 32]);
-        let wrapped = roots.wrap(root_id, &key).unwrap();
+        let wrapped = roots
+            .wrap(root_id, crate::custody::KeyLabel::STORE, &key)
+            .unwrap();
         assert_eq!(
-            roots.unwrap(root_id, &wrapped).unwrap().expose(),
+            roots
+                .unwrap(root_id, crate::custody::KeyLabel::STORE, &wrapped)
+                .unwrap()
+                .expose(),
             &[42u8; 32]
         );
         assert!(roots.root_exists(root_id).unwrap());
         let file = std::fs::read(roots.path(root_id)).unwrap();
         let raw = roots.existing_root(root_id).unwrap().unwrap();
         assert_ne!(file.as_slice(), raw.as_slice());
-        assert!(!dir
-            .path()
-            .join("roots")
-            .join(format!("{root_id}.root.tmp"))
-            .exists());
+        assert!(partials(dir.path()).is_empty());
     }
 
     #[test]
     fn destroying_the_root_makes_the_wrapped_key_unusable_and_is_safe_twice() {
         let dir = tempfile::tempdir().unwrap();
         let roots = roots(dir.path());
-        let root_id = RootId::fresh();
+        let root_id = RootId::fresh().unwrap();
         let wrapped = roots
-            .wrap(root_id, &StoreKey::from_bytes([7u8; 32]))
+            .wrap(
+                root_id,
+                crate::custody::KeyLabel::STORE,
+                &StoreKey::from_bytes([7u8; 32]),
+            )
             .unwrap();
         roots.destroy_root(root_id).unwrap();
         assert!(!roots.root_exists(root_id).unwrap());
         assert!(matches!(
-            roots.unwrap(root_id, &wrapped),
+            roots.unwrap(root_id, crate::custody::KeyLabel::STORE, &wrapped),
             Err(CustodyError::RootMissing)
         ));
         roots.destroy_root(root_id).unwrap();
-        assert!(!roots.root_exists(RootId::fresh()).unwrap());
+        assert!(!roots.root_exists(RootId::fresh().unwrap()).unwrap());
     }
 
     #[cfg(unix)]
@@ -385,14 +565,18 @@ mod tests {
     fn a_directory_in_place_of_the_root_file_is_an_os_error_for_unwrap_and_destroy() {
         let dir = tempfile::tempdir().unwrap();
         let roots = roots(dir.path());
-        let root_id = RootId::fresh();
+        let root_id = RootId::fresh().unwrap();
         let wrapped = roots
-            .wrap(root_id, &StoreKey::from_bytes([5u8; 32]))
+            .wrap(
+                root_id,
+                crate::custody::KeyLabel::STORE,
+                &StoreKey::from_bytes([5u8; 32]),
+            )
             .unwrap();
         let path = roots.path(root_id);
         std::fs::remove_file(&path).unwrap();
         std::fs::create_dir(&path).unwrap();
-        let unwrapped = roots.unwrap(root_id, &wrapped);
+        let unwrapped = roots.unwrap(root_id, crate::custody::KeyLabel::STORE, &wrapped);
         assert!(
             matches!(unwrapped, Err(CustodyError::Os(Some(_)))),
             "unwrap answered {:?}",
@@ -400,20 +584,36 @@ mod tests {
         );
         let destroyed = roots.destroy_root(root_id);
         assert!(
-            matches!(destroyed, Err(CustodyError::Os(Some(_)))),
-            "destroy answered {destroyed:?}"
+            destroyed.is_ok() && !path.exists(),
+            "destroy of an empty directory at the root's name answered {destroyed:?} and left \
+             it: {}",
+            path.exists()
         );
+        std::fs::create_dir_all(path.join("occupied")).unwrap();
+        let destroyed = roots.destroy_root(root_id);
+        assert!(
+            matches!(destroyed, Err(CustodyError::Os(Some(_)))),
+            "destroy of a directory that holds an entry answered {destroyed:?}"
+        );
+        assert!(path.join("occupied").exists());
     }
 
     #[test]
     fn destroying_a_root_also_removes_a_partial_root_file_that_a_failed_write_left() {
         let dir = tempfile::tempdir().unwrap();
         let roots = roots(dir.path());
-        let root_id = RootId::fresh();
+        let root_id = RootId::fresh().unwrap();
         roots
-            .wrap(root_id, &StoreKey::from_bytes([3u8; 32]))
+            .wrap(
+                root_id,
+                crate::custody::KeyLabel::STORE,
+                &StoreKey::from_bytes([3u8; 32]),
+            )
             .unwrap();
-        let partial = roots.path(root_id).with_extension(PARTIAL_EXT);
+        let partial = dir
+            .path()
+            .join("roots")
+            .join(format!("{root_id}.0123456789abcdef.{PARTIAL_EXT}"));
         std::fs::copy(roots.path(root_id), &partial).unwrap();
         roots.destroy_root(root_id).unwrap();
         assert!(
@@ -426,40 +626,59 @@ mod tests {
     fn a_root_write_that_fails_leaves_no_partial_root_file() {
         let dir = tempfile::tempdir().unwrap();
         let roots = roots(dir.path());
-        let root_id = RootId::fresh();
+        let root_id = RootId::fresh().unwrap();
         std::fs::create_dir_all(roots.path(root_id).join("occupied")).unwrap();
         let made = roots.make_root(root_id);
-        assert!(made.is_err(), "a root was written over a directory");
         assert!(
-            !roots.path(root_id).with_extension(PARTIAL_EXT).exists(),
+            matches!(made, Err(CustodyError::RootExists)),
+            "a root write over a directory answered {:?}",
+            made.as_ref().map(drop)
+        );
+        assert!(
+            partials(dir.path()).is_empty(),
             "a failed root write left its partial file"
         );
+    }
+
+    fn partials(dir: &Path) -> Vec<String> {
+        std::fs::read_dir(dir.join("roots"))
+            .map(|entries| {
+                entries
+                    .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+                    .filter(|name| name.ends_with(PARTIAL_EXT))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     #[test]
     fn a_root_write_leaves_alone_a_partial_root_file_that_another_writer_holds() {
         let dir = tempfile::tempdir().unwrap();
         let roots = roots(dir.path());
-        let root_id = RootId::fresh();
-        let partial = roots.path(root_id).with_extension(PARTIAL_EXT);
-        std::fs::create_dir_all(partial.parent().unwrap()).unwrap();
+        let root_id = RootId::fresh().unwrap();
+        let theirs = dir
+            .path()
+            .join("roots")
+            .join(format!("{root_id}.fedcba9876543210.{PARTIAL_EXT}"));
+        std::fs::create_dir_all(theirs.parent().unwrap()).unwrap();
         let in_progress = b"the blob that another create is writing";
-        std::fs::write(&partial, in_progress).unwrap();
-        let made = roots.create_root(root_id);
-        let left = std::fs::read(&partial).ok();
-        let root_made = roots.path(root_id).exists();
-        assert!(
-            made.is_err(),
-            "a root write took the partial file of another writer"
-        );
+        std::fs::write(&theirs, in_progress).unwrap();
+        roots.create_root(root_id).unwrap();
+        let wrapped = roots
+            .wrap(root_id, KeyLabel::STORE, &StoreKey::from_bytes([0x61; 32]))
+            .unwrap();
+        let left = std::fs::read(&theirs).ok();
         assert!(
             left.as_deref() == Some(in_progress.as_slice()),
             "a root write changed or removed the partial file of another writer: {:?}",
             left.map(|bytes| bytes.len())
         );
-        assert!(
-            !root_made,
-            "a root write made a root from another writer's partial file"
+        assert_eq!(
+            roots
+                .unwrap(root_id, KeyLabel::STORE, &wrapped)
+                .unwrap()
+                .expose(),
+            &[0x61; 32]
         );
     }
 
@@ -467,15 +686,29 @@ mod tests {
     fn a_key_wrapped_under_one_root_does_not_unwrap_under_another() {
         let dir = tempfile::tempdir().unwrap();
         let roots = roots(dir.path());
-        let (a, b) = (RootId::fresh(), RootId::fresh());
-        let wrapped = roots.wrap(a, &StoreKey::from_bytes([1u8; 32])).unwrap();
-        roots.wrap(b, &StoreKey::from_bytes([2u8; 32])).unwrap();
+        let (a, b) = (RootId::fresh().unwrap(), RootId::fresh().unwrap());
+        let wrapped = roots
+            .wrap(
+                a,
+                crate::custody::KeyLabel::STORE,
+                &StoreKey::from_bytes([1u8; 32]),
+            )
+            .unwrap();
+        roots
+            .wrap(
+                b,
+                crate::custody::KeyLabel::STORE,
+                &StoreKey::from_bytes([2u8; 32]),
+            )
+            .unwrap();
         assert!(matches!(
-            roots.unwrap(b, &wrapped),
+            roots.unwrap(b, crate::custody::KeyLabel::STORE, &wrapped),
             Err(CustodyError::WrapAuthFailed)
         ));
         let other = FileRoots::new(dir.path().join("roots"), XorProtector(0x00));
-        assert!(other.unwrap(a, &wrapped).is_err());
+        assert!(other
+            .unwrap(a, crate::custody::KeyLabel::STORE, &wrapped)
+            .is_err());
     }
 
     #[cfg(unix)]
@@ -501,7 +734,7 @@ mod tests {
         std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o755)).unwrap();
         std::os::unix::fs::symlink(&target, dir.path().join("roots")).unwrap();
 
-        let made = roots(dir.path()).create_root(RootId::fresh());
+        let made = roots(dir.path()).create_root(RootId::fresh().unwrap());
 
         let mode = std::fs::metadata(&target).unwrap().permissions().mode() & 0o777;
         assert!(
@@ -521,17 +754,23 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
         let roots = roots(dir.path());
-        let root_id = RootId::fresh();
+        let root_id = RootId::fresh().unwrap();
         roots.create_root(root_id).unwrap();
         let wrapped = roots
-            .wrap(root_id, &StoreKey::from_bytes([0x42; 32]))
+            .wrap(
+                root_id,
+                crate::custody::KeyLabel::STORE,
+                &StoreKey::from_bytes([0x42; 32]),
+            )
             .unwrap();
         let path = roots.root_path(root_id);
         let target = outside.path().join("a-copy-of-the-root");
         std::fs::rename(&path, &target).unwrap();
         std::os::unix::fs::symlink(&target, &path).unwrap();
 
-        let unwrapped = roots.unwrap(root_id, &wrapped).map(drop);
+        let unwrapped = roots
+            .unwrap(root_id, crate::custody::KeyLabel::STORE, &wrapped)
+            .map(drop);
 
         assert!(
             matches!(unwrapped, Err(CustodyError::RootCorrupt)),
@@ -544,10 +783,14 @@ mod tests {
     fn a_root_file_that_is_a_fifo_answers_within_a_bound() {
         let dir = tempfile::tempdir().unwrap();
         let roots = roots(dir.path());
-        let root_id = RootId::fresh();
+        let root_id = RootId::fresh().unwrap();
         roots.create_root(root_id).unwrap();
         let wrapped = roots
-            .wrap(root_id, &StoreKey::from_bytes([0x42; 32]))
+            .wrap(
+                root_id,
+                crate::custody::KeyLabel::STORE,
+                &StoreKey::from_bytes([0x42; 32]),
+            )
             .unwrap();
         let path = roots.root_path(root_id);
         std::fs::remove_file(&path).unwrap();
@@ -556,7 +799,9 @@ mod tests {
         assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0);
 
         let unwrapped = within(std::time::Duration::from_secs(5), move || {
-            roots.unwrap(root_id, &wrapped).map(drop)
+            roots
+                .unwrap(root_id, crate::custody::KeyLabel::STORE, &wrapped)
+                .map(drop)
         });
 
         assert!(
