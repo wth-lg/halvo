@@ -411,10 +411,7 @@ fn outside_a_list(error: &serde_json::Error) -> Option<UnknownSpelling> {
     REPLY_LISTS
         .iter()
         .filter_map(|list| list())
-        .find(|outside| {
-            let outside = outside.to_string();
-            text == outside || text.starts_with(&format!("{outside} at line "))
-        })
+        .find(|outside| text == outside.to_string())
 }
 
 /// A field that this build does not know is skipped.
