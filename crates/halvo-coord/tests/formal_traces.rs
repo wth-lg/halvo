@@ -486,14 +486,27 @@ impl Sched {
                         }
                     }
                     "resume" => Act::Resume { run },
-                    _ => Act::Stop {
-                        run,
-                        by: if a["cause"] == "lapsed" {
-                            StopBy::WaitLimit
-                        } else {
-                            StopBy::Person
-                        },
-                    },
+                    _ => {
+                        let waits = self.board.runs.iter().any(|r| {
+                            r.run == run
+                                && self.board.members.iter().any(|m| {
+                                    m.facts.agent == r.agent
+                                        && matches!(m.facts.doing, Doing::Live(Live::Waiting(_)))
+                                })
+                        });
+                        if waits {
+                            self.table = self.table.stop(&run);
+                            let _ = halvo_coord::ports::Runs::cancel(&self.ports, &run);
+                        }
+                        Act::Stop {
+                            run,
+                            by: if a["cause"] == "lapsed" {
+                                StopBy::WaitLimit
+                            } else {
+                                StopBy::Person
+                            },
+                        }
+                    }
                 };
                 let done = self.act(act);
                 answer = json!(cause_name(&done.report.answer));

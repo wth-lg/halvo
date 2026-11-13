@@ -346,11 +346,13 @@ fn a_lapse_of_the_second_step_answers_decline_before_it_stops_the_run() {
 
 /// An `answer_bind` refused with `ended` is dropped: the row stays stored, nothing more is stored
 /// or taken back, and the item closes; a lapse whose answer is refused with `ended` still stores
-/// the lapse and stops the run (I5.10, ruling IG-18). Any other refusal keeps the row's answer,
-/// which a later answer of the same choice sends again with no second row, and refuses another
-/// choice with `state`.
+/// the lapse and stops the run (I5.10, ruling IG-18). Any other refusal keeps the row's answer:
+/// a later answer of the same choice sends it again with no second row; `decline` after a stored
+/// `allow` stores a row of its own and then sends `decline`; `allow` after a stored `decline` is
+/// refused with `state`, and nothing is stored or sent (ruling RD-46 (2) c, d).
 #[test]
-fn an_answer_bind_refused_with_ended_is_dropped() {
+fn an_answer_bind_refused_with_ended_is_dropped_and_after_another_refusal_dont_allow_still_decides()
+{
     let p = ports();
     let mut l = ledger();
     let mut t = Table::new();
@@ -398,36 +400,84 @@ fn an_answer_bind_refused_with_ended_is_dropped() {
     );
     assert_eq!(held.state(), &BindState::Recorded(BindResult::Allow));
     q.clear_refusals();
-    assert_eq!(
-        answer_bind(&q, &mut l, &t, &LIMITS, &mut held, Choice::Decline),
-        Err(Cause::State),
-        "the stored row says allow"
-    );
     answer_bind(&q, &mut l, &t, &LIMITS, &mut held, Choice::Allow).unwrap();
     assert_eq!(held.state(), &BindState::Closed);
-    let rows = stored(&q)
+    assert_eq!(answers(&q), [BindResult::Allow], "one row for one answer");
+    assert_eq!(sent(&q), [BindResult::Allow]);
+
+    let q = ports();
+    let mut l = ledger();
+    let mut held = raise_bind(&q, &mut l, &t, &LIMITS, &ask()).unwrap();
+    q.refuse(Method::AnswerBind, PortError::Busy);
+    assert_eq!(
+        answer_bind(&q, &mut l, &t, &LIMITS, &mut held, Choice::Allow),
+        Err(Cause::Busy)
+    );
+    q.clear_refusals();
+    assert_eq!(
+        answer_bind(&q, &mut l, &t, &LIMITS, &mut held, Choice::Decline),
+        Ok(()),
+        "the stored row says allow, and the person's press of decline decides"
+    );
+    assert_eq!(held.state(), &BindState::Closed);
+    assert_eq!(answers(&q), [BindResult::Allow, BindResult::Decline]);
+    assert_eq!(sent(&q), [BindResult::Decline]);
+
+    let q = ports();
+    let mut l = ledger();
+    let mut held = raise_bind(&q, &mut l, &t, &LIMITS, &ask()).unwrap();
+    q.refuse(Method::AnswerBind, PortError::Busy);
+    assert_eq!(
+        answer_bind(&q, &mut l, &t, &LIMITS, &mut held, Choice::Decline),
+        Err(Cause::Busy)
+    );
+    q.clear_refusals();
+    let before = q.tried.borrow().len();
+    assert_eq!(
+        answer_bind(&q, &mut l, &t, &LIMITS, &mut held, Choice::Allow),
+        Err(Cause::State),
+        "the stored row says decline"
+    );
+    assert_eq!(
+        q.tried.borrow().len(),
+        before,
+        "nothing stored and nothing sent"
+    );
+    assert_eq!(held.state(), &BindState::Recorded(BindResult::Decline));
+    assert_eq!(answers(&q), [BindResult::Decline]);
+}
+
+fn answers(p: &Ports<Config>) -> Vec<BindResult> {
+    stored(p)
         .iter()
-        .filter(|w| matches!(w, What::ItemAnswered { .. }))
-        .count();
-    assert_eq!(rows, 1, "one row for one answer");
-    let sent: Vec<BindResult> = q
-        .calls
+        .filter_map(|w| match w {
+            What::ItemAnswered {
+                answer: Answered::SignIn(SignInAnswer::Second(b)),
+                ..
+            } => Some(b.answer),
+            _ => None,
+        })
+        .collect()
+}
+
+fn sent(p: &Ports<Config>) -> Vec<BindResult> {
+    p.calls
         .borrow()
         .iter()
         .filter_map(|c| match c.call {
             Call::AnswerBind(_, r) => Some(r),
             _ => None,
         })
-        .collect();
-    assert_eq!(sent, vec![BindResult::Allow]);
+        .collect()
 }
 
 /// A second step whose row of `allow` is stored and whose answer the run did not take: once the
-/// run is stopped in the guard's table, a later answer sends nothing; when its run ends, or at a
-/// new life, it lapses and closes with no answer and no stop; `wait_limit` does not lapse it,
-/// because the person answered it (I3.1, I5.7, ruling IG-18).
+/// run is stopped in the guard's table, a later answer sends nothing; at `wait_limit` and at the
+/// person's stop it lapses as an open step does, with `decline` to the waiting call first, then
+/// `item_lapsed`, then the stop; when its run ends, or at the quit, it lapses with `item_lapsed`
+/// alone; each lapse closes it (I3.1, I5.7, ruling RD-46 (2) e).
 #[test]
-fn a_stored_answer_that_the_run_did_not_take_is_never_sent_to_a_stopped_run_and_lapses_with_its_run(
+fn a_stored_answer_that_the_run_did_not_take_is_never_sent_to_a_stopped_run_and_lapses_as_an_open_step(
 ) {
     let recorded = |p: &Ports<Config>, l: &mut Ledger| {
         let mut held = raise_bind(p, l, &Table::new(), &LIMITS, &ask()).unwrap();
@@ -452,23 +502,38 @@ fn a_stored_answer_that_the_run_did_not_take_is_never_sent_to_a_stopped_run_and_
     assert_eq!(p.tried.borrow().len(), before, "no port was called");
     assert_eq!(held.state(), &BindState::Recorded(BindResult::Allow));
 
-    let mut t = Table::new();
-    assert_eq!(
-        lapse_bind(
-            &p,
-            &mut l,
-            &mut t,
-            &mut held,
-            OtherLapse::WaitLimit,
-            &LIMITS
-        ),
-        Err(Cause::State),
-        "the person answered it"
-    );
-    assert_eq!(p.tried.borrow().len(), before);
+    for cause in [OtherLapse::WaitLimit, OtherLapse::Cancelled] {
+        let q = ports();
+        let mut l = ledger();
+        let mut t = Table::new();
+        let mut held = recorded(&q, &mut l);
+        let limit = held.raised_at() + LIMITS.wait_limit_s * 1000;
+        assert!(!bind_due(&held, limit - 1, &LIMITS), "{cause}");
+        assert!(
+            bind_due(&held, limit, &LIMITS),
+            "{cause}: due as an open step"
+        );
+        let before = q.calls.borrow().len();
+        lapse_bind(&q, &mut l, &mut t, &mut held, cause, &LIMITS).unwrap();
+        let calls: Vec<Call> = q.calls.borrow()[before..]
+            .iter()
+            .map(|c| c.call.clone())
+            .collect();
+        assert!(
+            matches!(
+                &calls[..],
+                [Call::AnswerBind(r, BindResult::Decline), Call::Log(rows), Call::Cancel(c)]
+                    if r == &run_id(1) && c == &run_id(1) && matches!(rows[0].what, What::ItemLapsed { lapsed: Lapsed::SignIn(k), .. } if k == cause)
+            ),
+            "{cause}: {calls:?}"
+        );
+        assert!(t.is_stopped(&run_id(1)), "{cause}");
+        assert_eq!(held.state(), &BindState::Closed, "{cause}");
+    }
     for cause in [OtherLapse::RunEnded, OtherLapse::AppEnded] {
         let q = ports();
         let mut l = ledger();
+        let mut t = Table::new();
         let mut held = recorded(&q, &mut l);
         let before = q.calls.borrow().len();
         lapse_bind(&q, &mut l, &mut t, &mut held, cause, &LIMITS).unwrap();

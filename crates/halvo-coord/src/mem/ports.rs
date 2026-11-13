@@ -2,7 +2,8 @@ use crate::ports::{Analysis, Clock, Owner, Page, PortError, Reaped, Rng, Runs, T
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answer, ApprovalId, BindResult, Body, Category, ConfigView,
     Decision, DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, Outcome,
-    PastRun, Reply, RunId, RunSpec, Runtime, Slot, What, Workflow, WorkflowId, WorkflowState,
+    PastRun, Reply, RunHistory, RunId, RunSpec, Runtime, Slot, What, Workflow, WorkflowId,
+    WorkflowState,
 };
 use std::cell::{Cell, RefCell};
 
@@ -63,6 +64,8 @@ pub enum Method {
     Attention,
     /// `Page::changed`.
     Changed,
+    /// `Owner::agent_history`.
+    AgentHistory,
 }
 
 /// A call of a port that changes or reads the world outside the coordinator; the reads of the
@@ -199,6 +202,8 @@ pub struct Ports<C> {
     pub calls: RefCell<Vec<Timed>>,
     /// Every call as it was made, in order, a refused one with its refusal.
     pub tried: RefCell<Vec<Tried>>,
+    /// The runs that `Owner::agent_history` gives, each with its agent, newest first.
+    pub histories: RefCell<Vec<(AgentId, RunHistory)>>,
     now: Cell<u64>,
     today: Cell<u32>,
     bytes: Cell<u128>,
@@ -227,6 +232,7 @@ impl<C> Ports<C> {
             events: RefCell::new(Vec::new()),
             calls: RefCell::new(Vec::new()),
             tried: RefCell::new(Vec::new()),
+            histories: RefCell::new(Vec::new()),
             now: Cell::new(now),
             today: Cell::new(today),
             bytes: Cell::new(0),
@@ -721,6 +727,29 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
                 serde_json::json!({ "ok": "yes" })
             }
         })
+    }
+
+    fn agent_history(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        runs: u32,
+    ) -> Result<Vec<RunHistory>, PortError> {
+        self.refused(Method::AgentHistory)?;
+        if !self.workflows.borrow().iter().any(|w| w.id() == workflow) {
+            return Err(refusal("no_workflow"));
+        }
+        if !self.bound(workflow, agent) {
+            return Err(refusal("binding"));
+        }
+        Ok(self
+            .histories
+            .borrow()
+            .iter()
+            .filter(|(a, _)| a == agent)
+            .map(|(_, h)| h.clone())
+            .take(runs as usize)
+            .collect())
     }
 }
 

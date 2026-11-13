@@ -42,7 +42,10 @@ pub use run::{
     Progress, RunEvent, RunSpec,
 };
 pub use status::StatusLine;
-pub use workflow::{Agent, DismissedWorkflow, FullWorkflow, Kept, PastRun, Unknown, Workflow};
+pub use workflow::{
+    Agent, DismissedWorkflow, FullWorkflow, Kept, PastEffect, PastRun, RunHistory, Unknown,
+    Workflow,
+};
 
 #[cfg(test)]
 mod tests;
