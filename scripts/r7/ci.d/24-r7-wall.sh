@@ -163,7 +163,7 @@ judge() {
       if (glob ~ /[a-z]/) return 1
       under = "backend"
       for (k = i + 1; k <= n && sg[k] !~ /[*?[]/ && sg[k] != ""; k++) under = under "/" lower(sg[k])
-      return under != "backend" && ((under in backend_dir) || (under in backend_file))
+      return under != "backend" && ((under in backend_dir) || (!tok_quoted && (under in backend_file)))
     }
     function through_link(sg, n,   k) {
       for (k = 1; k <= n; k++) if (sg[k] in link_name) return 1
@@ -299,6 +299,7 @@ judge() {
     }
     function token(tok, s, pos,   c, kind, sg, n, i, from, climbs, low, linked) {
       tok_pos = pos
+      tok_quoted = pos > 1 && index("\"" q, substr(s, pos - 1, 1)) > 0
       sub(/^\\+/, "", tok)
       if (match(tok, /^(file|link|portal|workspace):/)) tok = substr(tok, RLENGTH + 1)
       kind = ""
@@ -853,6 +854,14 @@ known-limit-<name> of the self-test:
   known limit unread-variable: in backend/, a variable that the file assigns twice or from another form than the five: a climb after it is placed by the index alone, so a path that the index does not track passes.
   known limit bare-operand: the bare word backend as an operand of a command outside the list above, such as stat backend.
   known limit bracket-glob: a bracket glob such as [b]ackend/x.
+A glob without a letter, as */test/x, is counted when it can stand for
+backend and the path after it is a directory of backend/ or, in a word that
+the shell opens (no quote before it), a tracked file of backend/ (P7-89).
+A quoted glob that a program opens by itself (a pathspec given to a git
+command that reads contents, a pattern given to find or to a search tool) is
+not counted when the path after it is a file of backend/: that is a limit of
+the wall, not a rule of it, held by the passing fixture
+p789-limit-a-quoted-glob-that-a-program-opens.
 A case arm's pattern is not read as a glob (P7-88, P7-89): the shell holds
 the pattern against a word and never opens it against the file system, so a
 glob in it reads no file. In a shell script (.sh, .bash, or a file under
@@ -1620,6 +1629,8 @@ cat "${files[@]}"' 'scripts/arr.sh:2: reads under backend/ by a glob'
   */test/*) return 0 ;;
 esac' 'read:scripts/nested.sh'
   case_with p789-e3-a-glob-that-ends-in-a-backend-file scripts/e3.sh 'cat */test/ledger/cases.ts' 'scripts/e3.sh:1: reads under backend/ by a glob'
+
+  pass_with p789-limit-a-quoted-glob-that-a-program-opens scripts/attrs.sh 'hits=$(git grep -n -e TODO -- "*/test/ledger/cases.ts")' 'read:scripts/attrs.sh'
 
   fixture known-limit-names-v0
   put backend/scripts/names-v0.sh 'APP_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
