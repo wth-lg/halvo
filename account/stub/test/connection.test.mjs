@@ -694,14 +694,19 @@ test("P7-70 the stop writes forced-close for a client that has not ended its sid
     for (let waited = 0; waited < 2000 && answersIn(ending.got()) === 0; waited += 10) await pause(10);
     ending.socket.end();
     assert.equal(await settled(ending.closed, 3000), true, "the client that ended its side was closed before the stop");
+    const lingering = await openPeer(portOf(stub.app));
+    lingering.socket.write(request("GET", "/v1/done"));
+    assert.equal(await settled(lingering.ended, 2000), true, "the stub ended the third connection after its closing answer");
     if (how === "close") stub.close();
     else exchange(portOf(stub.control), request("POST", "/stop"));
     assert.equal(await settled(stub.stopped.then(() => true), 3000), true, how);
     silent.socket.destroy();
+    lingering.socket.destroy();
     const of = (connection) => lines(dir).filter((line) => line.connection === connection).map((line) => line.status ?? line.error);
     assert.deepEqual(of(1), [200, "forced-close"], how);
     assert.deepEqual(of(2), [200], how);
-    assert.deepEqual(keepsPromise(dir, { 1: 0, 2: 1 }), [1], how);
+    assert.deepEqual(of(3), [200, "forced-close"], `${how}: a connection that the stub had ended before the stop, closed by the stop with its peer's side open`);
+    assert.deepEqual(keepsPromise(dir, { 1: 0, 2: 1, 3: 1 }), [1, 3], how);
   }
 });
 
