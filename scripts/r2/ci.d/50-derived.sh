@@ -65,6 +65,7 @@ esac
 #= tests/expiry.rs the_store_gives_its_host_the_report_after_each_committed_transaction
 #= tests/expiry.rs the_report_gives_the_deadline_of_the_bound_that_the_store_expires_by
 #= tests/expiry.rs expire_at_the_reported_deadline_removes_a_row_and_one_nanosecond_before_it_none
+#= tests/expiry.rs a_row_one_or_two_days_after_the_clock_stays_and_a_row_three_days_after_it_goes_at_the_next_expiry
 #= tests/read.rs a_page_of_261120_bytes_passes_and_a_page_one_byte_longer_is_refused
 #= tests/read.rs a_page_holds_whole_items_while_the_reply_stays_inside_its_bound
 #= tests/read.rs a_page_counts_the_id_under_next_against_the_bound

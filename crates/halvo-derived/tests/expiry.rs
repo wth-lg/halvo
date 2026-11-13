@@ -386,10 +386,22 @@ static W_ONE: KindEntry = KindEntry {
     example: r#"{"v":1,"segments":[4410],"expires":1795478400000000000}"#,
 };
 
+static A1_5: KindEntry = KindEntry {
+    name: "test_a1",
+    class: RetentionClass::Bounded { days: 5 },
+    ..B1_30
+};
+
+static A2_15: KindEntry = KindEntry {
+    name: "test_a2",
+    class: RetentionClass::Bounded { days: 15 },
+    ..B1_30
+};
+
 #[test]
 fn expire_at_the_reported_deadline_removes_a_row_and_one_nanosecond_before_it_none() {
     let scratch = Scratch::new("deadline-rule");
-    let clock = TestClock::at_day(DAY);
+    let clock = TestClock::at_day(DAY + 2);
     let window_ends = i64::from(DAY + 25) * DAY_NS + 3_600_000_000_000;
     let emitted = Rc::new(RefCell::new(
         ["test_b1", "test_b2", "test_b3"]
@@ -402,18 +414,34 @@ fn expire_at_the_reported_deadline_removes_a_row_and_one_nanosecond_before_it_no
                 kind: "test_w",
                 json: format!(r#"{{"v":1,"segments":[5],"expires":{window_ends}}}"#),
             }])
+            .chain(
+                [("test_a1", DAY + 1), ("test_a2", DAY + 2)].map(|(kind, day)| TypedRecord {
+                    kind,
+                    json: format!(r#"{{"v":1,"day":{day}}}"#),
+                }),
+            )
             .collect::<Vec<_>>(),
     ));
     let host = Host::new(Box::new(clock.clone()), Box::new(NoProposals))
         .step("test", Box::new(Emit(Rc::clone(&emitted))));
-    let mut store = open_entries(&scratch, host, &[&B1_30, &B2_40, &B3_10, &W_ONE]).unwrap();
+    let mut store = open_entries(
+        &scratch,
+        host,
+        &[&B1_30, &B2_40, &B3_10, &W_ONE, &A1_5, &A2_15],
+    )
+    .unwrap();
     store
         .commit_batch(&store_id(1), &[], position(1, 0), &mut Seq(1))
         .unwrap();
     drop(store);
     assert_eq!(bodies(&scratch, "test_b1").len(), 1);
-    let mut store =
-        open_entries(&scratch, plain(&clock), &[&B1_30, &B2_20, &B3_50, &W_ONE]).unwrap();
+    clock.set_day(DAY);
+    let mut store = open_entries(
+        &scratch,
+        plain(&clock),
+        &[&B1_30, &B2_20, &B3_50, &W_ONE, &A1_5, &A2_15],
+    )
+    .unwrap();
     let mut deadlines = Vec::new();
     while let Some(deadline) = store.report().unwrap().expiry {
         clock.set(deadline.0 - 1);
@@ -430,11 +458,71 @@ fn expire_at_the_reported_deadline_removes_a_row_and_one_nanosecond_before_it_no
     assert_eq!(
         deadlines,
         vec![
+            i64::from(DAY + 6) * DAY_NS,
             i64::from(DAY + 10) * DAY_NS,
+            i64::from(DAY + 17) * DAY_NS,
             i64::from(DAY + 20) * DAY_NS,
             window_ends,
             i64::from(DAY + 30) * DAY_NS,
         ],
-        "the row stored under 10 days goes on its day plus 10 although its entry now gives 50"
+        "the row stored under 10 days goes on its day plus 10 although its entry now gives 50, and the rows one and \
+         two days after the clock go on their own day of going"
     );
+}
+
+fn b1(day: u32) -> TypedRecord {
+    TypedRecord {
+        kind: "test_b1",
+        json: format!(r#"{{"v":1,"day":{day}}}"#),
+    }
+}
+
+#[test]
+fn a_row_one_or_two_days_after_the_clock_stays_and_a_row_three_days_after_it_goes_at_the_next_expiry(
+) {
+    let scratch = Scratch::new("ahead-two-days");
+    let clock = TestClock::at_day(DAY);
+    let emitted = Rc::new(RefCell::new(vec![b1(DAY), b1(DAY), b1(DAY - 1)]));
+    let host = Host::new(Box::new(clock.clone()), Box::new(NoProposals))
+        .step("test", Box::new(Emit(Rc::clone(&emitted))));
+    let mut store = open_entries(&scratch, host, &[&B1_30]).unwrap();
+    store
+        .commit_batch(&store_id(1), &[], position(1, 0), &mut Seq(1))
+        .unwrap();
+    drop(store);
+    let stored = bodies(&scratch, "test_b1");
+    assert_eq!(stored.len(), 3);
+    let first_gone = Some(Instant(i64::from(DAY - 1 + 30) * DAY_NS));
+    let mut store = open_entries(&scratch, plain(&clock), &[&B1_30]).unwrap();
+    let mut seen = Vec::new();
+    for back in [1, 2] {
+        clock.set_day(DAY - back);
+        let report = store.report().unwrap();
+        seen.push((
+            back,
+            store.expire().unwrap(),
+            report.counts.bounded,
+            report.expiry,
+        ));
+    }
+    drop(store);
+    assert_eq!(
+        seen,
+        vec![(1, 0, 3, first_gone), (2, 0, 3, first_gone)],
+        "(days back, rows removed, bounded rows, deadline)"
+    );
+    assert_eq!(bodies(&scratch, "test_b1"), stored);
+    let mut store = open_entries(&scratch, plain(&clock), &[&B1_30]).unwrap();
+    clock.set_day(DAY - 3);
+    let report = store.report().unwrap();
+    assert_eq!(
+        (report.counts.bounded, report.expiry),
+        (3, Some(Instant(clock.now()))),
+        "a row more than two days ahead is due at the clock's instant"
+    );
+    assert_eq!(store.expire().unwrap(), 2);
+    let report = store.report().unwrap();
+    assert_eq!((report.counts.bounded, report.expiry), (1, first_gone));
+    drop(store);
+    assert_eq!(bodies(&scratch, "test_b1"), vec![b1(DAY - 1).json]);
 }

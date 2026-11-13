@@ -20,6 +20,9 @@ use crate::sql::{self, Sql};
 
 pub(crate) const PAGE_CACHE_KIB: i64 = 4096;
 const MAX_ORDINAL: u64 = i64::MAX as u64;
+/// The days after the clock's day within which a stored row's day may lie and the row stay: the widest change of time
+/// zone and a clock set back by a day.
+const AHEAD_DAYS: i64 = 2;
 pub(crate) const CALL_BUDGET: Duration = Duration::from_secs(30);
 const PROGRESS_OPS: i32 = 10_000;
 
@@ -198,12 +201,14 @@ impl Tx<'_> {
     }
 
     /// The expiry by class, from the store's own rows: every bounded row whose day of `gone` has come on the local
-    /// day of the clock, or whose day lies after the clock's day, every window row whose expiry instant has passed,
-    /// and then every row that names a summary or a workflow that is not stored. It returns the number of rows
-    /// removed. `gone` is the one fact of when a bounded row goes, which the report's deadline reads too.
+    /// day of the clock, or whose day lies more than two days after the clock's day, every window row whose expiry
+    /// instant has passed, and then every row that names a summary or a workflow that is not stored. A row whose day
+    /// lies one or two days after the clock's day stays and goes on its own day of `gone`. It returns the number of
+    /// rows removed. `gone` is the one fact of when a bounded row goes, which the report's deadline reads too, and the
+    /// report reads a row too far ahead by the same statement and the same limit.
     pub(crate) fn expire(&self, now: Now) -> Result<u64, Fault> {
         let removed = self.remove(sql::EXPIRE_GONE, [now.today])?
-            + self.remove(sql::EXPIRE_AHEAD, [now.today])?
+            + self.remove(sql::EXPIRE_AHEAD, [now.ahead_limit()])?
             + self.remove(sql::EXPIRE_WINDOW, [now.now])?;
         Ok(removed + self.sweep()?)
     }
@@ -294,6 +299,11 @@ impl Now {
         } else {
             None
         }
+    }
+
+    /// The last day that a stored row's day may be and the row stay: two days after the clock's day.
+    pub(crate) fn ahead_limit(self) -> i64 {
+        self.today + AHEAD_DAYS
     }
 
     /// A window row stays while its expiry instant lies after now.
@@ -609,7 +619,12 @@ impl Db {
         .flatten();
         let gone_at =
             min_gone.map(|day| self.clock.day_start(u32::try_from(day).unwrap_or(u32::MAX)));
-        let expiry = [min_expires.map(Instant), gone_at]
+        let now = self.now();
+        let ahead = one(&self.conn, sql::EXPIRE_AHEAD, [now.ahead_limit()], |r| {
+            r.get::<_, i64>(0)
+        })?;
+        let due_now = ahead.map(|_| Instant(now.now));
+        let expiry = [min_expires.map(Instant), gone_at, due_now]
             .into_iter()
             .flatten()
             .min();
