@@ -93,7 +93,8 @@ measure() {
   data_dir=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail "mktemp failed"
   run_check "$exe" "$data_dir" "$APP_CHECK_PAGE_MAX_S" $((APP_CHECK_PAGE_MAX_S + grace_s)) "$artifacts/check-page.out" "$artifacts/check-page.err"
   printf 'check-page seconds: %s, bound: %s\n' "$check_seconds" "$APP_CHECK_PAGE_MAX_S"
-  verdict "$artifacts/check-page.out" "$check_code" "$version" "$(expected_service)"
+  service=$(expected_service) || fail "the expected service cannot be named"
+  verdict "$artifacts/check-page.out" "$check_code" "$version" "$service"
   git diff --quiet HEAD -- || fail "a tracked file differs from HEAD after the build and the check"
   printf 'PASS %s\n' "$name"
 }
