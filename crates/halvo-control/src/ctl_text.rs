@@ -641,7 +641,12 @@ mod tests {
         for (verb, name) in [(Verb::Pause, "pause"), (Verb::Resume, "resume")] {
             for desired in [CaptureState::Running, CaptureState::Paused] {
                 for &capture in Capture::ALL {
-                    for state_file in [StateFile::Ok, StateFile::WriteFailed] {
+                    for state_file in [
+                        StateFile::Ok,
+                        StateFile::Corrupt,
+                        StateFile::NewerVersion,
+                        StateFile::WriteFailed,
+                    ] {
                         let Some(status) = capture_status(desired, capture, state_file) else {
                             continue;
                         };
@@ -656,7 +661,7 @@ mod tests {
                         } else if !reached {
                             stderr.push_str(&format!("halvo-capture: the capture service answered desired={d} capture={c}, not the state that {name} asks for\n"));
                         }
-                        if state_file == StateFile::WriteFailed {
+                        if state_file != StateFile::Ok {
                             stderr.push_str(&format!(
                                 "halvo-capture: the state file was not written: {}\n",
                                 data_dir().state_file().display()
@@ -681,7 +686,7 @@ mod tests {
                 }
             }
         }
-        assert!(rows >= 40, "only {rows} rows were taken by the type");
+        assert!(rows >= 80, "only {rows} rows were taken by the type");
     }
 
     #[test]
