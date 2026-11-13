@@ -37,7 +37,9 @@ fn signal_case(signal: libc::c_int, name: &str) {
     let dir = std::env::temp_dir().join(format!("r3-web-signal-{name}-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let stand_in = standin::bundle(&dir);
-    let macos = stand_in.binary.parent().unwrap().to_path_buf();
+    // the process table names a program by its resolved path: a temporary directory under a link
+    // (the hosted Mac's /var/folders) is compared resolved
+    let macos = std::fs::canonicalize(stand_in.binary.parent().unwrap()).unwrap();
     let launcher = standin::launcher_as(&macos, "browser_late", "Google Chrome");
     let scratch = dir.join("scratch");
     std::fs::create_dir_all(&scratch).unwrap();

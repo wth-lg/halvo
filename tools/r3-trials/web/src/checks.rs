@@ -686,9 +686,14 @@ mod tests {
             let _ = c.kill();
             let _ = c.wait();
         }
+        // the holder may hold pipes that this test process inherited from its own parent (a hosted
+        // runner passes some on without close-on-exec); of the executor's four ends it holds the
+        // third alone
+        let ends = &on.ids.handles;
         assert!(
-            held.iter().all(|(_, h)| *h == on.ids.handles[2]) && !held.is_empty(),
-            "the holder holds the third end alone: {held:?}"
+            held.iter().any(|(_, h)| *h == ends[2])
+                && held.iter().all(|(_, h)| *h == ends[2] || !ends.contains(h)),
+            "the holder holds an end of the executor's other than the third: {held:?}"
         );
         assert!(found, "a holder of the third end alone was not found");
     }
