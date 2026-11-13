@@ -602,6 +602,21 @@ for (const how of ["close", "stop"]) {
   });
 }
 
+test("D3 a request cut by the stop gets the line incomplete and no answer, so a reading client gets as many answers as status lines", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir, idleMs: 1000 });
+  const peer = await openPeer(portOf(stub.app));
+  peer.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\nGET /v1/done HTTP/1.1\r\nhost: a\r\n");
+  for (let waited = 0; waited < 2000 && answersIn(peer.got()) === 0; waited += 10) await pause(10);
+  stub.close();
+  assert.equal(await settled(peer.ended, 3000), true, "the stub's end arrived");
+  peer.socket.end();
+  assert.equal(await settled(stub.stopped.then(() => true), 3000), true);
+  assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200, "incomplete"]);
+  assert.equal(answersIn(peer.got()), 1, "the cut request got no 400");
+  assert.deepEqual(keepsPromise(dir, { 1: 1 }), []);
+});
+
 if (process.platform !== "win32") {
   test("D3 (ii) on SIGTERM the command line waits its idle limit of 5,000 ms for a client that never reads, writes forced-close and exits 0", async () => {
     const dir = fresh();
