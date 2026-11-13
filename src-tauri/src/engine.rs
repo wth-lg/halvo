@@ -195,6 +195,6 @@ mod tests {
         let app = include_str!("app.rs");
         assert_eq!(app.matches(".on_download(|_, _| false)").count(), 1);
         assert_eq!(app.matches("crate::engine::guard(&window);").count(), 1);
-        assert_eq!(app.matches("WebviewWindowBuilder::from_config").count(), 1);
+        assert_eq!(app.matches("::from_config(app, &config)?").count(), 1);
     }
 }
