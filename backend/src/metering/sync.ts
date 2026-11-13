@@ -2,7 +2,7 @@ import type { UsageRefusal } from "../billing/port.ts";
 import { PROVIDER_CALL_TIMEOUT_MS } from "../billing/stripe/timeout.ts";
 import type { BillingPeriod, Micro, Ms, Sql } from "../types.ts";
 import { MICRO_PER_MINOR } from "../types.ts";
-import { LATE_READ_SPAN_MS, type Metering, type Next, REFUSAL_LIMIT, SEND_LIMIT_MS, type UsageAnswer, type UsageCall } from "./api.ts";
+import { LATE_READ_SPAN_MS, type Metering, type Next, REFUSAL_LIMIT, RETRY_DELAY_CAP_MS, SEND_LIMIT_MS, type UsageAnswer, type UsageCall } from "./api.ts";
 
 export const SYNC_RETRY_MS = 60_000;
 export const UNIQUENESS_WINDOW_MS = 86_400_000;
@@ -36,6 +36,7 @@ interface Interval {
   timestamp: number;
   firstAttempt: Ms | null;
   nextAttempt: Ms | null;
+  delay: Ms | null;
   refusals: number;
   unansweredAt: Ms | null;
   answerDueFor: Ms | null;
@@ -86,7 +87,7 @@ function wholeSecond(at: Ms): Ms {
 
 const ACCOUNT_COLUMNS = "account_id, origin, period_start, period_end, carry, written_off, cut_kind, cut_at";
 const INTERVAL_COLUMNS =
-  "start, end_at, sealed_at, amount, identifier, timestamp, first_attempt, next_attempt, refusals, unanswered, unanswered_at, answer_due, sent_at, pending_refusal, outcome";
+  "start, end_at, sealed_at, amount, identifier, timestamp, first_attempt, next_attempt, delay, refusals, unanswered, unanswered_at, answer_due, sent_at, pending_refusal, outcome";
 
 function accountOf(row: Row): Account {
   const start = wholeOrNull(row, "period_start");
@@ -114,6 +115,7 @@ function intervalOf(row: Row): Interval {
     timestamp: sealed ? whole(row, "timestamp") : 0,
     firstAttempt: wholeOrNull(row, "first_attempt"),
     nextAttempt: wholeOrNull(row, "next_attempt"),
+    delay: wholeOrNull(row, "delay"),
     refusals: whole(row, "refusals"),
     unansweredAt: timeWhileSet(row, "unanswered", "unanswered_at"),
     answerDueFor: timeWhileSet(row, "answer_due", "sent_at"),
@@ -210,6 +212,17 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
     return interval.unansweredAt !== null && now < interval.unansweredAt + lateReadSpan;
   }
 
+  function nextTry(interval: Interval, unansweredAt: Ms | null, now: Ms, delay: Ms): Ms {
+    const bounds = [interval.timestamp * 1000 + SEND_LIMIT_MS, ...(unansweredAt === null ? [] : [unansweredAt + lateReadSpan])];
+    return Math.min(now + delay, ...bounds.filter((bound) => bound > now));
+  }
+
+  function afterAChange(sql: Sql, start: Ms, now: Ms): void {
+    const interval = intervalAtStart(sql, start);
+    if (interval === null) return;
+    sql.exec("UPDATE metering_interval SET next_attempt = ?, delay = ? WHERE start = ?", nextTry(interval, interval.unansweredAt, now, SYNC_RETRY_MS), SYNC_RETRY_MS, start);
+  }
+
   function call(interval: Interval, kind: "send" | "read"): UsageCall {
     if (kind === "send") {
       return { kind: "send", interval: interval.start, identifier: interval.identifier, amountMinor: interval.amount, timestamp: interval.timestamp };
@@ -231,10 +244,12 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
       const inWindow = inFirstWindow(interval, now);
       const kind = forced ?? (interval.pendingRefusal === null && inWindow ? "send" : "read");
       const unansweredAt = interval.answerDueFor ?? interval.unansweredAt;
+      const delay = interval.delay === null ? SYNC_RETRY_MS : Math.min(2 * interval.delay, RETRY_DELAY_CAP_MS);
       sql.exec(
-        "UPDATE metering_interval SET first_attempt = ?, next_attempt = ?, attempts = attempts + 1, unanswered = ?, unanswered_at = ?, answer_due = ?, sent_at = ? WHERE start = ?",
+        "UPDATE metering_interval SET first_attempt = ?, next_attempt = ?, delay = ?, attempts = attempts + 1, unanswered = ?, unanswered_at = ?, answer_due = ?, sent_at = ? WHERE start = ?",
         interval.firstAttempt ?? (kind === "send" ? now : null),
-        now + SYNC_RETRY_MS,
+        nextTry(interval, unansweredAt, now, delay),
+        delay,
         unansweredAt === null ? 0 : 1,
         unansweredAt,
         kind === "send" ? 1 : 0,
@@ -252,6 +267,7 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
     }
     const refusals = interval.refusals + 1;
     sql.exec("UPDATE metering_interval SET refusals = ?, pending_refusal = ? WHERE start = ?", refusals, null, interval.start);
+    afterAChange(sql, interval.start, now);
     if (refusals >= REFUSAL_LIMIT) {
       close(sql, interval, "not-billable", reason, now);
       return plan(sql, now, 1, null);
@@ -278,7 +294,7 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
         "CREATE TABLE metering_account (account_id TEXT NOT NULL, origin INTEGER NOT NULL, period_start INTEGER, period_end INTEGER, carry INTEGER NOT NULL, written_off INTEGER, cut_kind TEXT CHECK (cut_kind IN ('cancel', 'delete')), cut_at INTEGER)",
       );
       sql.exec(
-        "CREATE TABLE metering_interval (start INTEGER PRIMARY KEY, end_at INTEGER NOT NULL, sealed_at INTEGER, reported INTEGER, carry_in INTEGER, amount INTEGER, carry_out INTEGER, identifier TEXT, timestamp INTEGER, first_attempt INTEGER, next_attempt INTEGER, attempts INTEGER NOT NULL, refusals INTEGER NOT NULL, unanswered INTEGER NOT NULL CHECK (unanswered IN (0, 1)), unanswered_at INTEGER, answer_due INTEGER NOT NULL CHECK (answer_due IN (0, 1)), sent_at INTEGER, pending_refusal TEXT, outcome TEXT CHECK (outcome IN ('acknowledged', 'no-call', 'written-off', 'not-billable')), refusal TEXT, closed_at INTEGER)",
+        "CREATE TABLE metering_interval (start INTEGER PRIMARY KEY, end_at INTEGER NOT NULL, sealed_at INTEGER, reported INTEGER, carry_in INTEGER, amount INTEGER, carry_out INTEGER, identifier TEXT, timestamp INTEGER, first_attempt INTEGER, next_attempt INTEGER, delay INTEGER, attempts INTEGER NOT NULL, refusals INTEGER NOT NULL, unanswered INTEGER NOT NULL CHECK (unanswered IN (0, 1)), unanswered_at INTEGER, answer_due INTEGER NOT NULL CHECK (answer_due IN (0, 1)), sent_at INTEGER, pending_refusal TEXT, outcome TEXT CHECK (outcome IN ('acknowledged', 'no-call', 'written-off', 'not-billable')), refusal TEXT, closed_at INTEGER)",
       );
     },
 
@@ -400,10 +416,12 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
           if (interval.unansweredAt === null) return refuse(sql, interval, answer.reason, now, false);
           if (interval.pendingRefusal === answer.reason) return { call: null, notBillable: 0 };
           sql.exec("UPDATE metering_interval SET pending_refusal = ? WHERE start = ?", answer.reason, interval.start);
+          afterAChange(sql, interval.start, now);
           return interval.pendingRefusal === null ? plan(sql, now, 0, "read") : { call: null, notBillable: 0 };
         }
         const unansweredAt = interval.answerDueFor ?? interval.unansweredAt ?? now;
         sql.exec("UPDATE metering_interval SET unanswered = ?, unanswered_at = ?, answer_due = ?, sent_at = ? WHERE start = ?", 1, unansweredAt, 0, null, interval.start);
+        if (interval.unansweredAt === null) afterAChange(sql, interval.start, now);
         return { call: null, notBillable: 0 };
       }
       if (answer.kind !== "total") return { call: null, notBillable: 0 };
@@ -418,6 +436,7 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
         return roundSend ? plan(sql, now, 0, "send") : { call: null, notBillable: 0 };
       }
       sql.exec("UPDATE metering_interval SET unanswered = ?, unanswered_at = ?, answer_due = ?, sent_at = ? WHERE start = ?", 0, null, 0, null, interval.start);
+      if (interval.unansweredAt !== null) afterAChange(sql, interval.start, now);
       if (interval.pendingRefusal !== null) return refuse(sql, interval, interval.pendingRefusal, now, true);
       return plan(sql, now, 0, "send");
     },

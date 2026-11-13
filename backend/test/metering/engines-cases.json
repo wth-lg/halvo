@@ -115,12 +115,7 @@
       [
         "send after the retry",
         {
-          "call": {
-            "kind": "read",
-            "interval": 1800001817000,
-            "from": 1800005416,
-            "to": 1800005417
-          },
+          "call": null,
           "notBillable": 0
         }
       ],
@@ -191,6 +186,7 @@
           "timestamp": 1800001816,
           "first_attempt": null,
           "next_attempt": 1800001817000,
+          "delay": null,
           "attempts": 0,
           "refusals": 0,
           "unanswered": 0,
@@ -213,8 +209,9 @@
           "identifier": "00000000-0000-4000-8000-0000000000e1:1800001817",
           "timestamp": 1800005416,
           "first_attempt": 1800005417000,
-          "next_attempt": 1800005597000,
-          "attempts": 4,
+          "next_attempt": 1800005717000,
+          "delay": 240000,
+          "attempts": 3,
           "refusals": 0,
           "unanswered": 1,
           "unanswered_at": 1800005417000,
@@ -237,6 +234,7 @@
           "timestamp": 1800005656,
           "first_attempt": null,
           "next_attempt": 1800005717000,
+          "delay": null,
           "attempts": 0,
           "refusals": 0,
           "unanswered": 0,

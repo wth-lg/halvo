@@ -66,7 +66,7 @@ describe("one identifier for every attempt (unit 5.1)", () => {
   test("inside the window every retry sends the same identifier again with no read, up to the last retry before the margin", async () => {
     const w = await world({ always: { kind: "request-lost" } });
     await w.use("r1", 30_000);
-    for (const at of [END, END + SYNC_RETRY_MS, END + 2 * SYNC_RETRY_MS, END + UNIQUENESS_WINDOW_MS - MARGIN - 1]) await w.clock(at);
+    for (const at of [END, END + SYNC_RETRY_MS, END + 3 * SYNC_RETRY_MS, END + UNIQUENESS_WINDOW_MS - MARGIN - 1]) await w.clock(at);
     expect(w.calls.map((each) => (each.kind === "send" ? each.identifier : each.kind))).toEqual([IDENTIFIER, IDENTIFIER, IDENTIFIER, IDENTIFIER]);
     w.close();
   });

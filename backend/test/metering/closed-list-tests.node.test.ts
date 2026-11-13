@@ -16,7 +16,7 @@ describe("the two tests that B-32 names (unit 5.1)", () => {
     await w.use("r1", 30_000);
     await w.clock(END);
     await w.clock(END + SYNC_RETRY_MS);
-    await w.clock(END + 2 * SYNC_RETRY_MS);
+    await w.clock(END + 3 * SYNC_RETRY_MS);
     const [row] = await w.intervals();
     expect(kinds(w.calls)).toEqual(["send failed after recorded", "send refused unknown_account", "read failed", "read total 3"]);
     expect([row?.outcome, row?.refusals]).toEqual(["acknowledged", 0]);
