@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { request } from 'node:http';
-import { connect } from 'node:net';
+import { connect, createServer as createNetServer } from 'node:net';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -217,30 +217,58 @@ function exitWithin(child, ms) {
   });
 }
 
+const CONTINUE = 'HTTP/1.1 100 Continue\r\n\r\n';
+
 function heldRequest(port) {
   return new Promise((resolve) => {
     const sock = connect({ host: '127.0.0.1', port });
-    sock.on('error', () => resolve(sock));
-    sock.on('connect', () => {
-      sock.write(`POST /reset HTTP/1.1\r\nHost: ${CONTROL}:${port}\r\nContent-Length: 100\r\n\r\nx`);
-      setTimeout(() => resolve(sock), 500);
+    const held = { sock, got: '', closed: new Promise((r) => sock.on('close', r)) };
+    let timer = null;
+    const done = () => {
+      clearTimeout(timer);
+      resolve(held);
+    };
+    sock.on('error', done);
+    sock.on('data', (d) => {
+      held.got += d;
+      if (held.got.includes('\r\n\r\n')) done();
     });
-    sock.setTimeout(2000, () => resolve(sock));
+    sock.on('connect', () => {
+      sock.write(`POST /reset HTTP/1.1\r\nHost: ${CONTROL}:${port}\r\nExpect: 100-continue\r\nContent-Length: 100\r\n\r\n`);
+    });
+    timer = setTimeout(done, GONE_MS);
   });
 }
 
 async function closeInput(c, s, end) {
   const held = await heldRequest(s.port);
   try {
+    c.ok(held.got === CONTINUE, 'held_request_taken_in');
+    c.ok(!(await refused(s.port)), 'refused_is_no_while_listening');
     const deadline = Date.now() + GONE_MS;
     end();
     const r = await exitWithin(s.child, GONE_MS);
     c.ok(r !== null && (await goneBy(s.child.pid, deadline)), 'server_gone_within_5s_with_a_request_in_flight');
     c.ok(r !== null && r.code === 0, 'exit_0');
     c.ok(await refused(s.port), 'port_closed');
+    await Promise.race([held.closed, sleep(1000)]);
+    c.ok(held.got === CONTINUE, 'held_request_unanswered_at_the_stop');
   } finally {
-    held.destroy();
+    held.sock.destroy();
   }
+}
+
+async function tcpPair() {
+  const srv = createNetServer();
+  await new Promise((resolve) => srv.listen(0, '127.0.0.1', resolve));
+  const accepted = new Promise((resolve) => srv.once('connection', resolve));
+  const a = connect({ host: '127.0.0.1', port: srv.address().port });
+  a.on('error', () => {});
+  await new Promise((resolve) => a.once('connect', resolve));
+  const b = await accepted;
+  b.on('error', () => {});
+  srv.close();
+  return { a, b };
 }
 
 async function startParent(input, { group = false } = {}) {
@@ -293,6 +321,29 @@ async function lifetimeCases() {
         await closeInput(c, s, () => s.child.stdin.end());
       } finally {
         if (s.child !== null && alive(s.child.pid)) process.kill(-s.child.pid, 'SIGKILL');
+      }
+    });
+  }
+
+  if (UNIX) {
+    await run('lifetime-input-reset', async (c) => {
+      const { a, b } = await tcpPair();
+      let s = { child: null };
+      try {
+        s = await startServer(HERE, ['--port', '0'], { input: a });
+        a.destroy();
+        if (!c.ok(s.child !== null, 'server_started')) return;
+        c.ok((await http(s.port, 'GET', CONTROL, '/state')).status === 200, 'serves_while_input_open');
+        const deadline = Date.now() + GONE_MS;
+        b.resetAndDestroy();
+        const r = await exitWithin(s.child, GONE_MS);
+        c.ok(r !== null && (await goneBy(s.child.pid, deadline)), 'server_gone_within_5s_after_a_reset');
+        c.ok(r !== null && r.code === 0, 'exit_0');
+        c.ok(await refused(s.port), 'port_closed');
+      } finally {
+        a.destroy();
+        b.destroy();
+        await stopServer(s);
       }
     });
   }
