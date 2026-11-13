@@ -302,10 +302,14 @@ impl ScriptedDaemon {
         self.form = form;
     }
 
+    /// While set, a mutation that this daemon's permission form serves answers `busy`; the
+    /// request of the other form still answers `unsupported_op`, and a read is answered.
     pub fn set_mutation_in_flight(&mut self, in_flight: bool) {
         self.in_flight = in_flight;
     }
 
+    /// While set, the daemon answers nothing, whatever arrives; a request that decodes still
+    /// reaches the handlers and is recorded.
     pub fn set_silent(&mut self, silent: bool) {
         self.silent = silent;
     }
@@ -505,6 +509,12 @@ impl ScriptedDaemon {
 
     /// The reply frame to the bytes that a client sent on one connection.
     pub fn serve(&mut self, received: &[u8]) -> Option<Vec<u8>> {
+        if self.silent {
+            if let Ok(body) = read_one_frame(&mut &received[..], REQUEST_MAX_BYTES) {
+                self.answer_frame(&body);
+            }
+            return None;
+        }
         if let Some(raw) = &self.raw_reply {
             return Some(raw.clone());
         }
