@@ -74,15 +74,19 @@ pub const LATCH_SETTLE: Duration = Duration::from_millis(120);
 /// The most marks that the gate keeps.
 const MARKS_KEPT: usize = 256;
 
+/// A mark of the gate: a read of the focused field, or a latch at an input
+/// time; an ordered latch comes from the keys of the input thread, in their
+/// order, and any other latch may reach the gate after later keys.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mark {
     Field(FieldState),
-    Latch,
+    Latch { ordered: bool },
 }
 
 #[derive(Debug, Clone, Copy)]
 struct Entry {
     seq: u64,
+    tick: u32,
     mark: Mark,
 }
 
@@ -131,24 +135,31 @@ fn judge(marks: &VecDeque<Entry>, key: &HeldKey, now: u32) -> Judgment {
     if key.password_edit {
         return Judgment::Decided(SecureInputReading::Active);
     }
-    let before = marks.iter().rev().find(|entry| entry.seq < key.seen);
-    let mut state = match before.map(|entry| (entry.seq, entry.mark)) {
-        None => FieldState::Unknown,
-        Some((_, Mark::Field(state))) => state,
-        Some((latch, Mark::Latch)) => {
-            let decided = marks.iter().find_map(|entry| match entry.mark {
-                Mark::Field(state) if entry.seq > latch => Some(state),
-                _ => None,
-            });
-            match decided {
-                Some(state) => state,
+    let not_after_key = |tick: u32| key.tick.wrapping_sub(tick) <= i32::MAX as u32;
+    let opens = |entry: &&Entry| {
+        entry.seq < key.seen
+            || matches!(entry.mark, Mark::Latch { ordered: false }) && not_after_key(entry.tick)
+    };
+    let opening = marks.iter().filter(opens).max_by_key(|entry| entry.seq);
+    let (mut state, from) = match opening.map(|entry| (entry.seq, entry.mark)) {
+        None => (FieldState::Unknown, key.seen),
+        Some((_, Mark::Field(state))) => (state, key.seen),
+        Some((latch, Mark::Latch { .. })) => {
+            let next = marks.iter().find(|entry| entry.seq > latch);
+            match next.map(|entry| (entry.seq, entry.mark)) {
                 None => return Judgment::Wait,
+                Some((_, Mark::Latch { .. })) => {
+                    return Judgment::Decided(SecureInputReading::Unknown)
+                }
+                Some((seq, Mark::Field(state))) => (state, key.seen.max(seq + 1)),
             }
         }
     };
-    for entry in marks.iter().filter(|entry| entry.seq >= key.seen) {
+    for entry in marks.iter().filter(|entry| entry.seq >= from) {
         match entry.mark {
-            Mark::Latch => break,
+            Mark::Latch { ordered: true } => break,
+            Mark::Latch { ordered: false } if !not_after_key(entry.tick) => break,
+            Mark::Latch { ordered: false } => {}
             Mark::Field(later) => state = most_restrictive(state, later),
         }
     }
@@ -189,11 +200,16 @@ struct Marks {
 
 impl Marks {
     fn push(&mut self, mark: Mark) {
+        self.push_at(0, mark);
+    }
+
+    fn push_at(&mut self, tick: u32, mark: Mark) {
         if self.entries.len() == MARKS_KEPT {
             self.entries.pop_front();
         }
         self.entries.push_back(Entry {
             seq: self.next_seq,
+            tick,
             mark,
         });
         self.next_seq += 1;
@@ -216,9 +232,9 @@ impl Shared {
         marks.settle_due = None;
     }
 
-    fn latch(&self, tick: u32) {
+    fn latch(&self, tick: u32, ordered: bool) {
         let mut marks = self.lock();
-        marks.push(Mark::Latch);
+        marks.push_at(tick, Mark::Latch { ordered });
         marks.settle_due = Some(tick.wrapping_add(ms(LATCH_SETTLE)));
     }
 }
@@ -251,14 +267,15 @@ impl PasswordGate {
     /// Closes the gate for keys from `tick` on until the next field mark: a
     /// click that the detector's thread saw, whose mark may come after keys
     /// that the input thread already holds.
-    pub(crate) fn click(&self, tick: u32) {
-        self.latch(tick);
+    #[cfg(test)]
+    fn click(&self, tick: u32) {
+        self.shared.latch(tick, false);
     }
 
     /// Closes the gate at `tick` until the next field mark: a key or a click
     /// that moves the focus before the focus event arrives.
     pub(crate) fn latch(&self, tick: u32) {
-        self.shared.latch(tick);
+        self.shared.latch(tick, true);
         #[cfg(target_os = "windows")]
         if let Some(detector) = self
             .detector
@@ -297,7 +314,7 @@ impl PasswordGate {
             .rev()
             .find_map(|entry| match entry.mark {
                 Mark::Field(state) => Some(state),
-                Mark::Latch => None,
+                Mark::Latch { .. } => None,
             })
             .unwrap_or(FieldState::Unknown)
     }
@@ -723,7 +740,7 @@ mod detector {
                 let time = unsafe { (*(lparam.0 as *const MSLLHOOKSTRUCT)).time };
                 LATCHED.with(|cell| {
                     if let Some(shared) = cell.borrow().as_ref() {
-                        shared.latch(time);
+                        shared.latch(time, false);
                     }
                 });
             }
@@ -744,7 +761,7 @@ mod detector {
         LATCHED.with(|cell| {
             if let Some(shared) = cell.borrow().as_ref() {
                 shared.field(FieldState::Unknown);
-                shared.latch(time);
+                shared.latch(time, false);
             }
         });
     }
@@ -1038,6 +1055,7 @@ mod tests {
         let key = gate.hold(2_000, false);
         gate.field(FieldState::Password);
         assert_eq!(reading(&gate, &key, 2_200), Some(Err(Withheld::Active)));
+        gate.field(FieldState::Clear);
         let other = gate.hold(3_000, false);
         gate.field(FieldState::Unknown);
         assert_eq!(reading(&gate, &other, 3_200), Some(Err(Withheld::Unknown)));
