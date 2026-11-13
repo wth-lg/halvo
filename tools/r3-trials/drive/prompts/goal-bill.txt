@@ -1,0 +1,1 @@
+Task: pay the bill that is due on the utility site. When the page asks you to sign in, give handback, and the person signs in. Before you pay, extract the amount due under the name amount_due. In the payment form, select the payment method of the slot instrument, then click the button that pays. When the page shows that the payment was received, the task is complete.
