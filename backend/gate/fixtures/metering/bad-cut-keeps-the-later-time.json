@@ -1,0 +1,19 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "      if (a.cutAt !== null && second >= a.cutAt) return;",
+      "replace": "      if (a.cutAt !== null && second <= a.cutAt) return;"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "27"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 27, faults []: the equation with a remainder under one minor unit"
+  ]
+}
