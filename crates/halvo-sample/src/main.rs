@@ -156,6 +156,16 @@ fn run(args: &[String]) -> Result<(Vec<String>, bool), Refusal> {
             };
             halvo_sample::input_copy::input_copy(&a).map(done)
         }
+        "leak" => {
+            let (_, rest) = parse(args, &[], &[])?;
+            let Some((tier, list)) = rest.split_first() else {
+                return Err(Refusal::new("usage", "TIER PATH..."));
+            };
+            if list.is_empty() {
+                return Err(Refusal::new("usage", "TIER PATH..."));
+            }
+            halvo_sample::leak::leak(&PathBuf::from(tier), list)
+        }
         _ => Err(Refusal::new("usage", USAGE)),
     }
 }

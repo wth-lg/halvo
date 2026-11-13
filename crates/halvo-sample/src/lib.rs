@@ -11,6 +11,7 @@ pub mod form;
 pub mod input_copy;
 pub mod labels;
 pub mod layers;
+pub mod leak;
 pub mod manifest;
 pub mod rng;
 pub mod script;
