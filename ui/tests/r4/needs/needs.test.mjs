@@ -2270,11 +2270,11 @@ async function holds(origin, dir) {
     });
   }
   const h9 = 'h9_an_item_that_came_with_a_confirmation';
-  await flow(h9, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, ready]) }, answerLine(confirm), { state: snap(3, [stuck, ready]) }], async (h, k) => {
+  await flow(h9, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, ready]) }, answerLine(confirm), gate, { state: snap(3, [stuck, ready]) }], async (h, k) => {
     await pass(h, [stuck, confirm, ready]);
     await answerOpen(h);
     await afterClose(h);
-    await waitIds(h, [stuck, ready]);
+    await pass(h, [stuck, ready]);
     await afterClose(h);
     expect(h9 + '_after_the_reply_without_the_answered_confirmation', await k.says(), ['Ready came.']);
   });
