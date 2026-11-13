@@ -20,7 +20,9 @@ pub fn same_address(a: &str, b: &str) -> bool {
 /// The senders of the slot `reply_senders` (CP-112): the text cut at each comma, each piece without the ASCII
 /// spaces at its ends, in the order of the text. Refuses the whole slot for an empty piece, so also for an empty
 /// text, for a piece that is no address by the adapter's rule for a sender, and for a piece that is one address
-/// with an earlier piece by [`same_address`], with the first fault in the order of the text:
+/// with an earlier piece by [`same_address`], with the first fault in the order of the text. The adapter's rule
+/// for a sender takes a piece of at most 320 bytes with one `@`, at least one byte on each side of it, and every
+/// byte printable ASCII, no space and none of the eleven bytes `"(),:;<>[\]`:
 ///
 /// ```
 /// use halvo_connect::{reply_senders, SendersError};
@@ -53,8 +55,6 @@ pub fn reply_senders(slot: &str) -> Result<Vec<String>, SendersError> {
     Ok(senders)
 }
 
-/// The adapter's rule for a sender: at most 320 bytes, one `@` with at least one byte before it and one after it,
-/// and every byte printable ASCII that is no space and none of the specials `"(),:;<>[\]` of RFC 5322.
 pub(crate) fn is_sender(text: &str) -> bool {
     text.len() <= ADDRESS_MAX
         && text
@@ -70,7 +70,7 @@ pub(crate) fn is_sender(text: &str) -> bool {
 pub enum SendersError {
     /// A piece is empty once its ASCII spaces are trimmed.
     Empty,
-    /// A piece is no address by the adapter's rule for a sender.
+    /// A piece is no address by the adapter's rule for a sender, which the doc of [`reply_senders`] states.
     NotAnAddress,
     /// A piece is one address with an earlier piece.
     Twice,
