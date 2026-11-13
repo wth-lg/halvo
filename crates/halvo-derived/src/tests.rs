@@ -1,10 +1,14 @@
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
+use halvo_schema_core::kinds;
+use halvo_schema_core::record::{Instant, Proposal, RecurrenceStep, SummaryRead};
 use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode};
 
 use crate::db::{due_now, require, Now, Progress, Tx};
 use crate::error::OpenError;
-use crate::sql;
+use crate::{sql, Clock, DbKey, Host, IdSource, Store};
 
 #[test]
 fn no_catalogued_statement_plans_a_temporary_b_tree() {
@@ -110,4 +114,86 @@ fn a_row_more_than_two_days_after_the_clock_is_due_now_and_one_two_days_after_it
     assert!(due_now(&conn, NOW).unwrap());
     assert_eq!(Tx::new(&conn).expire(NOW).unwrap(), 1);
     assert!(!due_now(&conn, NOW).unwrap());
+}
+
+const DAY_NS: i64 = 86_400_000_000_000;
+
+/// The clock of the unit tests: noon of `TODAY`, standing still.
+struct UnitClock;
+
+impl Clock for UnitClock {
+    fn now(&self) -> Instant {
+        Instant(NOW.now)
+    }
+
+    fn day(&self, at: Instant) -> u32 {
+        u32::try_from(at.0.div_euclid(DAY_NS)).unwrap_or(0)
+    }
+
+    fn day_start(&self, day: u32) -> Instant {
+        Instant(i64::from(day) * DAY_NS)
+    }
+}
+
+struct NoProposals;
+
+impl RecurrenceStep for NoProposals {
+    fn propose(&self, _summaries: &dyn SummaryRead) -> Vec<Proposal> {
+        Vec::new()
+    }
+}
+
+struct Counting(u8);
+
+impl IdSource for Counting {
+    fn fill(&mut self, bytes: &mut [u8]) {
+        for byte in bytes {
+            self.0 = self.0.wrapping_add(1);
+            *byte = self.0;
+        }
+    }
+}
+
+/// A data directory of its own under the temporary directory, one per call.
+fn data_dir(name: &str) -> PathBuf {
+    static COUNT: AtomicUsize = AtomicUsize::new(0);
+    let n = COUNT.fetch_add(1, Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!("derived-unit-{name}-{}-{n}", std::process::id()));
+    std::fs::create_dir_all(&path).unwrap();
+    path
+}
+
+fn open_unit(dir: &Path) -> Store {
+    let entries: Vec<_> = kinds::registry().collect();
+    Store::open(
+        dir,
+        &DbKey::new([7; 32]),
+        &entries,
+        Host::new(Box::new(UnitClock), Box::new(NoProposals)),
+        &mut Counting(0),
+    )
+    .unwrap()
+}
+
+/// `PRAGMA secure_delete` as the store's one connection, the one of its writes and its reads, gives it.
+fn secure_delete(store: &Store) -> i64 {
+    store
+        .db
+        .conn
+        .query_row("PRAGMA secure_delete", [], |r| r.get(0))
+        .unwrap()
+}
+
+#[test]
+fn the_store_s_own_connection_has_secure_delete_on_after_a_first_and_a_second_open() {
+    let dir = data_dir("secure-delete");
+    let store = open_unit(&dir);
+    assert_eq!(secure_delete(&store), 1, "after the first open");
+    drop(store);
+    let store = open_unit(&dir);
+    assert_eq!(
+        secure_delete(&store),
+        1,
+        "after a second open of the same files"
+    );
 }

@@ -17,6 +17,7 @@ esac
 #= src/lib.rs hash::tests::the_site_hash_is_hmac_sha256
 #= src/lib.rs tests::expire_removes_and_counts_a_bounded_row_with_no_day_which_the_report_reads_as_due_now
 #= src/lib.rs tests::a_row_more_than_two_days_after_the_clock_is_due_now_and_one_two_days_after_it_is_not
+#= src/lib.rs tests::the_store_s_own_connection_has_secure_delete_on_after_a_first_and_a_second_open
 #= tests/open.rs open_refuses_a_key_that_does_not_open_the_database
 #= tests/open.rs open_refuses_while_another_store_holds_the_writer_lock
 #= tests/open.rs the_database_refuses_another_connection_while_the_store_is_open
