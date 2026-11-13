@@ -58,8 +58,6 @@ pub const S3_LARGEST_KEY_TO_FOCUS_EVENT: Duration = Duration::from_micros(75_300
 
 const _: () = assert!(KEY_HOLD.as_micros() > S3_LARGEST_KEY_TO_FOCUS_EVENT.as_micros());
 
-/// Where a latch comes from: the input thread, in order with the keys, or
-/// another thread, whose mark may reach the gate after later keys.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LatchFrom {
     TheInputThread,
@@ -244,7 +242,6 @@ impl Shared {
     }
 }
 
-/// The state of a focus read that ended in an error.
 pub(crate) fn unreadable_state() -> FieldState {
     state_of(FocusRead::Unreadable, false)
 }
@@ -425,7 +422,6 @@ mod detector {
 
     pub(super) type DesktopHookRemover = fn(HWINEVENTHOOK) -> windows::core::Result<()>;
 
-    /// The detector's two removal calls, which its stop answers.
     #[derive(Clone, Copy)]
     pub(super) struct Removals {
         pub(super) handler: HandlerRemover,
@@ -612,8 +608,6 @@ mod detector {
         }
     }
 
-    /// The argument that makes a property that no provider answers read as
-    /// no answer, not as the property's default value.
     const DEFAULT_IS_NO_ANSWER: bool = true;
 
     fn is_firefox(pid: i32) -> bool {

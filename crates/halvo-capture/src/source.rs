@@ -10,15 +10,18 @@ use crate::sink::{SinkError, SinkHandle};
 /// source, because every such box has one address: either panics with the text
 /// for a source that implements neither pair.
 pub trait CaptureSource {
+    /// Retired: no product code calls it, and the default body panics.
     fn modality(&self) -> Modality {
         panic!("CaptureSource::modality is retired and has no default answer")
     }
 
+    /// The old form of [`CaptureSource::begin`].
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
         let _call = DefaultPairCall::enter(&*self, DefaultMember::Start);
         self.begin(SourceContext::new(sink)).map(|_| ())
     }
 
+    /// The old form of [`CaptureSource::shutdown`].
     fn stop(&mut self) {
         let _call = DefaultPairCall::enter(&*self, DefaultMember::Stop);
         let _ = self.shutdown();

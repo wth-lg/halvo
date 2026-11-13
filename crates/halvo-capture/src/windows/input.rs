@@ -113,8 +113,6 @@ pub(crate) fn button_went_down(button_flags: u16) -> bool {
     button_flags & BUTTON_DOWN_FLAGS != 0
 }
 
-/// The button flags of a raw mouse record, the one field of it that the
-/// keyboard source reads.
 pub(crate) fn button_flags_of(bytes: &[u8]) -> Option<u16> {
     let header = core::mem::size_of::<RAWINPUTHEADER>();
     let kind = u32::from_ne_bytes(bytes.get(..4)?.try_into().ok()?);
@@ -125,8 +123,6 @@ pub(crate) fn button_flags_of(bytes: &[u8]) -> Option<u16> {
     Some(u16::from_ne_bytes(bytes.get(at..at + 2)?.try_into().ok()?))
 }
 
-/// The gate that a raw button-down closes while a keyboard source runs, and
-/// which source's window holds the process's one raw mouse registration.
 struct ClickRoute {
     gate: Option<Arc<PasswordGate>>,
     keyboard_window: Option<usize>,
@@ -201,8 +197,6 @@ fn click_from_the_pointer_pump(button_flags: u16, tick: u32) {
     }
 }
 
-/// Closes `gate` at `tick` when `bytes` is a raw mouse record whose button
-/// flags say that a button went down; reads nothing else of the record.
 pub(crate) fn latch_on_button_down(gate: &PasswordGate, bytes: &[u8], tick: u32) -> bool {
     let down = button_flags_of(bytes).is_some_and(button_went_down);
     if down {
@@ -447,8 +441,6 @@ type RemoveCall = fn(&RAWINPUTDEVICE) -> windows::core::Result<()>;
 
 type RegisterCall = fn(&RAWINPUTDEVICE) -> windows::core::Result<()>;
 
-/// The stage of the call that removes the keyboard source's raw mouse
-/// registration.
 pub(crate) const MOUSE_REMOVE_STAGE: &str = "RegisterRawInputDevices(RIDEV_REMOVE, mouse)";
 
 fn module_of_the_process() -> windows::core::Result<HINSTANCE> {
