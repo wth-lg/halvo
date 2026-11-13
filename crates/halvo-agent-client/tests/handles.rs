@@ -168,25 +168,28 @@ fn test_process_has_a_console() -> bool {
         fn GetConsoleProcessList(list: *mut u32, count: u32) -> u32;
     }
     let mut list = [0u32; 4];
+    // SAFETY: `list` is live and writable for the count of entries passed, and the call writes at most that many.
     unsafe { GetConsoleProcessList(list.as_mut_ptr(), list.len() as u32) > 0 }
 }
 
 #[cfg(windows)]
-#[test]
-fn a_windows_runner_has_a_console_of_its_own_that_the_library_is_not_attached_to_and_that_shows_no_window(
-) {
+fn console_lines(case: &str, detached: bool) -> (String, String) {
     use std::os::windows::process::CommandExt;
     const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
     let own = test_process_has_a_console();
+    let flags = if detached {
+        DETACHED_PROCESS
+    } else if own {
+        0
+    } else {
+        CREATE_NEW_CONSOLE
+    };
     eprintln!(
-        "u49-console: the test process has a console: {}",
-        if own {
-            "yes"
-        } else {
-            "no; the host gets one of its own"
-        }
+        "u49-console {case}: the test process has a console: {}; the host's creation flags: {flags:#x}",
+        if own { "yes" } else { "no" }
     );
-    let dir = common::scratch("console");
+    let dir = common::scratch(&format!("console-{case}"));
     let script = Script::new(
         &dir,
         &["hello", "console {host-pid}", "log probed", "exit 0"],
@@ -198,10 +201,8 @@ fn a_windows_runner_has_a_console_of_its_own_that_the_library_is_not_attached_to
         .arg(dir.join("owner.log"))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    if !own {
-        cmd.creation_flags(CREATE_NEW_CONSOLE);
-    }
+        .stderr(Stdio::piped())
+        .creation_flags(flags);
     let mut child = cmd.spawn().unwrap();
     let out = captured(child.stdout.take().unwrap());
     let _err = captured(child.stderr.take().unwrap());
@@ -216,16 +217,53 @@ fn a_windows_runner_has_a_console_of_its_own_that_the_library_is_not_attached_to
         String::from_utf8_lossy(&out.lock().unwrap())
     );
     drop(host);
-    let line = logged_value(&script.log(), "console ");
-    eprintln!("u49-console: the runner's console: {line}");
+    let runner = logged_value(&script.log(), "console ");
+    let child = logged_value(&script.log(), "console-child ");
+    eprintln!("u49-console {case}: the runner's console: {runner}");
+    eprintln!("u49-console {case}: its child's console: {child}");
+    (runner, child)
+}
+
+#[cfg(windows)]
+fn assert_the_child_shares_the_runners_console(child: &str) {
+    for word in [" runner=yes ", " host=no ", " window=none"] {
+        assert!(
+            child.contains(word),
+            "the runner's console child reports {child}, not {word}"
+        );
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn a_windows_runner_has_a_console_of_its_own_that_the_library_is_not_attached_to_and_that_shows_no_window(
+) {
+    let (runner, child) = console_lines("shared", false);
     assert!(
-        line.contains(" host=no "),
-        "the library's process is attached to the runner's console: {line}"
+        runner.contains(" host=no "),
+        "the library's process is attached to the runner's console: {runner}"
     );
     assert!(
-        !line.contains("window=visible"),
-        "the runner's console shows a window: {line}"
+        !runner.contains("window=visible"),
+        "the runner's console shows a window: {runner}"
     );
+    assert_the_child_shares_the_runners_console(&child);
+}
+
+#[cfg(windows)]
+#[test]
+fn a_windows_runner_of_a_library_with_no_console_has_a_console_with_no_window_that_its_child_shares(
+) {
+    let (runner, child) = console_lines("detached", true);
+    assert!(
+        runner.contains(" host=no "),
+        "the library's process is attached to the runner's console: {runner}"
+    );
+    assert!(
+        runner.ends_with(" window=none"),
+        "the runner's console has a window: {runner}"
+    );
+    assert_the_child_shares_the_runners_console(&child);
 }
 
 #[test]
@@ -432,5 +470,167 @@ fn a_runner_that_exits_while_a_helper_holds_its_output_end_is_seen_as_ended() {
     assert!(
         holder.lives(&script),
         "the helper that holds the link still lives after the run ended"
+    );
+}
+
+#[cfg(target_os = "macos")]
+fn host_run(name: &str, lines: &[&str]) -> String {
+    let dir = common::scratch(name);
+    let script = Script::new(&dir, lines);
+    let mut child = Command::new(common::peer())
+        .arg("host")
+        .arg(dir.join("data"))
+        .arg(&script.path)
+        .arg(dir.join("owner.log"))
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let out = captured(child.stdout.take().unwrap());
+    let mut host = Host {
+        child,
+        dir: dir.clone(),
+    };
+    let ended = || {
+        String::from_utf8_lossy(&out.lock().unwrap())
+            .lines()
+            .any(|l| l.starts_with("end "))
+    };
+    let done = wait_until(SHORT, || script.log().contains("\nprobed") && ended());
+    let log = script.log();
+    let printed = String::from_utf8_lossy(&out.lock().unwrap()).into_owned();
+    host.child.kill().unwrap();
+    host.child.wait().unwrap();
+    assert!(
+        done,
+        "the runner probed and the host reported the run's end: {log}; the host printed {printed:?}"
+    );
+    log
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn a_runner_holds_its_three_descriptors_and_no_other_while_the_library_holds_descriptors_of_each_kind_at_low_and_high_numbers(
+) {
+    let log = host_run(
+        "held-kinds",
+        &[
+            "hello",
+            "log {host-held}",
+            "descriptors",
+            "log probed",
+            "exit 0",
+        ],
+    );
+    let held = logged_value(&log, "held ");
+    eprintln!("u49-held: {held}");
+    for place in [
+        " 3:file",
+        " 101:pipe-read",
+        " 102:directory",
+        " 103:kqueue",
+        " 104:socket",
+        " 256:pipe-write",
+    ] {
+        assert!(
+            held.contains(place),
+            "the host holds {place} without close-on-exec: {held}"
+        );
+    }
+    let high = held
+        .rsplit(' ')
+        .next()
+        .and_then(|p| p.strip_suffix(":socket"))
+        .and_then(|n| n.parse::<u32>().ok())
+        .unwrap_or(0);
+    assert!(
+        high >= 257,
+        "the host holds a socket end at a high number: {held}"
+    );
+    assert_eq!(
+        logged_value(&log, "descriptors first="),
+        "0,1,2",
+        "the descriptors that stand open in the runner as its first act"
+    );
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn a_library_that_holds_150_more_descriptors_still_starts_its_runner_which_holds_its_three() {
+    use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+    extern "C" {
+        fn fcntl(fd: i32, cmd: i32, ...) -> i32;
+    }
+    const F_DUPFD_CLOEXEC: i32 = 67;
+    let rig = common::Rig::new("many-fds");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(rig.dir.join("held"))
+        .unwrap();
+    let mut held = Vec::new();
+    for _ in 0..150 {
+        // SAFETY: fcntl takes the number of `file`, which is open for the whole loop, and returns a new number.
+        let fd = unsafe { fcntl(file.as_raw_fd(), F_DUPFD_CLOEXEC, 3) };
+        assert!(fd > 2, "a duplicate descriptor: {fd}");
+        // SAFETY: `fd` is a new descriptor of this process that nothing else owns.
+        held.push(unsafe { OwnedFd::from_raw_fd(fd) });
+    }
+    let script = rig.script(&["hello", "descriptors", "log probed", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    let started = rig.sup.start(spec);
+    let probed = started.is_ok() && script.wait_log("probed", SHORT);
+    let log = script.log();
+    let _ = rig.sup.kill(&run);
+    drop(held);
+    assert_eq!(
+        started,
+        Ok(()),
+        "the start while the library holds 150 more descriptors"
+    );
+    assert!(probed, "the runner probed: {log}");
+    assert_eq!(
+        logged_value(&log, "descriptors first="),
+        "0,1,2",
+        "the descriptors that stand open in the runner as its first act"
+    );
+}
+
+#[test]
+fn a_holder_that_the_test_starts_with_a_bound_of_one_second_exits_by_itself_with_the_status_0() {
+    let dir = common::scratch("holder-bound");
+    let log = dir.join("holder.log");
+    fs::write(&log, b"").unwrap();
+    let mut cmd = Command::new(common::peer());
+    if cfg!(windows) {
+        cmd.arg("hold")
+            .arg("0")
+            .arg("0")
+            .arg("0")
+            .arg(&log)
+            .arg("1");
+    } else {
+        cmd.arg("holder").arg("1");
+    }
+    let mut child = cmd
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let ended = wait_until(Duration::from_secs(10), || {
+        child.try_wait().is_ok_and(|s| s.is_some())
+    });
+    if !ended {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    assert!(ended, "the holder did not exit by itself within 10 s");
+    assert_eq!(
+        child.wait().unwrap().code(),
+        Some(0),
+        "the holder's exit status"
     );
 }

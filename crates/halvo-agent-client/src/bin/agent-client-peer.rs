@@ -48,6 +48,8 @@ enum OnEof {
 
 const FLOOD_CHUNK: usize = 65_536;
 
+const HOLD_BOUND: u64 = 240;
+
 fn write_stderr(bytes: &[u8]) -> bool {
     let mut err = io::stderr().lock();
     err.write_all(bytes).is_ok() && err.flush().is_ok()
@@ -112,13 +114,43 @@ fn stderr_kind() -> &'static str {
     }
 }
 
-#[cfg(unix)]
-fn console_line(_host: u32) -> String {
-    "console none".to_owned()
+#[cfg(target_os = "macos")]
+fn own_descriptors() -> String {
+    extern "C" {
+        fn proc_pidinfo(
+            pid: i32,
+            flavor: i32,
+            arg: u64,
+            buffer: *mut std::ffi::c_void,
+            size: i32,
+        ) -> i32;
+    }
+    const PROC_PIDLISTFDS: i32 = 1;
+    let mut list = vec![[0u32; 2]; 65_536];
+    let room = (list.len() * 8) as i32;
+    let pid = std::process::id() as i32;
+    // SAFETY: `list` is live and writable for `room` bytes, the size passed, and the call writes at most that.
+    let got = unsafe { proc_pidinfo(pid, PROC_PIDLISTFDS, 0, list.as_mut_ptr().cast(), room) };
+    if got <= 0 || got >= room {
+        return "unreadable".to_owned();
+    }
+    let mut fds: Vec<u32> = list[..got as usize / 8].iter().map(|e| e[0]).collect();
+    fds.sort_unstable();
+    fds.iter().map(u32::to_string).collect::<Vec<_>>().join(",")
 }
 
 #[cfg(windows)]
-fn console_line(host: u32) -> String {
+fn own_descriptors() -> String {
+    "none".to_owned()
+}
+
+#[cfg(unix)]
+fn console_line(_host: u32, _runner: u32) -> String {
+    "attached=none".to_owned()
+}
+
+#[cfg(windows)]
+fn console_line(host: u32, runner: u32) -> String {
     use std::ffi::c_void;
     #[link(name = "kernel32")]
     extern "system" {
@@ -130,19 +162,25 @@ fn console_line(host: u32) -> String {
         fn IsWindowVisible(window: *mut c_void) -> i32;
     }
     let mut list = [0u32; 256];
+    // SAFETY: `list` is live and writable for the count of entries passed, and the call writes at most that many.
     let n = unsafe { GetConsoleProcessList(list.as_mut_ptr(), list.len() as u32) };
     let held = &list[..(n as usize).min(list.len())];
+    let yes = |pid: u32| if held.contains(&pid) { "yes" } else { "no" };
+    // SAFETY: GetConsoleWindow takes no argument and returns a window handle or null.
     let window = unsafe { GetConsoleWindow() };
+    // SAFETY: `window` is the handle that GetConsoleWindow returned, which the call only reads.
+    let visible = !window.is_null() && unsafe { IsWindowVisible(window) } != 0;
     let window = if window.is_null() {
         "none"
-    } else if unsafe { IsWindowVisible(window) } != 0 {
+    } else if visible {
         "visible"
     } else {
         "hidden"
     };
     format!(
-        "console attached={n} host={} window={window}",
-        if held.contains(&host) { "yes" } else { "no" }
+        "attached={n} runner={} host={} window={window}",
+        yes(runner),
+        yes(host)
     )
 }
 
@@ -238,7 +276,12 @@ fn hold(args: &[String]) -> ! {
             let _ = f.write_all(format!("holder holds={held}\n").as_bytes());
         }
     }
-    sleep_forever()
+    let bound = args
+        .get(5)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(HOLD_BOUND);
+    thread::sleep(Duration::from_secs(bound));
+    std::process::exit(0)
 }
 
 #[cfg(unix)]
@@ -380,6 +423,7 @@ struct Peer {
     out: io::Stdout,
     replies: Receiver<Vec<u8>>,
     on_eof: Arc<Mutex<OnEof>>,
+    first_descriptors: String,
     browsers: Arc<Mutex<Vec<Child>>>,
 }
 
@@ -675,11 +719,33 @@ impl Peer {
                     self.log.line("relative removed=yes");
                 }
             }
-            "console" => self.log.line(&console_line(rest.parse().unwrap_or(0))),
+            "console" => {
+                let host = rest.parse().unwrap_or(0);
+                let me = std::process::id();
+                self.log
+                    .line(&format!("console {}", console_line(host, me)));
+                let reported = std::env::current_exe().and_then(|exe| {
+                    Command::new(exe)
+                        .arg("console-report")
+                        .arg(host.to_string())
+                        .arg(me.to_string())
+                        .arg(&self.log_path)
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .status()
+                });
+                if !reported.is_ok_and(|s| s.success()) {
+                    self.log.line("console-child failed");
+                }
+            }
             "pipes" => self
                 .log
                 .line(&format!("pipes beyond={}", pipes_beyond_three())),
             "holder" => self.holder(),
+            "descriptors" => self
+                .log
+                .line(&format!("descriptors first={}", self.first_descriptors)),
             "wait-for" => {
                 let there = wait_for_file(Path::new(rest), Duration::from_secs(30));
                 self.log.line(&format!(
@@ -913,6 +979,7 @@ fn on_link_end(log: &Log, on_eof: &Mutex<OnEof>, browsers: &Mutex<Vec<Child>>) {
 }
 
 fn runner(args: &[String]) {
+    let first_descriptors = own_descriptors();
     let script = PathBuf::from(arg_after(args, "--browser"));
     let log_path = Path::new(&format!("{}.log", script.display())).to_path_buf();
     let file = match OpenOptions::new().create(true).append(true).open(&log_path) {
@@ -962,6 +1029,7 @@ fn runner(args: &[String]) {
         out: io::stdout(),
         replies: rx,
         on_eof,
+        first_descriptors,
         browsers,
     };
     for line in text.lines().filter(|l| !l.trim().is_empty()) {
@@ -1010,34 +1078,64 @@ fn main() {
             sleep_forever();
         }
         Some("child") => sleep_forever(),
+        Some("console-report") => {
+            let pid = |i: usize| args.get(i).and_then(|v| v.parse().ok()).unwrap_or(0);
+            let line = format!("console-child {}\n", console_line(pid(1), pid(2)));
+            let wrote = args.get(3).is_some_and(|log| {
+                OpenOptions::new()
+                    .append(true)
+                    .open(log)
+                    .is_ok_and(|mut f| f.write_all(line.as_bytes()).is_ok())
+            });
+            std::process::exit(if wrote { 0 } else { 1 });
+        }
         #[cfg(unix)]
         Some("holder-parent") => {
             use std::os::unix::process::CommandExt;
+            let bound = args
+                .get(2)
+                .cloned()
+                .unwrap_or_else(|| HOLD_BOUND.to_string());
             let made = std::env::current_exe().and_then(|exe| {
                 Command::new(exe)
                     .arg("holder")
+                    .arg(&bound)
                     .stdin(Stdio::inherit())
                     .stdout(Stdio::inherit())
                     .stderr(Stdio::null())
                     .process_group(0)
                     .spawn()
             });
-            let Ok(c) = made else {
+            let Ok(mut c) = made else {
                 std::process::exit(1);
             };
-            let created = process::creation_time(c.id())
-                .map(|t| t.to_string())
-                .unwrap_or_default();
-            if let Some(log) = args.get(1) {
-                if let Ok(mut f) = OpenOptions::new().append(true).open(log) {
-                    let line = format!("child pid={} created={created}\n", c.id());
-                    let _ = f.write_all(line.as_bytes());
-                }
+            let written = process::creation_time(c.id()).is_some_and(|created| {
+                args.get(1).is_some_and(|log| {
+                    OpenOptions::new()
+                        .append(true)
+                        .open(log)
+                        .is_ok_and(|mut f| {
+                            let line = format!("child pid={} created={created}\n", c.id());
+                            f.write_all(line.as_bytes()).is_ok()
+                        })
+                })
+            });
+            if !written {
+                let _ = c.kill();
+                let _ = c.wait();
+                std::process::exit(1);
             }
             std::process::exit(0);
         }
         #[cfg(unix)]
-        Some("holder") => sleep_forever(),
+        Some("holder") => {
+            let bound = args
+                .get(1)
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(HOLD_BOUND);
+            thread::sleep(Duration::from_secs(bound));
+            std::process::exit(0);
+        }
         #[cfg(windows)]
         Some("hold") => hold(&args),
         Some("stderr-child") => {

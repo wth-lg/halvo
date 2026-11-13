@@ -134,14 +134,16 @@ pub struct RunEnd {
 /// How a runner's process ended, as the system gave it to the library when the library reaped it: the status that
 /// it exited with, of which 2 is a refusal (A0.3), or on macOS the signal that ended it. A runner that the library
 /// ended exits by the signal SIGKILL on macOS and with the status 1 on Windows; a runner that the system reaped for
-/// the library's process, as it does for a process that ignores SIGCHLD on macOS, leaves the library no status.
+/// the library's process, as it does for a process that ignores SIGCHLD on macOS, leaves the library no status. On
+/// Windows the status 1 is what a runner gives that the library ended and what a runner gives that exits with 1 by
+/// itself: the two cannot be told apart there.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RunnerExit {
     /// The runner exited with this status.
     Status(i32),
     /// A signal of this number ended the runner (macOS).
     #[cfg_attr(
-        windows,
+        all(windows, not(test)),
         expect(dead_code, reason = "no signal ends a process on Windows")
     )]
     Signal(i32),
@@ -182,20 +184,24 @@ pub struct Parts {
 ///
 /// The library starts the runner with three of its handles or descriptors open in it and no other: the two ends of
 /// the link as the runner's standard input and output, and the null device as its standard error, which nobody
-/// reads. On Windows the runner gets a console of its own that shows no window, which the processes that it starts
-/// share, so it can open no stream of a console of the library's process. A process that another thread of the
-/// library's process starts in the moment in which a runner is started, by another start, the standard library's
-/// among them, can hold the ends of the runner's link: on Windows while the three handles are inheritable for the
-/// start, on macOS between the making of a pipe and its close-on-exec flag. The library cannot keep such a process
-/// out. What bounds it: the library ends a runner `link_end` after it closed the link, whether or not the runner saw
-/// the end of its input, and it takes a runner's end from its process and not from the end of its output alone.
+/// reads. On Windows the runner gets a console of its own that shows no window, which a process that it starts
+/// without a console flag of its own shares, so the runner starts attached to no console of the library's process;
+/// a runner under the library's token can still attach itself to a console of the library's process by that
+/// process's number, as it can open its parent process. A process that another thread of the library's process
+/// starts in the moment in which a runner is started, by another start, the standard library's among them, can hold
+/// the ends of the runner's link: on Windows while the three handles are inheritable for the start, on macOS between
+/// the making of a pipe and its close-on-exec flag. While the run lives, such a process can read and write the
+/// frames of the link. The library cannot keep such a process out. What bounds it: the library ends a runner
+/// `link_end` after it closed the link, whether or not the runner saw the end of its input, and it takes a runner's
+/// end from its process and not from the end of its output alone.
 /// The runner gets a whole environment of its own and nothing else of the library's: on macOS `HOME`, as the
 /// library's process has it, and `TMPDIR`, the per-user temporary directory that the system answers; on Windows
 /// `LOCALAPPDATA`, as the library's process has it, and `SystemRoot`, `TEMP` and `TMP`, as the system answers them
 /// for the account of the library's token, `TEMP` and `TMP` the directory Temp under its LocalAppData known folder.
 /// `HOME` and `LOCALAPPDATA` are not set where the library's process has none. The runner works in `/` on macOS
 /// and in the system directory on Windows, never in the library's working directory or in `data_dir`, so `runner`,
-/// `data_dir` and the paths of a `RunSpec` are absolute: `absolute_paths` names the first that is not.
+/// `data_dir` and the paths of a `RunSpec` must be absolute; `absolute_paths` names the first that is not, and
+/// `Supervisor::start` does not call it yet.
 #[derive(Clone, Debug)]
 pub struct Config {
     pub data_dir: PathBuf,
@@ -310,6 +316,23 @@ mod tests {
             absolute_paths(&c, &spec(absolute("browser"), Some(absolute("model")))),
             Ok(())
         );
+    }
+
+    #[test]
+    fn of_the_ends_of_a_runner_the_status_2_alone_is_a_refusal() {
+        for status in [0, 1, 3, 255] {
+            assert!(
+                !RunnerExit::Status(status).is_refusal(),
+                "the status {status} is no refusal"
+            );
+        }
+        assert!(RunnerExit::Status(2).is_refusal(), "the status 2 is one");
+        for signal in [2, 9] {
+            assert!(
+                !RunnerExit::Signal(signal).is_refusal(),
+                "the signal {signal} is no refusal"
+            );
+        }
     }
 
     #[test]

@@ -92,6 +92,10 @@ pub(crate) fn user_temp_dir() -> Option<OsString> {
 /// standard input, output and error. The child reads its list of open descriptors after the fork, into room that
 /// this process makes beforehand for twice as many as it holds now; a list that cannot be read, that fills the room
 /// or a descriptor that cannot be marked fails the start, so that no start goes on with a descriptor left open.
+/// Two limits: no test makes the list call or a mark fail in the child, because nothing can make them fail there,
+/// so the tests hold `listed` and `mark_close_on_exec` instead; and no test holds that the room is twice the count:
+/// the doubling guards a start against descriptors that other threads open between the count and the fork, and a
+/// start that outruns its room fails closed.
 pub(crate) fn close_beyond_three(cmd: &mut Command) {
     let own = i32::try_from(std::process::id()).unwrap_or(0);
     let held = unsafe { proc_pidinfo(own, PROC_PIDLISTFDS, 0, std::ptr::null_mut(), 0) };
@@ -106,12 +110,26 @@ fn close_at_exec_beyond_three(list: &mut [ProcFdInfo]) -> io::Result<()> {
     let room = i32::try_from(std::mem::size_of_val(list))
         .map_err(|_| io::Error::from_raw_os_error(EMFILE))?;
     let pid = i32::try_from(std::process::id()).map_err(|_| io::Error::from_raw_os_error(ESRCH))?;
+    // SAFETY: `list` is live and writable for `room` bytes, the size passed, and the call writes at most that.
     let got = unsafe { proc_pidinfo(pid, PROC_PIDLISTFDS, 0, list.as_mut_ptr().cast(), room) };
+    let open = listed(got, room)?;
+    mark_close_on_exec(&list[..open])
+}
+
+/// The count of entries in `got`, the answer of a list call into `room` bytes: an answer of 0 or less is no list,
+/// and an answer that fills the room may have been cut short, so both refuse. Allocates nothing and takes no lock.
+fn listed(got: i32, room: i32) -> io::Result<usize> {
     if got <= 0 || got >= room {
         return Err(io::Error::from_raw_os_error(EMFILE));
     }
-    let open = usize::try_from(got).unwrap_or(0) / size_of::<ProcFdInfo>();
-    for entry in &list[..open] {
+    Ok(usize::try_from(got).unwrap_or(0) / size_of::<ProcFdInfo>())
+}
+
+/// Marks close-on-exec each descriptor of `entries` beyond the standard three; the first that cannot be marked
+/// gives its error. Allocates nothing and takes no lock.
+fn mark_close_on_exec(entries: &[ProcFdInfo]) -> io::Result<()> {
+    for entry in entries {
+        // SAFETY: F_SETFD takes a descriptor number and an int flag, and the call reads no memory of this process.
         if entry.proc_fd > 2 && unsafe { fcntl(entry.proc_fd, F_SETFD, FD_CLOEXEC) } == -1 {
             return Err(io::Error::last_os_error());
         }
@@ -267,6 +285,8 @@ pub(crate) fn random16() -> io::Result<[u8; 16]> {
 mod tests {
     use super::*;
 
+    const EBADF: i32 = 9;
+
     #[test]
     fn the_pid_guard_takes_neither_0_nor_1_nor_a_number_beyond_the_largest_pid() {
         assert_eq!(as_pid(0), None);
@@ -275,6 +295,38 @@ mod tests {
         assert_eq!(as_pid(2_147_483_647), Some(i32::MAX));
         assert_eq!(as_pid(2_147_483_648), None);
         assert_eq!(as_pid(u32::MAX), None);
+    }
+
+    #[test]
+    fn a_list_answer_of_0_or_less_or_one_that_fills_its_room_refuses_and_one_entry_less_passes() {
+        let room = 100 * size_of::<ProcFdInfo>() as i32;
+        let entry = size_of::<ProcFdInfo>() as i32;
+        let refused = |got| listed(got, room).map_err(|e| e.raw_os_error());
+        assert_eq!(refused(0), Err(Some(EMFILE)), "an answer of 0");
+        assert_eq!(refused(-1), Err(Some(EMFILE)), "an answer below 0");
+        assert_eq!(
+            refused(room),
+            Err(Some(EMFILE)),
+            "an answer that fills the room"
+        );
+        assert_eq!(
+            refused(room - entry).ok(),
+            Some(99),
+            "one entry less than the room"
+        );
+    }
+
+    #[test]
+    fn a_number_that_cannot_be_marked_gives_its_error() {
+        let not_open = ProcFdInfo {
+            proc_fd: i32::MAX,
+            proc_fdtype: 0,
+        };
+        assert_eq!(
+            mark_close_on_exec(&[not_open]).map_err(|e| e.raw_os_error()),
+            Err(Some(EBADF)),
+            "a number above the limit of open files, which no descriptor of this process has"
+        );
     }
 
     #[test]

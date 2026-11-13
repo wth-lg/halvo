@@ -197,7 +197,8 @@ pub(crate) fn spawn(cmd: &mut Command) -> Result<RunProc, SpawnFailed> {
 }
 
 /// The environment block of a Windows start: each `name=value` ending in a NUL, the names in the order of their
-/// upper case, and one NUL more at the end. None for an empty name, a name that holds `=` or a NUL in any part.
+/// upper case, and one NUL more at the end. None for an empty name, a name that holds `=`, a NUL in any part, or
+/// two names that are equal but for case.
 #[cfg(any(windows, test))]
 fn environment_block(vars: &[(Vec<u16>, Vec<u16>)]) -> Option<Vec<u16>> {
     const EQUALS: u16 = b'=' as u16;
@@ -214,6 +215,9 @@ fn environment_block(vars: &[(Vec<u16>, Vec<u16>)]) -> Option<Vec<u16>> {
     };
     let mut sorted: Vec<&(Vec<u16>, Vec<u16>)> = vars.iter().collect();
     sorted.sort_by_key(|(name, _)| upper(name));
+    if sorted.windows(2).any(|w| upper(&w[0].0) == upper(&w[1].0)) {
+        return None;
+    }
     let mut block = Vec::new();
     for (name, value) in sorted {
         if name.is_empty() || name.contains(&EQUALS) || name.contains(&0) || value.contains(&0) {
@@ -781,6 +785,7 @@ mod environment_block_tests {
         assert_eq!(block(&[("A=B", "x")]), None);
         assert_eq!(block(&[("A\0", "x")]), None);
         assert_eq!(block(&[("A", "x\0y")]), None);
+        assert_eq!(block(&[("Temp", "x"), ("TEMP", "y")]), None);
     }
 }
 
