@@ -1,9 +1,9 @@
 //! The encrypted segment store: its traits, types and errors.
 
 pub mod db;
-pub mod expiry;
-pub mod segment;
-pub mod verify;
+pub(in crate::store) mod expiry;
+pub(in crate::store) mod segment;
+pub(in crate::store) mod verify;
 
 #[cfg(test)]
 mod formal_tests;
@@ -11,7 +11,7 @@ mod formal_tests;
 mod hardening_tests;
 #[cfg(test)]
 #[path = "test_support/pages.rs"]
-pub(crate) mod pages;
+pub(in crate::store) mod pages;
 
 use std::io::Read;
 use std::path::PathBuf;
@@ -22,7 +22,7 @@ use uuid::Uuid;
 use crate::custody::CustodyError;
 use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
-pub const DEFAULT_RETENTION: Duration = Duration::from_secs(14 * 24 * 60 * 60);
+pub(in crate::store) const DEFAULT_RETENTION: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 
 /// The store the capture daemon appends to.
 pub trait SegmentStore {

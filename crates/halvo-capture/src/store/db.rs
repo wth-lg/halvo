@@ -20,7 +20,7 @@ use super::segment::{self, SegmentHeader, SegmentKey};
 use super::{SegmentStore, StoreError, StoreResult};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct KeyFile {
+pub(in crate::store) struct KeyFile {
     pub version: u32,
     pub custody_kind: CustodyKind,
     pub root_id: RootId,
@@ -78,7 +78,7 @@ fn io_error(e: std::io::Error) -> StoreError {
 }
 
 #[cfg(test)]
-pub(crate) mod failpoint {
+pub(in crate::store) mod failpoint {
     use std::cell::Cell;
 
     use super::{StoreError, StoreResult};
@@ -107,7 +107,7 @@ mod failpoint {
     }
 }
 
-pub(crate) fn db_error(e: rusqlite::Error) -> StoreError {
+pub(in crate::store) fn db_error(e: rusqlite::Error) -> StoreError {
     match e {
         rusqlite::Error::SqliteFailure(failure, _) => StoreError::Db(failure.extended_code),
         other => StoreError::Corrupt(format!(
@@ -116,7 +116,7 @@ pub(crate) fn db_error(e: rusqlite::Error) -> StoreError {
     }
 }
 
-pub(crate) fn unix_secs_now() -> u64 {
+pub(in crate::store) fn unix_secs_now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -129,7 +129,7 @@ fn unix_nanos(t: SystemTime) -> i64 {
         .unwrap_or(0)
 }
 
-pub(crate) fn remove_if_present(path: &Path) -> StoreResult<()> {
+pub(in crate::store) fn remove_if_present(path: &Path) -> StoreResult<()> {
     match std::fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
@@ -172,12 +172,12 @@ impl Drop for WriterLock {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Checkpoint {
+pub(in crate::store) struct Checkpoint {
     pub busy: i64,
     pub wal_bytes: u64,
 }
 
-pub(crate) struct Db {
+pub(in crate::store) struct Db {
     conn: Connection,
     wal_path: PathBuf,
 }
@@ -575,7 +575,7 @@ impl EncryptedStore {
         Self::open_with(dir, retention, custody_for)
     }
 
-    pub(crate) fn open_with(
+    pub(in crate::store) fn open_with(
         dir: &Path,
         retention: Duration,
         custody_for: impl FnOnce(
@@ -605,23 +605,23 @@ impl EncryptedStore {
         }
     }
 
-    pub(crate) fn db(&self) -> StoreResult<&Db> {
+    pub(in crate::store) fn db(&self) -> StoreResult<&Db> {
         self.keyed().map(|(db, _)| db)
     }
 
-    pub(crate) fn dir(&self) -> &Path {
+    pub(in crate::store) fn dir(&self) -> &Path {
         &self.dir
     }
 
-    pub(crate) fn store_key(&self) -> StoreResult<&StoreKey> {
+    pub(in crate::store) fn store_key(&self) -> StoreResult<&StoreKey> {
         self.keyed().map(|(_, key)| key)
     }
 
-    pub(crate) fn seal(&mut self) {
+    pub(in crate::store) fn seal(&mut self) {
         self.keyed = Keyed::Sealed;
     }
 
-    pub(crate) fn is_sealed(&self) -> bool {
+    pub(in crate::store) fn is_sealed(&self) -> bool {
         matches!(self.keyed, Keyed::Sealed)
     }
 
@@ -652,11 +652,11 @@ impl EncryptedStore {
         segment::read_segment_file(&self.dir, &seg_key, segment_id, out)
     }
 
-    pub(crate) fn destroy_root(&self) -> Result<(), CustodyError> {
+    pub(in crate::store) fn destroy_root(&self) -> Result<(), CustodyError> {
         self.custody.destroy_root()
     }
 
-    pub(crate) fn write_segment_with_expiry(
+    pub(in crate::store) fn write_segment_with_expiry(
         &mut self,
         bytes: &mut dyn Read,
         created_at: u64,
@@ -703,7 +703,7 @@ impl SegmentStore for EncryptedStore {
     }
 }
 
-pub(crate) fn dir_size(dir: &Path) -> StoreResult<u64> {
+pub(in crate::store) fn dir_size(dir: &Path) -> StoreResult<u64> {
     let mut total = 0u64;
     let mut stack = vec![dir.to_path_buf()];
     while let Some(p) = stack.pop() {
@@ -730,8 +730,8 @@ pub(crate) fn dir_size(dir: &Path) -> StoreResult<u64> {
 }
 
 #[cfg(test)]
-pub(crate) mod test_support {
-    pub(crate) use crate::store::pages;
+pub(in crate::store) mod test_support {
+    pub(in crate::store) use crate::store::pages;
 
     use std::ops::{Deref, DerefMut};
     use std::path::Path;
