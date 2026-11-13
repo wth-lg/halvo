@@ -165,8 +165,14 @@ fn every_move_is_the_answer_of_step_on_the_values_before_it() {
             let mut accounts: BTreeMap<u64, Account> = BTreeMap::new();
             let mut holds: BTreeMap<u64, Hold> = BTreeMap::new();
             let mut last_hold = 0;
+            let mut owners: BTreeMap<u64, u64> = BTreeMap::new();
             for (index, step) in steps.iter().enumerate() {
                 assert_eq!(step.step, index as u64 + 1, "{seed} {case}");
+                let owner = *owners.entry(step.hold).or_insert(step.account);
+                assert_eq!(
+                    step.account, owner,
+                    "{seed} {case} {index}: a hold moves on another account"
+                );
                 match holds.get(&step.hold) {
                     None => {
                         assert_eq!(step.hold, last_hold + 1, "{seed} {case} {index}");
