@@ -186,8 +186,8 @@ pnpm_lock_integrity() {
     inside && /^ +resolution:/ { resolutions++ }
     inside && !read_first { first = $0; read_first = 1 }
     top == "packages:" { key = $0; gsub(quote, "", key); gsub(/[" ]/, "", key); if (key == name) names++ }
-    top == "packages:" && $0 == entry { inside = 1; entries++ }
-    END { if (!carriage_return && names == 1 && entries == 1 && resolutions == 1) print first }
+    top == "packages:" && $0 == entry { inside = 1 }
+    END { if (!carriage_return && names == 1 && resolutions == 1) print first }
   ' backend/pnpm-lock.yaml 2>/dev/null | sed -n 's/^    resolution: {integrity: sha512-\([A-Za-z0-9+/]\{86\}==\)}$/\1/p'
 }
 
@@ -584,6 +584,7 @@ EOF
     [ "$(grep -c '^npm ' "$case_dir/calls" || :)" = 0 ] || problems="$problems; npm ran"
     [ ! -e "$case_dir/home/.local" ] || problems="$problems; the prefix $case_dir/home/.local exists"
     [ "$(count 'pnpm install' "$case_dir/calls")" = 0 ] || problems="$problems; pnpm install ran"
+    [ "$(count 'prerequisites: error:' "$case_dir/output")" = 1 ] || problems="$problems; the step did not stop at its first error line"
   }
 
   run_ensure_backend() {
@@ -848,6 +849,14 @@ EOF
   lock_reads '' 'an entry with two resolution lines'
   printf -- "---\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n    cpu: [arm64]\n\nsnapshots:\n\n  '@pnpm/exe.p@1.0.0':\n    optional: true\n\n---\nlockfileVersion: '9.0'\n" "$good" >"$lock_file"
   lock_reads "$good" 'the entry under packages: with its snapshot under snapshots:'
+  printf -- "---\r\npackages:\r\n\r\n---\r\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$good" >"$lock_file"
+  lock_reads '' 'an entry after a first document with CRLF lines'
+  printf -- "--- \npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$good" >"$lock_file"
+  lock_reads "$good" 'the entry of a first document whose marker has a trailing space'
+  printf -- "---\npackages:\n# a comment\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$good" >"$lock_file"
+  lock_reads "$good" 'the entry after a comment under packages:'
+  printf -- "---\nimporters:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n\npackages:\n\n  \"@pnpm/exe.p@1.0.0\":\n    resolution: {integrity: sha512-%s}\n" "$good" "$other" >"$lock_file"
+  lock_reads '' 'an entry under importers: with the package in double quotes under packages:'
   mv "$lock_file" "$lock_file.absent"
   lock_reads '' 'no lock file'
   verdict "$name"
