@@ -286,7 +286,8 @@ fn a_development_body_that_holds_a_copy_of_a_stream_fails_and_without_it_passes(
 
 #[test]
 fn a_path_below_a_directory_named_target_is_read_and_a_target_inside_a_walk_is_not() {
-    let dir = scratch("target-paths");
+    let dir = scratch("target-paths").join("target").join("case");
+    fs::create_dir_all(&dir).expect("the directory below target");
     assert!(dir.components().any(|c| c.as_os_str() == "target"));
     let tier_lines = plain_stream("t1", "check", "teal-one.test", ("Teal page", "Teal form"));
     let tier_script = script_file(&dir.join("tier.jsonl"), &tier_lines);
