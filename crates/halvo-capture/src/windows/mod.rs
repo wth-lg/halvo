@@ -101,7 +101,8 @@ fn instant_from_age(now: SystemTime, now_tick: u32, event_tick: u32) -> SystemTi
 }
 
 /// The counts of a source's hand-off queue: packets that a full or closed
-/// queue dropped, and motion samples that a newer one replaced.
+/// queue dropped, packets and the pending motion sample that the queue still
+/// held when it was closed, and motion samples that a newer one replaced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct HandOffCounts {
     pub lost: u64,
@@ -201,7 +202,10 @@ impl HandOff {
     }
 
     pub(crate) fn close(&self) {
-        self.shared.lock().closed = true;
+        let mut queue = self.shared.lock();
+        queue.closed = true;
+        discard(&mut queue, &self.shared.counts);
+        drop(queue);
         self.shared.wake.notify_all();
     }
 
@@ -272,15 +276,19 @@ fn forward(shared: &Shared) {
     while let Some(packet) = next_packet(shared, &mut last_motion) {
         if forward_one(&shared.sink, packet).is_err() {
             let mut queue = shared.lock();
-            let left = queue.packets.len() + usize::from(queue.motion.is_some());
-            shared.counts.lose(left as u64);
-            queue.packets.clear();
-            queue.motion = None;
+            discard(&mut queue, &shared.counts);
             queue.closed = true;
             queue.writer_gone = true;
             return;
         }
     }
+}
+
+fn discard(queue: &mut Queue, counts: &LossCounts) {
+    let held = queue.packets.len() + usize::from(queue.motion.is_some());
+    counts.lose(held as u64);
+    queue.packets.clear();
+    queue.motion = None;
 }
 
 fn next_packet(shared: &Shared, last_motion: &mut Option<Instant>) -> Option<Packet> {
