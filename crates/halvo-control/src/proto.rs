@@ -268,13 +268,16 @@ impl<'de> Deserialize<'de> for Unique {
 
 /// The most bytes that one call of [`decode_request`] holds live at once for a frame of at most
 /// [`crate::wire::REQUEST_MAX_BYTES`]: 128 for each byte. The call parses the whole frame into
-/// a tree before it reads the shape; the worst shape that the test of wire.rs measures, objects
-/// of the empty key nested side by side, holds 471,098.
+/// a tree before it reads the shape; the worst frame that the test of wire.rs measures, a pause
+/// with one field too many that holds objects of the empty key nested 101 deep, 8 side by side,
+/// holds 518,676.
 pub const REQUEST_DECODE_PEAK_BYTES: usize = 524_288;
 
 /// The most bytes that one call of [`decode_reply`] holds live at once for a frame of at most
-/// [`crate::wire::REPLY_MAX_BYTES`]: 128 for each byte. The worst shape that the test of
-/// wire.rs measures, objects of the empty key nested side by side, holds 33,009,946.
+/// [`crate::wire::REPLY_MAX_BYTES`]: 128 for each byte. The call keeps one tree of the body.
+/// The worst frame that the test of wire.rs measures, an error reply with one field that the
+/// build does not know that holds objects of the empty key nested 100 deep, 522 side by side,
+/// holds 33,047,177.
 pub const REPLY_DECODE_PEAK_BYTES: usize = 33_554_432;
 
 /// The version of a frame that is one JSON object whose key `v` holds an integer from 0 to
@@ -342,6 +345,10 @@ pub enum ReplyError {
     Version(u64),
     #[error("the reply does not fit protocol version 1: {0}")]
     Body(String),
+    /// The reply holds, where protocol v1 reads a value of a closed list, a text that is no
+    /// value of that list, as a daemon of a later build may send.
+    #[error("the reply does not fit protocol version 1: {0}")]
+    UnknownValue(UnknownSpelling),
     /// The reply carries a status whose fields read as a status and break a rule of
     /// [`DaemonStatus`].
     #[error("{0}")]
@@ -349,15 +356,66 @@ pub enum ReplyError {
 }
 
 /// The rule that the status of a reply body breaks, when the body is a status, a
-/// capture_changed or a cap_set whose status has every field of a status.
-fn broken_status_rule(body: &Object) -> Option<StatusError> {
+/// capture_changed or a cap_set whose status has every field of a status. It reads the body
+/// in place and copies no part of it.
+fn broken_status_rule(body: &serde_json::Value) -> Option<StatusError> {
     let status = match body.get("kind").and_then(serde_json::Value::as_str)? {
-        "status" | "capture_changed" => serde_json::Value::Object(body.clone()),
-        "cap_set" => body.get("status")?.clone(),
+        "status" | "capture_changed" => body,
+        "cap_set" => body.get("status")?,
         _ => return None,
     };
-    let fields: StatusFields = serde_json::from_value(status).ok()?;
+    let fields = StatusFields::deserialize(status).ok()?;
     DaemonStatus::new(fields).err()
+}
+
+fn outside<T: FromStr<Err = UnknownSpelling>>() -> Option<UnknownSpelling> {
+    "".parse::<T>().err()
+}
+
+/// The closed lists that a reply of protocol v1 reads, each as the error that a text outside it
+/// gives.
+const REPLY_LISTS: &[fn() -> Option<UnknownSpelling>] = &[
+    outside::<ErrorCode>,
+    outside::<RootDestroyed>,
+    outside::<IntentState>,
+    outside::<Platform>,
+    outside::<Parent>,
+    outside::<CaptureState>,
+    outside::<Capture>,
+    outside::<CaptureReason>,
+    outside::<Lease>,
+    outside::<StoreState>,
+    outside::<StoreErrorKind>,
+    outside::<Health>,
+    outside::<DrainError>,
+    outside::<ExpiryError>,
+    outside::<LastStop>,
+    outside::<StopKind>,
+    outside::<StateFile>,
+    outside::<SourceName>,
+    outside::<SourceStateName>,
+    outside::<Reason>,
+    outside::<SwitchName>,
+    outside::<OnOff>,
+    outside::<PasswordGuard>,
+    outside::<Custody>,
+    outside::<Modality>,
+    outside::<Permission>,
+    outside::<GrantState>,
+    outside::<RequestOutcome>,
+    outside::<crate::onboarding::WalkbackAction>,
+];
+
+/// The closed list whose value is missing from it, when that is the error of a decode.
+fn outside_a_list(error: &serde_json::Error) -> Option<UnknownSpelling> {
+    let text = error.to_string();
+    REPLY_LISTS
+        .iter()
+        .filter_map(|list| list())
+        .find(|outside| {
+            let outside = outside.to_string();
+            text == outside || text.starts_with(&format!("{outside} at line "))
+        })
 }
 
 /// A field that this build does not know is skipped.
@@ -366,12 +424,12 @@ pub fn decode_reply(frame: &[u8]) -> Result<Reply, ReplyError> {
     if version != PROTOCOL_VERSION {
         return Err(ReplyError::Version(version));
     }
-    let body = body.ok_or(ReplyError::NotAnEnvelope)?;
-    serde_json::from_value(serde_json::Value::Object(body.clone())).map_err(|e| {
-        match broken_status_rule(&body) {
-            Some(broken) => ReplyError::Status(broken),
-            None => ReplyError::Body(e.to_string()),
-        }
+    let body = serde_json::Value::Object(body.ok_or(ReplyError::NotAnEnvelope)?);
+    let broken = broken_status_rule(&body);
+    serde_json::from_value(body).map_err(|e| match (broken, outside_a_list(&e)) {
+        (Some(broken), _) => ReplyError::Status(broken),
+        (None, Some(outside)) => ReplyError::UnknownValue(outside),
+        (None, None) => ReplyError::Body(e.to_string()),
     })
 }
 
@@ -1289,6 +1347,7 @@ struct SourceLineWire {
     reason: Option<Reason>,
     #[serde(deserialize_with = "required")]
     error: Option<SourceError>,
+    unstopped: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1296,6 +1355,11 @@ struct SourceLineWire {
 pub struct SourceLine {
     pub name: SourceName,
     pub state: SourceState,
+    /// The mark of a source that a stop did not end: true from the first answer of its
+    /// `shutdown` that is not a stop, in every stop, and false again once a later ask answers Ok
+    /// or ThreadEnded (contracts.md C2.1, ruling PL-8 part (3)(c)). The text of C2.3 does not
+    /// print it.
+    pub unstopped: bool,
 }
 
 impl TryFrom<SourceLineWire> for SourceLine {
@@ -1320,6 +1384,7 @@ impl TryFrom<SourceLineWire> for SourceLine {
         Ok(SourceLine {
             name: wire.name,
             state,
+            unstopped: wire.unstopped,
         })
     }
 }
@@ -1331,6 +1396,7 @@ impl From<SourceLine> for SourceLineWire {
             state: line.state.name(),
             reason: line.state.reason(),
             error: line.state.error().cloned(),
+            unstopped: line.unstopped,
         }
     }
 }
@@ -1503,7 +1569,9 @@ impl StatusError {
 /// The daemon's status. Its fields agree with each other and with its platform: the
 /// platform's own lines, its sources in order, the five switches and the eight kinds in
 /// order, the enabled sources against the source lines, the store state against its
-/// cause, and the sums.
+/// cause, and the sums. Beside a source that carries the mark `unstopped`, capture reads
+/// pausing, starting, running, partial or faulted, never paused, no_indicator or
+/// awaiting_resume (ruling PL-8 part (3)(c)).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "StatusFields", into = "StatusFields")]
 pub struct DaemonStatus(StatusFields);
@@ -1646,6 +1714,15 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
     if !fits {
         return fail("the capture value agrees with the states of the required sources");
     }
+    if matches!(
+        f.capture,
+        Capture::Paused | Capture::NoIndicator | Capture::AwaitingResume
+    ) && f.sources.iter().any(|s| s.unstopped)
+    {
+        return fail(
+            "paused, no_indicator and awaiting_resume have no source that a stop did not end",
+        );
+    }
     if f.capture == Capture::NoIndicator
         && (f.lease == Lease::Fresh || f.desired != CaptureState::Running)
     {
@@ -1715,8 +1792,9 @@ pub enum DeleteDecision {
 /// is busy, before any id is read. An armed id that is the shown id is accepted; two ids that
 /// differ are already deleted, with the shown id; an armed id with no shown id, or no armed id
 /// with a shown id, is refused. With neither, an open store or one with no release custody is
-/// refused, and any other store is accepted. The rule reads the store's state, its cause and
-/// the two ids, and no other field of a status.
+/// refused, an opening store is busy (contracts.md C2.6: the open may yet show an id), and any
+/// other store is accepted. The rule reads the store's state, its cause and the two ids, and no
+/// other field of a status.
 pub fn delete_decision(
     store: StoreState,
     cause: Option<StoreErrorKind>,
@@ -1733,6 +1811,7 @@ pub fn delete_decision(
         (None, None) if matches!(store, StoreState::Open | StoreState::NoReleaseCustody) => {
             DeleteDecision::Refused
         }
+        (None, None) if store == StoreState::Opening => DeleteDecision::Busy,
         (None, None) => DeleteDecision::Accept,
     }
 }
@@ -1907,6 +1986,260 @@ mod tests {
         }
         replies
     }
+
+    fn string_leaves(value: &serde_json::Value, at: String, out: &mut Vec<String>) {
+        match value {
+            serde_json::Value::String(_) => out.push(at),
+            serde_json::Value::Array(items) => {
+                for (i, item) in items.iter().enumerate() {
+                    string_leaves(item, format!("{at}/{i}"), out);
+                }
+            }
+            serde_json::Value::Object(map) => {
+                for (key, item) in map {
+                    string_leaves(item, format!("{at}/{key}"), out);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// A status of macOS in which every field that can be null holds a value.
+    fn a_status_with_every_field_set() -> DaemonStatus {
+        let at = |text: &str| -> Option<UtcSecond> { Some(text.parse().unwrap()) };
+        let error = SourceError {
+            kind: "os_error".parse().unwrap(),
+            stage: "start".parse().unwrap(),
+            os_domain: "osstatus".parse().unwrap(),
+            os_code: -3801,
+        };
+        let mut f = sample_status(Platform::Macos).into_fields();
+        f.capture = Capture::Faulted;
+        f.capture_reason = Some(CaptureReason::Store);
+        for line in &mut f.sources {
+            if line.state != SourceState::Off {
+                line.state = SourceState::Failed {
+                    reason: Reason::OsError,
+                    error: Some(error.clone()),
+                };
+                line.unstopped = true;
+            }
+        }
+        f.store = StoreState::Unavailable;
+        f.store_error = Some(StoreErrorKind::Io);
+        f.store_retry_in_s = Some(5);
+        f.drain = Health::Failing;
+        f.drain_error = Some(DrainError::Io);
+        f.drain_since = at("2026-11-12T09:00:02Z");
+        f.expiry = Health::Failing;
+        f.expiry_error = Some(ExpiryError::Io);
+        f.last_eviction_at = at("2026-11-12T09:00:03Z");
+        f.last_stop = LastStop::SourceNotStopped;
+        f.last_stop_newest_capture = at("2026-11-12T08:59:59Z");
+        f.last_stop_kind = Some(StopKind::Pause);
+        f.last_stop_lost = LostRecord {
+            events: 1,
+            first: at("2026-11-12T08:59:58Z"),
+            last: at("2026-11-12T08:59:59Z"),
+            error: Some("io".parse().unwrap()),
+            final_figures: false,
+        };
+        f.last_stop_sources = vec![StopSourceLine {
+            name: SourceName::Input,
+            error,
+        }];
+        f.permissions[0].grant = GrantState::NotGranted;
+        f.permissions[0].once_granted = true;
+        f.onboarding = crate::testing::onboarding_of(f.platform, &f.permissions);
+        f.screen_filter_excludes_app = Some(true);
+        DaemonStatus::new(f).unwrap()
+    }
+
+    /// For each text of each sample reply, the answer of the decoder when that text is one that
+    /// no list of v1 holds, by the place of the text with each index written as *.
+    fn answers_to_a_text_outside_v1() -> std::collections::BTreeMap<String, String> {
+        let mut answers = std::collections::BTreeMap::<String, String>::new();
+        let every_field = Reply::Status(a_status_with_every_field_set());
+        for reply in every_reply().into_iter().chain([every_field]) {
+            let json = serde_json::to_value(&reply).unwrap();
+            let mut leaves = Vec::new();
+            string_leaves(&json, String::new(), &mut leaves);
+            for pointer in leaves {
+                let mut changed = json.clone();
+                *changed.pointer_mut(&pointer).unwrap() = serde_json::Value::from("not_in_v1");
+                let frame = serde_json::json!({ "v": 1, "body": changed }).to_string();
+                let answer = match decode_reply(frame.as_bytes()) {
+                    Ok(_) => "taken".to_string(),
+                    Err(ReplyError::UnknownValue(outside)) => outside.to_string(),
+                    Err(ReplyError::Body(_)) => "body".to_string(),
+                    Err(other) => format!("{other:?}"),
+                };
+                let place: Vec<&str> = pointer
+                    .split('/')
+                    .map(|part| {
+                        if part.bytes().all(|b| b.is_ascii_digit()) && !part.is_empty() {
+                            "*"
+                        } else {
+                            part
+                        }
+                    })
+                    .collect();
+                let place = format!("{}{}", reply.kind(), place.join("/"));
+                let before = answers.insert(place.clone(), answer.clone());
+                assert!(
+                    before.is_none() || before.as_deref() == Some(answer.as_str()),
+                    "{place}: {before:?} and {answer}"
+                );
+            }
+        }
+        answers
+    }
+
+    #[test]
+    fn a_text_outside_a_closed_list_of_v1_is_an_unknown_value_at_every_place_of_every_reply() {
+        let answers = answers_to_a_text_outside_v1();
+        let printed: String = answers
+            .iter()
+            .map(|(place, answer)| format!("{place} {answer}\n"))
+            .collect();
+        assert_eq!(printed, PLACES_AND_ANSWERS, "\n{printed}");
+    }
+
+    const PLACES_AND_ANSWERS: &str = "\
+already_deleted/current body
+already_deleted/kind body
+cap_set/kind body
+cap_set/status/capture not a spelling of a capture state
+cap_set/status/custody not a spelling of a custody
+cap_set/status/daemon_version body
+cap_set/status/desired not a spelling of a capture state
+cap_set/status/drain not a spelling of a health
+cap_set/status/enabled_sources/* not a spelling of a source name
+cap_set/status/expiry not a spelling of a health
+cap_set/status/kinds/*/name not a spelling of a kind
+cap_set/status/last_expiry_at body
+cap_set/status/last_flush_at body
+cap_set/status/last_stop not a spelling of a last stop
+cap_set/status/lease not a spelling of a lease
+cap_set/status/parent not a spelling of a parent watch
+cap_set/status/password_guard not a spelling of a password guard
+cap_set/status/platform not a spelling of a platform
+cap_set/status/sources/*/name not a spelling of a source name
+cap_set/status/sources/*/state not a spelling of a source state
+cap_set/status/started_at body
+cap_set/status/state_file not a spelling of a state file
+cap_set/status/store not a spelling of a store state
+cap_set/status/store_id body
+cap_set/status/switches/*/name not a spelling of a switch
+cap_set/status/switches/*/value not a spelling of a switch value
+capture_changed/capture not a spelling of a capture state
+capture_changed/custody not a spelling of a custody
+capture_changed/daemon_version body
+capture_changed/desired not a spelling of a capture state
+capture_changed/drain not a spelling of a health
+capture_changed/enabled_sources/* not a spelling of a source name
+capture_changed/expiry not a spelling of a health
+capture_changed/kind body
+capture_changed/kinds/*/name not a spelling of a kind
+capture_changed/last_expiry_at body
+capture_changed/last_flush_at body
+capture_changed/last_stop not a spelling of a last stop
+capture_changed/lease not a spelling of a lease
+capture_changed/onboarding/permissions/*/grant not a spelling of a grant state
+capture_changed/onboarding/permissions/*/pane_name taken
+capture_changed/onboarding/permissions/*/permission not a spelling of a permission
+capture_changed/onboarding/permissions/*/settings_url taken
+capture_changed/onboarding/permissions/*/why taken
+capture_changed/parent not a spelling of a parent watch
+capture_changed/password_guard not a spelling of a password guard
+capture_changed/permissions/*/at_start not a spelling of a grant state
+capture_changed/permissions/*/grant not a spelling of a grant state
+capture_changed/permissions/*/name not a spelling of a permission
+capture_changed/platform not a spelling of a platform
+capture_changed/sources/*/name not a spelling of a source name
+capture_changed/sources/*/state not a spelling of a source state
+capture_changed/started_at body
+capture_changed/state_file not a spelling of a state file
+capture_changed/store not a spelling of a store state
+capture_changed/store_id body
+capture_changed/switches/*/name not a spelling of a switch
+capture_changed/switches/*/value not a spelling of a switch value
+delete_refused/kind body
+deleted/kind body
+deleted/report/intent not a spelling of a intent result
+deleted/report/root_destroyed not a spelling of a root result
+deleted/store body
+error/code not a spelling of a error code
+error/kind body
+error/message taken
+inventory/as_of body
+inventory/ext/*/name taken
+inventory/ext/*/rows/*/k taken
+inventory/ext/*/rows/*/v taken
+inventory/kind body
+inventory/rows/*/day body
+inventory/rows/*/modality not a spelling of a kind
+inventory/store body
+permission_requested/kind body
+permission_requested/outcome not a spelling of a request outcome
+status/capture not a spelling of a capture state
+status/capture_reason not a spelling of a capture reason
+status/custody not a spelling of a custody
+status/daemon_version body
+status/desired not a spelling of a capture state
+status/drain not a spelling of a health
+status/drain_error not a spelling of a drain error
+status/drain_since body
+status/enabled_sources/* not a spelling of a source name
+status/expiry not a spelling of a health
+status/expiry_error not a spelling of a expiry error
+status/kind body
+status/kinds/*/name not a spelling of a kind
+status/last_eviction_at body
+status/last_expiry_at body
+status/last_flush_at body
+status/last_stop not a spelling of a last stop
+status/last_stop_kind not a spelling of a stop kind
+status/last_stop_lost/error taken
+status/last_stop_lost/first body
+status/last_stop_lost/last body
+status/last_stop_newest_capture body
+status/last_stop_sources/*/error/kind taken
+status/last_stop_sources/*/error/os_domain taken
+status/last_stop_sources/*/error/stage taken
+status/last_stop_sources/*/name not a spelling of a source name
+status/lease not a spelling of a lease
+status/onboarding/lost_grants/* not a spelling of a permission
+status/onboarding/permissions/*/grant not a spelling of a grant state
+status/onboarding/permissions/*/pane_name taken
+status/onboarding/permissions/*/permission not a spelling of a permission
+status/onboarding/permissions/*/settings_url taken
+status/onboarding/permissions/*/why taken
+status/onboarding/walkback/*/action not a spelling of a walk-back action
+status/onboarding/walkback/*/permission not a spelling of a permission
+status/onboarding/walkback/*/settings_url taken
+status/onboarding/walkback/*/text taken
+status/parent not a spelling of a parent watch
+status/password_guard not a spelling of a password guard
+status/permissions/*/at_start not a spelling of a grant state
+status/permissions/*/grant not a spelling of a grant state
+status/permissions/*/name not a spelling of a permission
+status/platform not a spelling of a platform
+status/sources/*/error/kind taken
+status/sources/*/error/os_domain taken
+status/sources/*/error/stage taken
+status/sources/*/name not a spelling of a source name
+status/sources/*/reason not a spelling of a source reason
+status/sources/*/state not a spelling of a source state
+status/started_at body
+status/state_file not a spelling of a state file
+status/store not a spelling of a store state
+status/store_error not a spelling of a store error
+status/store_id body
+status/switches/*/name not a spelling of a switch
+status/switches/*/value not a spelling of a switch value
+stopped/kind body
+";
 
     fn through_the_wire_request(request: &Request) -> Decoded {
         let mut frame = Vec::new();
@@ -2099,6 +2432,46 @@ mod tests {
         }
     }
 
+    /// A frame of version 2 whose body holds in `x` arrays nested so that the frame nests
+    /// `levels` deep, each object and each array counted, the frame's own object among them.
+    fn version_2_nested(levels: usize) -> Vec<u8> {
+        let arrays = levels - 2;
+        let mut frame = br#"{"v":2,"body":{"x":"#.to_vec();
+        frame.extend(std::iter::repeat_n(b'[', arrays));
+        frame.extend(std::iter::repeat_n(b']', arrays));
+        frame.extend_from_slice(b"}}");
+        frame
+    }
+
+    #[test]
+    fn a_frame_of_another_version_is_unsupported_version_only_when_the_decoder_reads_all_of_it() {
+        let code = |frame: &[u8]| decode_request(frame).unwrap_err().code();
+        assert_eq!(code(&version_2_nested(127)), ErrorCode::UnsupportedVersion);
+        assert_eq!(
+            code(&version_2_nested(128)),
+            ErrorCode::InvalidArgument,
+            "one level deeper than the 127 that the decoder reads"
+        );
+        assert_eq!(
+            code(br#"{"v":2,"body":{"n":1e300}}"#),
+            ErrorCode::UnsupportedVersion
+        );
+        assert_eq!(
+            code(br#"{"v":2,"body":{"n":1e400}}"#),
+            ErrorCode::InvalidArgument,
+            "a number outside a 64-bit float"
+        );
+        assert_eq!(
+            code(br#"{"v":2,"body":{"s":"\ud800\udc00"}}"#),
+            ErrorCode::UnsupportedVersion
+        );
+        assert_eq!(
+            code(br#"{"v":2,"body":{"s":"\ud800"}}"#),
+            ErrorCode::InvalidArgument,
+            "a lone surrogate escape"
+        );
+    }
+
     /// The sample status as JSON, with `store`, `store_error` and `store_retry_in_s` set.
     fn status_json_with_store(store: &str, error: &str, retry: u64) -> serde_json::Value {
         let mut json = serde_json::to_value(sample_status(Platform::Macos).into_fields()).unwrap();
@@ -2108,6 +2481,9 @@ mod tests {
         json
     }
 
+    /// The store lines of C2.8 that this test holds, `store=unavailable` beside
+    /// `store_error=obstructed`, stand in for fixture lines that gate-3 writes, until gate-3 adds
+    /// them to a fixture.
     #[test]
     fn e14_obstructed_is_a_cause_of_store_unavailable_and_a_value_outside_the_list_is_refused() {
         let status: DaemonStatus =
@@ -2174,6 +2550,149 @@ mod tests {
             );
             f.desired = CaptureState::Paused;
             assert!(DaemonStatus::new(f).is_ok(), "{platform:?}");
+        }
+    }
+
+    /// The status as JSON, with the mark `unstopped` of each source entry true for `marked` and
+    /// false for every other source.
+    fn json_with_mark(fields: StatusFields, marked: Option<SourceName>) -> serde_json::Value {
+        let mut json = serde_json::to_value(fields).unwrap();
+        for entry in json["sources"].as_array_mut().unwrap() {
+            let is_marked = marked.is_some_and(|name| entry["name"] == name.as_str());
+            entry["unstopped"] = serde_json::Value::from(is_marked);
+        }
+        json
+    }
+
+    /// For each capture value, a status that the type takes beside the first required source of
+    /// the platform when that source carries no mark: the source reads failed with
+    /// reason=timeout, as a source reads after a stop that it did not answer, except beside
+    /// running, where every required source runs.
+    fn one_status_for_each_capture_value(platform: Platform) -> Vec<(Capture, StatusFields)> {
+        let base = sample_status(platform).into_fields();
+        let first = base.enabled_sources[0];
+        let timed_out = SourceState::Failed {
+            reason: Reason::Timeout,
+            error: None,
+        };
+        let with = |capture, change: &dyn Fn(&mut StatusFields)| {
+            let mut f = base.clone();
+            f.capture = capture;
+            for line in &mut f.sources {
+                if line.state != SourceState::Off {
+                    line.state = SourceState::Stopped { by_user: false };
+                }
+            }
+            if let Some(line) = f.sources.iter_mut().find(|l| l.name == first) {
+                line.state = timed_out.clone();
+            }
+            change(&mut f);
+            (capture, f)
+        };
+        vec![
+            with(Capture::Paused, &|f| f.desired = CaptureState::Paused),
+            with(Capture::NoIndicator, &|f| f.lease = Lease::Lapsed),
+            with(Capture::AwaitingResume, &|_| {}),
+            with(Capture::Pausing, &|f| f.desired = CaptureState::Paused),
+            with(Capture::Starting, &|_| {}),
+            with(Capture::Partial, &|f| {
+                for line in f.sources.iter_mut().skip(1) {
+                    if line.state != SourceState::Off {
+                        line.state = SourceState::Running;
+                    }
+                }
+            }),
+            with(Capture::Faulted, &|f| {
+                f.capture_reason = Some(CaptureReason::NoSource);
+                for line in &mut f.sources {
+                    if line.state != SourceState::Off {
+                        line.state = timed_out.clone();
+                    }
+                }
+            }),
+            with(Capture::Running, &|f| {
+                for line in &mut f.sources {
+                    if line.state != SourceState::Off {
+                        line.state = SourceState::Running;
+                    }
+                }
+            }),
+        ]
+    }
+
+    #[test]
+    fn the_mark_unstopped_refuses_paused_no_indicator_and_awaiting_resume_beside_it_and_takes_the_other_five(
+    ) {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let first = sample_status(platform).fields().enabled_sources[0];
+            let cases = one_status_for_each_capture_value(platform);
+            assert_eq!(cases.len(), Capture::ALL.len());
+            for (capture, fields) in cases {
+                let unmarked = json_with_mark(fields.clone(), None);
+                assert!(
+                    serde_json::from_value::<DaemonStatus>(unmarked).is_ok(),
+                    "{platform:?} {capture:?} without the mark"
+                );
+                let marked =
+                    serde_json::from_value::<DaemonStatus>(json_with_mark(fields, Some(first)));
+                if matches!(
+                    capture,
+                    Capture::Paused | Capture::NoIndicator | Capture::AwaitingResume
+                ) {
+                    assert_eq!(
+                        marked.map(|_| ()).map_err(|e| e.to_string()),
+                        Err("the status does not hold together: paused, no_indicator and awaiting_resume have no source that a stop did not end".to_string()),
+                        "{platform:?} {capture:?}"
+                    );
+                } else {
+                    assert!(marked.is_ok(), "{platform:?} {capture:?}: {marked:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn each_source_entry_carries_the_mark_unstopped_on_the_wire_and_an_entry_without_it_does_not_decode(
+    ) {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let mut json = serde_json::to_value(sample_status(platform)).unwrap();
+            for entry in json["sources"].as_array().unwrap() {
+                assert_eq!(entry["unstopped"], false, "{platform:?} {entry}");
+            }
+            json["sources"][0]
+                .as_object_mut()
+                .unwrap()
+                .remove("unstopped");
+            assert!(
+                serde_json::from_value::<DaemonStatus>(json).is_err(),
+                "{platform:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_text_of_a_status_does_not_print_the_mark() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let first = sample_status(platform).fields().enabled_sources[0];
+            let (_, pausing) = one_status_for_each_capture_value(platform)
+                .into_iter()
+                .find(|(capture, _)| *capture == Capture::Pausing)
+                .unwrap();
+            let unmarked: DaemonStatus =
+                serde_json::from_value(json_with_mark(pausing.clone(), None)).unwrap();
+            let marked: DaemonStatus =
+                serde_json::from_value(json_with_mark(pausing, Some(first))).unwrap();
+            assert_ne!(marked, unmarked, "{platform:?}");
+            let text = crate::ctl_text::status_text(&marked);
+            assert_eq!(text, crate::ctl_text::status_text(&unmarked));
+            assert!(
+                text.contains(&format!(
+                    "\nsource name={} state=failed reason=timeout\n",
+                    first.as_str()
+                )),
+                "{text}"
+            );
+            assert!(!text.contains("unstopped"), "{text}");
         }
     }
 
@@ -2267,6 +2786,29 @@ mod tests {
             decode_request(&[0xff, 0xfe]).unwrap_err().code(),
             ErrorCode::InvalidArgument
         );
+    }
+
+    #[test]
+    fn the_twins_at_version_2_of_the_frames_with_white_space_are_invalid_argument() {
+        let frame = r#"{"v":2,"body":{"op":"pause"}}"#;
+        assert_eq!(
+            decode_request(frame.as_bytes()).unwrap_err().code(),
+            ErrorCode::UnsupportedVersion
+        );
+        for text in [format!(" {frame}"), format!("{frame}\n")] {
+            assert_eq!(
+                decode_request(text.as_bytes()).unwrap_err().code(),
+                ErrorCode::InvalidArgument,
+                "{text:?}"
+            );
+            assert!(
+                matches!(
+                    decode_reply(text.as_bytes()),
+                    Err(ReplyError::NotAnEnvelope)
+                ),
+                "{text:?}"
+            );
+        }
     }
 
     #[test]
@@ -2776,21 +3318,26 @@ mod tests {
             },
         ];
         for state in good {
-            let line = SourceLine {
-                name: SourceName::Foreground,
-                state: state.clone(),
-            };
-            let json = serde_json::to_value(&line).unwrap();
-            assert_eq!(serde_json::from_value::<SourceLine>(json).unwrap(), line);
+            for unstopped in [false, true] {
+                let line = SourceLine {
+                    name: SourceName::Foreground,
+                    state: state.clone(),
+                    unstopped,
+                };
+                let json = serde_json::to_value(&line).unwrap();
+                assert_eq!(serde_json::from_value::<SourceLine>(json).unwrap(), line);
+            }
         }
         for json in [
-            r#"{"name":"foreground","state":"running","reason":"permission","error":null}"#,
-            r#"{"name":"foreground","state":"off","reason":null,"error":{"kind":"a","stage":"b","os_domain":"c","os_code":1}}"#,
-            r#"{"name":"foreground","state":"stopped","reason":"permission","error":null}"#,
-            r#"{"name":"foreground","state":"failed","reason":null,"error":null}"#,
-            r#"{"name":"foreground","state":"impaired","reason":"user","error":null}"#,
-            r#"{"name":"foreground","state":"running","reason":null}"#,
-            r#"{"name":"foreground","state":"running","error":null}"#,
+            r#"{"name":"foreground","state":"running","reason":"permission","error":null,"unstopped":false}"#,
+            r#"{"name":"foreground","state":"off","reason":null,"error":{"kind":"a","stage":"b","os_domain":"c","os_code":1},"unstopped":false}"#,
+            r#"{"name":"foreground","state":"stopped","reason":"permission","error":null,"unstopped":false}"#,
+            r#"{"name":"foreground","state":"failed","reason":null,"error":null,"unstopped":false}"#,
+            r#"{"name":"foreground","state":"impaired","reason":"user","error":null,"unstopped":false}"#,
+            r#"{"name":"foreground","state":"running","reason":null,"unstopped":false}"#,
+            r#"{"name":"foreground","state":"running","error":null,"unstopped":false}"#,
+            r#"{"name":"foreground","state":"running","reason":null,"error":null}"#,
+            r#"{"name":"foreground","state":"running","reason":null,"error":null,"unstopped":null}"#,
         ] {
             assert!(serde_json::from_str::<SourceLine>(json).is_err(), "{json}");
         }
@@ -3158,7 +3705,7 @@ mod tests {
             let text = String::from_utf8(encode_reply(&reply)).unwrap();
             assert!(
                 text.contains(&format!(
-                    r#"{{"name":"pointer","state":"failed","reason":"{}","error":null}}"#,
+                    r#"{{"name":"pointer","state":"failed","reason":"{}","error":null,"unstopped":false}}"#,
                     reason.as_str()
                 )),
                 "{text}"
@@ -3351,8 +3898,20 @@ mod tests {
             (Unavailable, io, None, other, DeleteDecision::Refused),
             (Open, None, None, None, DeleteDecision::Refused),
             (NoReleaseCustody, None, None, None, DeleteDecision::Refused),
+            (Opening, None, None, None, DeleteDecision::Busy),
+            (Opening, None, None, other, DeleteDecision::Refused),
+            (Opening, None, shown, None, DeleteDecision::Refused),
+            (Opening, None, shown, shown, DeleteDecision::Accept),
             (Sealed, key_file, None, None, DeleteDecision::Accept),
             (Unavailable, io, None, None, DeleteDecision::Accept),
+            (
+                Unavailable,
+                Some(StoreErrorKind::Obstructed),
+                None,
+                None,
+                DeleteDecision::Accept,
+            ),
+            (UnsupportedVersion, None, None, None, DeleteDecision::Accept),
             (Deleting, None, None, None, DeleteDecision::Busy),
             (
                 Unavailable,

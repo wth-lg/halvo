@@ -182,14 +182,54 @@ pub fn login_item_state(
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(LoginItemState::Absent),
         Err(e) => return Err(e),
     };
-    if !is_the_plist_of(&meta, user::EffectiveUser::current()) {
+    let owner = user::EffectiveUser::current();
+    if !is_the_plist_of(&meta, owner) {
         return Ok(LoginItemState::Stale);
     }
-    if std::fs::read(&path)? == spec.plist().as_bytes() {
+    let Some(mut file) = open_the_entry_that_was_read(&path, &meta)? else {
+        return Ok(LoginItemState::Stale);
+    };
+    if !is_the_plist_of(&file.metadata()?, owner) {
+        return Ok(LoginItemState::Stale);
+    }
+    let mut bytes = Vec::new();
+    std::io::Read::read_to_end(&mut file, &mut bytes)?;
+    if bytes == spec.plist().as_bytes() {
         Ok(LoginItemState::Current)
     } else {
         Ok(LoginItemState::Stale)
     }
+}
+
+/// Opens `path` without following a link and without waiting (`O_NOFOLLOW`, `O_NONBLOCK`), and
+/// gives the handle only when it is the entry that `seen` describes; `None` when another entry
+/// stands there now, such as a FIFO, a socket or a link put in its place after the look.
+#[cfg(target_os = "macos")]
+fn open_the_entry_that_was_read(
+    path: &std::path::Path,
+    seen: &std::fs::Metadata,
+) -> std::io::Result<Option<std::fs::File>> {
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+
+    let file = match std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+        .open(path)
+    {
+        Ok(file) => file,
+        Err(e)
+            if e.kind() == std::io::ErrorKind::NotFound
+                || matches!(
+                    e.raw_os_error(),
+                    Some(libc::ELOOP | libc::ENXIO | libc::EOPNOTSUPP)
+                ) =>
+        {
+            return Ok(None)
+        }
+        Err(e) => return Err(e),
+    };
+    let now = file.metadata()?;
+    Ok((now.dev() == seen.dev() && now.ino() == seen.ino()).then_some(file))
 }
 
 #[cfg(target_os = "macos")]
@@ -315,7 +355,11 @@ fn replace_with_temp(
     file.write_all(bytes)?;
     file.sync_all()?;
     std::fs::rename(temp, path)?;
-    std::fs::File::open(dir)?.sync_all()
+    std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NONBLOCK)
+        .open(dir)?
+        .sync_all()
 }
 
 /// What a remove of the login item did: its file's outcome, and the error of the sweep of
@@ -773,6 +817,119 @@ mod login_item_tests {
 
     fn mode(path: &Path) -> u32 {
         std::fs::metadata(path).unwrap().mode() & 0o7777
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_fifo_or_a_socket_at_the_login_item_path_reads_stale_at_once() {
+        use crate::instance_lock::planted;
+
+        for kind in ["a FIFO", "a socket"] {
+            let home = tempfile::Builder::new().prefix("li").tempdir().unwrap();
+            let dir = agents(home.path());
+            std::fs::create_dir_all(dir.path()).unwrap();
+            let spec = login_item();
+            let path = login_item_path(&spec, &dir);
+            let _listener = if kind == "a FIFO" {
+                planted::mkfifo(&path);
+                None
+            } else {
+                Some(std::os::unix::net::UnixListener::bind(&path).unwrap())
+            };
+            let answer = planted::answer_within(&path, &path, move |_| {
+                login_item_state(&spec, &dir).map_err(|e| e.kind())
+            });
+            assert_eq!(
+                answer,
+                Some(Ok(LoginItemState::Stale)),
+                "{kind} at the login item's path"
+            );
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn an_entry_put_in_place_of_the_login_item_after_the_look_is_not_taken_and_never_waited_on() {
+        use crate::instance_lock::planted;
+
+        for kind in [
+            "a FIFO",
+            "a link to the file that was looked at",
+            "another regular file",
+        ] {
+            let base = tempfile::Builder::new().prefix("li").tempdir().unwrap();
+            let path = base.path().join("p");
+            std::fs::write(&path, b"x").unwrap();
+            let seen = std::fs::symlink_metadata(&path).unwrap();
+            let moved = base.path().join("m");
+            std::fs::rename(&path, &moved).unwrap();
+            match kind {
+                "a FIFO" => planted::mkfifo(&path),
+                "a link to the file that was looked at" => {
+                    std::os::unix::fs::symlink(&moved, &path).unwrap()
+                }
+                _ => std::fs::write(&path, b"x").unwrap(),
+            }
+            let answer = planted::answer_within(&path, &path, move |path| {
+                open_the_entry_that_was_read(path, &seen)
+                    .map(|file| file.is_some())
+                    .map_err(|e| e.kind())
+            });
+            assert_eq!(
+                answer,
+                Some(Ok(false)),
+                "{kind} in place of the file after the look: the open takes no other entry than \
+                 the one that was looked at and returns at once; the bound is {:?}",
+                planted::BOUND
+            );
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_two_opens_of_an_install_are_an_error_at_once_on_a_planted_entry() {
+        use crate::instance_lock::planted;
+
+        for kind in ["a FIFO", "a link to a FIFO"] {
+            let base = tempfile::Builder::new().prefix("li").tempdir().unwrap();
+            let fifo = base.path().join("f");
+            planted::mkfifo(&fifo);
+            let temp = base.path().join("t");
+            if kind == "a link to a FIFO" {
+                std::os::unix::fs::symlink(&fifo, &temp).unwrap();
+            } else {
+                std::fs::rename(&fifo, &temp).unwrap();
+            }
+            let path = base.path().join("p");
+            let dir = base.path().to_path_buf();
+            let waits_on = if kind == "a FIFO" { &temp } else { &fifo };
+            let answer = planted::answer_within(&temp, waits_on, move |temp| {
+                replace_with_temp(b"x", temp, &path, &dir).map_err(|e| e.kind())
+            });
+            assert_eq!(
+                answer,
+                Some(Err(std::io::ErrorKind::AlreadyExists)),
+                "{kind} at the temporary file's path: the open with create_new takes no entry \
+                 and never waits; the bound is {:?}",
+                planted::BOUND
+            );
+        }
+
+        let base = tempfile::Builder::new().prefix("li").tempdir().unwrap();
+        let fifo = base.path().join("f");
+        planted::mkfifo(&fifo);
+        let temp = base.path().join("t");
+        let path = base.path().join("p");
+        let answer = planted::answer_within(&fifo, &fifo, move |fifo| {
+            replace_with_temp(b"x", &temp, &path, fifo).map_err(|e| e.kind())
+        });
+        assert_eq!(
+            answer,
+            Some(Err(std::io::ErrorKind::NotADirectory)),
+            "a FIFO at the directory's path: the open of the directory for its sync is an error \
+             at once and never waits; the bound is {:?}",
+            planted::BOUND
+        );
     }
 
     #[test]

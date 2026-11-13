@@ -41,9 +41,15 @@ fn flock(file: &std::fs::File, operation: libc::c_int) -> std::io::Result<bool> 
     }
 }
 
-/// Opens the directory; std opens every descriptor with close-on-exec.
+/// Opens the directory with `O_DIRECTORY` and `O_NONBLOCK`, so that anything at `dir` that is
+/// no directory (a FIFO, a file, a socket, a link to one of them) is an error at once and the
+/// open never waits; std adds close-on-exec.
 fn open(dir: &Path) -> std::io::Result<std::fs::File> {
-    std::fs::File::open(dir)
+    use std::os::unix::fs::OpenOptionsExt;
+    std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NONBLOCK)
+        .open(dir)
 }
 
 impl InstanceLock {
@@ -98,12 +104,213 @@ pub fn read(dir: &Path) -> std::io::Result<LockRead> {
     }
 }
 
+/// Test helpers for an entry that is no directory at a data directory's path.
+#[cfg(test)]
+pub(crate) mod planted {
+    use std::path::{Path, PathBuf};
+    use std::time::{Duration, Instant};
+
+    /// How long a call on a planted entry may take before the test calls it blocked. The call
+    /// is expected to return at once; 10 s leaves a hosted runner that holds a thread for
+    /// seconds far inside the bound.
+    pub(crate) const BOUND: Duration = Duration::from_secs(10);
+
+    pub(crate) fn mkfifo(path: &Path) {
+        use std::os::unix::ffi::OsStrExt;
+        let c_path = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
+        // SAFETY: c_path is a live NUL-terminated path; mkfifo takes no other pointer.
+        assert_eq!(unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) }, 0);
+    }
+
+    /// While a thread may be blocked in an open of the FIFO at `fifo`, this opens the FIFO for
+    /// writing, which ends such an open, and waits for the thread, each with a bound, on every
+    /// path out of the test.
+    struct Unblock {
+        fifo: PathBuf,
+        thread: Option<std::thread::JoinHandle<()>>,
+    }
+
+    impl Drop for Unblock {
+        fn drop(&mut self) {
+            use std::os::unix::fs::OpenOptionsExt;
+            let Some(thread) = self.thread.take() else {
+                return;
+            };
+            let until = Instant::now() + BOUND;
+            let mut writer = None;
+            while !thread.is_finished() && Instant::now() < until {
+                if writer.is_none() {
+                    writer = std::fs::OpenOptions::new()
+                        .write(true)
+                        .custom_flags(libc::O_NONBLOCK)
+                        .open(&self.fifo)
+                        .ok();
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            drop(writer);
+            if thread.is_finished() {
+                let _ = thread.join();
+            }
+        }
+    }
+
+    /// A directory of mode 000 that the test made; its mode goes back to 0o700 when the value is
+    /// dropped, so that the test's temporary directory can be removed on every path.
+    pub(crate) struct Closed(PathBuf);
+
+    impl Closed {
+        pub(crate) fn make(path: &Path) -> Self {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::create_dir(path).unwrap();
+            let closed = Self(path.to_path_buf());
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o000)).unwrap();
+            assert!(
+                std::fs::read_dir(path).is_err(),
+                "a directory of mode 000 can be read: the test runs with rights that pass the mode"
+            );
+            closed
+        }
+    }
+
+    impl Drop for Closed {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o700));
+        }
+    }
+
+    /// The answer of `call` on `path`, from a thread of its own, or `None` when it has not
+    /// answered within [`BOUND`]. `fifo` names a FIFO that the guard opens for writing to end
+    /// a blocked open; it may be `path` itself or the FIFO that a link at `path` names.
+    pub(crate) fn answer_within<T: Send + 'static>(
+        path: &Path,
+        fifo: &Path,
+        call: impl FnOnce(&Path) -> T + Send + 'static,
+    ) -> Option<T> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let at = path.to_path_buf();
+        let thread = std::thread::spawn(move || {
+            let _ = tx.send(call(&at));
+        });
+        let _guard = Unblock {
+            fifo: fifo.to_path_buf(),
+            thread: Some(thread),
+        };
+        rx.recv_timeout(BOUND).ok()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn dir() -> tempfile::TempDir {
         tempfile::Builder::new().prefix("il").tempdir().unwrap()
+    }
+
+    /// What sits at the data directory's path, and the FIFO that a blocked open waits on.
+    fn plant(
+        base: &Path,
+        kind: &str,
+    ) -> (
+        std::path::PathBuf,
+        std::path::PathBuf,
+        Option<std::os::unix::net::UnixListener>,
+    ) {
+        let path = base.join("d");
+        let fifo = base.join("f");
+        planted::mkfifo(&fifo);
+        let mut listener = None;
+        match kind {
+            "a FIFO" => {
+                std::fs::rename(&fifo, &path).unwrap();
+                return (path.clone(), path, None);
+            }
+            "a regular file" => std::fs::write(&path, b"x").unwrap(),
+            "a socket" => listener = Some(std::os::unix::net::UnixListener::bind(&path).unwrap()),
+            "a link to a FIFO" => std::os::unix::fs::symlink(&fifo, &path).unwrap(),
+            _ => unreachable!(),
+        }
+        (path, fifo, listener)
+    }
+
+    #[test]
+    fn an_entry_that_is_no_directory_at_the_data_directory_path_is_an_error_at_once() {
+        for kind in ["a FIFO", "a regular file", "a socket", "a link to a FIFO"] {
+            let base = dir();
+            let (path, fifo, _listener) = plant(base.path(), kind);
+            let read = planted::answer_within(&path, &fifo, |p| read(p).map_err(|e| e.kind()));
+            let try_take = planted::answer_within(&path, &fifo, |p| {
+                InstanceLock::try_take(p)
+                    .map(|l| l.is_some())
+                    .map_err(|e| e.kind())
+            });
+            let take = planted::answer_within(&path, &fifo, |p| {
+                InstanceLock::take(p)
+                    .map(|l| l.is_some())
+                    .map_err(|e| e.kind())
+            });
+            for (call, answer) in [
+                ("read", read.map(|a| a.map(|r| format!("{r:?}")))),
+                ("try_take", try_take.map(|a| a.map(|t| format!("{t:?}")))),
+                ("take", take.map(|a| a.map(|t| format!("{t:?}")))),
+            ] {
+                let Some(answer) = answer else {
+                    panic!("{call} on {kind} at the data directory's path did not return within {:?}; PL-8 (2)(d) says it never waits", planted::BOUND);
+                };
+                assert!(
+                    matches!(answer, Err(k) if k != std::io::ErrorKind::NotFound),
+                    "{call} on {kind}: {answer:?}; anything that is no directory is an error, never NoDirectory, Free or a lock"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_read_of_a_directory_that_cannot_be_opened_is_an_error_and_never_no_directory() {
+        let base = dir();
+        let path = base.path().join("d");
+        let _closed = planted::Closed::make(&path);
+        assert_eq!(
+            read(&path).map_err(|e| e.kind()),
+            Err(std::io::ErrorKind::PermissionDenied),
+            "an open error that is no missing directory is an error of the read (PL-8 (2)(b))"
+        );
+    }
+
+    #[test]
+    fn two_reads_side_by_side_both_answer_free() {
+        let base = dir();
+        let under_way = open(base.path()).unwrap();
+        assert!(flock(&under_way, libc::LOCK_SH).unwrap());
+        assert_eq!(
+            read(base.path()).unwrap(),
+            LockRead::Free,
+            "beside the shared lock that another read holds while it is under way, a read \
+             answers free: the read's flock is shared"
+        );
+        drop(under_way);
+
+        const READS: usize = 2_000;
+        let start = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let readers: Vec<_> = (0..2)
+            .map(|_| {
+                let path = base.path().to_path_buf();
+                let start = std::sync::Arc::clone(&start);
+                std::thread::spawn(move || {
+                    start.wait();
+                    (0..READS)
+                        .filter(|_| read(&path).unwrap() != LockRead::Free)
+                        .count()
+                })
+            })
+            .collect();
+        let held: usize = readers.into_iter().map(|t| t.join().unwrap()).sum();
+        assert_eq!(
+            held, 0,
+            "two threads that only read, {READS} reads each: {held} answered held"
+        );
     }
 
     #[test]
@@ -179,17 +386,26 @@ mod tests {
             std::thread::yield_now();
         }
         let before = reads.load(Ordering::Relaxed);
-        let mut taken = 0;
-        for _ in 0..200 {
-            if InstanceLock::take(&path).unwrap().is_some() {
-                taken += 1;
+        let mut retried = 0;
+        for i in 0..200 {
+            let mut takes = 1;
+            while InstanceLock::take(&path).unwrap().is_none() {
+                takes += 1;
+                if takes > 10 {
+                    stop.store(true, Ordering::Relaxed);
+                    panic!(
+                        "take {i} found the lock held through 10 takes of up to 1 s each: a read \
+                         holds its shared lock only for one flock call, so 10 s leaves a hosted \
+                         runner that holds the reading thread for seconds far inside the bound"
+                    );
+                }
             }
+            retried += takes - 1;
         }
         let during = reads.load(Ordering::Relaxed) - before;
         stop.store(true, Ordering::Relaxed);
         reader.join().unwrap();
-        assert_eq!(taken, 200);
-        println!("reads while the 200 takes ran: {during}");
+        println!("reads while the 200 takes ran: {during}; takes tried again: {retried}");
     }
 
     #[test]

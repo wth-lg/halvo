@@ -447,13 +447,14 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
                     f.capture.as_str()
                 ));
             }
-            if status.fields().state_file == StateFile::WriteFailed {
+            let written = f.state_file == StateFile::Ok;
+            if !written {
                 stderr.push_str(&format!(
                     "halvo-capture: the state file was not written: {}\n",
                     data_dir.state_file().display()
                 ));
             }
-            let status = if reached && f.state_file != StateFile::WriteFailed {
+            let status = if reached && written {
                 crate::exit::CLEAN
             } else {
                 crate::exit::ERROR
@@ -530,6 +531,8 @@ mod tests {
         format!("{} not_followed=0{}", &text[..at], &text[at..])
     }
 
+    /// gate-2's status fixture with the two record lines of C2.3, `last_stop_kind` and
+    /// `last_stop_lost`, after `last_stop_newest_capture`, until gate-3 adds them to the file.
     fn status_fixture(checked_out: &str) -> String {
         let text = lf(checked_out);
         if text.contains("\nlast_stop_kind=") {
@@ -641,7 +644,12 @@ mod tests {
         for (verb, name) in [(Verb::Pause, "pause"), (Verb::Resume, "resume")] {
             for desired in [CaptureState::Running, CaptureState::Paused] {
                 for &capture in Capture::ALL {
-                    for state_file in [StateFile::Ok, StateFile::WriteFailed] {
+                    for state_file in [
+                        StateFile::Ok,
+                        StateFile::Corrupt,
+                        StateFile::NewerVersion,
+                        StateFile::WriteFailed,
+                    ] {
                         let Some(status) = capture_status(desired, capture, state_file) else {
                             continue;
                         };
@@ -656,7 +664,7 @@ mod tests {
                         } else if !reached {
                             stderr.push_str(&format!("halvo-capture: the capture service answered desired={d} capture={c}, not the state that {name} asks for\n"));
                         }
-                        if state_file == StateFile::WriteFailed {
+                        if state_file != StateFile::Ok {
                             stderr.push_str(&format!(
                                 "halvo-capture: the state file was not written: {}\n",
                                 data_dir().state_file().display()
@@ -681,7 +689,7 @@ mod tests {
                 }
             }
         }
-        assert!(rows >= 40, "only {rows} rows were taken by the type");
+        assert!(rows >= 80, "only {rows} rows were taken by the type");
     }
 
     #[test]
@@ -806,7 +814,8 @@ mod tests {
     }
 
     #[test]
-    fn the_deleted_and_the_already_deleted_replies_render_their_fixtures() {
+    fn the_deleted_and_the_already_deleted_replies_render_their_fixtures_with_not_followed_0_put_into_c2_deleted_until_gate_3_adds_it(
+    ) {
         let deleted = Deleted {
             report: sample_delete_report(),
             store: Some(FRESH),
@@ -941,6 +950,7 @@ mod tests {
                         os_code: -3801,
                     }),
                 },
+                unstopped: false,
             };
             f.sources[0].state = SourceState::Impaired {
                 reason: Reason::TitleReadErrors,

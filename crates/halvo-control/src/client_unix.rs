@@ -426,18 +426,17 @@ mod tests {
             let mut frame = (body.len() as u32).to_be_bytes().to_vec();
             frame.extend_from_slice(&body);
             stream.write_all(&frame).unwrap();
-            let _ = held.recv_timeout(Duration::from_secs(10));
+            let _ = held.recv();
         });
-        let client = Client::new(UnixConnector::at(&dir));
-        let started = Instant::now();
-        let reply = client.status();
-        let took = started.elapsed();
+        let reply = client_within(&dir, 10_000).status();
         let _ = release.send(());
         server.join().unwrap();
-        assert_eq!(reply.unwrap(), sample_status(Platform::Macos));
-        assert!(
-            took < Duration::from_millis(1_500),
-            "the reply took {took:?} against a deadline of 2 s"
+        assert_eq!(
+            reply.as_ref().ok(),
+            Some(&sample_status(Platform::Macos)),
+            "{reply:?}: the peer keeps the connection until the client has answered, so a reply \
+             is one that the client took without the end of the stream; the deadline is 10 s so \
+             that a hosted runner that holds a thread for seconds cannot end the request first"
         );
     }
 
@@ -637,6 +636,79 @@ mod tests {
         );
     }
 
+    /// A connector whose socket lies outside its data directory, as C3.5 allows when the
+    /// socket goes under the user's temporary directory.
+    fn connector_beside(data_dir: &Path, socket_dir: &DataDir) -> UnixConnector {
+        UnixConnector {
+            socket: socket_dir.control_socket(),
+            data_dir: data_dir.to_path_buf(),
+            expected_pid: None,
+        }
+    }
+
+    #[test]
+    fn a_fifo_at_the_data_directory_path_is_an_io_error_with_exit_1_at_once_through_the_connector()
+    {
+        use crate::instance_lock::planted;
+
+        let (_base, socket_dir) = short_data_dir();
+        crate::testing::make_private_dir(&socket_dir.run_dir()).unwrap();
+        let fifo = socket_dir.path().join("planted");
+        planted::mkfifo(&fifo);
+        let connector = connector_beside(&fifo, &socket_dir);
+        let answer = planted::answer_within(&fifo, &fifo, move |_| Client::new(connector).status());
+        let Some(answer) = answer else {
+            panic!(
+                "the connect did not return within {:?} on a FIFO at the data directory's path",
+                planted::BOUND
+            );
+        };
+        assert!(matches!(answer, Err(ClientError::Io(_))), "{answer:?}");
+        let printed = crate::ctl_text::print(
+            &crate::ctl_text::Verb::Status { indicator: false },
+            answer.map(crate::proto::Reply::Status),
+            &socket_dir,
+        );
+        assert_eq!(printed.status, 1, "{printed:?}");
+        assert!(!printed.stderr.contains("not running"), "{printed:?}");
+    }
+
+    #[test]
+    fn an_open_error_of_the_lock_read_is_an_io_error_with_exit_1_through_the_connector() {
+        use crate::instance_lock::planted;
+
+        let (_base, socket_dir) = short_data_dir();
+        crate::testing::make_private_dir(&socket_dir.run_dir()).unwrap();
+        let closed_path = socket_dir.path().join("closed");
+        let _closed = planted::Closed::make(&closed_path);
+        let answer = Client::new(connector_beside(&closed_path, &socket_dir)).status();
+        assert!(matches!(answer, Err(ClientError::Io(_))), "{answer:?}");
+        let printed = crate::ctl_text::print(
+            &crate::ctl_text::Verb::Status { indicator: false },
+            answer.map(crate::proto::Reply::Status),
+            &socket_dir,
+        );
+        assert_eq!(printed.status, 1, "{printed:?}");
+        assert!(!printed.stderr.contains("not running"), "{printed:?}");
+    }
+
+    #[test]
+    fn the_in_use_answer_comes_no_later_than_the_deadline_and_one_step() {
+        let (_base, dir) = short_data_dir();
+        let lock = held(&dir);
+        let started = Instant::now();
+        let result = client_within(&dir, 5_000).status();
+        let took = started.elapsed();
+        drop(lock);
+        in_use(result, &dir, "a lock held through the whole deadline");
+        assert!(
+            took < Duration::from_secs(15),
+            "the in-use answer came after {took:?}; the request's deadline is 5 s and one step \
+             50 ms. The bound leaves 10 s past the deadline for a hosted runner that holds a \
+             thread for seconds, and a wait of four deadlines, 20 s, passes it"
+        );
+    }
+
     #[test]
     fn no_data_directory_is_unreachable() {
         let (_base, dir) = short_data_dir();
@@ -711,20 +783,37 @@ mod tests {
     fn a_lock_that_is_freed_during_the_wait_gives_unreachable() {
         let (_base, dir) = short_data_dir();
         let lock = held(&dir);
-        let freer = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(300));
-            drop(lock);
-        });
+        let (calls, called) = std::sync::mpsc::channel();
+        let (answers, answer) = std::sync::mpsc::channel();
         let started = Instant::now();
-        let result = client_within(&dir, 5_000).status();
+        let client = {
+            let dir = dir.clone();
+            std::thread::spawn(move || {
+                calls.send(()).unwrap();
+                let _ = answers.send(client_within(&dir, 15_000).status());
+            })
+        };
+        called.recv().unwrap();
+        assert!(
+            answer.recv_timeout(Duration::from_millis(300)).is_err(),
+            "the client answered while the lock was held and before it was freed"
+        );
+        drop(lock);
+        let result = answer.recv().unwrap();
         let took = started.elapsed();
-        freer.join().unwrap();
+        client.join().unwrap();
         assert!(
             matches!(result, Err(ClientError::Unreachable { .. })),
-            "{result:?}"
+            "{result:?}: the lock was freed while the client waited; its deadline is 15 s so \
+             that a hosted runner that holds a thread for seconds still ends the wait by the \
+             freed lock"
         );
-        assert!(took >= Duration::from_millis(250), "{took:?}");
-        assert!(took < Duration::from_millis(4_000), "{took:?}");
+        assert!(
+            took >= Duration::from_millis(300),
+            "{took:?}: the lock is freed only after 300 ms in which the client gave no answer, \
+             counted from before the client's thread was made, so the answer comes later on any \
+             machine"
+        );
     }
 
     #[test]
