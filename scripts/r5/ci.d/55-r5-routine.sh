@@ -197,6 +197,8 @@ self_case() {
     wrong="$wrong $label:log"
   elif [ -n "$want" ]; then
     rejected=$((rejected + 1))
+  else
+    passed=$((passed + 1))
   fi
 }
 
@@ -208,14 +210,17 @@ self_test() {
   ok="$want_memory$nl"
   store_refusal="$not_built$nl"
   log_line='^(routine trains=[0-9]+ plays=[0-9]+ same=[0-9]+( store=[a-z]+)? result=(ok|miss)|(routine|derived)=unreadable exit=[0-9]+|derived=not-run)$'
-  failing_fixtures=18
+  failing_fixtures=19
+  passing_fixtures=2
   wrong=
   rejected=0
+  passed=0
   self_case good "" "$ok" 0 "" "$store_refusal" 2
   self_case good-derived "" "$ok" 0 "$want_derived$nl" "" 0
   self_case one-train-differs result "routine trains=135 plays=270 same=268 result=miss$nl" 1 "" "$store_refusal" 2
   self_case one-play-differs result "routine trains=135 plays=270 same=269 result=miss$nl" 1 "" "$store_refusal" 2
   self_case miss-read-as-ok result "routine trains=135 plays=270 same=269 result=ok$nl" 0 "" "$store_refusal" 2
+  self_case trains-134-plays-270 result "routine trains=134 plays=270 same=270 result=ok$nl" 0 "" "$store_refusal" 2
   self_case fewer-trains result "routine trains=134 plays=268 same=268 result=ok$nl" 0 "" "$store_refusal" 2
   self_case ok-with-exit-1 result "$ok" 1 "" "$store_refusal" 2
   self_case second-line result "$ok${ok}" 0 "" "$store_refusal" 2
@@ -233,6 +238,10 @@ self_test() {
   self_case derived-store-status-1 derived "$ok" 0 "" "$store_refusal" 1
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
+    exit 1
+  fi
+  if [ "$passed" -ne "$passing_fixtures" ]; then
+    printf 'FAIL self-test:%s (%s passing fixtures passed, not %s)\n' "$name" "$passed" "$passing_fixtures"
     exit 1
   fi
   if [ "$rejected" -ne "$failing_fixtures" ]; then
