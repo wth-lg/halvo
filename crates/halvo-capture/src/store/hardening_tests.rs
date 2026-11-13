@@ -608,7 +608,7 @@ fn a_shred_clears_the_key_durably_before_it_removes_the_file_and_syncs_the_shard
         .write_segment_with_expiry(&mut Cursor::new(b"cleared before removal"), 0, 1)
         .unwrap();
     store.write_segment(&mut Cursor::new(b"live")).unwrap();
-    let path = segment_path(dir.path(), expired.segment_id);
+    let path = segment_path(store.dir(), expired.segment_id);
     let shard = path.parent().unwrap().to_path_buf();
     let cipher = std::fs::read(&path).unwrap();
     let store_key = *store.store_key().unwrap().expose();
@@ -2990,6 +2990,135 @@ fn a_create_over_a_database_and_segment_files_without_a_key_file_starts_from_not
         }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+const SHARING_VIOLATION_AT_CREATE: i32 = 32;
+
+fn files_with_bytes(dir: &Path) -> Vec<(String, Vec<u8>)> {
+    let mut found: Vec<(String, Vec<u8>)> = files_under(dir)
+        .into_iter()
+        .map(|path| {
+            let bytes = std::fs::read(&path).unwrap();
+            let name = path
+                .strip_prefix(dir)
+                .unwrap()
+                .to_string_lossy()
+                .into_owned();
+            (name, bytes)
+        })
+        .collect();
+    found.sort();
+    found
+}
+
+#[test]
+fn create_clears_through_its_handle_and_leaves_the_files_of_a_directory_put_at_its_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, moved, roots_dir) = (
+        dir.path().join("store"),
+        dir.path().join("moved-store"),
+        dir.path().join("roots"),
+    );
+    std::fs::create_dir(&store_dir).unwrap();
+    let theirs: [(&str, &[u8]); 6] = [
+        ("store.db", b"a database of another party"),
+        ("store.db-wal", b"its log"),
+        ("store.db-shm", b"its shared memory"),
+        ("store.key.tmp", b"a file of that name"),
+        (
+            "segments/01/01000000000000000000000000000000.seg",
+            b"a segment of theirs",
+        ),
+        ("notes.txt", b"and a file of no store"),
+    ];
+    let mut moved_away: Option<Result<(), Option<i32>>> = None;
+    let mut open_lock = |path: &Path| -> io::Result<std::fs::File> {
+        if moved_away.is_none() {
+            let renamed = std::fs::rename(&store_dir, &moved);
+            if renamed.is_ok() {
+                for (name, bytes) in theirs {
+                    let file = store_dir.join(name);
+                    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+                    std::fs::write(file, bytes).unwrap();
+                }
+            }
+            moved_away = Some(renamed.map_err(|e| e.raw_os_error()));
+        }
+        std::fs::File::options()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(path)
+    };
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, RootId::fresh());
+
+    let created = EncryptedStore::create_with(
+        &store_dir,
+        Box::new(custody),
+        DEFAULT_RETENTION,
+        &mut open_lock,
+    )
+    .map(drop);
+
+    let expected: Vec<(String, Vec<u8>)> = {
+        let mut expected: Vec<(String, Vec<u8>)> = theirs
+            .iter()
+            .map(|(name, bytes)| (name.to_string(), bytes.to_vec()))
+            .chain([("writer.lock".to_string(), Vec::new())])
+            .collect();
+        expected.sort();
+        expected
+    };
+    match moved_away {
+        Some(Ok(())) => {
+            assert_eq!(
+                files_with_bytes(&store_dir),
+                expected,
+                "create ({created:?}) removed or changed files of the directory put at its name \
+                 after it took its handle"
+            );
+            assert!(
+                matches!(&created, Err(StoreError::Corrupt(text))
+                    if text == "the store directory no longer stands at its name"),
+                "create answered {created:?} for a store directory moved away from its name"
+            );
+        }
+        Some(Err(code)) => assert!(
+            cfg!(windows) && code == Some(SHARING_VIOLATION_AT_CREATE) && created.is_ok(),
+            "the move of the store directory answered {code:?} and create {created:?}"
+        ),
+        None => panic!("create did not open writer.lock: {created:?}"),
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn create_takes_a_link_at_store_key_as_a_store_and_follows_it_nowhere() {
+    let dir = tempfile::tempdir().unwrap();
+    let store_dir = dir.path().join("store");
+    std::fs::create_dir(&store_dir).unwrap();
+    std::os::unix::fs::symlink(dir.path().join("no-such-key"), KeyFile::path(&store_dir)).unwrap();
+    std::fs::write(store_dir.join("store.db"), b"a database that stays").unwrap();
+    let before = entries_below(&store_dir);
+    let custody = file_root_custody(
+        &dir.path().join("roots"),
+        TestProtector::new(0x5a).0,
+        RootId::fresh(),
+    );
+
+    let created =
+        EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).map(drop);
+
+    assert!(
+        matches!(created, Err(StoreError::AlreadyExists(_))),
+        "create over a store.key that is a link to a missing file answered {created:?}"
+    );
+    let mut after = entries_below(&store_dir);
+    after.retain(|(name, _)| name != "writer.lock");
+    assert_eq!(
+        after, before,
+        "create changed the directory that it refused"
+    );
 }
 
 fn reopened_file_root_store(store_dir: &Path, roots_dir: &Path, root_id: RootId) -> EncryptedStore {

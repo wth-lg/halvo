@@ -1017,16 +1017,25 @@ it in the plan before weakening an assertion.
   names the same directory; otherwise it answers `Corrupt` and tries to
   remove the partial file through the shard's handle. It reports no
   removal that fails: the partial file then stays in that directory until
-  a later sweep removes it. These stay by name, under the name of the
-  handle: the open of `writer.lock`; SQLite's own open of `store.db` and
-  of its log; the read at `create` of whether `store.key` exists; every
-  removal of the database files (`Db::destroy`), at `create`, after a
-  create that fails and at delete-all; the removal at `create` of a
-  `segments` tree and of a `store.key.tmp` that were left; the removal of
-  `store.key` (`KeyFile::destroy`); and the removal of the `segments` tree
-  at delete-all. On macOS a handle keeps its directory when another
-  process moves that directory away, so those steps then act in whatever
-  directory stands at the name. On Windows a directory of the chain and `store.db`, from its
+  a later sweep removes it. Every step of `create` that tests, opens or
+  removes an entry acts relative to the handle: the read of whether
+  `store.key` is there, which takes any entry at that name, a link among
+  them, as a store; the removal of the database files, of a `segments`
+  tree and of a `store.key.tmp` that were left; and the removal of the
+  database files after a create that fails. Before SQLite opens the
+  database by its name under the handle's name, at `create` and at `open`,
+  the store reads that name without following a link and goes on only when
+  it still stands for the handle's own directory (device and inode);
+  otherwise it answers `Corrupt`. These stay by name, under the name of the
+  handle, as ruling ST-26 has them: the open of `writer.lock`; the removal
+  of `store.key` (`KeyFile::destroy`), at delete-all and after a create
+  that fails after its root step; and the steps of delete-all, among them
+  the removal of the database files (`Db::destroy`) and of the `segments`
+  tree. SQLite's own open of `store.db` and of its log is by name as well,
+  so a move of the store directory between that last look and SQLite's
+  open is not refused. On macOS a handle keeps its directory when another
+  process moves that directory away, so the steps by name then act in
+  whatever directory stands at the name. On Windows a directory of the chain and `store.db`, from its
   checks until the connection is open, are held by a handle opened with the
   reparse-point flag and without delete sharing, so no other entry can take
   their names. The tests of `store::hardening_tests` whose names start with
@@ -1037,7 +1046,12 @@ it in the plan before weakening an assertion.
   the create of its partial file;
   `delete_all_unlinks_a_store_key_that_is_a_link_and_writes_nothing_through_it`
   and `create_makes_no_file_through_a_writer_lock_that_is_a_link` read the
-  other two; the tests that start with `open_answers_a_store_key_` and
+  other two;
+  `create_clears_through_its_handle_and_leaves_the_files_of_a_directory_put_at_its_name`
+  reads `create` with its directory moved away between the handle and the
+  removals and another directory put at the name, and
+  `create_takes_a_link_at_store_key_as_a_store_and_follows_it_nowhere` its
+  read of `store.key`; the tests that start with `open_answers_a_store_key_` and
   `a_segment_read_answers_` read a link and a FIFO at `store.key` and at a
   segment file, each within 5 s;
   `open_refuses_a_store_db_that_is_a_link_before_its_custody_and_writes_nothing_through_it`

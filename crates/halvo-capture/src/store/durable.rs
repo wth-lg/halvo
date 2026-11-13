@@ -106,6 +106,41 @@ impl Dir {
     pub(crate) fn path(&self) -> &Path {
         &self.path
     }
+
+    /// Removes the entry `name` and, when it is a directory, everything below
+    /// it, each directory opened through the handle of its parent; a link is
+    /// removed and not followed, and a name that is gone is no error.
+    pub(crate) fn remove_tree(&self, name: &OsStr) -> io::Result<()> {
+        let gone = |removed: io::Result<()>| match removed {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+            other => other,
+        };
+        let entry = match self.entry(name) {
+            Ok(entry) => entry,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(e),
+        };
+        if entry.kind == EntryKind::Dir {
+            match self.open_dir(name) {
+                Ok(below) => {
+                    for child in below.entries()? {
+                        below.remove_tree(&child.name)?;
+                    }
+                    drop(below);
+                    return gone(self.remove_dir(name));
+                }
+                Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+                Err(e) if refusal(&e) == Some(Refused::Link) => {}
+                Err(e) => return Err(e),
+            }
+        }
+        match self.remove_file(name) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound && entry.kind == EntryKind::Link => {
+                gone(self.remove_dir(name))
+            }
+            other => gone(other),
+        }
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -312,6 +347,25 @@ mod unix_dir {
             checked(unsafe { libc::unlinkat(self.fd.as_raw_fd(), c.as_ptr(), 0) })
         }
 
+        pub(crate) fn remove_dir(&self, name: &OsStr) -> io::Result<()> {
+            let c = c_name(name)?;
+            checked(unsafe { libc::unlinkat(self.fd.as_raw_fd(), c.as_ptr(), libc::AT_REMOVEDIR) })
+        }
+
+        pub(crate) fn still_named(&self) -> io::Result<bool> {
+            let c = c_name(self.path.as_os_str())?;
+            let mut st: libc::stat = unsafe { std::mem::zeroed() };
+            if unsafe { libc::lstat(c.as_ptr(), &mut st) } < 0 {
+                let e = io::Error::last_os_error();
+                return match e.kind() {
+                    io::ErrorKind::NotFound => Ok(false),
+                    _ => Err(e),
+                };
+            }
+            let held = stat_of(self.fd.as_raw_fd())?;
+            Ok(kind(&st) == EntryKind::Dir && st.st_dev == held.st_dev && st.st_ino == held.st_ino)
+        }
+
         pub(crate) fn sync(&self) -> io::Result<()> {
             checked(unsafe { libc::fsync(self.fd.as_raw_fd()) })
         }
@@ -484,6 +538,14 @@ mod windows_dir {
 
         pub(crate) fn remove_file(&self, name: &OsStr) -> io::Result<()> {
             std::fs::remove_file(self.path.join(name))
+        }
+
+        pub(crate) fn remove_dir(&self, name: &OsStr) -> io::Result<()> {
+            std::fs::remove_dir(self.path.join(name))
+        }
+
+        pub(crate) fn still_named(&self) -> io::Result<bool> {
+            Ok(true)
         }
 
         pub(crate) fn sync(&self) -> io::Result<()> {

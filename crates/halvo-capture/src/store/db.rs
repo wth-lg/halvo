@@ -31,6 +31,7 @@ const KEY_FILE_TEMP: &str = "store.key.tmp";
 const DATABASE_FILE: &str = "store.db";
 const DATABASE_LOG: &str = "store.db-wal";
 const LINKED_DATABASE: &str = "the database file of the store is a link";
+const STORE_DIR_MOVED: &str = "the store directory no longer stands at its name";
 
 #[derive(Deserialize)]
 struct KeyFileVersion {
@@ -58,8 +59,12 @@ impl KeyFile {
         store_dir.join("store.key")
     }
 
-    fn temp_path(store_dir: &Path) -> PathBuf {
-        store_dir.join("store.key.tmp")
+    fn is_in(store_dir: &Dir) -> StoreResult<bool> {
+        match store_dir.entry(OsStr::new(KEY_FILE)) {
+            Ok(_) => Ok(true),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(false),
+            Err(e) => Err(io_error(e)),
+        }
     }
 
     fn write(&self, store_dir: &Dir) -> StoreResult<()> {
@@ -198,7 +203,19 @@ fn open_database(store_dir: &Dir, path: &Path) -> StoreResult<Connection> {
         .map_err(database_file_error)?
         .set_permissions(std::fs::Permissions::from_mode(0o600))
         .map_err(io_error)?;
+    refuse_a_moved_store_dir(store_dir)?;
     Connection::open_with_flags(path, DATABASE_OPEN).map_err(database_open_error)
+}
+
+/// SQLite opens the database by its name under the handle's name, so the
+/// store goes on only while that name still stands for the handle's own
+/// directory.
+fn refuse_a_moved_store_dir(store_dir: &Dir) -> StoreResult<()> {
+    match store_dir.still_named() {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(StoreError::Corrupt(STORE_DIR_MOVED.to_string())),
+        Err(e) => Err(io_error(e)),
+    }
 }
 
 /// Opens the connection on the database file of `store_dir`. On Windows the
@@ -209,6 +226,7 @@ fn open_database(store_dir: &Dir, path: &Path) -> StoreResult<Connection> {
     let held = store_dir
         .hold_file(OsStr::new(DATABASE_FILE))
         .map_err(database_file_error)?;
+    refuse_a_moved_store_dir(store_dir)?;
     let conn = Connection::open_with_flags(path, DATABASE_OPEN).map_err(database_open_error);
     drop(held);
     conn
@@ -246,8 +264,8 @@ pub(crate) fn remove_if_present(path: &Path) -> StoreResult<()> {
     }
 }
 
-fn remove_dir_if_present(path: &Path) -> StoreResult<()> {
-    match std::fs::remove_dir_all(path) {
+fn remove_in(store_dir: &Dir, name: &str) -> StoreResult<()> {
+    match store_dir.remove_file(OsStr::new(name)) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
         Err(e) => Err(io_error(e)),
@@ -338,6 +356,12 @@ impl Db {
         Self::side_files(store_dir)
             .iter()
             .try_for_each(|p| remove_if_present(p))
+    }
+
+    fn destroy_in(store_dir: &Dir) -> StoreResult<()> {
+        [DATABASE_FILE, DATABASE_LOG, "store.db-shm"]
+            .iter()
+            .try_for_each(|name| remove_in(store_dir, name))
     }
 
     pub(crate) fn open(store_dir: &Dir, key: &[u8; 32]) -> StoreResult<Self> {
@@ -816,22 +840,30 @@ impl EncryptedStore {
         custody: Box<dyn KeyCustody + Send>,
         retention: Duration,
     ) -> StoreResult<Self> {
+        Self::create_with(dir, custody, retention, &mut WriterLock::open_lock_file)
+    }
+
+    pub(crate) fn create_with(
+        dir: &Path,
+        custody: Box<dyn KeyCustody + Send>,
+        retention: Duration,
+        open_lock: &mut dyn FnMut(&Path) -> std::io::Result<File>,
+    ) -> StoreResult<Self> {
         durable::create_private_dir_all(dir).map_err(io_error)?;
         let store = Dir::open(dir).map_err(store_dir_error)?;
         store.make_private().map_err(io_error)?;
-        let dir = store.path();
-        let _writer_lock = WriterLock::take(dir)?;
-        if KeyFile::path(dir).exists() {
-            return Err(StoreError::AlreadyExists(dir.to_path_buf()));
+        let dir = &store;
+        let _writer_lock = WriterLock::take_with(dir.path(), open_lock)?;
+        if KeyFile::is_in(dir)? {
+            return Err(StoreError::AlreadyExists(dir.path().to_path_buf()));
         }
-        Db::destroy(dir)?;
-        remove_dir_if_present(&segment::segments_root(dir))?;
-        remove_if_present(&KeyFile::temp_path(dir))?;
+        Db::destroy_in(dir)?;
+        segment::remove_segments_tree(dir)?;
+        remove_in(dir, KEY_FILE_TEMP)?;
         let store_key = StoreKey::random()?;
-        let db =
-            Db::open(&store, store_key.expose()).map_err(|e| Self::without_database(dir, e))?;
+        let db = Db::open(dir, store_key.expose()).map_err(|e| Self::without_database(dir, e))?;
         let db = Self::under_a_new_root(dir, custody.as_ref(), db)?;
-        match Self::write_key_file(&store, custody.as_ref(), &store_key) {
+        match Self::write_key_file(dir, custody.as_ref(), &store_key) {
             Ok(()) => Ok(Self {
                 dir: store,
                 retention,
@@ -848,7 +880,7 @@ impl EncryptedStore {
         }
     }
 
-    fn under_a_new_root(dir: &Path, custody: &dyn KeyCustody, db: Db) -> StoreResult<Db> {
+    fn under_a_new_root(dir: &Dir, custody: &dyn KeyCustody, db: Db) -> StoreResult<Db> {
         match custody.create_root() {
             Ok(()) => Ok(db),
             Err(e) => {
@@ -873,17 +905,17 @@ impl EncryptedStore {
         .write(dir)
     }
 
-    fn without_database(dir: &Path, cause: StoreError) -> StoreError {
-        match Db::destroy(dir) {
+    fn without_database(dir: &Dir, cause: StoreError) -> StoreError {
+        match Db::destroy_in(dir) {
             Ok(()) => cause,
             Err(left_behind) => left_behind,
         }
     }
 
-    fn abandon_create(dir: &Path, custody: &dyn KeyCustody, cause: StoreError) -> StoreError {
+    fn abandon_create(dir: &Dir, custody: &dyn KeyCustody, cause: StoreError) -> StoreError {
         let root = custody.destroy_root().map_err(StoreError::Custody);
-        let key_file = KeyFile::destroy(dir);
-        let database = Db::destroy(dir);
+        let key_file = KeyFile::destroy(dir.path());
+        let database = Db::destroy_in(dir);
         match root.and(key_file).and(database) {
             Ok(()) => cause,
             Err(left_behind) => left_behind,

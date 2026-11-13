@@ -135,6 +135,12 @@ fn refused_or_io(e: io::Error, link: &str) -> StoreError {
     }
 }
 
+pub(crate) fn remove_segments_tree(store_dir: &Dir) -> StoreResult<()> {
+    store_dir
+        .remove_tree(OsStr::new(SEGMENTS))
+        .map_err(io_error)
+}
+
 pub(crate) fn refuse_a_linked_segments_root(store_dir: &Dir) -> StoreResult<()> {
     match store_dir.entry(OsStr::new(SEGMENTS)) {
         Ok(entry) if entry.kind == EntryKind::Link => {
