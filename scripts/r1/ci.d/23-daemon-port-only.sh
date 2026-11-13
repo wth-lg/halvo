@@ -129,8 +129,8 @@ self_test() {
   with_line glob 'use crate::store::*;'
   with_line raw-ident 'fn h() { let _ = std::any::type_name::<crate::store::r#db::Db>(); }'
   with_line raw-store 'fn h() { let _ = crate::r#store::db::Db::open; }'
-  with_line macro-arguments 'macro_rules! from { ($m:ident :: $t:ident) => { crate::$m::$t }; }'
-  with_line macro-crate 'macro_rules! from { () => { $crate::store::db::Db }; }'
+  with_line macro-arguments "macro_rules! from { (\$m:ident :: \$t:ident) => { crate::\$m::\$t }; }"
+  with_line macro-crate "macro_rules! from { () => { \$crate::store::db::Db }; }"
   with_line super-path 'use super::super::store::db;'
   with_line brace-import 'use crate::{daemon, store};'
   with_line crate-alias 'use crate as root;'
@@ -147,7 +147,7 @@ self_test() {
   mkdir -p "$work/linked/outside" || exit 2
   printf '%s\n' 'use crate::store::db::Db;' >"$work/linked/outside/linked.txt" || exit 2
   ln -s ../../../../outside/linked.txt "$work/linked/crates/halvo-capture/src/daemon/linked_tests.rs" || exit 2
-  if [ -L "$work/linked/crates/halvo-capture/src/daemon/linked_tests.rs" ]; then made=link; else made=copy; fi
+  if [ -L "$work/linked/crates/halvo-capture/src/daemon/linked_tests.rs" ]; then made='link'; else made='copy'; fi
   printf 'case %s/linked: ln -s made a %s\n' "$name" "$made"
   case_of linked FAIL
   fixture data-file-renamed

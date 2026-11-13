@@ -278,7 +278,7 @@ self_test() {
   mkdir -p "$work/linked/outside" || exit 2
   printf '%s\n' '#![allow(dead_code)]' >"$work/linked/outside/linked.txt" || exit 2
   ln -s ../../../../outside/linked.txt "$work/linked/crates/halvo-capture/src/daemon/linked_tests.rs" || exit 2
-  if [ -L "$work/linked/crates/halvo-capture/src/daemon/linked_tests.rs" ]; then made=link; else made=copy; fi
+  if [ -L "$work/linked/crates/halvo-capture/src/daemon/linked_tests.rs" ]; then made='link'; else made='copy'; fi
   printf 'case %s/linked: ln -s made a %s\n' "$name" "$made"
   case_of linked FAIL
   fixture data-file-holds-any-text
