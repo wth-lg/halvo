@@ -1,3 +1,4 @@
+mod bounds;
 mod coordinator;
 mod edges;
 mod finish;
