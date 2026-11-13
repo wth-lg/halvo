@@ -12,4 +12,5 @@ pub mod layers;
 pub mod manifest;
 pub mod rng;
 pub mod script;
+pub mod split;
 pub mod text;

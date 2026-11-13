@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use halvo_sample::form::{parse_seed, Refusal};
+use halvo_sample::script::Sites;
 
 const USAGE: &str =
     "halvo-sample compose|split|build|check-labels|input-copy|leak|mask-layers ARGUMENTS";
@@ -105,6 +106,24 @@ fn run(args: &[String]) -> Result<(Vec<String>, bool), Refusal> {
             };
             let c = halvo_sample::check::check_labels(&PathBuf::from(dir), rule)?;
             Ok((c.lines, c.pass))
+        }
+        "split" => {
+            let (f, rest) = parse(args, &["--sides", "--seed", "--out"], &[])?;
+            let sides = match need(&f, "--sides")?.as_str() {
+                "seen,unseen" => (Sites::Seen, Sites::Unseen),
+                "check,heldout" => (Sites::Check, Sites::Heldout),
+                _ => return Err(Refusal::new("usage", "--sides")),
+            };
+            if rest.is_empty() {
+                return Err(Refusal::new("usage", "missing SCRIPT"));
+            }
+            let a = halvo_sample::split::SplitArgs {
+                sides,
+                seed: seed(&f)?,
+                out: PathBuf::from(need(&f, "--out")?),
+                scripts: paths(&rest),
+            };
+            halvo_sample::split::split(&a).map(done)
         }
         _ => Err(Refusal::new("usage", USAGE)),
     }
