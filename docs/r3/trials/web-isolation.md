@@ -519,43 +519,43 @@ verdict executor=cdp version=0.9.1 product=yes relay=open open_ways=peer_connect
 ## Third round (U0.7c)
 
 Unit U0.7c runs A13.7's third round under CP-89, CP-93 and CP-95 (2): the trial program starts the
-browser as a direct child on its debugging pipe and is its one client, and the relay is its only
-route, in all five cells. Its README ("The third round") says how each part works.
+browser on its debugging pipe as its one client, the relay its only route, in all five cells.
 
-What ran: every row with `run.sh ... --round 3 --relay` (the driver row with `--round 3`), 10 runs
-per cell and 20 kills per driver form: `--rows round3`, the nine rows, `--rows isolation`, `--rows
-relay`, `--rows reach`, `--rows ways --step frame_doc` (and with `--channel port`, a control),
-`--rows driver` and `--rows org`. `mac` (Chrome 153.0.8010.48) ran at c296a1c, one call of the run
-helper per row set on a lane that records no time, from 2026-11-12T20:47:33Z to 21:36:43Z, so its
-`median_ms` is no timed measure. The hosted cells ran in run 43313951706 at commit 2f01929 (code as
-e72f083, which differs from c296a1c in Windows code alone): hosted-mac Chrome 157.0.8103.39 and Edge
-156.0.4314.58, hosted-win Chrome 156.0.8078.80 and Edge 156.0.4314.58. Commit 037b242, after these
-runs, also ends at a failed start each process that names the profile; no cell ran at it.
+What ran: each row set (`round3`, the nine rows, `isolation`, `relay`, `reach`, `ways --step
+frame_doc` with a `--channel port` control, `driver`, `org`) with `run.sh ... --round 3 --relay`
+(`driver` without `--relay`), 10 runs per cell, 20 kills per driver form. `mac` (Chrome
+153.0.8010.48) ran at c296a1c, on an untimed helper lane from 2026-11-12T20:47:33Z to 21:36:43Z, so
+its `median_ms` is no timed measure. Run 43313951706 at 2f01929 (code as e72f083: c296a1c and
+Windows code) gave every hosted line but hosted-mac's `org_` cells: hosted-mac Chrome 157.0.8103.39
+and Edge 156.0.4314.58, hosted-win Chrome 156.0.8078.80 and Edge 156.0.4314.58. Those four cells
+come from the eighth scratch run at code 037b242.
 
-Choices that the text leaves, with their reasons in the README: the probe's origin
+Choices that the text leaves, with reasons in the README: the probe's origin
 `http://halvo-start-probe.invalid/`; `FIRST_REPLY_WAIT` 30 s, `PROBE_WAIT` 10 s, `MAX_OPEN` 512,
-`MAX_RECORD` 4096; a `check` line sums each rule of A11.1's check over a cell's runs and three reads
-(after the start, the row and the stop). A hard kill closes the relay's listener at once and the
-browser's tree ends later (no guard: port free at 1 ms, browser gone at 2476 to 4036 ms, 3 of 3 runs
-on `mac`), so a guard process holds a copy of the listener until the tree is gone. Flags that the
-product does not carry: `--use-mock-keychain`, the six rows' `--isolate-origins=`, the port
-control's `--remote-debugging-port=0`, the resolver rule of `*.test`. `same_site_pref` sets Local
-State `browser.enabled_labs_experiments` with `browser.enabled_labs_experiments_origin_lists`.
+`MAX_RECORD` 4096; a `check` line sums A11.1's rules over a cell's runs and three reads (after the
+start, the row and the stop); a guard process holds a copy of the relay's listener until the
+browser's tree is gone, since a hard kill closes the listener at once. The README names the flags
+that the product does not carry.
 
-`org_policy`: `mac` is `notrun cause=no_policy_place` (Chrome on macOS takes a policy from managed
-preferences alone). hosted-win wrote each policy under HKLM for its call: `ok=10 of=10`, `major=0`.
-On hosted-mac the job's `sudo defaults write` left no file in `/Library/Managed Preferences`
-(`policy set ... mode=` empty) and the browser started in every run, so the collector writes those
-four cells as `notrun cause=policy_not_set`: they measured no policy, and `product=open`. Every
-other deciding pipe cell is ok.
+`org_policy`: `mac` is `notrun cause=no_policy_place`; hosted-win writes each policy under HKLM. On
+hosted-mac, run 43313951706's `sudo defaults write` to the managed path exits 0, prints nothing and
+leaves no file (run 43333071145's listing), so its cells measured no policy; later runs install the
+bundle id's property list in `/Library/Managed Preferences` (root:wheel, 644) and end cfprefsd. The
+reader's rule, fixed before the eighth scratch run: a headless start with no debugging channel
+prints the policy page to a PDF; the page counts when its text holds "policy name" in any case; a
+cell runs only when the text holds the policy's name, also across line breaks, and one more
+`Platform` source than a read before the write, else `notrun cause=policy_not_seen`; the words next
+to the name print from a closed list (false, direct, Platform, Machine, Mandatory, OK, other). The
+page shows that the browser took the policy, not its value: the value comes from the file (`defaults
+read`; owner and mode on the cell line).
 
-The four open facts of CP-93. (1) On Windows the policy key grants `Authenticated Users` `ReadKey`
-(the job's `policy_acl` lines): a person without administrator rights can read that a policy is set;
-on macOS no policy was in place to read. (2) The exclusive bind on Windows holds: on hosted-win
-`relay_port_free` is 20 of 20, the browser gone at 286 to 469 ms and the port free after it, at 303
-to 492 ms. (3) UDP beyond loopback: 0 in the 120 hosted pipe `check` lines, 1 in `mac`'s
-`relay_foreign` reads; the check counts such sockets and names none, so QUIC against name lookups
-stays open. (4) Edge: every deciding pipe cell of Edge is ok, hosted-mac's `org_` cells aside.
+CP-93's open facts. (1) On Windows the policy key grants `Authenticated Users` `ReadKey`, and on
+macOS the browser's policy page shows a policy to the person's own account: a person without
+administrator rights can see that one is set. (2) Windows' exclusive bind holds: `relay_port_free`
+20 of 20 on hosted-win, the port free after the browser in each run. (3) UDP beyond loopback: 0 in
+the 120 hosted pipe `check` lines, 1 in `mac`'s `relay_foreign` reads; the check names no socket, so
+QUIC against name lookups stays open. (4) Edge: every deciding pipe cell of Edge is ok; hosted-mac's
+`org_` cells come from the eighth run.
 
 ```text
 hosted machine=hosted-mac run=43313951706 sha=5027af3a1b0f5f44e342bc743171b98efd10cd5a

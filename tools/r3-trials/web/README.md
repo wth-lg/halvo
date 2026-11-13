@@ -471,15 +471,31 @@ copies of its two ends open: on macOS a freed pipe's handle can name a new pipe 
   reads every 2 ms whether a new socket can bind the relay's port (with `SO_REUSEADDR`) and whether
   any process of the browser's tree still runs; ok when the browser's tree was gone first.
 - `org_debugging` and `org_proxy` (`--rows org`): the caller sets the organisation's setting before
-  the call and takes it away after it (the scratch workflow writes `RemoteDebuggingAllowed` off or
-  `ProxyMode` `direct` under `HKLM\SOFTWARE\Policies` on Windows and in
-  `/Library/Managed Preferences` on the hosted Mac). Ok when the start fails with the plain message
-  of its rule (`NO_CHANNEL_MESSAGE` after the first reply's deadline, or `NO_ROUTE_MESSAGE` when
-  the probe found no refusal) and the fixture counted no request. On this Mac the cell is a `notrun`
-  line with `cause=no_policy_place`: Chrome on macOS takes a policy from the system's managed
-  preferences, which this unit does not write here.
+  the call and takes it away after it: the scratch workflow writes `RemoteDebuggingAllowed` off or
+  `ProxyMode` `direct` under `HKLM\SOFTWARE\Policies` on Windows, and on the hosted Mac installs the
+  bundle id's property list in `/Library/Managed Preferences` (owned by root, mode 644) and ends
+  cfprefsd so that it reads the file again (`sudo defaults write` to that path exits 0, prints
+  nothing and leaves no file: run 43333071145). Before each hosted Mac cell the workflow reads the
+  policy back: a headless start with no debugging channel (the policy that closes the pipe would
+  stop any other read) prints `chrome://policy/`, else `edge://policy/`, to a PDF, and PDFKit reads
+  its text. The page counts when the text holds "policy name" in any case; the cell runs only when
+  the text holds the policy's name, also across line breaks, and one more `Platform` source than a
+  read of the page before the write, else the workflow prints `notrun cause=policy_not_seen`. The
+  words of the name's line and the five lines after it are printed as words of a closed list (false,
+  direct, Platform, Machine, Mandatory, OK, other). Chrome's printed page has the columns Policy
+  name and Source alone, so the value comes from the file (`defaults read`, printed with the file's
+  owner and mode). Ok when the start fails with the plain message of its rule (`NO_CHANNEL_MESSAGE`
+  after the first reply's deadline, or `NO_ROUTE_MESSAGE` when the probe found no refusal) and the
+  fixture counted no request. On this Mac the cell is a `notrun` line with `cause=no_policy_place`:
+  Chrome on macOS takes a policy from the system's managed preferences, which this unit does not
+  write here.
+- Flags of the third round that the product does not carry (A13.3, CP-89 (g)): `--use-mock-keychain`
+  (the product's browser keeps its cookies with the system's key store, A8.3), the six rows'
+  `--isolate-origins=` (it names the payment site, CP-93 (5)), the port control's
+  `--remote-debugging-port=0`, and the resolver rule's map of `*.test` to loopback (the fixture's
+  names).
 - `same_site_pref`: the profile's Local State holds the flags entry `isolate-origins` with the pay
-  origin (`browser.enabled_labs_experiments` and `browser.enabled_lab_experiments_origin_lists`),
+  origin (`browser.enabled_labs_experiments` and `browser.enabled_labs_experiments_origin_lists`),
   and no start flag names the site; ok when the pay frame runs as a target of its own and no
   command line of the browser's tree holds `agent.test`.
 - `same_site_rule`: no setting and no flag isolates the frame; the rule is armed on the page's
