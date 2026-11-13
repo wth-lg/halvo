@@ -21,7 +21,6 @@ impl SystemAudioSource {
         Self { enabled: true }
     }
 
-    /// Whether this source would capture audio.
     pub fn is_enabled(self) -> bool {
         self.enabled
     }

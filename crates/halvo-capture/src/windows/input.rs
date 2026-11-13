@@ -72,7 +72,6 @@ impl PointerSample {
     }
 }
 
-/// The packet of a decoded key, or `None` for a key-up: one press is one event.
 pub(crate) fn keystroke_packet(
     key: KeyStroke,
     foreground_app: String,
@@ -98,7 +97,6 @@ pub(crate) fn pointer_packet(sample: PointerSample, foreground_app: String, tick
     }
 }
 
-/// A decoded raw input packet: either a keyboard or a mouse record.
 #[cfg(target_os = "windows")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RawInputPacket {
@@ -151,12 +149,8 @@ impl RawDevice {
     }
 }
 
-/// Raw Input delivers a device class to one window of a process, so one source
-/// of each device runs in a process at a time: the claim holds that place until
-/// the pump has removed its registration.
 static DEVICES_IN_USE: Mutex<[bool; 2]> = Mutex::new([false; 2]);
 
-/// The window classes, registered once for the life of the process.
 static CLASSES_REGISTERED: Mutex<[bool; 2]> = Mutex::new([false; 2]);
 
 struct DeviceClaim(RawDevice);
@@ -205,9 +199,8 @@ fn register_class(device: RawDevice, hinstance: HINSTANCE) -> Result<(), Capture
 }
 
 /// Raw Input capture source for one device. `begin` opens a message-only
-/// window on its own pump thread and registers the device; `shutdown` ends the
-/// pump inside [`super::INPUT_STOP_DEADLINE`], and dropping the source does
-/// the same. One source of each device runs in a process at a time.
+/// window on its own pump thread and registers the device. One source of each
+/// device runs in a process at a time.
 pub struct RawInputSource {
     device: RawDevice,
     last_app: Arc<Mutex<Option<String>>>,
@@ -249,10 +242,6 @@ fn attributed_app(last_app: &Mutex<Option<String>>) -> String {
         .unwrap_or_default()
 }
 
-/// Copy `bytes` into an 8-aligned, full-size `RAWINPUT` so no field is read
-/// through a misaligned or under-sized reference, then decode the keyboard or
-/// mouse record. Returns `None` for any other record or a buffer too short to
-/// hold the header.
 #[cfg(target_os = "windows")]
 fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
     #[repr(C, align(8))]
@@ -261,8 +250,6 @@ fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
     if bytes.len() < core::mem::size_of::<RAWINPUTHEADER>() {
         return None;
     }
-    // RAWINPUT is a repr(C) plain-data type (integers and unions, no niches), so
-    // any byte pattern is a valid value and zero-padding past `bytes` is sound.
     let mut aligned = Aligned([0u8; core::mem::size_of::<RAWINPUT>()]);
     let n = bytes.len().min(aligned.0.len());
     aligned.0[..n].copy_from_slice(&bytes[..n]);
@@ -427,7 +414,6 @@ impl CaptureSource for RawInputSource {
     }
 }
 
-/// Unregisters the raw input device on drop.
 struct DeviceGuard {
     usage_page: u16,
     usage: u16,
@@ -450,7 +436,6 @@ impl Drop for DeviceGuard {
     }
 }
 
-/// Clears the thread-local input context on drop, after the device is gone.
 struct CtxGuard;
 
 impl Drop for CtxGuard {
@@ -459,7 +444,6 @@ impl Drop for CtxGuard {
     }
 }
 
-/// Destroys the message-only window on drop.
 struct WindowGuard {
     hwnd: HWND,
 }
@@ -636,8 +620,6 @@ mod tests {
                 core::mem::size_of::<RAWINPUT>(),
             )
         };
-        // Lay the bytes down at an odd offset so the source slice is misaligned
-        // for RAWINPUT (align 8); the decoder must still read it soundly.
         let mut backing = vec![0u8; bytes.len() + 8];
         let off = 1usize;
         backing[off..off + bytes.len()].copy_from_slice(bytes);

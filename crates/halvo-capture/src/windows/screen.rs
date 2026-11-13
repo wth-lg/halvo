@@ -26,8 +26,6 @@ use super::{HandOff, HandOffCounts, LossCounts, Packet, Producer};
 /// The default minimum interval between captured frames.
 pub const DEFAULT_MIN_FRAME_INTERVAL: Duration = Duration::from_millis(500);
 
-/// Bytes per pixel of the captured `Bgra8` frame, used to measure the frame's
-/// payload size for the metadata-only placement.
 const BGRA8_BYTES_PER_PIXEL: u64 = 4;
 
 const SINK_GONE: &str = "the capture writer has stopped";
@@ -35,16 +33,12 @@ const NO_PRIMARY_MONITOR: &str = "the primary monitor could not be read";
 const CURSOR_FLOOR: &str =
     "screen capture without the cursor needs Windows 10 build 19041 or later";
 
-/// What the running Windows build supports, as the capture settings need it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CaptureSupport {
     pub(crate) minimum_update_interval: bool,
     pub(crate) cursor_setting: bool,
 }
 
-/// The capture settings that the build allows: the interval to ask for, and
-/// the interval within which the handler drops a frame when the build takes
-/// no minimum update interval.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ScreenChoice {
     pub(crate) interval: MinimumUpdateIntervalSettings,
@@ -60,10 +54,6 @@ fn probe_support() -> Result<CaptureSupport, CaptureError> {
     })
 }
 
-/// Take one reference on the process's multithreaded apartment before the
-/// first capture session and never release it, so that COM keeps loaded what a
-/// session that ended still has a callback in when a window of the process is
-/// destroyed after the last session (RR-windows-04; spike S4, variant mta-ref).
 fn hold_process_mta() -> Result<(), CaptureError> {
     static HELD: Mutex<bool> = Mutex::new(false);
     let mut held = HELD
@@ -81,7 +71,6 @@ fn hold_process_mta() -> Result<(), CaptureError> {
     Ok(())
 }
 
-/// Choose the settings from what `probe` answers, asked once.
 pub(crate) fn choose_settings(
     probe: impl FnOnce() -> Result<CaptureSupport, CaptureError>,
     min_interval: Duration,
@@ -102,8 +91,6 @@ pub(crate) fn choose_settings(
     })
 }
 
-/// Whether the handler keeps a frame that arrives at `now`, given the last
-/// frame that it kept.
 fn keep_frame(
     drop_within: Option<Duration>,
     last_kept: &mut Option<Instant>,
@@ -120,9 +107,6 @@ fn keep_frame(
 }
 const SCREEN_START_FAILED: &str = "the screen capture could not start";
 
-/// The packet of a frame of the given size, or `None` for a zero-area frame,
-/// which carries no image. No pixel is read: the size is the frame's byte
-/// count in Bgra8.
 pub(crate) fn frame_packet(
     width: u32,
     height: u32,
@@ -205,16 +189,9 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
 type Control = CaptureControl<ScreenHandler, CaptureError>;
 
 /// Screen capture source over the primary monitor, the main display by choice
-/// (RD-39), read again at each `begin` so that a restart follows a changed
-/// primary display. A closed capture item, a capture thread that ended and a
-/// writer that is gone each read as failed health; the restart is the
-/// daemon's. The source asks for the system's capture border
-/// (`DrawBorderSettings::Default`) by decision RD-04: the border shows only
-/// while a session runs, and a session runs only while the switch
-/// `screen_activity`, off by default, is on.
-/// `begin` opens a capture session on its own thread; `shutdown` ends it
-/// inside [`super::SCREEN_STOP_DEADLINE`], and dropping the source does the
-/// same.
+/// (RD-39). A closed capture item, a capture thread that ended and a writer
+/// that is gone each read as failed health. The source asks for the system's
+/// capture border (`DrawBorderSettings::Default`) by decision RD-04.
 pub struct ScreenSource {
     last_app: Arc<Mutex<Option<String>>>,
     min_interval: Duration,
@@ -310,10 +287,8 @@ impl Drop for ScreenSource {
     }
 }
 
-/// A capture session as the source stops it.
 trait Session: Send + 'static {
     fn finished(&self) -> bool;
-    /// Stop the session and join its thread; `true` when both went well.
     fn end(self) -> bool;
 }
 
@@ -327,8 +302,6 @@ impl Session for Control {
     }
 }
 
-/// A stop that runs on a thread of its own, because `CaptureControl::stop`
-/// joins the capture thread without a bound.
 struct Stopping {
     done: std::sync::mpsc::Receiver<bool>,
     ended_before: bool,
@@ -354,7 +327,6 @@ impl Stopping {
         })
     }
 
-    /// The outcome of the stop, or `None` when `deadline` passed first.
     fn wait(&self, deadline: Duration) -> Option<Result<(), CaptureError>> {
         match self.done.recv_timeout(deadline) {
             Ok(true) if !self.ended_before => Some(Ok(())),
@@ -366,9 +338,6 @@ impl Stopping {
     }
 }
 
-/// The session of a screen source, its stop and its state. A stop that timed
-/// out keeps waiting on its thread at the next shutdown, and the source reads
-/// as failed and refuses a new begin until then.
 struct ScreenLife<S> {
     session: Option<S>,
     stopping: Option<Stopping>,

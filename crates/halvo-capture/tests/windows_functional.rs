@@ -122,11 +122,6 @@ impl FaultLine {
     }
 }
 
-/// Print `fault code=<hex> module=<name> offset=<hex>` for the first faults of
-/// the access-violation and heap classes, before the process dies. It
-/// allocates nothing, because the heap may be what is broken; a module that
-/// is no longer loaded prints as `<none>` with the address's offset in its
-/// 64 KiB region.
 unsafe extern "system" fn on_fault(pointers: *mut ExceptionPointers) -> i32 {
     // SAFETY: the system passes a valid EXCEPTION_POINTERS whose record lives
     // while the handler runs.

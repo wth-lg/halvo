@@ -35,10 +35,8 @@ impl EventPlacement {
     /// the nil sentinel and the key id is 0. `byte_len` carries the decoded
     /// payload's measured size where the source knows it, so the quantity of
     /// captured data is visible in the event even before the store holds the
-    /// bytes. The P6 daemon wiring replaces this single constructor with a real
-    /// store write that assigns the true segment and key. The nil segment id is
-    /// the signal that no payload has been persisted yet; matches the macOS
-    /// backend's `unpersisted_placement`.
+    /// bytes. The nil segment id is the signal that no payload has been
+    /// persisted yet.
     pub fn unpersisted(byte_len: u64) -> Self {
         Self {
             segment_ref: SegmentRef {
@@ -74,12 +72,10 @@ pub fn build_event(
     )
 }
 
-/// One captured item on its way from an OS callback to the sink.
 pub(crate) struct Packet {
     pub(crate) kind: Modality,
     pub(crate) app: String,
     pub(crate) byte_len: u64,
-    /// When the OS made the event, in milliseconds since the system started.
     pub(crate) tick: u32,
 }
 
@@ -88,15 +84,11 @@ extern "system" {
     fn GetTickCount() -> u32;
 }
 
-/// The system's tick count now, in milliseconds since it started: the clock of
-/// `GetMessageTime` and of a WinEvent's event time.
 pub(crate) fn now_tick() -> u32 {
     // SAFETY: GetTickCount takes no argument and reads a counter.
     unsafe { GetTickCount() }
 }
 
-/// The wall-clock instant of an OS event made at `event_tick`: the wall clock
-/// now minus the age of the event (C12.8).
 pub(crate) fn capture_instant(event_tick: u32) -> SystemTime {
     instant_from_age(SystemTime::now(), now_tick(), event_tick)
 }
@@ -116,12 +108,8 @@ pub struct HandOffCounts {
     pub coalesced: u64,
 }
 
-/// Packets that a source's queue holds; a push to a full queue drops the packet
-/// and counts it as lost.
 pub(crate) const HANDOFF_CAPACITY: usize = 1_024;
 
-/// The shortest time between two motion samples that a forwarder sends: the
-/// samples in between collapse into the one pending sample.
 pub(crate) const MOTION_INTERVAL: Duration = Duration::from_millis(100);
 
 struct Queue {
@@ -131,9 +119,6 @@ struct Queue {
     writer_gone: bool,
 }
 
-/// The loss counts of a source, shared by every hand-off that the source
-/// starts, so that a packet which a stopped run still held is counted after a
-/// restart.
 #[derive(Default)]
 pub(crate) struct LossCounts {
     lost: AtomicU64,
@@ -166,15 +151,10 @@ impl Shared {
     }
 }
 
-/// A source's bounded queue between its OS callback and the sink, with the
-/// forwarder thread that does the blocking emit. A push never waits for the
-/// sink. Dropping the hand-off closes it: the forwarder sends what the queue
-/// holds and ends.
 pub(crate) struct HandOff {
     shared: Arc<Shared>,
 }
 
-/// The callback's end of a hand-off.
 #[derive(Clone)]
 pub(crate) struct Producer {
     shared: Arc<Shared>,
@@ -243,9 +223,6 @@ impl Drop for HandOff {
 }
 
 impl Producer {
-    /// Queue a packet that is never collapsed: a key, a button, a title. A
-    /// motion sample that is pending goes into the queue ahead of it, so the
-    /// sink gets the source's packets in the order in which they came.
     pub(crate) fn push(&self, packet: Packet) {
         let mut queue = self.shared.lock();
         if queue.closed {
@@ -266,8 +243,6 @@ impl Producer {
         self.shared.wake.notify_one();
     }
 
-    /// Make a motion sample the pending one; a sample that was pending is
-    /// replaced and counted as coalesced.
     pub(crate) fn push_motion(&self, packet: Packet) {
         let mut queue = self.shared.lock();
         if queue.closed {
@@ -351,11 +326,6 @@ pub(crate) fn forward_one(sink: &SinkHandle, packet: Packet) -> Result<EmitOutco
     ))
 }
 
-/// A live pump thread's id, as reported by the pump once its message queue
-/// exists and its hook or window is up. [`PumpThreadId::current`] is the only
-/// constructor and reads `GetCurrentThreadId`, which never returns 0 for a live
-/// thread, so a `PumpThreadId` is always a real target: [`post_quit_to`] cannot
-/// be handed a zero sentinel.
 #[cfg(target_os = "windows")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PumpThreadId(u32);
@@ -373,9 +343,6 @@ impl PumpThreadId {
     }
 }
 
-/// The readiness signal a pump body sends once: the outcome of its setup. An
-/// `Ok` hands the pump thread's id to [`spawn_pump`], so a `stop` never runs
-/// before the pump has a real thread id; an `Err` names the step that failed.
 pub(crate) struct PumpReady(std::sync::mpsc::Sender<Result<PumpThreadId, CaptureError>>);
 
 impl PumpReady {
@@ -384,7 +351,6 @@ impl PumpReady {
     }
 }
 
-/// The error of a failed Win32 call at `stage`, from the thread's last error.
 pub(crate) fn last_os_error(stage: &'static str) -> CaptureError {
     os_error(stage, &windows::core::Error::from_thread())
 }
@@ -413,8 +379,6 @@ fn deadline_ms(deadline: Duration) -> u64 {
     u64::try_from(deadline.as_millis()).unwrap_or(u64::MAX)
 }
 
-/// The signal that tells a pump to end besides `WM_QUIT`: a manual-reset event
-/// that the pump's wait watches beside its message queue.
 pub(crate) struct StopSignal(windows::Win32::Foundation::HANDLE);
 
 // SAFETY: an event handle names a kernel object of the process, which any of
@@ -451,8 +415,6 @@ impl Drop for StopSignal {
     }
 }
 
-/// A started pump thread: its reported id, its join handle and its stop
-/// signal. Dropping it stops the pump.
 pub(crate) struct PumpHandle {
     id: PumpThreadId,
     join: Option<std::thread::JoinHandle<()>>,
@@ -461,10 +423,6 @@ pub(crate) struct PumpHandle {
 }
 
 impl PumpHandle {
-    /// Set the stop signal and post `WM_QUIT` until the thread ends: `Ok` when
-    /// it ended and was joined, [`CaptureError::ThreadEnded`] when it had ended
-    /// before the first stop, [`CaptureError::Timeout`] when `deadline` passed
-    /// first, which keeps the thread to be joined by a later stop.
     pub(crate) fn stop(&mut self, deadline: Duration) -> Result<(), CaptureError> {
         let Some(join) = self.join.take() else {
             return Ok(());
@@ -506,12 +464,6 @@ impl Drop for PumpHandle {
     }
 }
 
-/// The run of a pump source: its pump, its hand-off and the loss counts of
-/// every run. A stop that timed out keeps the pump, so that the source reads
-/// as failed and refuses a new begin until a later stop joins it. Dropping it
-/// stops the pump. `shutdown` returns once the pump has ended: the forwarder
-/// then sends what its queue held and ends on its own, so a shutdown can
-/// return while an emit is parked (C12.7).
 #[derive(Default)]
 pub(crate) struct Lifecycle {
     pump: Option<PumpHandle>,
@@ -522,8 +474,6 @@ pub(crate) struct Lifecycle {
 }
 
 impl Lifecycle {
-    /// Start a hand-off to the context's sink and the pump that `spawn` makes
-    /// with its producer; [`CaptureError::AlreadyStarted`] while a pump runs.
     pub(crate) fn begin(
         &mut self,
         ctx: &SourceContext,
@@ -589,8 +539,6 @@ impl Drop for Lifecycle {
     }
 }
 
-/// The failed state of a source whose thread ended without a stop, or whose
-/// sink's writer is gone.
 pub(crate) fn thread_ended() -> SourceState {
     SourceState::Failed {
         reason: HealthReason::ThreadEnded,
@@ -598,11 +546,6 @@ pub(crate) fn thread_ended() -> SourceState {
     }
 }
 
-/// Spawn `body` on a named pump thread and block until it reports its thread id
-/// through [`PumpReady`]. Returns once the pump is ready, so the caller's `stop`
-/// always has a real [`PumpThreadId`] to post `WM_QUIT` to. If the body returns
-/// before it reports (a setup failure), the sender drops, `recv` errors, and the
-/// start fails instead of handing back a pump that never came up.
 pub(crate) fn spawn_pump<F>(name: String, body: F) -> Result<PumpHandle, CaptureError>
 where
     F: FnOnce(PumpReady, Arc<StopSignal>) + Send + 'static,
@@ -646,10 +589,6 @@ pub(crate) fn post_quit_to(thread_id: PumpThreadId) {
     }
 }
 
-/// Force this thread's message queue into existence, so a `WM_QUIT` posted by a
-/// `stop` that runs the instant [`PumpReady::report`] returns is queued and later
-/// delivered to [`pump_messages`]. `PostThreadMessageW` fails on a thread with no
-/// queue; `PeekMessageW` is the documented way to create one.
 #[cfg(target_os = "windows")]
 pub(crate) fn ensure_message_queue() {
     use windows::Win32::Foundation::HWND;
@@ -668,9 +607,6 @@ pub(crate) fn ensure_message_queue() {
     }
 }
 
-/// Pump the current thread's message queue until `WM_QUIT` or the stop signal.
-/// A WinEvent hook or a message-only window delivers its callbacks on the
-/// thread that runs this loop.
 pub(crate) fn pump_messages(signal: &StopSignal) {
     use windows::Win32::Foundation::WAIT_OBJECT_0;
     use windows::Win32::System::Threading::INFINITE;
@@ -707,7 +643,6 @@ pub(crate) fn pump_messages(signal: &StopSignal) {
     }
 }
 
-/// Run the Windows sources for a bounded window and report per-modality counts.
 pub fn timed_run(seconds: u64) -> Result<TimedRunReport, DaemonError> {
     let _ = seconds;
     Err(DaemonError::NotImplemented(
@@ -809,9 +744,6 @@ pub(crate) mod tests {
     #[cfg(target_os = "windows")]
     #[test]
     fn spawn_pump_blocks_until_the_thread_reports_a_real_id() {
-        // The body reports its id and exits without a message loop. spawn_pump
-        // must not return until report() runs, so the handle's id is the pump
-        // thread's real id: never 0, never the starting thread's id.
         let starter = PumpThreadId::current();
         let mut handle = spawn_pump("halvo-pump-test".to_string(), |ready, _signal| {
             ready.report(Ok(()));

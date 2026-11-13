@@ -18,8 +18,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowTextLengthW, GetWindowTextW, EVENT_OBJECT_NAMECHANGE, OBJID_WINDOW,
 };
 
-/// The packet of a title, or `None` for an empty title or one of whitespace
-/// only, so a cleared caption records nothing.
 pub(crate) fn title_packet(title: &str, exe_path: String, tick: u32) -> Option<Packet> {
     if title.trim().is_empty() {
         return None;
@@ -56,8 +54,7 @@ struct TitleState {
 }
 
 /// Window-title capture source. `begin` installs the name-change hook on its
-/// own pump thread; `shutdown` ends the pump inside
-/// [`super::INPUT_STOP_DEADLINE`], and dropping the source does the same.
+/// own pump thread.
 pub struct WindowTitleSource {
     life: Lifecycle,
     installer: HookInstaller,
@@ -107,8 +104,6 @@ unsafe extern "system" fn title_proc(
     _thread: u32,
     time: u32,
 ) {
-    // Only the window object's own name is a window title; child objects
-    // (menus, list items) raise the same event and are not titles.
     if id_object != OBJID_WINDOW.0 {
         return;
     }

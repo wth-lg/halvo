@@ -25,13 +25,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WINEVENT_SKIPOWNPROCESS,
 };
 
-/// The flags shared by both WinEvent hook installers: deliver out of context
-/// (through the thread's message queue) and skip Halvo's own process.
 #[cfg(target_os = "windows")]
 pub(crate) const HOOK_FLAGS: u32 = WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS;
 
-/// Installs a WinEvent hook for one event on the calling thread and returns its
-/// handle, which is invalid when the installation failed.
 pub(crate) type HookInstaller = fn(u32, WINEVENTPROC) -> HWINEVENTHOOK;
 
 pub(crate) fn set_win_event_hook(event: u32, callback: WINEVENTPROC) -> HWINEVENTHOOK {
@@ -50,8 +46,7 @@ pub(crate) fn foreground_packet(exe_path: String, tick: u32) -> Packet {
 }
 
 /// The executable path of the current foreground window's process, or `None` when
-/// there is no foreground window or the process cannot be opened (for example a
-/// higher-integrity process across the UIPI boundary).
+/// there is no foreground window or the process cannot be opened.
 #[cfg(target_os = "windows")]
 pub fn current_foreground_app() -> Option<String> {
     // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
@@ -59,10 +54,6 @@ pub fn current_foreground_app() -> Option<String> {
     foreground_app_for(hwnd)
 }
 
-/// The executable path of `hwnd`'s process, or `None` for a null window, a window
-/// whose process id is 0, a process that cannot be opened, or a failed query.
-/// `None` distinguishes "no app observed" from an app whose path is the empty
-/// string, which cannot happen.
 #[cfg(target_os = "windows")]
 pub(crate) fn foreground_app_for(hwnd: HWND) -> Option<String> {
     use windows::core::PWSTR;
@@ -102,8 +93,7 @@ struct ForegroundState {
 }
 
 /// Foreground-app capture source. `begin` installs the WinEvent hook on its
-/// own pump thread; `shutdown` ends the pump inside
-/// [`super::INPUT_STOP_DEADLINE`], and dropping the source does the same.
+/// own pump thread.
 pub struct ForegroundAppSource {
     last_app: Arc<Mutex<Option<String>>>,
     life: Lifecycle,
