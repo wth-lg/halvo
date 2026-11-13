@@ -877,7 +877,10 @@ async fn crash_one(argv: &[String]) -> (usize, usize) {
     .await;
     let _ = std::fs::remove_dir(&dir);
     match got {
-        Ok(_) => (1, 1),
+        Ok(_) => {
+            println!("row crash_one result=ok");
+            (1, 1)
+        }
         Err(cause) => {
             println!("row crash_one result=notrun cause={cause}");
             (0, 1)
