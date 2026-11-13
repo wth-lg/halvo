@@ -1679,6 +1679,22 @@ mod tests {
     }
 
     #[test]
+    fn a_key_that_arrives_after_a_gap_drops_the_keys_held_before_it() {
+        let held = held(1_000);
+        key_down(&held.ctx);
+        advance(31);
+        on_tap_event(&held.ctx, event(CGEventType::KeyDown));
+        assert_eq!(
+            held_now(&held.ctx),
+            1,
+            "the key that came after the gap alone"
+        );
+        assert!(held.counters.stalled());
+        ticks(&held.ctx, 1_010);
+        assert_eq!(keystrokes(&held.writer), 1);
+    }
+
+    #[test]
     fn a_gap_of_the_bound_keeps_the_held_keys() {
         let held = held(1_000);
         key_down(&held.ctx);
