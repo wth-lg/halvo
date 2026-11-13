@@ -165,6 +165,26 @@ sha512_of() {
   fi
 }
 
+pnpm_platform() {
+  case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64) echo darwin-arm64 ;;
+    Darwin-x86_64) echo darwin-x64 ;;
+    MINGW*|MSYS*|CYGWIN*) echo win32-x64 ;;
+    Linux-x86_64) echo linux-x64 ;;
+    Linux-aarch64) echo linux-arm64 ;;
+    *) return 1 ;;
+  esac
+}
+
+pnpm_lock_integrity() {
+  awk -v entry="  '$1':" '
+    NR == 1 && $0 == "---" { next }
+    $0 == "---" { exit }
+    found { print; exit }
+    $0 == entry { found = 1 }
+  ' backend/pnpm-lock.yaml 2>/dev/null | sed -n 's/^    resolution: {integrity: sha512-\([A-Za-z0-9+/]\{86\}==\)}$/\1/p'
+}
+
 ensure_pnpm() {
   prefix=$1
   field=$(sed -n 's/.*"packageManager": "pnpm@\([^"]*\)".*/\1/p' backend/package.json)
@@ -472,6 +492,21 @@ EOF
   [ "$(cat "$CARGO_HOME/bin/$deny_executable" 2>/dev/null)" = "$deny_built" ] || problems="$problems; bin/$deny_executable is not the one that cargo install wrote"
   verdict "$name"
 
+  integrity_of() {
+    node -e "process.stdout.write(require('node:crypto').createHash('sha512').update(require('node:fs').readFileSync(0)).digest('base64'))" <"$1"
+  }
+
+  write_lock() {
+    {
+      printf -- "---\nlockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    packageManagerDependencies:\n      pnpm:\n        specifier: 12.14.0\n        version: 12.14.0\n\npackages:\n\n"
+      while [ "$#" -gt 1 ]; do
+        printf "  '%s':\n    resolution: {integrity: sha512-%s}\n    cpu: [arm64]\n\n" "$1" "$2"
+        shift 2
+      done
+      printf -- "---\nlockfileVersion: '9.0'\n\npackages:\n\n"
+    } >"$case_dir/repo/backend/pnpm-lock.yaml"
+  }
+
   new_backend_case() {
     new_case "$1"
     mkdir -p "$case_dir/repo/backend/scripts" "$case_dir/home"
@@ -591,6 +626,79 @@ EOF
   run_ensure_backend fails
   [ "$(count 'npm install' "$case_dir/calls")" = 0 ] || problems="$problems; npm ran"
   [ "$(count 'failed; check the network or its proxy, then run sh scripts/prerequisites.sh again' "$case_dir/output")" = 1 ] || problems="$problems; no line said what to do after the failed download"
+  verdict "$name"
+
+  name='each host that the script knows gets the name of its platform package, and another host gets none'
+  new_case pnpm-platform
+  while read -r system machine wanted; do
+    cat >"$case_dir/stubs/uname" <<STUB
+#!/bin/sh
+case "\$1" in
+  -s) echo $system ;;
+  *) echo $machine ;;
+esac
+STUB
+    chmod +x "$case_dir/stubs/uname"
+    got=$(PATH="$case_dir/stubs:/usr/bin:/bin" pnpm_platform) || got=none
+    [ "$got" = "$wanted" ] || problems="$problems; $system $machine gave $got, not $wanted"
+  done <<'EOF'
+Darwin arm64 darwin-arm64
+Darwin x86_64 darwin-x64
+MINGW64_NT-10.0-26100 x86_64 win32-x64
+MSYS_NT-10.0-26100 x86_64 win32-x64
+CYGWIN_NT-10.0-26100 x86_64 win32-x64
+Linux x86_64 linux-x64
+Linux aarch64 linux-arm64
+Linux riscv64 none
+Darwin ppc none
+FreeBSD amd64 none
+EOF
+  verdict "$name"
+
+  name='the lock is read for the sha512 on the line under the entry of its first document, and for nothing else'
+  new_case pnpm-lock
+  mkdir -p "$case_dir/repo/backend"
+  printf 'one\n' >"$case_dir/one"
+  printf 'two\n' >"$case_dir/two"
+  good=$(integrity_of "$case_dir/one")
+  other=$(integrity_of "$case_dir/two")
+  lock_file=$case_dir/repo/backend/pnpm-lock.yaml
+  lock_reads() {
+    got=$(cd "$case_dir/repo" && pnpm_lock_integrity '@pnpm/exe.p@1.0.0') || got="exit $?"
+    [ "$got" = "$1" ] || problems="$problems; $2 gave '$got'"
+  }
+  write_lock '@pnpm/exe.p@1.0.0' "$good"
+  lock_reads "$good" 'the entry of the first document'
+  write_lock '@pnpm/exe.q@1.0.0' "$other" '@pnpm/exe.p@1.0.0' "$good" '@pnpm/exe.r@1.0.0' "$other"
+  lock_reads "$good" 'the entry between two others'
+  write_lock '@pnpm/exe.p@1.0.1' "$good" '@pnpm/exe.p@1.0.0.1' "$good"
+  lock_reads '' 'entries of other versions'
+  write_lock
+  printf "  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$good" >>"$lock_file"
+  lock_reads '' 'an entry of the second document'
+  write_lock '@pnpm/exe.p@1.0.0' "${good%==}"
+  lock_reads '' 'a value without its padding'
+  write_lock '@pnpm/exe.p@1.0.0' "A$good"
+  lock_reads '' 'a value one character longer'
+  write_lock
+  printf "  '@pnpm/exe.p@1.0.0':\n    cpu: [arm64]\n    resolution: {integrity: sha512-%s}\n\n" "$good" >"$case_dir/entry"
+  sed -n '1,/^packages:/p' "$lock_file" >"$case_dir/lock"
+  printf '\n' >>"$case_dir/lock"
+  cat "$case_dir/entry" >>"$case_dir/lock"
+  cp "$case_dir/lock" "$lock_file"
+  lock_reads '' 'a line between the entry and its resolution'
+  write_lock
+  sed -n '1,/^packages:/p' "$lock_file" >"$case_dir/lock"
+  printf "\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha1-%s}\n\n" "$good" >>"$case_dir/lock"
+  cp "$case_dir/lock" "$lock_file"
+  lock_reads '' 'a value of another algorithm'
+  write_lock
+  sed -n '1,/^packages:/p' "$lock_file" >"$case_dir/lock"
+  printf "\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s, tarball: https://example.invalid/p.tgz}\n\n" "$good" >>"$case_dir/lock"
+  cp "$case_dir/lock" "$lock_file"
+  lock_reads '' 'a resolution with a second field'
+  mv "$lock_file" "$lock_file.absent"
+  lock_reads '' 'no lock file'
   verdict "$name"
 
   name='a failed fetch of the pinned tools fails the step, and one line says what to do'
