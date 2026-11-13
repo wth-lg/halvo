@@ -1312,6 +1312,10 @@ async fn relay_foreign(argv: &[String]) -> (usize, usize) {
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+    // After the control the browser sends nothing more: its page's new connections to the listener,
+    // which never answers, would otherwise reach it during the cells (run 43474813792, Windows).
+    let _ = ex.arm_rule(Vec::new(), Mode::Fail).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
     while echo.accept().is_ok() {}
     println!(
         "row relay_foreign control=browser_through_relay result={}",
@@ -1350,6 +1354,7 @@ async fn relay_foreign(argv: &[String]) -> (usize, usize) {
             }
         };
         let before = relay.handle().foreign_count();
+        let tunnels_before = relay.tunnels();
         let out = cmd.stdin(std::process::Stdio::null()).start_output();
         let said = out
             .ok()
@@ -1359,14 +1364,16 @@ async fn relay_foreign(argv: &[String]) -> (usize, usize) {
         let cause = foreign.last().map_or("-", |f| f.cause);
         let recorded = relay.handle().foreign_count() == before + 1;
         let accepted = usize::from(echo.accept().is_ok());
+        let tunnelled = relay.tunnels() - tunnels_before;
         let fine = control
             && recorded
             && cell_cause_fits(who, cause)
             && said == "connect=refused"
-            && accepted == 0;
+            && accepted == 0
+            && tunnelled == 0;
         ok += usize::from(fine);
         println!(
-            "row relay_foreign as={who} cause={cause} recorded={} {said} accepted={accepted} result={}",
+            "row relay_foreign as={who} cause={cause} recorded={} {said} accepted={accepted} tunnelled={tunnelled} result={}",
             if recorded { "yes" } else { "no" },
             if fine { "ok" } else if control { "miss" } else { "notrun" }
         );
