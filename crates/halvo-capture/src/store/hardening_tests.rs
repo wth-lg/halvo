@@ -8168,3 +8168,152 @@ fn a_store_on_a_full_volume_ends_delete_all_with_no_root_and_no_key_file() {
     free_the_volume(&volume);
     assert!(root_gone && key_file_gone, "{answer}");
 }
+
+#[test]
+fn a_code_at_the_open_is_answered_by_its_class_after_a_look() {
+    use super::db::{code_answer, code_seams};
+    let mut answers = Vec::new();
+    for code in [267, 26, 5, 6, 13, 14, 1802] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+        code_seams::force(2, Some(code));
+        let opened = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
+        code_seams::force(0, None);
+        answers.push(format!("{code}: {opened}"));
+    }
+    answers.push(format!("initialize: {:?}", code_answer(Some(1))));
+    answers.push(format!("no code: {:?}", code_answer(None)));
+    assert_eq!(
+        answers,
+        [
+            "267: DatabaseUnreadable",
+            "26: DatabaseUnreadable",
+            "5: Locked",
+            "6: Locked",
+            "13: Io(StorageFull)",
+            "14: Io(Other)",
+            "1802: Io(Other)",
+            "initialize: Io(Other)",
+            "no code: Io(Other)",
+        ]
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn at_the_seam_after_the_last_look_a_moved_directory_a_link_and_a_directory_answer_obstructed() {
+    #[cfg(target_os = "macos")]
+    use super::db::name_seams;
+    use super::db::SEAM_AFTER_THE_LAST_LOOK;
+    let mut answers = Vec::new();
+    for case in ["moved", "link at store.db", "directory at store.db-wal"] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+        let act = {
+            let (store_dir, aside, case) = (
+                store_dir.clone(),
+                dir.path().join("aside"),
+                case.to_string(),
+            );
+            move || match case.as_str() {
+                "moved" => {
+                    std::fs::rename(&store_dir, &aside).unwrap();
+                    std::fs::create_dir(&store_dir).unwrap();
+                }
+                "link at store.db" => {
+                    std::fs::rename(store_dir.join("store.db"), &aside).unwrap();
+                    std::os::unix::fs::symlink(&aside, store_dir.join("store.db")).unwrap();
+                }
+                _ => {
+                    let _ = std::fs::remove_file(store_dir.join("store.db-wal"));
+                    std::fs::create_dir(store_dir.join("store.db-wal")).unwrap();
+                }
+            }
+        };
+        #[cfg(target_os = "macos")]
+        name_seams::answer_stat(Some(Box::new(|| {
+            Err(io::Error::from_raw_os_error(libc::ENOENT))
+        })));
+        let seam = super::failpoint::at(SEAM_AFTER_THE_LAST_LOOK, nth_call(2, act));
+        let opened = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
+        drop(seam);
+        #[cfg(target_os = "macos")]
+        name_seams::answer_stat(None);
+        answers.push(format!("{case}: {opened}"));
+    }
+    println!("ST35 {answers:?}");
+    assert!(
+        answers.iter().all(|answer| answer.contains("Obstructed {")),
+        "{answers:#?}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn an_empty_database_at_the_name_of_a_moved_directory_answers_obstructed_and_not_older_store() {
+    #[cfg(target_os = "macos")]
+    use super::db::name_seams;
+    use super::db::SEAM_AFTER_THE_LAST_LOOK;
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let act = {
+        let (store_dir, aside) = (store_dir.clone(), dir.path().join("aside"));
+        move || {
+            std::fs::rename(&store_dir, &aside).unwrap();
+            std::fs::create_dir(&store_dir).unwrap();
+            std::fs::write(store_dir.join("store.db"), b"").unwrap();
+        }
+    };
+    #[cfg(target_os = "macos")]
+    name_seams::answer_stat(Some(Box::new(|| {
+        Err(io::Error::from_raw_os_error(libc::ENOENT))
+    })));
+    let seam = super::failpoint::at(SEAM_AFTER_THE_LAST_LOOK, nth_call(2, act));
+    let opened = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
+    drop(seam);
+    #[cfg(target_os = "macos")]
+    name_seams::answer_stat(None);
+    println!("W1 {opened}");
+    assert!(opened.starts_with("Obstructed {"), "{opened}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_create_after_its_directory_was_swapped_for_an_empty_one_answers_by_the_look() {
+    #[cfg(target_os = "macos")]
+    use super::db::name_seams;
+    use super::db::SEAM_AFTER_THE_LAST_LOOK;
+    let dir = tempfile::tempdir().unwrap();
+    let store_dir = dir.path().join("store");
+    std::fs::create_dir(&store_dir).unwrap();
+    let act = {
+        let (store_dir, aside) = (store_dir.clone(), dir.path().join("aside"));
+        move || {
+            std::fs::rename(&store_dir, &aside).unwrap();
+            std::fs::create_dir(&store_dir).unwrap();
+        }
+    };
+    #[cfg(target_os = "macos")]
+    name_seams::answer_stat(Some(Box::new(|| {
+        Err(io::Error::from_raw_os_error(libc::ENOENT))
+    })));
+    let seam = super::failpoint::at(SEAM_AFTER_THE_LAST_LOOK, nth_call(1, act));
+    let custody = file_root_custody(
+        &dir.path().join("roots"),
+        TestProtector::new(0x5a).0,
+        RootId::fresh().unwrap(),
+    );
+    let created = answer_text(&EncryptedStore::create(
+        &store_dir,
+        Box::new(custody),
+        DEFAULT_RETENTION,
+    ));
+    drop(seam);
+    #[cfg(target_os = "macos")]
+    name_seams::answer_stat(None);
+    println!(
+        "T1 create after the swap answered {created}; at the name {:?}",
+        names_in_store_dir(&store_dir)
+    );
+    assert!(created.starts_with("Obstructed {"), "{created}");
+}

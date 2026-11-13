@@ -426,6 +426,11 @@ fn open_connection(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection
     let conn = Connection::open_with_flags(name, flags)
         .map(|conn| (conn, form))
         .map_err(|e| after_a_code(store_dir, &e));
+    #[cfg(test)]
+    let conn = match (conn, code_seams::forced()) {
+        (Ok(_), Some(code)) => Err(after_a_code_of(store_dir, Some(code))),
+        (conn, _) => conn,
+    };
     #[cfg(windows)]
     drop(held);
     conn
@@ -521,6 +526,36 @@ pub(crate) mod name_seams {
 
     pub(crate) fn stat_answer() -> Option<Answer> {
         STAT.with(|stat| stat.borrow().as_ref().map(|answer| answer()))
+    }
+}
+
+/// A seam of the tests that makes the next open of SQLite on this thread
+/// answer a code.
+#[cfg(test)]
+pub(crate) mod code_seams {
+    use std::cell::Cell;
+
+    thread_local! {
+        static FORCED: Cell<Option<(usize, i32)>> = const { Cell::new(None) };
+    }
+
+    /// The `nth` open of SQLite from now on, on this thread, answers `code`.
+    pub(crate) fn force(nth: usize, code: Option<i32>) {
+        FORCED.with(|forced| forced.set(code.map(|code| (nth, code))));
+    }
+
+    pub(crate) fn forced() -> Option<i32> {
+        FORCED.with(|forced| match forced.get() {
+            Some((1, code)) => {
+                forced.set(None);
+                Some(code)
+            }
+            Some((nth, code)) => {
+                forced.set(Some((nth - 1, code)));
+                None
+            }
+            None => None,
+        })
     }
 }
 
