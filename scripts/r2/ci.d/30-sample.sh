@@ -3,6 +3,12 @@
 # rule: from the files of HEAD, halvo-sample build of the golden script writes its committed files byte for byte, check-labels passes on them under both rules and on each committed development body, and two builds of each development body from its committed scripts print one manifest hash, that of its committed manifest, and write its committed files; no tracked file changes.
 set -u
 name=30-sample
+if [ ! -f "${CI_D_REPO:-.}/scripts/r2/body.sh" ]; then
+  printf 'FAIL %s (scripts/r2/body.sh cannot be read)\n' "$name"
+  exit 1
+fi
+# shellcheck source=scripts/r2/body.sh
+. "${CI_D_REPO:-.}/scripts/r2/body.sh"
 keys='cargo-build golden-build golden-files golden-generated golden-recorded gen-dev-build-1 gen-dev-manifest-1 gen-dev-build-2 gen-dev-manifest-2 gen-dev-committed gen-dev-files gen-dev-labels gen-unseen-build-1 gen-unseen-manifest-1 gen-unseen-build-2 gen-unseen-manifest-2 gen-unseen-committed gen-unseen-files gen-unseen-labels'
 
 fail() {
@@ -224,6 +230,44 @@ check() {
   fi
 }
 
+body_case() {
+  cp -R "$work/body" "$work/case-$1" || self_fail "the body fixture $1 cannot be copied"
+  case $1 in
+    changed) printf 'four\n' >"$work/case-$1/streams/gen-dev-s001/day-001.jsonl" ;;
+    missing) mv "$work/case-$1/streams/gen-dev-s001/labels.jsonl" "$work/moved-$1" ;;
+    extra) printf 'five\n' >"$work/case-$1/streams/gen-dev-s001/day-002.jsonl" ;;
+    *) : ;;
+  esac
+  state=$(r2_body_check "$work/case-$1" "$work/committed.toml") || state=unread
+  if [ "$state" = same ]; then
+    got=same
+  else
+    got=$(r2_body_line "$state") || got=unread
+  fi
+  if [ "$got" != "$2" ]; then
+    wrong="$wrong body-$1"
+  elif [ "$got" != same ]; then
+    rejected=$((rejected + 1))
+  fi
+}
+
+body_fixtures() {
+  mkdir -p "$work/body/streams/gen-dev-s001" || self_fail "the body fixture cannot be made"
+  printf 'one\n' >"$work/body/streams/gen-dev-s001/day-001.jsonl" || self_fail "the body fixture cannot be written"
+  printf 'two\n' >"$work/body/streams/gen-dev-s001/labels.jsonl" || self_fail "the body fixture cannot be written"
+  printf 'three\n' >"$work/body/script-manifest.jsonl" || self_fail "the body fixture cannot be written"
+  : >"$work/committed.toml"
+  for f in script-manifest.jsonl streams/gen-dev-s001/day-001.jsonl streams/gen-dev-s001/labels.jsonl; do
+    h=$(sha "$work/body/$f") || self_fail "the body fixture cannot be hashed"
+    printf '[[file]]\npath = "%s"\nsha256 = "%s"\n' "$f" "$h" >>"$work/committed.toml" || self_fail "the body fixture cannot be written"
+  done
+  cp "$work/committed.toml" "$work/body/manifest.toml" || self_fail "the body fixture cannot be written"
+  body_case untouched same
+  body_case changed 'files that differ: 1, missing: 0, extra: 0, the first streams/gen-dev-s001/day-001.jsonl'
+  body_case missing 'files that differ: 0, missing: 1, extra: 0, the first streams/gen-dev-s001/labels.jsonl'
+  body_case extra 'files that differ: 0, missing: 0, extra: 1, the first streams/gen-dev-s001/day-002.jsonl'
+}
+
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || self_fail "mktemp failed"
   passing_results >"$work/passing.txt" || self_fail "the fixture cannot be written"
@@ -261,6 +305,7 @@ self_test() {
     "FAIL $name (gen-unseen-files: files that differ from HEAD: 4)"
   check dev-files-count-alone-for-a-short-day FAIL 's|^gen-dev-files same$|gen-dev-files differ 3 streams/gen-dev-s001/day-1.jsonl|' '' \
     "FAIL $name (gen-dev-files: files that differ from HEAD: 3)"
+  body_fixtures
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
