@@ -271,6 +271,7 @@ stub_test() {
 stub_change() {
   [ "$1" = "$fx_change_at" ] || return 0
   case $fx_change_file in
+    rewrite) ;;
     oid) printf '%s\n' "$fx_change_line" >"$work/oid" ;;
     metadata) printf '{}\n' >"$dir/metadata.json" ;;
     *) printf '%s\n' "$fx_change_line" >>"$work/$fx_change_file" ;;
@@ -469,9 +470,32 @@ self_test() {
   fx_members=halvo-schema
   check FAIL-miss 'rule tests=30 ok=5 pending=5 miss=20'
 
-  fixture changed-and-untracked-files-before-the-run
-  printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn/src/lib.rs\n? notes.txt\n' >"$work/status"
+  fixture untracked-file-before-the-run
+  printf '? notes.txt\n' >"$work/status"
   check PASS 'rule tests=30 ok=25 pending=5 miss=0'
+
+  fixture changed-file-before-the-run
+  printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn-store/src/ids.rs\n' >"$work/status"
+  check FAIL-tests 'tree changed=before 1 crates/halvo-learn-store/src/ids.rs'
+
+  fixture two-changed-files-before-the-run
+  printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn-store/src/tests/finish.rs\n1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn-store/src/tests/edges.rs\n' >"$work/status"
+  check FAIL-tests 'tree changed=before 1 crates/halvo-learn-store/src/tests/finish.rs
+tree changed=before 1 crates/halvo-learn-store/src/tests/edges.rs'
+
+  fixture changed-file-rewritten-by-a-test
+  printf '1 .M N... 100644 100644 100644 0000 0000 crates/halvo-learn/src/lib.rs\n' >"$work/status"
+  fx_change_at=halvo-learn
+  fx_change_file=rewrite
+  check FAIL-tests 'tree changed=before 1 crates/halvo-learn/src/lib.rs'
+
+  fixture changed-file-outside-the-crates-before-the-run
+  printf '1 .M N... 100644 100644 100644 0000 0000 CHANGELOG.md\n' >"$work/status"
+  check FAIL-tests 'tree changed=before 1 CHANGELOG.md'
+
+  fixture staged-file-before-the-run
+  printf '1 M. N... 100644 100644 100644 0000 0000 crates/halvo-schema/src/learning.rs\n' >"$work/status"
+  check FAIL-tests 'tree changed=before 1 crates/halvo-schema/src/learning.rs'
 
   fixture test-run-changes-a-tracked-file
   fx_change_at=halvo-schema
