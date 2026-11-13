@@ -168,7 +168,7 @@ export function judge({
         if (!legal502(request, gateway) && !(diedInKill && bodyOf(request) === null)) bad("integrity", request.id, `answered ${request.status} ${request.body}, which neither the request's fault nor the bound of src/gateway/timing.ts allows at that time`);
         break;
       case 409:
-        if (!diedInKill && !legal409(request, row, mock.get(request.id), ledger)) {
+        if (!legal409(request, row, mock.get(request.id), ledger) && !(diedInKill && bodyOf(request) === null)) {
           bad("integrity", request.id, `the request ended with status ${request.status} and error ${request.error}`);
         }
         break;

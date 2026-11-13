@@ -1,0 +1,21 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 1, read by P7-69 F3",
+  "about": "a 409 stopped whose row was voided at its expiry without the mark and with no upstream event, answered after the expiry, on a request that ended 2 ms before the kill: the table accepts it, kill or no kill",
+  "source": "by hand",
+  "request": {
+    "endedAt": 4060
+  },
+  "top": {
+    "kill": {
+      "at": 4062,
+      "inFlight": 0
+    },
+    "restartReadyAt": 6000,
+    "firstLedgerReadAt": 6100
+  },
+  "expect": {
+    "counted": false,
+    "violations": []
+  }
+}
