@@ -243,6 +243,16 @@ async fn crash_reading_at(
     })
 }
 
+/// The facts of a reading that `crash_row::result` reads (CP-186 T2).
+fn facts_of(r: &Reading) -> crash_row::Facts {
+    crash_row::Facts {
+        changed: r.changed.clone(),
+        dumps_inside_profile: r.inside_dumps,
+        handler: r.handler.to_string(),
+        removed: r.removed,
+    }
+}
+
 /// The names of the places of `files` with the count of each: `name:n,...`, or `-`.
 fn by_place(files: &[crash_row::File]) -> String {
     let mut counts: std::collections::BTreeMap<&str, usize> = Default::default();
@@ -1020,8 +1030,19 @@ async fn crash(argv: &[String]) -> (usize, usize) {
                 let beyond = crash_row::beyond(&w.left, &baseline.left);
                 let control_dumps: Vec<&crash_row::File> =
                     c.changed.iter().filter(|f| crash_row::is_dump(f)).collect();
-                let result =
-                    crash_row::result(&w.places, &baseline.left, &w.left, &c.changed, w.sent);
+                let verdict = crash_row::result(
+                    &w.places,
+                    &facts_of(&baseline),
+                    &facts_of(w),
+                    &c.changed,
+                    w.sent,
+                );
+                let result = verdict.result;
+                let cause = if result == "ok" {
+                    String::new()
+                } else {
+                    format!(" cause={}", verdict.cause)
+                };
                 if name == "product" {
                     product_ok = result == "ok";
                 }
@@ -1039,7 +1060,7 @@ async fn crash(argv: &[String]) -> (usize, usize) {
                     if w.inside_dumps > 0 { "yes" } else { "no" },
                     w.handler,
                     if w.removed && baseline.removed { "yes" } else { "no" },
-                )
+                ) + &cause
             }
             (Err(cause), _) | (_, Err(cause)) => {
                 format!("row crash machine={machine} browser={kind} means={name} result=notrun cause={cause}")

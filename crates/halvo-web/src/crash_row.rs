@@ -165,27 +165,81 @@ pub fn beyond(with: &[File], without: &[File]) -> Vec<File> {
         .collect()
 }
 
-/// The row's result of one system and browser (CP-165 (2) (b)): `notrun` when the control left no
-/// dump at any place of the listing, the profile among them (`control` is everything that changed
-/// in the control's reading), for then nothing showed that the crash was taken as one; `miss` when the crash with the
-/// means left a file outside the profile that the start with no crash did not leave, or when
-/// anything was sent after the crash; `ok` otherwise. A file in a report place of the system
-/// (`Place::system`) is recorded with no promise and decides nothing (CP-165 (2) (d) and (g)).
+/// The facts of one reading that decide beside its files (CP-186 T2).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Facts {
+    /// Everything that the reading changed under the places of its listing.
+    pub changed: Vec<File>,
+    /// The dumps that the reading left inside its profile: the sign that its crash was taken.
+    pub dumps_inside_profile: usize,
+    /// The crash handler's word when the listing was taken: `gone` once no handler of the reading
+    /// ran, `stop_wait` when one still ran at the wait's end.
+    pub handler: String,
+    /// Whether the stop removed the profile and the temporary directory.
+    pub removed: bool,
+}
+
+/// The row's result of one system and browser, and its cause when it is not `ok`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Verdict {
+    pub result: &'static str,
+    pub cause: &'static str,
+}
+
+impl Verdict {
+    fn of(result: &'static str, cause: &'static str) -> Verdict {
+        Verdict { result, cause }
+    }
+}
+
+/// Whether `f` lies at a place that is no report place of the system: a file at a report place of
+/// the system (`Place::system`) is recorded with no promise and decides nothing (CP-165 (2) (d)
+/// and (g)).
+fn deciding(places: &[Place], f: &File) -> bool {
+    !places.iter().any(|p| p.name == f.place && p.system)
+}
+
+/// The row's result of one system and browser (CP-165 (2) (b), CP-186 T2), read in this order:
+/// (a) `notrun` (`control_no_dump`) when the control's changed files hold no dump at a place that
+/// is no report place of the system, for then nothing showed that the browser's crash was taken;
+/// (b) `miss` when the crash with the means left a file outside the profile, at a deciding place,
+/// that the start with no crash did not leave (`beyond`), when anything was sent after the crash
+/// (`sent`), or when the stop did not remove the profile and the temporary directory in the
+/// reading with the means or in the start with no crash (`not_removed`); (c) `notrun`
+/// (`no_dump_inside`) when the reading with the means shows no dump inside its profile, the sign
+/// that its crash was taken (`Executor::crash` drops the command's answer); (d) `notrun`
+/// (`handler`) when its crash handler still ran when the listing was taken; (e) `ok`.
 pub fn result(
     places: &[Place],
-    baseline: &[File],
-    means: &[File],
+    baseline: &Facts,
+    means: &Facts,
     control: &[File],
     sent_after_crash: usize,
-) -> &'static str {
-    if !control.iter().any(is_dump) {
-        return "notrun";
+) -> Verdict {
+    if !control.iter().any(|f| is_dump(f) && deciding(places, f)) {
+        return Verdict::of("notrun", "control_no_dump");
     }
-    let deciding = |f: &&File| !places.iter().any(|p| p.name == f.place && p.system);
-    if beyond(means, baseline).iter().any(|f| deciding(&f)) || sent_after_crash > 0 {
-        return "miss";
+    let left_means = left_outside(&means.changed, places);
+    let left_baseline = left_outside(&baseline.changed, places);
+    if beyond(&left_means, &left_baseline)
+        .iter()
+        .any(|f| deciding(places, f))
+    {
+        return Verdict::of("miss", "beyond");
     }
-    "ok"
+    if sent_after_crash > 0 {
+        return Verdict::of("miss", "sent");
+    }
+    if !means.removed || !baseline.removed {
+        return Verdict::of("miss", "not_removed");
+    }
+    if means.dumps_inside_profile == 0 {
+        return Verdict::of("notrun", "no_dump_inside");
+    }
+    if means.handler != "gone" {
+        return Verdict::of("notrun", "handler");
+    }
+    Verdict::of("ok", "-")
 }
 
 /// The places of a run on this system, with the run's `profile` and `temp` and the account's
@@ -517,18 +571,232 @@ mod tests {
         );
     }
 
+    /// The facts of a reading whose crash was taken: `changed` beside one dump inside the
+    /// profile, its handler gone, both directories removed.
+    fn taken(changed: Vec<File>) -> Facts {
+        Facts {
+            changed,
+            dumps_inside_profile: 1,
+            handler: "gone".into(),
+            removed: true,
+        }
+    }
+
+    /// The facts of a start with no crash: its browser still runs at the listing.
+    fn start(changed: Vec<File>) -> Facts {
+        Facts {
+            handler: "stop_wait".into(),
+            dumps_inside_profile: 0,
+            ..taken(changed)
+        }
+    }
+
+    fn res(places: &[Place], b: &Facts, m: &Facts, c: &[File], sent: usize) -> &'static str {
+        result(places, b, m, c, sent).result
+    }
+
     /// CP-167 E3: a row whose control left no dump reads notrun, never ok, also when the crash
     /// with the means left nothing.
     #[test]
     fn a_control_with_no_dump_reads_notrun() {
         let places = row_places();
+        let (b, m) = (start(vec![]), taken(vec![]));
         let control = vec![file("crashpad", "settings.dat", 40)];
-        assert_eq!(result(&places, &[], &[], &control, 0), "notrun");
-        assert_eq!(result(&places, &[], &[], &[], 0), "notrun");
+        assert_eq!(
+            result(&places, &b, &m, &control, 0),
+            Verdict::of("notrun", "control_no_dump")
+        );
+        assert_eq!(res(&places, &b, &m, &[], 0), "notrun");
         let control = vec![file("crashpad", "pending/abc.dmp", 4096)];
-        assert_eq!(result(&places, &[], &[], &control, 0), "ok");
+        assert_eq!(res(&places, &b, &m, &control, 0), "ok");
         let inside = vec![file("profile", "Crashpad/reports/abc.dmp", 4096)];
-        assert_eq!(result(&places, &[], &[], &inside, 0), "ok");
+        assert_eq!(res(&places, &b, &m, &inside, 0), "ok");
+    }
+
+    /// CP-186 T2 (a), the review's case crash/02: a control whose only dump is a report of the
+    /// system reads notrun.
+    #[test]
+    fn t2_a_control_whose_only_dump_is_a_system_report_reads_notrun() {
+        let places = row_places();
+        let control = vec![file("reports", "OtherApp-2026-11-13-120000.ips", 9000)];
+        assert_eq!(
+            result(&places, &start(vec![]), &taken(vec![]), &control, 0),
+            Verdict::of("notrun", "control_no_dump")
+        );
+    }
+
+    /// CP-186 T2 (c), the review's case crash/01: a reading with the means that shows no dump
+    /// inside its profile reads notrun, for nothing shows that its crash was taken.
+    #[test]
+    fn t2_a_means_reading_with_no_dump_inside_reads_notrun() {
+        let places = row_places();
+        let control = vec![file("crashpad", "completed/abc.dmp", 4096)];
+        let means = Facts {
+            dumps_inside_profile: 0,
+            ..taken(vec![])
+        };
+        assert_eq!(
+            result(&places, &start(vec![]), &means, &control, 0),
+            Verdict::of("notrun", "no_dump_inside")
+        );
+    }
+
+    /// CP-186 T2 (d): a reading with the means whose crash handler still ran when the listing was
+    /// taken reads notrun; the start with no crash, whose browser still runs, decides nothing by
+    /// its handler.
+    #[test]
+    fn t2_a_handler_that_still_runs_reads_notrun() {
+        let places = row_places();
+        let control = vec![file("crashpad", "completed/abc.dmp", 4096)];
+        let means = Facts {
+            handler: "stop_wait".into(),
+            ..taken(vec![])
+        };
+        assert_eq!(
+            result(&places, &start(vec![]), &means, &control, 0),
+            Verdict::of("notrun", "handler")
+        );
+        assert_eq!(
+            res(&places, &start(vec![]), &taken(vec![]), &control, 0),
+            "ok"
+        );
+    }
+
+    /// CP-186 T2 (b): a profile that the stop left, in the reading with the means or in the start
+    /// with no crash, reads miss.
+    #[test]
+    fn t2_a_profile_that_the_stop_left_reads_miss() {
+        let places = row_places();
+        let control = vec![file("crashpad", "completed/abc.dmp", 4096)];
+        let means = Facts {
+            removed: false,
+            ..taken(vec![])
+        };
+        assert_eq!(
+            result(&places, &start(vec![]), &means, &control, 0),
+            Verdict::of("miss", "not_removed")
+        );
+        let base = Facts {
+            removed: false,
+            ..start(vec![])
+        };
+        assert_eq!(
+            result(&places, &base, &taken(vec![]), &control, 0),
+            Verdict::of("miss", "not_removed")
+        );
+    }
+
+    /// CP-186 T2 (b) before (c): a file beyond the start with no crash together with no dump
+    /// inside the profile reads miss, not notrun.
+    #[test]
+    fn t2_a_file_beyond_with_no_dump_inside_reads_miss() {
+        let places = row_places();
+        let control = vec![file("crashpad", "completed/abc.dmp", 4096)];
+        let means = Facts {
+            dumps_inside_profile: 0,
+            ..taken(vec![file("crashpad", "completed/x.dmp", 9)])
+        };
+        assert_eq!(
+            result(&places, &start(vec![]), &means, &control, 0),
+            Verdict::of("miss", "beyond")
+        );
+    }
+
+    /// CP-186 T2: the four cells of run 43484944398, written out as lists, read ok.
+    #[test]
+    fn t2_the_four_cells_of_run_9_read_ok() {
+        let mac_places = |own: &'static str| {
+            vec![
+                place("profile", PathBuf::from("/p"), true, false),
+                place(own, PathBuf::from("/crashpad"), false, false),
+                place("chrome_helper_cache", PathBuf::from("/h"), false, false),
+                place("edge_helper_cache", PathBuf::from("/eh"), false, false),
+                place("system_temp", PathBuf::from("/t"), false, false),
+                place("user_reports", PathBuf::from("/r"), false, true),
+            ]
+        };
+        let start_left = |cache: &'static str| {
+            vec![
+                file(cache, "a/cache.db", 2048),
+                file(cache, "a/cache.db-wal", 2048),
+                link(
+                    "system_temp",
+                    ".com.google.Chrome.Ab12Cd/SingletonCookie",
+                    19,
+                ),
+                link(
+                    "system_temp",
+                    ".com.google.Chrome.Ab12Cd/SingletonSocket",
+                    0,
+                ),
+            ]
+        };
+        let means_left = |cache: &'static str| {
+            let mut v = vec![
+                file(cache, "a/cache.db", 2048),
+                file(cache, "a/cache.db-wal", 2048),
+                link(
+                    "system_temp",
+                    ".com.google.Chrome.Zx98Yw/SingletonCookie",
+                    20,
+                ),
+                link(
+                    "system_temp",
+                    ".com.google.Chrome.Zx98Yw/SingletonSocket",
+                    0,
+                ),
+            ];
+            v.push(file("profile", "Crashpad/completed/m.dmp", 400_000));
+            v
+        };
+        let chrome_mac = mac_places("chrome_crashpad");
+        let control = vec![file("chrome_crashpad", "completed/c.dmp", 1_378_480)];
+        assert_eq!(
+            result(
+                &chrome_mac,
+                &start(start_left("chrome_helper_cache")),
+                &taken(means_left("chrome_helper_cache")),
+                &control,
+                0
+            ),
+            Verdict::of("ok", "-")
+        );
+        let edge_mac = mac_places("edge_crashpad");
+        let mut edge_means = means_left("edge_helper_cache");
+        edge_means.push(file(
+            "user_reports",
+            "Microsoft Edge-2026-11-13.ips",
+            98_801,
+        ));
+        let edge_control = vec![
+            file("edge_crashpad", "completed/c.dmp", 1_318_227),
+            file("user_reports", "Microsoft Edge-2026-11-13.ips", 98_801),
+        ];
+        assert_eq!(
+            result(
+                &edge_mac,
+                &start(start_left("edge_helper_cache")),
+                &taken(edge_means),
+                &edge_control,
+                0
+            ),
+            Verdict::of("ok", "-")
+        );
+        let win = vec![
+            place("profile", PathBuf::from("C:/p"), true, false),
+            place("chrome_crashpad", PathBuf::from("C:/c"), false, false),
+            place("edge_crashpad", PathBuf::from("C:/e"), false, false),
+            place("system_temp", PathBuf::from("C:/t"), false, false),
+            place("system_reports", PathBuf::from("C:/r"), false, true),
+        ];
+        for size in [1_539_184, 7_031_487] {
+            let control = vec![file("profile", "Crashpad/reports/c.dmp", size)];
+            let means = taken(vec![file("profile", "Crashpad/reports/m.dmp", size)]);
+            assert_eq!(
+                result(&win, &start(vec![]), &means, &control, 0),
+                Verdict::of("ok", "-")
+            );
+        }
     }
 
     /// CP-167 E3: a row whose crash with the means left a file that the start with no crash did
@@ -538,22 +806,25 @@ mod tests {
     fn a_crash_with_the_means_that_left_a_file_reads_miss() {
         let places = row_places();
         let control = vec![file("crashpad", "completed/abc.dmp", 4096)];
-        let baseline = vec![file("crashpad", "settings.dat", 40)];
-        let same = vec![file("crashpad", "settings.dat", 40)];
-        assert_eq!(result(&places, &baseline, &same, &control, 0), "ok");
-        let extra = vec![
+        let baseline = start(vec![file("crashpad", "settings.dat", 40)]);
+        let same = taken(vec![file("crashpad", "settings.dat", 40)]);
+        assert_eq!(res(&places, &baseline, &same, &control, 0), "ok");
+        let extra = taken(vec![
             file("crashpad", "settings.dat", 40),
             file("crashpad", "new/x.dmp", 9),
-        ];
-        assert_eq!(result(&places, &baseline, &extra, &control, 0), "miss");
-        let resized = vec![file("crashpad", "settings.dat", 41)];
-        assert_eq!(result(&places, &baseline, &resized, &control, 0), "miss");
-        assert_eq!(result(&places, &baseline, &same, &control, 1), "miss");
-        let reported = vec![
+        ]);
+        assert_eq!(res(&places, &baseline, &extra, &control, 0), "miss");
+        let resized = taken(vec![file("crashpad", "settings.dat", 41)]);
+        assert_eq!(res(&places, &baseline, &resized, &control, 0), "miss");
+        assert_eq!(
+            result(&places, &baseline, &same, &control, 1),
+            Verdict::of("miss", "sent")
+        );
+        let reported = taken(vec![
             file("crashpad", "settings.dat", 40),
             file("reports", "Chrome.ips", 9),
-        ];
-        assert_eq!(result(&places, &baseline, &reported, &control, 0), "ok");
+        ]);
+        assert_eq!(res(&places, &baseline, &reported, &control, 0), "ok");
     }
 
     #[test]
