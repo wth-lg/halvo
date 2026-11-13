@@ -287,6 +287,22 @@ fn seed_binding_refuses_a_seed_that_does_not_bind() {
             SeedTask::Bill,
             SeedRefused::Json,
         ),
+        (
+            with_binding(
+                "bill",
+                json!({"origins": [], "slots": [{"name": "payee", "value": ["A"], "note": "x"}]}),
+            ),
+            SeedTask::Bill,
+            SeedRefused::Json,
+        ),
+        (
+            with_binding(
+                "bill",
+                json!({"origins": [], "slots": [{"name": "start", "value": ["http://utility.agent.test", "http://shop.agent.test"]}]}),
+            ),
+            SeedTask::Bill,
+            SeedRefused::Start,
+        ),
     ];
     for (i, (seed, task, want)) in cases.into_iter().enumerate() {
         assert_eq!(
@@ -501,5 +517,57 @@ fn the_record_of_end_run_holds_the_day_of_the_request() {
     assert!(
         (before..=after).contains(&days[0]),
         "{days:?} {before} {after}"
+    );
+}
+
+#[test]
+fn a_seed_origin_outside_the_seed_form_is_refused_before_any_body() {
+    let hosts = [
+        "https://a.test",
+        "http://127.1",
+        "http://0x7f000001",
+        "http://2130706433",
+        "http://1.2.3.04",
+        "http://256.1.1.1",
+    ];
+    let mut cases: Vec<Value> = Vec::new();
+    for host in hosts {
+        cases.push(json!({"origins": [host], "slots": []}));
+        cases.push(json!({"origins": ["http://pay.agent.test", host], "slots": [{"name": "payee", "value": ["P"]}]}));
+    }
+    cases.push(json!({"origins": ["http://utility.agent.test", "http://127.0.0.1", "http://256.1.1.1"], "slots": [{"name": "range", "value": ["B2:D6"]}]}));
+    assert_eq!(cases.len(), 13);
+    for case in cases {
+        let seed = with_binding("bill", case.clone());
+        assert_eq!(
+            seed_binding(&seed, SeedTask::Bill, PORT).map(|_| ()),
+            Err(SeedRefused::Origin),
+            "{case}"
+        );
+    }
+}
+
+#[test]
+fn a_start_slot_with_another_scheme_than_http_is_refused() {
+    let seed = with_binding(
+        "bill",
+        json!({"origins": ["http://utility.agent.test"], "slots": [{"name": "start", "value": ["https://utility.agent.test"]}]}),
+    );
+    assert_eq!(
+        seed_binding(&seed, SeedTask::Bill, PORT).map(|_| ()),
+        Err(SeedRefused::Start)
+    );
+}
+
+#[test]
+fn join_senders_trims_ascii_spaces_alone_and_folds_ascii_case_alone() {
+    let list = |items: &[&str]| -> Vec<String> { items.iter().map(|s| (*s).to_owned()).collect() };
+    assert_eq!(
+        join_senders(&list(&["\ta@x.test", "a@x.test"])),
+        Ok("\ta@x.test, a@x.test".to_owned())
+    );
+    assert_eq!(
+        join_senders(&list(&["\u{e4}@x.test", "\u{c4}@x.test"])),
+        Ok("\u{e4}@x.test, \u{c4}@x.test".to_owned())
     );
 }

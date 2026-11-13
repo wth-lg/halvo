@@ -83,10 +83,11 @@ pub enum SeedRefused {
     /// The file is no JSON object with `bindings.<task>` of the shape `{"origins":[<string>...],"slots":[{"name":
     /// <string>,"value":[<string>...]}...]}`.
     Json,
-    /// An origin is not `http://<host>` or `https://<host>` with no port, or its origin with the port is not the form
-    /// of `WebOrigin`.
+    /// An origin is not of the seed's form, `http://<lower-case letters>.agent.test` (docs/r3/fixtures.md, the
+    /// form that the fixture's reader takes), or its origin with the port is not the form of `WebOrigin`.
     Origin,
-    /// The slot `start` is not one text that is an origin with the port.
+    /// The slot `start` is not one text `http://<host>` with no port whose origin with the port is the form of
+    /// `WebOrigin`.
     Start,
     /// The slot `reply_senders` is a list that `join_senders` refuses.
     Senders(SendersRefused),
@@ -163,7 +164,7 @@ pub fn join_senders(addresses: &[String]) -> Result<String, SendersRefused> {
 }
 
 /// Reads the binding of `task` from a seed file (docs/r3/fixtures.md) for a fixture that listens on `port`: each
-/// origin and the slot `start` with `:<port>` added, the slot `reply_senders` as the one text of `join_senders`,
+/// origin, which must be of the seed's form, and the slot `start`, which must be `http://<host>`, with `:<port>` added, the slot `reply_senders` as the one text of `join_senders`,
 /// and every other slot as its one text, each in the seed's order.
 pub fn seed_binding(seed: &[u8], task: SeedTask, port: u16) -> Result<Binding, SeedRefused> {
     let seed: Value = serde_json::from_slice(seed).map_err(|_| SeedRefused::Json)?;
@@ -175,7 +176,12 @@ pub fn seed_binding(seed: &[u8], task: SeedTask, port: u16) -> Result<Binding, S
     only_keys(binding, &["origins", "slots"])?;
     let origins = strings(binding.get("origins"))?
         .iter()
-        .map(|o| with_port(o, port).ok_or(SeedRefused::Origin))
+        .map(|o| {
+            seed_origin(o)
+                .then(|| with_port(o, port))
+                .flatten()
+                .ok_or(SeedRefused::Origin)
+        })
         .collect::<Result<Vec<WebOrigin>, SeedRefused>>()?;
     let slots = binding
         .get("slots")
@@ -204,6 +210,13 @@ fn strings(value: Option<&Value>) -> Result<Vec<String>, SeedRefused> {
         .collect()
 }
 
+fn seed_origin(origin: &str) -> bool {
+    origin
+        .strip_prefix("http://")
+        .and_then(|host| host.strip_suffix(".agent.test"))
+        .is_some_and(|label| !label.is_empty() && label.bytes().all(|b| b.is_ascii_lowercase()))
+}
+
 fn with_port(origin: &str, port: u16) -> Option<WebOrigin> {
     WebOrigin::parse(&format!("{origin}:{port}")).ok()
 }
@@ -220,7 +233,9 @@ fn seed_slot(slot: &Value, port: u16) -> Result<Slot, SeedRefused> {
     let text = match name.as_str() {
         REPLY_SENDERS => join_senders(&values).map_err(SeedRefused::Senders)?,
         START => match values.as_slice() {
-            [one] => with_port(one, port).ok_or(SeedRefused::Start)?.to_string(),
+            [one] if one.starts_with("http://") => {
+                with_port(one, port).ok_or(SeedRefused::Start)?.to_string()
+            }
             _ => return Err(SeedRefused::Start),
         },
         _ => match values.as_slice() {
