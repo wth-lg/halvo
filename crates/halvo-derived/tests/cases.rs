@@ -4,13 +4,18 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use common::{
-    episode, key, listed, own_note_body, position, raw, raw_request, registry, store_id,
-    Grouping, OwnNote, Scratch, Seq, TestClock, OWN,
+    bodies, domain, episode, key, listed, open_host, own_note_body, position, raw, raw_request,
+    registry, store_id, summary_id, Fixed, Grouping, OwnNote, Scratch, Seq, TestClock, OWN,
 };
 use halvo_derived::{Cause, Error, Host, Refusal, Store, Takes};
+use halvo_schema_core::category::SeedCategory;
 use halvo_schema_core::ids::RequestId;
-use halvo_schema_core::record::{RowRead, SummaryRead, TypedRecord, WriterStep};
+use halvo_schema_core::record::{
+    Confidence, Proposal, Recurrence, RowRead, SummaryRead, Trigger, TypedRecord, Workflow,
+    WorkflowState, WriterStep,
+};
 use halvo_schema_core::request::{ErrorName, InterfaceDecision, InterfaceRole};
+use halvo_schema_core::site::{AppId, DomainSource, SiteDomain, SiteValue};
 
 const DAY: u32 = 20_767;
 
@@ -106,4 +111,120 @@ fn own_origin_refused() {
         .unwrap();
     drop(store);
     assert_eq!(count(&scratch, OWN_ROWS), 0, "rows of origin own after the delete of their workflow");
+}
+
+fn northwind() -> SiteValue {
+    SiteValue::Domain {
+        key: SiteDomain::parse("northwind-power.test").unwrap(),
+        source: DomainSource::AddressField,
+    }
+}
+
+fn proposal(app: &str, trigger: Trigger, confidence: u32, summaries: &[u64]) -> Proposal {
+    Proposal {
+        category: SeedCategory::UtilityBillPayment,
+        site: Some(northwind()),
+        app: AppId::parse(app).unwrap(),
+        trigger,
+        recurrence: Recurrence {
+            count: summaries.len() as u32,
+            period: None,
+            first: DAY - 1,
+            last: DAY,
+        },
+        confidence: Confidence(confidence),
+        summaries: summaries.iter().map(|n| summary_id(*n)).collect(),
+    }
+}
+
+/// The case of a proposal for a stored workflow: an approved workflow, whose agent is null, takes a later proposal of
+/// its key and keeps its id, its state `approved` and its agent, and takes the proposal's app, trigger, recurrence and
+/// confidence, and its support rows become those of the proposal's summaries; no second workflow is stored. The row of
+/// C2.4 for a workflow whose agent is not null is U5.1d's.
+#[test]
+fn a_proposal_for_a_stored_workflow_keeps_its_id_state_and_agent_and_takes_the_rest() {
+    let scratch = Scratch::new("stored-proposal");
+    let clock = TestClock::at_day(DAY);
+    let fixed = Rc::new(RefCell::new(vec![proposal(
+        "com.example.browser",
+        Trigger::Schedule,
+        60,
+        &[1, 2],
+    )]));
+    let host = Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(&fixed))));
+    let mut store = open_host(&scratch, host).unwrap();
+    let batch = [
+        episode(1, DAY - 1, domain("northwind-power.test")),
+        episode(2, DAY, domain("northwind-power.test")),
+    ];
+    let first = store
+        .commit_batch(&store_id(1), &batch, position(1, 0), &mut Seq(100))
+        .unwrap();
+    assert_eq!(first.proposals.stored, 1);
+    let workflow = listed(&store)[0].workflow.id().clone();
+    store
+        .decide(&InterfaceDecision::approve(
+            &InterfaceRole::claim(),
+            RequestId::from_random([2; 16]),
+            workflow.clone(),
+        ))
+        .unwrap();
+    *fixed.borrow_mut() = vec![proposal("com.example.other", Trigger::AppContext, 90, &[1, 2, 3])];
+    let mut other_app = episode(3, DAY, domain("northwind-power.test"));
+    other_app.app = AppId::parse("com.example.other").unwrap();
+    let second = store
+        .commit_batch(&store_id(1), &[other_app], position(2, 0), &mut Seq(200))
+        .unwrap();
+    assert_eq!(
+        (second.proposals.stored, second.proposals.updated),
+        (0, 1),
+        "(stored, updated) of the later proposal"
+    );
+    drop(store);
+    let bodies = bodies(&scratch, "workflow");
+    assert_eq!(bodies.len(), 1, "stored workflows");
+    let Workflow::Full(stored) = serde_json::from_str(&bodies[0]).unwrap() else {
+        panic!("the workflow is dismissed");
+    };
+    assert_eq!(
+        (&stored.id, stored.state, &stored.agent),
+        (&workflow, WorkflowState::Approved, &None),
+        "the id, the state and the agent that the row keeps"
+    );
+    assert_eq!(
+        (
+            stored.app.as_str(),
+            stored.trigger,
+            stored.recurrence,
+            stored.confidence
+        ),
+        (
+            "com.example.other",
+            Trigger::AppContext,
+            Recurrence {
+                count: 3,
+                period: None,
+                first: DAY - 1,
+                last: DAY
+            },
+            Confidence(90)
+        ),
+        "the app, the trigger, the recurrence and the confidence that the row takes"
+    );
+    assert_eq!((stored.category, stored.site), (SeedCategory::UtilityBillPayment, Some(northwind())));
+    let support: Vec<String> = bodies_of_support(&scratch);
+    let want: Vec<String> = [1, 2, 3].iter().map(|n| summary_id(*n).as_str().to_owned()).collect();
+    assert_eq!(support, want, "the summaries of the support rows");
+}
+
+fn bodies_of_support(scratch: &Scratch) -> Vec<String> {
+    let mut summaries: Vec<String> = bodies(scratch, "support")
+        .iter()
+        .map(|body| {
+            let record: serde_json::Value = serde_json::from_str(body).unwrap();
+            record["summary"].as_str().unwrap().to_owned()
+        })
+        .collect();
+    summaries.sort();
+    summaries
 }
