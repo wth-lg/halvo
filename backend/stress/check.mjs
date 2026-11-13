@@ -91,7 +91,12 @@ export function lineOf({ selected, runs, halted, attempts }) {
     } else if (rigUnbuilt.length > 0) {
       const gaps = unbuiltAttempts.map((attempt) => attempt.firstAdmissionMs).filter((gap) => gap !== null && gap !== undefined);
       const gap = gaps.length === 0 ? "none, as no attempt admitted a request" : `${Math.min(...gaps)} ms`;
-      failure = `the rollover cell built no crossing: ${redrawn} attempt(s) were drawn again and none admitted a request before the period boundary (ruling P7-72); the smallest gap between a first admission and the boundary was ${gap}, first ${rigUnbuilt[0].key}`;
+      const rolloverRuns = runs.filter((run) => run.kind === "rollover");
+      const builtOnce = rolloverRuns.some((run) => attemptsOf(run).some((attempt) => attempt.crossingBuilt === true));
+      const countedRuns = rolloverRuns.filter(good).length;
+      failure = builtOnce
+        ? `the rollover cell spent its ${redrawn} draws on attempts that admitted no request before the period boundary (ruling P7-72); ${countedRuns} of its ${rolloverRuns.length} runs had counted when another draw was needed; the smallest gap between a first admission and the boundary was ${gap}, first ${rigUnbuilt[0].key}`
+        : `the rollover cell built no crossing: ${redrawn} attempt(s) were drawn again and none admitted a request before the period boundary (ruling P7-72); the smallest gap between a first admission and the boundary was ${gap}, first ${rigUnbuilt[0].key}`;
     } else if (failedToRun) failure = `${failedToRun.key} failed to run in ${attempts} attempts: ${failedToRun.error.split("\n")[0].slice(0, 200)}`;
     else if (neverCounted && attemptsOf(neverCounted).some((attempt) => attempt.slow === true)) {
       const waitsByBound = new Map();
@@ -120,7 +125,7 @@ export function attemptLineOf(result, discarded) {
   const extra = discarded > 0 ? `, ${discarded} earlier attempt(s) drawn again` : "";
   const slow = facts.slow ? `, first-burst median ${facts.burstMedianMs} ms over the bound of ${facts.slowBoundMs} ms, ${facts.lateSettles} late settle(s)` : "";
   const wave = result.kind === "wave" && facts.streams !== undefined ? `, ${facts.streams} stream(s), held ${facts.held}` : "";
-  const unbuilt = facts.crossingBuilt === false ? `, no request admitted before the period boundary (first admission ${facts.firstAdmissionMs ?? "none"} ms after it)` : "";
+  const unbuilt = facts.crossingBuilt === false ? `, no request admitted ${facts.firstAdmissionMs === null || facts.firstAdmissionMs === undefined ? "in the attempt, so none before the period boundary" : `before the period boundary (first admission ${facts.firstAdmissionMs} ms after it)`}` : "";
   return `concurrency: ${result.key}: ${said}, ${result.violations.length} violation(s), ${result.ms} ms${extra}${slow}${wave}${unbuilt}`;
 }
 

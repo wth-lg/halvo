@@ -174,7 +174,7 @@ export function judge({
         }
         break;
       default:
-        if (!diedInKill && !lostInTransport(request)) bad("integrity", request.id, `the request ended with status ${request.status} and error ${request.error}`);
+        if (!(diedInKill && bodyOf(request) === null) && !lostInTransport(request)) bad("integrity", request.id, `the request ended with status ${request.status} and error ${request.error}`);
     }
     for (const attempt of request.lost) {
       if (gatewayFailed(attempt)) {

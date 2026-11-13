@@ -1,0 +1,25 @@
+{
+  "kind": "judge",
+  "ruling": "F3 of P7-69 in the default branch, by P7-76 G3",
+  "about": "a request that ended in the kill with no status and an error: nothing to read, so the kill excuses it",
+  "source": "by hand",
+  "request": {
+    "status": null,
+    "body": "",
+    "headersAt": null,
+    "endedAt": 4041,
+    "error": "ECONNRESET"
+  },
+  "top": {
+    "kill": {
+      "at": 4040,
+      "inFlight": 1
+    },
+    "restartReadyAt": 4500,
+    "firstLedgerReadAt": 9000
+  },
+  "expect": {
+    "counted": false,
+    "violations": []
+  }
+}
