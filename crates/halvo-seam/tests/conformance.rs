@@ -35,6 +35,7 @@ enum Fault {
     OpenWhileOpenServedOnANullStoreConnection,
     OpenMidReadReplacesTheCursor,
     OpenPastTheWatermarkWhileOpenGetsBadPosition,
+    OpenWhileOpenServedOnAFurtherConnection,
     WatermarkRefusedAfterAShred,
     RisenWatermarkRefusedAfterAShred,
     PhantomRecordAtTheWatermarkAfterAShred,
@@ -378,6 +379,10 @@ impl Wrong {
                 t.handle(&ClientMessage::Close);
                 t.handle(&ClientMessage::OpenCursor(open.clone()))
             }
+            OpenWhileOpenServedOnAFurtherConnection if refused && self.further => {
+                t.handle(&ClientMessage::Close);
+                t.handle(&ClientMessage::OpenCursor(open.clone()))
+            }
             OpenPastTheWatermarkWhileOpenGetsBadPosition
                 if refused && open.position() > t.watermark() =>
             {
@@ -700,6 +705,10 @@ fn conformance_check_open_while_open() {
             (
                 OpenPastTheWatermarkWhileOpenGetsBadPosition,
                 [check, None, check, None],
+            ),
+            (
+                OpenWhileOpenServedOnAFurtherConnection,
+                [None, None, check, None],
             ),
         ],
     );
