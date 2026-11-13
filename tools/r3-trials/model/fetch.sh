@@ -43,6 +43,7 @@ refuse() {
 here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P) || refuse usage "the directory of fetch.sh cannot be read"
 root=$(CDPATH='' cd -- "$here/../../.." && pwd -P) || refuse usage "the root of the repository cannot be read"
 cmake_tools=$root/target/r3-tools
+system=$(uname -s) || refuse usage "uname -s failed"
 
 is_count() {
   case $1 in
@@ -214,7 +215,7 @@ fetch_weights() {
   weights_line_of "$1" || refuse weights "weights.txt has no line for the model $1"
   parse_weights "$found" || refuse weights "the line of $1 in weights.txt: $why"
   link=$root/target/r3-weights/$w_file
-  if [ "$(uname -s)" = Darwin ]; then
+  if [ "$system" = Darwin ]; then
     case ${HOME:-} in
       /*) ;;
       *) refuse usage "HOME is not an absolute path" ;;
@@ -247,7 +248,7 @@ fetch_cmake() {
     echo "cmake state=on-path"
     return 0
   fi
-  [ "$(uname -s)" = Darwin ] || {
+  [ "$system" = Darwin ] || {
     echo "fetch.sh: no cmake is on PATH, and this script brings cmake on macOS only" >&2
     exit 1
   }
@@ -264,8 +265,8 @@ fetch_cmake() {
 }
 
 cmake_dir() {
-  if command -v cmake >/dev/null 2>&1; then
-    dirname -- "$(command -v cmake)"
+  if on_path=$(command -v cmake); then
+    dirname -- "$on_path"
     return 0
   fi
   read_fetch_line

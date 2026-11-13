@@ -95,14 +95,17 @@ def count(text):
 
 
 def parse_weights(text):
-    """The weights lines: a list of (token, group, bytes) in the order of the file."""
+    """The weights lines: a list of (token, group, bytes) in the order of the file, and the
+    SHA-256 of each token's file."""
     out = []
+    shas = {}
     for n, line in enumerate(text.splitlines(), 1):
         v = words(line, "weights", ("model", "group", "file", "sha256", "bytes", "url", "spdx"))
         if v is None or v[1] not in ("agents", "routing") or count(v[4]) is None:
             raise Refusal("source", "weights.txt line %d is no weights line" % n)
         out.append((v[0], v[1], count(v[4])))
-    return out
+        shas[v[0]] = v[3]
+    return out, shas
 
 
 def browser_bound(text):
@@ -125,17 +128,32 @@ def block(text):
     return lines[fences[0] + 1 : fences[1]], fences
 
 
-def cells(lines):
-    """{(token, machine, prompt): [(peak_bytes, capped), ...]} from the cell lines."""
+def cells(lines, shas):
+    """{(token, machine, prompt): [(peak_bytes, capped), ...]} from the cell lines. A line
+    whose file_sha256 is not the SHA-256 of its model's weights line, and a run number that
+    stands twice for one model, machine and prompt, are refused."""
     out = {}
+    runs = set()
     for line in lines:
         if not line.startswith("cell "):
             continue
         v = words(line, "cell", CELL_KEYS)
-        if v is None or count(v[5]) is None or v[6] not in ("yes", "no"):
+        if v is None or count(v[5]) is None or v[6] not in ("yes", "no") or not count(v[4]):
             raise Refusal("source", "a cell line is not of the form of A13.5: " + line[:80])
+        if shas.get(v[0]) != v[1]:
+            raise Refusal("source", "a cell line names another file than its model's weights line: " + line[:80])
+        if (v[0], v[2], v[3], v[4]) in runs:
+            raise Refusal("source", "a run number stands twice: " + line[:80])
+        runs.add((v[0], v[2], v[3], v[4]))
         out.setdefault((v[0], v[2], v[3]), []).append((count(v[5]), v[6] == "yes"))
     return out
+
+
+def same_lines(body, computed):
+    """Whether the bound and verdict lines of the block are the computed ones, in order, and
+    the block ends with the computed verdict line."""
+    stated = [line for line in body if line.startswith("bound ") or line.startswith("verdict ")]
+    return stated == computed and body[-1:] == computed[-1:]
 
 
 def lines_for(weights, found, browser):
@@ -240,6 +258,49 @@ def self_test():
     out = lines_for(weights, full(below_file), 1216348160)
     expect("a median below the file", out[0], "bound model=m_a machine=mac bound_bytes=2508193792 fits=not-measured")
 
+    def at_file(token, machine, prompt):
+        if token == "m_a" and machine == "mac" and prompt == "reply":
+            return [(file_bytes, False)] * 5
+        return plain(token, machine, prompt)
+
+    out = lines_for(weights, full(at_file), 1216348160)
+    expect("a median equal to the file is measured", out[0], "bound model=m_a machine=mac bound_bytes=2508193792 fits=yes")
+    found = full(plain)
+    found[("m_b", "mac", "reply")] = [(peak, False)] * 6
+    out = lines_for(weights, found, 1216348160)
+    expect("a prompt with six cells", out[2], "bound model=m_b machine=mac bound_bytes=0 fits=not-measured")
+
+    def cell_line(sha, run):
+        return (
+            "cell model=m_a file_sha256=%s machine=mac prompt=action run=%s peak_bytes=1 capped=no"
+            " load_ms=1 first_token_ms=1 tokens_per_s=1 tokens_in=1 tokens_out=1" % (sha, run)
+        )
+
+    shas = {"m_a": "a" * 64}
+
+    def refused(lines):
+        try:
+            cells(lines, shas)
+        except Refusal:
+            return True
+        except Exception:
+            return False
+        return False
+
+    expect("the lines of one model's file are taken", refused([cell_line("a" * 64, n) for n in "12345"]), False)
+    expect("a cell of another file is refused", refused([cell_line("b" * 64, 1)]), True)
+    expect("a cell of a model with no weights line is refused", refused([cell_line("a" * 64, 1).replace("m_a", "m_z")]), True)
+    expect("a run number twice is refused", refused([cell_line("a" * 64, 1), cell_line("a" * 64, 1)]), True)
+    expect("a run number that is no count is refused", refused([cell_line("a" * 64, 0)]), True)
+    computed = ["bound model=m_a machine=mac bound_bytes=8388608 fits=yes", "verdict candidates=m_a"]
+    expect("the check takes the computed lines", same_lines(["x"] + computed, computed), True)
+    expect(
+        "the check reads the verdict line",
+        same_lines([computed[0], "verdict candidates=m_a,gemma_4_e4b"], computed),
+        False,
+    )
+    expect("the check reads the last line", same_lines(computed + ["x"], computed), False)
+
     found = full(plain)
     del found[("m_a", "hosted-win", "action")]
     out = lines_for(weights, found, 1216348160)
@@ -265,7 +326,7 @@ def self_test():
         "cell model=m machine=mac prompt=action run=1 peak_bytes=1 capped=no load_ms=1 first_token_ms=1 tokens_per_s=1 tokens_in=1 tokens_out=1",
     ):
         try:
-            cells([bad])
+            cells([bad], {"m": "x"})
         except Refusal:
             rejected += 1
     expect("bad cell lines rejected", rejected, 3)
@@ -294,19 +355,18 @@ def main(argv):
             raise Refusal("source", "%s cannot be read: %s" % (path, error.strerror))
 
     cells_path = "docs/r3/trials/model-cells.md"
-    weights = parse_weights(read("tools/r3-trials/model/weights.txt"))
+    weights, shas = parse_weights(read("tools/r3-trials/model/weights.txt"))
     browser = browser_bound(read("docs/r3/trials/browser-profile.md"))
     text = read(cells_path)
     body, fences = block(text)
-    computed = lines_for(weights, cells(body), browser)
+    computed = lines_for(weights, cells(body, shas), browser)
     if argv == []:
         for line in computed:
             print(line)
         return 0
     kept = [line for line in body if not line.startswith("bound ") and not line.startswith("verdict ")]
     if argv == ["--check"]:
-        stated = [line for line in body if line.startswith("bound ") or line.startswith("verdict ")]
-        same = stated == computed and body[-1:] == computed[-1:]
+        same = same_lines(body, computed)
         print("fits check lines=%d same=%s" % (len(computed), "yes" if same else "no"))
         return 0 if same else 1
     lines = text.split("\n")

@@ -192,7 +192,16 @@ bound of a prompt is the median of its five peaks times 1.25 rounded up to 8 MiB
 model on a machine is the larger of its two prompts' bounds; the budget is 8,589,934,592 bytes
 less the browser bound with one step of 8,388,608 bytes added, less 268,435,456 bytes for the
 runner. `fits` is `not-measured` when a prompt has fewer than five cell lines, a run was capped,
-or a median peak is below the file's size.
+or a median peak is below the file's size. A cell line whose `file_sha256` is not the SHA-256 of
+its model's line in `weights.txt`, and a run number that stands twice for one model, machine and
+prompt, stop the script with `REFUSED source`.
+
+A bound read again can stand one 8 MiB step below the file's. A reader's five runs of the
+`minicpm5_2b` action cell on `mac`, at a 1-minute load of 301, gave a median 0.14 per cent below
+the file's and so a bound of 2,826,960,896 bytes against the file's 2,835,349,504; `fits=yes`
+holds for both. A bound at a rounding edge cannot be reproduced exactly, so a comparison of two
+bounds allows one step, and a bound of the result file stays the median of five runs, because
+one run of that reader's read 10 per cent low under this machine's load.
 
 ## How the cells of unit U0.5 ran
 
