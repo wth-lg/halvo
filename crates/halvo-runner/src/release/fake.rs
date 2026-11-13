@@ -2,7 +2,7 @@
 //! counts what it lets leave; no fixture runs.
 
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use halvo_policy::Facts;
 use halvo_schema::executable::names::{Answer, FieldName, HandbackReason, LogEvent, Source};
@@ -16,12 +16,16 @@ use halvo_schema::Category;
 use super::suite::{run_many_path, run_path, Plan, Record};
 use super::{Left, Paused, Replied};
 
+#[derive(Default)]
 struct Fake {
     reads: Vec<Bound>,
     at: usize,
     released: Arc<AtomicU32>,
     from_slot: bool,
     clock: Option<(Arc<AtomicU64>, u64)>,
+    generation: u32,
+    last: Option<Bound>,
+    left: Arc<Mutex<Vec<(u32, Bound)>>>,
 }
 
 struct Answers;
@@ -44,10 +48,13 @@ impl Paused for Fake {
                 .find(|s| s.name.as_str() == "item")
                 .map(|s| s.value.joined())
                 .ok_or(Cause::StepFailed)?;
-            return Ok(delete(&item, Source::Extract));
+            let read = delete(&item, Source::Extract);
+            self.last = Some(read.clone());
+            return Ok(read);
         }
         let read = self.reads[self.at.min(self.reads.len() - 1)].clone();
         self.at += 1;
+        self.last = Some(read.clone());
         Ok(read)
     }
 
@@ -60,13 +67,20 @@ impl Paused for Fake {
 
     fn release(self: Box<Self>) -> Box<dyn Left> {
         self.released.fetch_add(1, Ordering::SeqCst);
+        if let Some(last) = &self.last {
+            self.left
+                .lock()
+                .expect("the record of what left")
+                .push((self.generation, last.clone()));
+        }
         Box::new(Answers)
     }
 
-    fn renew(self: Box<Self>, _slots: &[Slot]) -> Result<Box<dyn Paused>, Cause> {
+    fn renew(mut self: Box<Self>, _slots: &[Slot]) -> Result<Box<dyn Paused>, Cause> {
         if let Some((clock, ms)) = &self.clock {
             clock.fetch_add(*ms, Ordering::SeqCst);
         }
+        self.generation += 1;
         Ok(self)
     }
 }
@@ -94,6 +108,7 @@ fn run(reads: Vec<Bound>, plan: Plan) -> (Record, u32) {
         released: Arc::clone(&released),
         from_slot: false,
         clock: None,
+        ..Fake::default()
     };
     let record = run_path(
         Category::CalendarCleanup,
@@ -401,6 +416,7 @@ fn a_cleared_effect_whose_slot_changes_at_the_load_before_the_begin_is_proposed_
         released: Arc::clone(&released),
         from_slot: true,
         clock: None,
+        ..Fake::default()
     };
     let plan = Plan {
         runs_at: Some(|_| true),
@@ -450,6 +466,7 @@ fn run_many(reads: Vec<Vec<Bound>>, spend_ms: u64, plan: Plan) -> (Record, u32) 
                 released: Arc::clone(&released),
                 from_slot: false,
                 clock: Some((Arc::clone(&plan.clock), spend_ms)),
+                ..Fake::default()
             }) as Box<dyn Paused>
         })
         .collect();
@@ -641,4 +658,106 @@ fn a_third_time_ends_every_open_effect_and_the_run_fails_changed() {
         stopped(&record),
         Some((LogEvent::Stopped, Some(Cause::Changed)))
     );
+}
+
+/// Runs the confirm path on one fake request whose reads give `reads` in turn; the record and what left, each with
+/// the generation of the request (raised by each `renew`) and the values of its last read.
+fn run_recorded(reads: Vec<Bound>, plan: Plan) -> (Record, Vec<(u32, Bound)>) {
+    let left = Arc::new(Mutex::new(Vec::new()));
+    let fake = Fake {
+        reads,
+        left: Arc::clone(&left),
+        ..Fake::default()
+    };
+    let record = run_path(
+        Category::CalendarCleanup,
+        (Vec::new(), Vec::new()),
+        Box::new(fake),
+        plan,
+    );
+    let left = left.lock().expect("the record of what left").clone();
+    (record, left)
+}
+
+/// CP-157 E5 (a), adversary 3's k1: two paused requests in one call of `release`, both `cleared` and then asked
+/// again by case (iv), stand in one confirmation request, and both leave.
+#[test]
+fn two_cleared_effects_are_asked_again_in_one_request() {
+    let reads = vec![
+        vec![delete("a", Source::Extract)],
+        vec![delete("b", Source::Extract)],
+    ];
+    let plan = Plan {
+        runs_at: Some(|load| load == 1),
+        ..Plan::plain()
+    };
+    let (record, released) = run_many(reads, 0, plan);
+    let confirms = record.confirms();
+    assert_eq!(confirms.len(), 1, "one confirmation request");
+    assert_eq!(confirms[0].effects.len(), 2, "with both effects");
+    assert_eq!(released, 2, "both leave");
+    assert_eq!(record.done(), Some(Outcome::Completed));
+}
+
+/// CP-157 E5 (b), adversary 3's k2: after a `rebind` the request that leaves is the one that `renew` made again,
+/// with the values that the person was asked about the second time.
+#[test]
+fn after_a_rebind_the_request_is_renewed_before_it_leaves() {
+    let reads = vec![delete("a", Source::Extract), delete("b", Source::Extract)];
+    let (record, left) = run_recorded(reads, Plan::plain());
+    assert_eq!(record.confirms().len(), 2);
+    assert_eq!(
+        left,
+        [(1, delete("b", Source::Extract))],
+        "the renewed request leaves"
+    );
+    assert_eq!(record.done(), Some(Outcome::Completed));
+}
+
+/// CP-157 E5 (b), adversary 3's k5: a `cleared` effect whose values change twice is proposed again each time and
+/// leaves with the last values, made again twice.
+#[test]
+fn a_cleared_effect_whose_values_change_twice_leaves_with_the_last_values() {
+    let reads = ["a", "b", "c"]
+        .map(|id| delete(id, Source::Extract))
+        .to_vec();
+    let plan = Plan {
+        runs_at: Some(|_| true),
+        ..Plan::plain()
+    };
+    let (record, left) = run_recorded(reads, plan);
+    assert_eq!(
+        left,
+        [(2, delete("c", Source::Extract))],
+        "the last values leave"
+    );
+    let last_propose = record
+        .effects()
+        .into_iter()
+        .rfind(|e| e.state == EffectState::Cleared)
+        .expect("a propose row");
+    assert_eq!(
+        last_propose.digest,
+        halvo_policy::digest(&delete("c", Source::Extract)).expect("a digest")
+    );
+    assert_eq!(record.done(), Some(Outcome::Completed));
+}
+
+/// CP-157 E5 (c), adversary 3's k4: the person's answer comes after the run's `wall_s` on the clock of the test's
+/// own, and the wait for it is no time of `wall_s` (A6.5): the run still ends `completed`.
+#[test]
+fn the_wait_for_a_confirmation_is_no_time_of_wall_s() {
+    let clock = Arc::new(AtomicU64::new(0));
+    let during = Arc::clone(&clock);
+    let plan = Plan {
+        wall_s: Some(5),
+        clock,
+        on_confirm: Box::new(move |_| {
+            during.fetch_add(10_000, Ordering::SeqCst);
+        }),
+        ..Plan::plain()
+    };
+    let (record, left) = run_recorded(vec![delete("a", Source::Extract)], plan);
+    assert_eq!(left.len(), 1);
+    assert_eq!(record.done(), Some(Outcome::Completed));
 }
