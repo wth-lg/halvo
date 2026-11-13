@@ -78,9 +78,8 @@ measure_case() {
     CARGO_HOME=$work
     PATH="$work/bin:$PATH"
     STUB_SHOWS=$2
-    CI_D_REPO=$repo
     CI_D_ARTIFACTS=
-    export CARGO_HOME PATH STUB_SHOWS CI_D_REPO
+    export CARGO_HOME PATH STUB_SHOWS
     measure 2>&1
   )
   status=$?
