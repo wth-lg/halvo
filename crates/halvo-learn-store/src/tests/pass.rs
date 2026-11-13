@@ -51,7 +51,7 @@ fn bodies() -> Vec<(&'static str, Value)> {
         ),
         (
             "c",
-            json!({"op": "add_origin", "workflow": wf(1), "agent": agent(1), "run": run(1), "origin": "https://northwind-power.test", "way": "navigate"}),
+            json!({"op": "add_origin", "workflow": wf(1), "agent": agent(1), "run": run(1), "origin": "https://northwind-power.test:443", "way": "navigate"}),
         ),
         ("c", json!({"op": "no_such_op", "workflow": wf(1)})),
         ("c", json!([1, 2])),
@@ -66,7 +66,7 @@ fn bodies() -> Vec<(&'static str, Value)> {
         ),
         (
             "r",
-            json!({"op": "load_session", "agent": agent(1), "run": run(1), "origin": "https://northwind-power.test", "rev": 1, "part": 1}),
+            json!({"op": "load_session", "agent": agent(1), "run": run(1), "origin": "https://northwind-power.test:443", "rev": 1, "part": 1}),
         ),
         (
             "r",

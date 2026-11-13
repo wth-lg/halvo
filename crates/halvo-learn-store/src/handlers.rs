@@ -1,8 +1,11 @@
 use std::collections::BTreeMap;
 
-use halvo_schema::executable::{CoordinatorReply, RunId, RunnerCall, RunnerReply};
+use halvo_policy::class_of;
+use halvo_schema::executable::{
+    ActionClass, CoordinatorReply, ExecutableStep, RunId, RunnerCall, RunnerReply,
+};
 use halvo_schema::learning::body::Refinements;
-use halvo_schema::ErrorName;
+use halvo_schema::{ErrorName, SeedCategory};
 
 use crate::agent;
 use crate::facts::RunFacts;
@@ -60,10 +63,20 @@ impl CoordinatorAnswer {
 /// run and the read `list_refinements`, which they answer themselves; they hold the facts of each run in memory,
 /// serve learned targets in the reply of `load_steps`, and make at most one typed commit of the family `learn`
 /// for a request, after the agent store's own.
-#[derive(Default)]
 pub struct LearnHandlers {
     pub(crate) ids: Ids,
     pub(crate) facts: BTreeMap<RunId, RunFacts>,
+    pub(crate) class_rule: fn(SeedCategory, &ExecutableStep) -> ActionClass,
+}
+
+impl Default for LearnHandlers {
+    fn default() -> LearnHandlers {
+        LearnHandlers {
+            ids: Ids::default(),
+            facts: BTreeMap::new(),
+            class_rule: class_of,
+        }
+    }
 }
 
 impl LearnHandlers {
@@ -81,6 +94,7 @@ impl LearnHandlers {
         match RunnerCall::parse(body) {
             Ok(RunnerCall::Load(b)) => self.load(host, body, &b),
             Ok(RunnerCall::LoadSteps(b)) => self.load_steps(host, body, &b),
+            Ok(RunnerCall::PutPlaybook(b)) => self.put_playbook(host, body, &b),
             _ => Ok(agent::runner(host, body)?),
         }
     }

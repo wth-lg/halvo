@@ -13,9 +13,12 @@ mod facts;
 mod handlers;
 mod host;
 mod ids;
+mod moves;
+mod propose;
 mod routine;
 mod rows;
 mod serve;
+mod sources;
 
 pub use handlers::{CoordinatorAnswer, LearnHandlers, Refused};
 pub use host::{Clock, LearnHost};

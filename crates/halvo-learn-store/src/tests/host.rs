@@ -364,9 +364,28 @@ pub fn world() -> World {
     w
 }
 
+pub fn fill(n: u32, text: &str) -> Value {
+    json!({
+        "v": 1,
+        "n": n,
+        "kind": "web",
+        "verb": "fill",
+        "target": {"desc": "textbox Note", "frame": [], "credential": "no", "locators": [locator("label", "Note", None)]},
+        "args": [{"name": "text", "from": "const", "value": text, "key": null}],
+        "pre": [],
+        "post": [],
+        "effect": "none",
+        "class": "prepare",
+    })
+}
+
 pub fn active_world() -> World {
+    active_world_with(compiled())
+}
+
+pub fn active_world_with(steps: Vec<Value>) -> World {
     let mut w = world();
-    w.compile(1, 1, compiled());
+    w.compile(1, 1, steps);
     let reply = w.coordinator(json!({
         "op": "set_state", "workflow": wf(1), "agent": agent(1), "state": "active",
     }));
