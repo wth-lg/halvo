@@ -557,7 +557,7 @@ impl Running<'_> {
 
 /// Closes the link, gives the runner `link_end` (`LINK_END` by default) to end by itself and then ends what is
 /// left, and reports the end. For a runner that outlived its stored `finish` this close comes `link_end` after the
-/// `finish`, so such a runner is gone within twice `link_end` and a tick of it.
+/// `finish`, so the library ends such a runner once twice `link_end` has passed since its `finish`.
 fn finish_run(inner: &Inner, slot: &Slot, ending: Ending) {
     slot.close_link();
     let deadline = Instant::now() + inner.config.link_end;
