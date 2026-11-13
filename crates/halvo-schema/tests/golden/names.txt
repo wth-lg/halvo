@@ -13,6 +13,7 @@ agent_config
 agent_effect
 agent_log
 agent_playbook
+agent_reply
 agent_run
 agent_session
 allow
@@ -33,6 +34,7 @@ assisted
 at
 autonomy
 base
+begun
 bindings
 body
 bounded
@@ -92,7 +94,9 @@ dismissed
 document
 domain
 done
+draft
 draft_and_confirm
+drafted
 drag
 edit
 editing
@@ -178,6 +182,7 @@ load_steps
 local_edit
 locators
 log
+lost
 low
 low_cost_hosted
 made
@@ -188,6 +193,7 @@ manual
 mark
 mark_checkpoint
 medium
+message
 minutes
 missed
 mode
@@ -369,6 +375,7 @@ went_through
 what
 window
 withdrawn
+withheld
 workbook
 workflow
 workflows

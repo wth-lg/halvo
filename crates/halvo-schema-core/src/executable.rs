@@ -3,10 +3,10 @@ use crate::kinds::{FieldType, KindEntry, Origin, RetentionClass};
 /// The error names that this run's handlers answer, in the reply form of the workflow run.
 pub const ERROR_NAMES: &[&str] = &["binding", "playbook", "config", "class", "length", "effect"];
 
-/// The eight kinds of this run, family `agent`, each with the workflow id under the key `workflow`: of origin
-/// capture `agent_config`, kept, and `agent_run`, bounded at 93 days; of origin own `agent_playbook` and
-/// `agent_bindings`, kept, `agent_effect` and `agent_log`, bounded at 93 days, `agent_session`, bounded at 35 days,
-/// and `agent_checkpoint`, bounded at 93 days.
+/// The kinds of this run, family `agent`, each with the workflow id under the key `workflow`: of origin capture
+/// `agent_config`, kept, and `agent_run`, bounded at 93 days; of origin own `agent_playbook` and `agent_bindings`,
+/// kept, `agent_effect` and `agent_log`, bounded at 93 days, `agent_session`, bounded at 35 days, `agent_checkpoint`,
+/// bounded at 93 days, and `agent_reply`, kept by default until the owner answers O4, with its `day` and `at`.
 pub const KINDS: &[KindEntry] = &[
     KindEntry {
         name: "agent_config",
@@ -190,5 +190,26 @@ pub const KINDS: &[KindEntry] = &[
             ("left", FieldType::Name),
         ],
         example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","seq":2,"day":20768,"at":1794339000000000002,"folder":["/data/books"],"workbook":["/data/books/bills.xlsx"],"copy":["bills.halvo-checkpoint-50505050505050505050505050505050.xlsx"],"sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","bytes":18432,"state":"made","left":null}"#,
+    },
+    KindEntry {
+        name: "agent_reply",
+        class: RetentionClass::Kept,
+        origin: Origin::Own,
+        family: "agent",
+        workflow_key: Some("workflow"),
+        fields: &[
+            ("v", FieldType::Version),
+            ("workflow", FieldType::Id),
+            ("agent", FieldType::Id),
+            ("run", FieldType::Id),
+            ("seq", FieldType::Count),
+            ("day", FieldType::Day),
+            ("at", FieldType::Instant),
+            ("message", FieldType::OwnText),
+            ("draft", FieldType::OwnText),
+            ("effect", FieldType::Id),
+            ("state", FieldType::Name),
+        ],
+        example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","seq":1,"day":20768,"at":1794339000000000003,"message":"msg-utility-0001","draft":"draft-utility-0001","effect":null,"state":"drafted"}"#,
     },
 ];

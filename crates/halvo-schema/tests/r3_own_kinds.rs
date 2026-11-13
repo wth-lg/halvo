@@ -2,28 +2,31 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use halvo_schema::executable::{
-    self, AgentBindings, AgentCheckpoint, AgentEffect, AgentLog, AgentPlaybook, AgentSession,
+    self, AgentBindings, AgentCheckpoint, AgentEffect, AgentLog, AgentPlaybook, AgentReply,
+    AgentSession,
 };
 use halvo_schema::kinds::{
     check_entries, check_record, check_registry, registry, KindEntry, Origin, RetentionClass,
 };
 
-const OWN: [&str; 6] = [
+const OWN: [&str; 7] = [
     "agent_playbook",
     "agent_bindings",
     "agent_effect",
     "agent_log",
     "agent_session",
     "agent_checkpoint",
+    "agent_reply",
 ];
 
-const CLASSES: [(&str, RetentionClass); 6] = [
+const CLASSES: [(&str, RetentionClass); 7] = [
     ("agent_playbook", RetentionClass::Kept),
     ("agent_bindings", RetentionClass::Kept),
     ("agent_effect", RetentionClass::Bounded { days: 93 }),
     ("agent_log", RetentionClass::Bounded { days: 93 }),
     ("agent_session", RetentionClass::Bounded { days: 35 }),
     ("agent_checkpoint", RetentionClass::Bounded { days: 93 }),
+    ("agent_reply", RetentionClass::Kept),
 ];
 
 const LEFT_OUT: [&str; 6] = ["tier", "amount", "period", "week", "month", "role"];
@@ -44,6 +47,7 @@ fn strict(name: &str, text: &str) -> Result<String, String> {
         "agent_log" => AgentLog::parse(b).and_then(|v| v.to_json()),
         "agent_session" => AgentSession::parse(b).and_then(|v| v.to_json()),
         "agent_checkpoint" => AgentCheckpoint::parse(b).and_then(|v| v.to_json()),
+        "agent_reply" => AgentReply::parse(b).and_then(|v| v.to_json()),
         _ => panic!("the kind {name} has no strict reader"),
     };
     read.map_err(|e| e.to_string())
@@ -55,7 +59,7 @@ fn swap(text: &str, from: &str, to: &str) -> String {
 }
 
 #[test]
-fn the_file_registers_the_six_kinds_of_origin_own_after_its_two_kinds_of_origin_capture() {
+fn the_file_registers_its_kinds_of_origin_own_after_its_two_kinds_of_origin_capture() {
     let names: Vec<&str> = executable::KINDS.iter().map(|k| k.name).collect();
     assert_eq!(names[2..], OWN);
     for (name, class) in CLASSES {
@@ -67,7 +71,7 @@ fn the_file_registers_the_six_kinds_of_origin_own_after_its_two_kinds_of_origin_
         assert_eq!(check_entries(&[kind]), Vec::<String>::new(), "{name}");
     }
     let registered: Vec<&str> = registry().map(|k| k.name).collect();
-    assert_eq!(registered[6..12], OWN);
+    assert_eq!(registered[6..6 + OWN.len()], OWN);
     assert_eq!(check_registry(), Vec::<String>::new());
 }
 
@@ -169,6 +173,13 @@ fn a_row_that_names_a_key_outside_its_shape_or_holds_a_value_of_another_type_is_
             r#""sha256":"bbbb""#,
             "sha256: string_form",
         ),
+        (
+            "agent_reply",
+            r#""state":"drafted""#,
+            r#""state":"Re: your bill""#,
+            "state: string_form",
+        ),
+        ("agent_reply", r#""seq":1"#, r#""seq":true"#, "seq: boolean"),
     ];
     for (name, from, to, rule) in cases {
         let kind = entry(name);
@@ -233,6 +244,7 @@ fn a_piece_of_own_text_longer_than_1024_bytes_is_refused() {
         ("agent_effect", r#""B2:D6""#),
         ("agent_session", r#""eyJjb29raWVzIjpbXX0=""#),
         ("agent_checkpoint", r#""/data/books""#),
+        ("agent_reply", r#""msg-utility-0001""#),
     ] {
         let kind = entry(name);
         let text = swap(kind.example, from, &format!("\"{long}\""));

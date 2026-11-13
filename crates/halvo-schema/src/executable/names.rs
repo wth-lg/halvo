@@ -237,6 +237,23 @@ names! {
 }
 
 names! {
+    /// The state of a row of `agent_reply`, one state of the reply to one message: `drafted` when its draft is made,
+    /// `begun` when its send begins, `committed` when the send is committed, `unknown` when the outcome of the send is
+    /// not known, `lost` when a later PATCH of the draft answers 404 or fails its checks, and `withheld` when the
+    /// draft that the mail service made in the same call is not a plain reply to the sender alone: its one recipient
+    /// is not, byte for byte, the sender, it has no recipient or more than one, it holds a copy or blind-copy address,
+    /// or it stands in another conversation.
+    pub enum ReplyState {
+        Drafted = "drafted",
+        Begun = "begun",
+        Committed = "committed",
+        Unknown = "unknown",
+        Lost = "lost",
+        Withheld = "withheld",
+    }
+}
+
+names! {
     /// The outcome of a run, of the frame `done` and of the record `agent_run`.
     pub enum Outcome {
         Completed = "completed",

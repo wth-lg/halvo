@@ -19,13 +19,15 @@ use halvo_schema::executable::frame::{
     Store, StoreReply, StoreReplyFrame, StoreRequest, ToRunner,
 };
 use halvo_schema::executable::names::*;
-use halvo_schema::executable::record::{AgentCheckpoint, AgentEffect, AgentLog, AgentRun, Slot};
+use halvo_schema::executable::record::{
+    AgentCheckpoint, AgentEffect, AgentLog, AgentReply, AgentRun, Slot,
+};
 use halvo_schema::executable::step::{
     ApiTarget, Arg, Cond, ExecutableStep, FileTarget, Locator, Playbook, Target, WebTarget,
 };
 use halvo_schema::executable::text::{
-    ApprovalId, CreationTime, Digest, EffectId, Endpoint, Name, Null, OwnText, OwnValue, RunId,
-    SecretText, SessionData, WebOrigin, V1,
+    ApprovalId, CreationTime, Digest, EffectId, Endpoint, Name, Null, OwnText, OwnValue,
+    ProviderId, RunId, SecretText, SessionData, WebOrigin, V1,
 };
 use halvo_schema::executable::{self, ERROR_NAMES, NAMES};
 use halvo_schema::record::Instant;
@@ -34,13 +36,14 @@ use halvo_schema::{AgentId, RequestId, WorkflowId};
 
 const TABLE_MADE_BY_NODE: &str = "origin-oracle.tsv";
 
-const FILES: [&str; 12] = [
+const FILES: [&str; 13] = [
     "configs.jsonl",
     "runs.jsonl",
     "playbook.jsonl",
     "bounds.jsonl",
     "effects.jsonl",
     "checkpoints.jsonl",
+    "replies.jsonl",
     "runner-bodies.jsonl",
     "coordinator-bodies.jsonl",
     "runner-replies.jsonl",
@@ -624,6 +627,38 @@ fn checkpoints() -> Vec<AgentCheckpoint> {
     ]
 }
 
+fn reply_row(seq: u32, message: &str, state: ReplyState, effect: bool) -> AgentReply {
+    AgentReply {
+        v: V1,
+        workflow: workflow(),
+        agent: agent(),
+        run: run(),
+        seq: n(seq),
+        day: 20768,
+        at: Instant(1_794_339_000_000_000_000 + i64::from(seq)),
+        message: ProviderId::parse(&format!("msg-{message}")).unwrap(),
+        draft: (state != ReplyState::Lost)
+            .then(|| ProviderId::parse(&format!("draft-{message}")).unwrap()),
+        effect: effect.then(|| effect_id(0x60)),
+        state,
+    }
+}
+
+fn replies() -> Vec<AgentReply> {
+    vec![
+        reply_row(1, "0001", ReplyState::Drafted, false),
+        reply_row(2, "0001", ReplyState::Begun, true),
+        reply_row(3, "0001", ReplyState::Drafted, true),
+        reply_row(4, "0001", ReplyState::Begun, true),
+        reply_row(5, "0001", ReplyState::Committed, true),
+        reply_row(2, "0002", ReplyState::Begun, true),
+        reply_row(3, "0002", ReplyState::Unknown, true),
+        reply_row(2, "0003", ReplyState::Lost, false),
+        reply_row(3, "0003", ReplyState::Drafted, false),
+        reply_row(2, "0004", ReplyState::Withheld, false),
+    ]
+}
+
 fn listed_checkpoint(state: ListedState, effect: Option<EffectState>) -> ListedCheckpoint {
     let row = checkpoint_row(1, CheckpointState::Planned, None);
     let made = state == ListedState::Made;
@@ -1029,6 +1064,7 @@ fn built(file: &str) -> String {
         "bounds.jsonl" => lines(&bounds(), |v| v.to_json().unwrap()),
         "effects.jsonl" => lines(&effects(), |v| v.to_json().unwrap()),
         "checkpoints.jsonl" => lines(&checkpoints(), |v| v.to_json().unwrap()),
+        "replies.jsonl" => lines(&replies(), |v| v.to_json().unwrap()),
         "runner-bodies.jsonl" => lines(&runner_bodies(), |v| v.to_json().unwrap()),
         "coordinator-bodies.jsonl" => lines(&coordinator_bodies(), |v| v.to_json().unwrap()),
         "runner-replies.jsonl" => lines(&runner_replies(), |v| v.to_json().unwrap()),
@@ -1048,6 +1084,7 @@ fn reread(file: &str, line: &str) -> String {
         "bounds.jsonl" => Bound::parse(b).and_then(|v| v.to_json()),
         "effects.jsonl" => AgentEffect::parse(b).and_then(|v| v.to_json()),
         "checkpoints.jsonl" => AgentCheckpoint::parse(b).and_then(|v| v.to_json()),
+        "replies.jsonl" => AgentReply::parse(b).and_then(|v| v.to_json()),
         "runner-bodies.jsonl" => RunnerCall::parse(b).and_then(|v| v.to_json()),
         "coordinator-bodies.jsonl" => CoordinatorCall::parse(b).and_then(|v| v.to_json()),
         "runner-replies.jsonl" => RunnerReply::parse(b).and_then(|v| v.to_json()),
@@ -1131,6 +1168,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
         "playbook.jsonl",
         "effects.jsonl",
         "checkpoints.jsonl",
+        "replies.jsonl",
         "runner-bodies.jsonl",
         "coordinator-bodies.jsonl",
         "runner-replies.jsonl",
@@ -1177,7 +1215,8 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
         CheckpointState,
         ListedState,
         MarkState,
-        LeftReason
+        LeftReason,
+        ReplyState
     );
     for class in ActionClass::ALL {
         derived.extend(
@@ -1206,7 +1245,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
     for name in ["binding", "length"] {
         assert!(!NAMES.contains(&name), "{name}");
     }
-    assert_eq!(executable::KINDS.len(), 8);
+    assert_eq!(executable::KINDS.len(), 9);
 }
 
 #[test]

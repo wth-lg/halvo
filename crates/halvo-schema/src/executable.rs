@@ -25,19 +25,22 @@ pub use frame::{
 pub use json::{Refusal, RefusalCause};
 pub use names::{
     ActionClass, AllowedClass, Autonomy, Cause, CheckpointState, EffectState, LeftReason,
-    ListedState, MarkState, ModelTier, Outcome, Reasoning, Runtime, Way,
+    ListedState, MarkState, ModelTier, Outcome, Reasoning, ReplyState, Runtime, Way,
 };
 pub use record::{
-    AgentBindings, AgentCheckpoint, AgentEffect, AgentLog, AgentPlaybook, AgentRun, AgentSession,
+    AgentBindings, AgentCheckpoint, AgentEffect, AgentLog, AgentPlaybook, AgentReply, AgentRun,
+    AgentSession,
 };
 pub use step::{ExecutableStep, Playbook};
-pub use text::{ApprovalId, Digest, EffectId, Name, OwnText, OwnValue, RunId, WebOrigin};
+pub use text::{
+    ApprovalId, Digest, EffectId, Name, OwnText, OwnValue, ProviderId, RunId, WebOrigin,
+};
 
 pub use ::halvo_schema_core::executable::{ERROR_NAMES, KINDS};
 
-/// The keys and closed-list names that this run's records, bodies and replies write, the names of its eight kinds
-/// and its family. Left out: `tier`, `amount`, `period`, `week` and `month`, which the billing run's wire holds, and
-/// `role`, which the names file never holds.
+/// The keys and closed-list names that this run's records, bodies and replies write, the names of its kinds and its
+/// family. Left out: `tier`, `amount`, `period`, `week` and `month`, which the billing run's wire holds, and `role`,
+/// which the names file never holds.
 pub const NAMES: &[&str] = &[
     "agent_config",
     "agent_run",
@@ -47,6 +50,7 @@ pub const NAMES: &[&str] = &[
     "agent_log",
     "agent_session",
     "agent_checkpoint",
+    "agent_reply",
     "agent",
     "v",
     "workflow",
@@ -251,6 +255,12 @@ pub const NAMES: &[&str] = &[
     "not_selected",
     "no_start",
     "start_accepted",
+    "message",
+    "draft",
+    "drafted",
+    "begun",
+    "lost",
+    "withheld",
     "folder",
     "copy",
     "sha256",

@@ -7,10 +7,11 @@ use super::bound::{check_kept, KeptField};
 use super::json::{self, each_once, from_json, list, object_type, opt};
 use super::names::{
     ActionClass, Cause, CheckpointState, EffectState, LeftReason, LogEvent, Mode, Outcome,
+    ReplyState,
 };
 use super::step::ExecutableStep;
 use super::text::{
-    ApprovalId, Digest, EffectId, Name, OwnValue, RunId, SessionData, WebOrigin, V1,
+    ApprovalId, Digest, EffectId, Name, OwnValue, ProviderId, RunId, SessionData, WebOrigin, V1,
 };
 use super::Refusal;
 
@@ -226,6 +227,43 @@ object_type! {
         };
         if event.is_some_and(|event| event != l.event) {
             return fail("cause", "cause_of_event");
+        }
+        Ok(())
+    }
+}
+
+object_type! {
+    /// One state of the reply to one message, kind `agent_reply`: ids, the message's id, the draft's id, the effect of
+    /// the send, the state, the day and an instant, and no address, no subject and no text of a message. Every state
+    /// but `lost` holds the draft's id, and `lost` none; `begun`, `committed` and `unknown` name the effect of the
+    /// send, `lost` and `withheld` none, and `drafted` names one only after `begun`. Which row may follow which is
+    /// the store's to hold.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct AgentReply {
+        pub v: V1 = "v" => from_json,
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub run: RunId = "run" => from_json,
+        pub seq: NonZeroU32 = "seq" => from_json,
+        pub day: u32 = "day" => from_json,
+        pub at: Instant = "at" => json::instant,
+        pub message: ProviderId = "message" => from_json,
+        pub draft: Option<ProviderId> = "draft" => opt(from_json),
+        pub effect: Option<EffectId> = "effect" => opt(from_json),
+        pub state: ReplyState = "state" => from_json,
+    }
+    rules(r) {
+        let fail = |key, rule| Err(Refusal::malformed("AgentReply", rule).at(key));
+        if r.draft.is_none() != (r.state == ReplyState::Lost) {
+            return fail("draft", "draft_of_state");
+        }
+        let effect = match r.state {
+            ReplyState::Begun | ReplyState::Committed | ReplyState::Unknown => Some(true),
+            ReplyState::Lost | ReplyState::Withheld => Some(false),
+            ReplyState::Drafted => None,
+        };
+        if effect.is_some_and(|holds| holds != r.effect.is_some()) {
+            return fail("effect", "effect_of_state");
         }
         Ok(())
     }
