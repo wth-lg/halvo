@@ -8038,3 +8038,88 @@ fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_b
     println!("KILL rows={rows}");
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+#[cfg(target_os = "macos")]
+fn fill_the_volume(volume: &Path) -> u64 {
+    let mut written = 0u64;
+    for (index, chunk) in [1 << 20, 64 << 10, 4 << 10, 512].into_iter().enumerate() {
+        let path = volume.join(format!("filler-{index}"));
+        let Ok(mut file) = std::fs::File::create(&path) else {
+            continue;
+        };
+        let block = vec![0x5au8; chunk];
+        while file.write_all(&block).is_ok() {
+            written += chunk as u64;
+        }
+        let _ = file.sync_all();
+    }
+    written
+}
+
+#[cfg(target_os = "macos")]
+fn free_the_volume(volume: &Path) {
+    for index in 0..4 {
+        let _ = std::fs::remove_file(volume.join(format!("filler-{index}")));
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn a_store_on_a_full_volume_ends_delete_all_with_no_root_and_no_key_file() {
+    let Ok(volume) = std::env::var("HALVO_FULL_VOLUME") else {
+        println!("a_store_on_a_full_volume: HALVO_FULL_VOLUME is not set, so no check asked for a full volume");
+        return;
+    };
+    let volume = PathBuf::from(volume);
+    let scenario = std::env::var("HALVO_FULL_SCENARIO").unwrap();
+    free_the_volume(&volume);
+    let base = volume.join(format!("scenario-{scenario}"));
+    let (store_dir, roots_dir) = (base.join("store"), base.join("roots"));
+    let root_id = RootId::fresh().unwrap();
+    let custody = DevFallbackCustody::new(root_id, roots_dir.clone());
+    let mut store =
+        EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).unwrap();
+    store
+        .write_segment_with_expiry(&mut Cursor::new(vec![1u8; 100_000]), 0, 1)
+        .unwrap();
+    for i in 0..20u8 {
+        store
+            .write_segment(&mut Cursor::new(vec![i; 100_000]))
+            .unwrap();
+    }
+    let answer = match scenario.as_str() {
+        "A" => {
+            let filled = fill_the_volume(&volume);
+            println!("scenario=A filled_bytes={filled}");
+            answer_text(&store.delete_all())
+        }
+        "B" => {
+            store.db().unwrap().checkpoint_truncate().unwrap();
+            let filled = fill_the_volume(&volume);
+            println!("scenario=B filled_bytes={filled}");
+            answer_text(&store.delete_all())
+        }
+        _ => {
+            drop(store);
+            let filled = fill_the_volume(&volume);
+            println!("scenario=C filled_bytes={filled}");
+            match EncryptedStore::open(&store_dir, &roots_dir, DEFAULT_RETENTION) {
+                Ok(mut reopened) => answer_text(&reopened.delete_all()),
+                Err(e) => {
+                    println!("scenario=C open={e:?}");
+                    answer_text(&EncryptedStore::delete_store_dir(&store_dir, &roots_dir))
+                }
+            }
+        }
+    };
+    let root_gone = !roots_dir.join(format!("{root_id}.root")).exists();
+    let key_file_gone = !KeyFile::path(&store_dir).exists();
+    println!(
+        "scenario={scenario} delete_all={} root_gone={} key_file_gone={}",
+        answer.split(' ').next().unwrap_or(""),
+        if root_gone { "yes" } else { "no" },
+        if key_file_gone { "yes" } else { "no" }
+    );
+    free_the_volume(&volume);
+    assert!(root_gone && key_file_gone, "{answer}");
+}
