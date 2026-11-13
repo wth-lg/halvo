@@ -83,7 +83,7 @@
       const now = typed.value;
       const change = changed(kept, now);
       if (change.gone === 0 && change.added === 0) return;
-      if (bytes(now) > 1024 || ((atBound || bytes(kept) >= 1024) && change.added > 0)) {
+      if (bytes(now) > 1024 || (((atBound && kept !== '') || bytes(kept) >= 1024) && change.added > 0)) {
         typed.value = kept;
         if (was) typed.setSelectionRange(was[0], was[1]);
         else typed.setSelectionRange(change.start, change.start + change.gone);

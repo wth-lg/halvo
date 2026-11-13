@@ -1228,6 +1228,31 @@ async function bound(origin, dir) {
     if (f.value !== xs(999)) faults.push(second + ':line_holds=' + Buffer.byteLength(f.value));
     shows(second + '_second', f, true);
   });
+  const empties = [
+    ['an_empty_line_after_a_refusal_takes_the_next_letter', async (k, l) => l.focus()],
+    [
+      'a_line_emptied_after_a_refusal_takes_the_next_letter',
+      async (k, l) => {
+        await l.fill('abc');
+        await k.page.keyboard.insertText(big);
+        await l.evaluate((x) => x.setSelectionRange(0, 3));
+        await k.page.keyboard.press('Backspace');
+      },
+    ],
+  ];
+  for (const [t, prep] of empties) {
+    await one(t, async (k, l) => {
+      await prep(k, l);
+      await k.page.keyboard.insertText(big);
+      const f = await typedFacts(k, p.name);
+      if (f.value !== '') faults.push(t + ':line_after_the_refusal=' + Buffer.byteLength(f.value));
+      shows(t + '_refused', f, true);
+      await k.page.keyboard.type('a');
+      const g = await typedFacts(k, p.name);
+      if (g.value !== 'a') faults.push(t + ':line_after_a_letter=' + Buffer.byteLength(g.value));
+      shows(t + '_taken', g, false);
+    });
+  }
   const short = 'a_short_line_after_a_refused_paste(pinned_as_built,the_rule_for_a_refused_input_far_below_the_bound_waits_for_a_ruling)';
   await one(short, async (k, l) => {
     await l.fill(xs(10));
