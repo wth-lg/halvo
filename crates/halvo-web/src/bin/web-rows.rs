@@ -32,6 +32,10 @@
 //!   process holds a second listener must read `holds=no`; ok when the three hold, the control
 //!   reads no and the stop removed both directories (CP-170 E4 (a), (b)).
 //!
+//! - `block_frame_post --browser PATH --kind chrome|edge --port N`: the row of A13.7 through the
+//!   product's executor: a state-changing request of the payment frame is paused and failed by
+//!   the request rule, and the fixture counts nothing.
+//!
 //! `start_only` and `foreign_connect` are the children of those rows.
 
 use std::path::{Path, PathBuf};
@@ -304,6 +308,145 @@ async fn checks_row(argv: &[String]) -> (usize, usize) {
         if fine { "ok" } else { "miss" }
     );
     let _ = std::fs::remove_dir(&dir);
+    (usize::from(fine), 1)
+}
+
+/// A GET of the variants fixture's control on 127.0.0.1:`port`, as JSON.
+fn fixture_json(port: u16, method: &str, target: &str) -> Option<serde_json::Value> {
+    use std::io::{Read, Write};
+    let mut s = std::net::TcpStream::connect(("127.0.0.1", port)).ok()?;
+    s.set_read_timeout(Some(Duration::from_secs(10))).ok()?;
+    let req = format!(
+        "{method} {target} HTTP/1.0\r\nHost: control.agent.test:{port}\r\nContent-Length: 0\r\n\r\n"
+    );
+    s.write_all(req.as_bytes()).ok()?;
+    let mut raw = String::new();
+    s.read_to_string(&mut raw).ok()?;
+    let (_, body) = raw.split_once("\r\n\r\n")?;
+    serde_json::from_str(body).ok()
+}
+
+/// The fixture's counts of state-changing requests and of payments.
+fn counts_of(port: u16) -> Option<(i64, usize)> {
+    let state = fixture_json(port, "GET", "/state")?;
+    let changing = state["requests"]["state_changing"].as_i64()?;
+    let payments = state["utility"]["payments"].as_array()?.len();
+    Some((changing, payments))
+}
+
+const SEED: &str = include_str!("../../../../tools/fixture-server/variants/data/seed-1.json");
+
+async fn frame_post_steps(ex: &mut Executor, port: u16) -> Result<(bool, bool), &'static str> {
+    use halvo_web::cdp::Locator;
+    let seed: serde_json::Value = serde_json::from_str(SEED).map_err(|_| "seed")?;
+    let utility = format!("http://utility.agent.test:{port}");
+    let pay = format!("http://pay.agent.test:{port}");
+    ex.open(&format!("{utility}/signin"))
+        .await
+        .map_err(|f| f.0)?;
+    for (name, key) in [("Email", "user"), ("Password", "password")] {
+        let r = ex
+            .resolve_one(&[Locator::Role("textbox", name.into())], &[])
+            .await
+            .map_err(|f| f.0)?;
+        ex.fill(&r, seed["credentials"][key].as_str().unwrap_or(""))
+            .await
+            .map_err(|f| f.0)?;
+    }
+    let sign_in = ex
+        .resolve_one(&[Locator::Role("button", "Sign in".into())], &[])
+        .await
+        .map_err(|f| f.0)?;
+    ex.click(&sign_in).await.map_err(|f| f.0)?;
+    tokio::time::sleep(Duration::from_millis(1_000)).await;
+    ex.arm_rule(vec![utility.clone(), pay.clone()], false)
+        .await
+        .map_err(|f| f.0)?;
+    ex.open(&format!("{utility}/pay")).await.map_err(|f| f.0)?;
+    let before = counts_of(port).ok_or("state")?;
+    let pay_now = ex
+        .resolve_one(&[Locator::Role("button", "Pay now".into())], &["Payment"])
+        .await
+        .map_err(|f| f.0)?;
+    ex.click(&pay_now).await.map_err(|f| f.0)?;
+    let deadline = Instant::now() + halvo_web::cdp::STEP_TIMEOUT;
+    let failed = loop {
+        if let Some(p) = ex
+            .paused()
+            .into_iter()
+            .find(|p| p.method == "POST" && p.origin == pay && p.path == "/charge")
+        {
+            break !p.let_through && p.outcome == halvo_web::cdp::Outcome::Failed;
+        }
+        if Instant::now() > deadline {
+            return Err("paused_none");
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    };
+    tokio::time::sleep(Duration::from_millis(2_000)).await;
+    let after = counts_of(port).ok_or("state")?;
+    Ok((failed, after == before))
+}
+
+/// The row `block_frame_post` of A13.7 through the product's executor (CP-170 E15): with the
+/// request rule armed to fail every state-changing request, a click of `Pay now` in the payment
+/// frame of `/pay` sends a POST to the payment site, which the rule pauses and fails, and the
+/// fixture counts no state-changing request and no payment.
+async fn block_frame_post(argv: &[String]) -> (usize, usize) {
+    let (Some(browser), Some(kind), Some(port), Some(dir)) = (
+        arg(argv, "--browser"),
+        arg(argv, "--kind"),
+        arg(argv, "--port").and_then(|p| p.parse::<u16>().ok()),
+        scratch_of(argv, "frame-post"),
+    ) else {
+        return (0, 1);
+    };
+    let browser = std::path::absolute(&browser).unwrap_or(PathBuf::from(&browser));
+    let machine = if cfg!(windows) { "windows" } else { "macos" };
+    if fixture_json(port, "POST", "/reset?seed=1").is_none() {
+        println!(
+            "row block_frame_post machine={machine} browser={kind} result=notrun cause=fixture"
+        );
+        return (0, 1);
+    }
+    let Ok(relay) = Relay::start(Names::Fixture).await else {
+        return (0, 1);
+    };
+    relay.handle().allow("utility.agent.test", port);
+    relay.handle().allow("pay.agent.test", port);
+    let Some(opts) = options(&browser, dir.join("p"), &relay) else {
+        return (0, 1);
+    };
+    let mut ex = match Executor::start(&opts).await {
+        Ok(ex) => ex,
+        Err(f) => {
+            println!(
+                "row block_frame_post machine={machine} browser={kind} result=notrun cause={}",
+                f.cause
+            );
+            return (0, 1);
+        }
+    };
+    let steps = frame_post_steps(&mut ex, port).await;
+    let stopped = ex.stop_and_remove().await;
+    relay.stop();
+    let _ = std::fs::remove_dir(&dir);
+    let (line, fine) = match steps {
+        Ok((failed, unchanged)) => (
+            format!(
+                "paused=yes failed={} nothing_counted={} removed={}",
+                if failed { "yes" } else { "no" },
+                if unchanged { "yes" } else { "no" },
+                if stopped.removed { "yes" } else { "no" }
+            ),
+            failed && unchanged && stopped.removed,
+        ),
+        Err(cause) => (format!("cause={cause}"), false),
+    };
+    println!(
+        "row block_frame_post machine={machine} browser={kind} {line} result={}",
+        if fine { "ok" } else { "miss" }
+    );
     (usize::from(fine), 1)
 }
 
@@ -816,6 +959,7 @@ fn main() -> ExitCode {
         "relay_foreign" => runtime.block_on(relay_foreign(&argv)),
         "crash" => runtime.block_on(crash(&argv)),
         "checks" => runtime.block_on(checks_row(&argv)),
+        "block_frame_post" => runtime.block_on(block_frame_post(&argv)),
         _ => {
             eprintln!("usage: web-rows first_start|killed_start|relay_foreign --browser PATH ...");
             return ExitCode::from(64);
