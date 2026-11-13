@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every file under crates/halvo-capture/src/daemon/ but the data file mutants.rows, whatever its name and through a link, read as text with its lines joined, names neither EncryptedStore, SegmentStore nor rusqlite, nor a path from crate, $crate, super or halvo_capture to the module store (also after a brace or as r#store), nor store::db or store::{, nor a path segment that a macro's metavariable gives, nor an alias of crate, self or super; and src/daemon/ holds a file to read.
+# rule: Every file under crates/halvo-capture/src/daemon/ but the data file mutants.rows, whatever its name and through a link, read as text with its lines joined, names neither EncryptedStore, SegmentStore nor rusqlite, nor a path from crate, $crate, super or halvo_capture to the module store (also after a brace or as r#store), nor store::db or store::{, nor a path segment that a macro's metavariable gives, nor an alias of crate, self, super or halvo_capture, nor a glob of the crate root (crate::*, $crate::*, halvo_capture::*, a brace list with * right under one of them, or two or more super before it), nor the module's name store, plain or raw, at the head of a path, in use store or in a brace list of a use line (a single use super::*; stays allowed); a listing that fails fails the check with its path; and src/daemon/ holds a file to read.
 set -u
 name=23-daemon-port-only
 
@@ -27,8 +27,14 @@ scan() {
         why = "names store::db or store::{"
       else if (text ~ /\$[A-Za-z_][A-Za-z0-9_]*[[:space:]]*::|::[[:space:]]*\$[A-Za-z_]/)
         why = "builds a path from a macro metavariable"
-      else if (text ~ /(^|[^A-Za-z0-9_])(crate|self|super)[[:space:]]+as[[:space:]]/)
-        why = "makes an alias of crate, self or super"
+      else if (text ~ /(^|[^A-Za-z0-9_])(crate|self|super|halvo_capture)[[:space:]]+as[[:space:]]/)
+        why = "makes an alias of crate, self, super or halvo_capture"
+      else if (text ~ /(^|[^A-Za-z0-9_])(crate|halvo_capture)[[:space:]]*::[[:space:]]*([*]|[{]([^}]*,)?[[:space:]]*[*])/)
+        why = "imports the names of the crate root with a glob"
+      else if (text ~ /(^|[^A-Za-z0-9_])super[[:space:]]*::[[:space:]]*(super[[:space:]]*::[[:space:]]*)+([*]|[{]([^}]*,)?[[:space:]]*[*])/)
+        why = "imports with a glob the names of a module two or more levels up"
+      else if (text ~ /(^|[^A-Za-z0-9_:.])(r#)?store[[:space:]]*::/ || text ~ /(^|[^A-Za-z0-9_])use[[:space:]]+(r#)?store([^A-Za-z0-9_]|$)/ || text ~ /(^|[^A-Za-z0-9_])use[[:space:]][^;]*[{][^;]*(^|[^A-Za-z0-9_:])(r#)?store([^A-Za-z0-9_]|$)/)
+        why = "names the module store at the head of a path"
       else
         return
       print rel(file) ": " why
@@ -82,6 +88,8 @@ classify() {
   done <<EOF
 $files
 EOF
+  left=$(cat "$@" | grep -c -E 'use[[:space:]]+super[[:space:]]*::[[:space:]]*[*][[:space:]]*;')
+  printf 'lines that the glob rules leave alone: %s (use super::*;, a glob of the parent module), exceptions listed: 0\n' "$left" >&2
   found=$(scan "$@")
   status=$?
   case $status in
@@ -150,6 +158,20 @@ self_test() {
   with_line super-path 'use super::super::store::db;'
   with_line brace-import 'use crate::{daemon, store};'
   with_line crate-alias 'use crate as root;'
+  with_line glob-then-glob 'use crate::*; use store::*; fn f() { let _ = std::any::type_name::<db::Db>(); }'
+  with_line glob-then-alias 'use crate::*; use store as backing; fn f() { let _ = std::any::type_name::<backing::db::Db>(); }'
+  with_line name-glob-in-expression 'use halvo_capture::*; fn f() { let _ = store::db::Db::open; }'
+  with_line super-super-glob 'use super::super::*; fn f() { let _ = store::db::Db::open; }'
+  with_line brace-glob 'use crate::{*};'
+  with_line glob-in-inline-module 'mod inner { use crate::*; fn f() { let _ = std::any::type_name::<store::db::Db>(); } }'
+  with_line raw-name-at-head 'fn f() { let _ = r#store::db::Db::open; }'
+  with_line name-alias 'use halvo_capture as hc;'
+  with_line extern-self-alias 'extern crate self as me;'
+  with_line use-name-alone 'use store;'
+  with_line name-in-brace-list 'use self::{port, store};'
+  fixture parent-glob
+  printf '%s\n' '#[cfg(test)]' 'mod tests {' '    use super::*;' '}' >>"$work/parent-glob/crates/halvo-capture/src/daemon/owner.rs" || exit 2
+  case_of parent-glob PASS
   fixture split-brace
   printf '%s\n' 'use crate::{' '    daemon::port,' '    store::db,' '};' >>"$work/split-brace/crates/halvo-capture/src/daemon/owner.rs" || exit 2
   case_of split-brace FAIL
