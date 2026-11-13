@@ -158,6 +158,13 @@ piece is cut there.
 The settings of a clone that change what git
 log prints (colour, prefixes, a relative diff, renames, submodule logs,
 ignored submodules, blank context lines, quoted names) are set for the call.
+The scan also reads messages, with the same forms: the message of each
+commit that it reads, as git stores it below the header of the commit, and
+the message of each annotated tag that a push carries and that the remote
+does not hold already, or in the range mode of each annotated tag that a
+revision names (<base>..<tag>), and of each tag that such a tag names in
+turn. A line of a message with a home path counts as a line with a home
+path, and the list does not apply to a message: write a placeholder there.
 
 Both checks of the hook take the commits of a push and of a range from one
 function, in scripts/commit-range.sh beside this script, so they read the
@@ -217,7 +224,9 @@ branch holds no list, every added entry is read. The range mode does not
 apply the rule, because the account of a hosted runner in CI is no person's.
 
 Output and exit. A hit prints the commit, the file, the line number and the
-form, and never the text of the line. Exit 0 when no added line holds a home
+form, and never the text of the line; a hit in a message prints the commit
+or the tag, the line number in the message and the form. Exit 0 when no
+added line and no message holds a home
 path that the list does not allow, 1 when one does, 2 when the check could
 not run (git failed, a range or a line that git wrote cannot be read, the
 list of the commit is malformed or a list that --allow names is missing, git
@@ -268,10 +277,10 @@ sign as a percent code (/%40fs/). It matches a name of three or more words,
 or of two words that end at another character than a separator, a quotation
 mark or the end of the line, up to its first blank, so an entry for the
 first word allows that line. It does not find an account name outside a
-path, such as an email address or a host name. It reads no commit message,
-no tag message, no author or committer, no blob or tree that a tag names
-without a commit, and no commit of a submodule, which is another
-repository's. It refuses lines that hold no home path and that the grammar
+path, such as an email address or a host name. It reads no author or
+committer, no blob or tree that a tag names (it reads the message of such a
+tag), no lightweight tag, which has no message, and no commit of a
+submodule, which is another repository's. It refuses lines that hold no home path and that the grammar
 reads as one: a relative path through a directory called home or Users
 (../home/<page>), a route at the root of a site (/home/<page>), the home of a
 container's or a runner's account (/home/<service>), and -home-<word> after
@@ -556,6 +565,14 @@ function check(n, text,   forms) {
   }
   if (own_check && n > 0 && file == list_path) added_entry(n, text)
 }
+function check_message(text,   forms) {
+  message_line++
+  forms = scan_text(text, "", 0)
+  if (forms != "") {
+    hits++
+    print "MESSAGE " substr(message_of, 1, 12) " " message_line " " forms " " message_kind
+  }
+}
 function start_hunk(h,   n, t) {
   n = 0
   while (substr(h, n + 1, 1) == "@") n++
@@ -600,7 +617,23 @@ BEGIN {
     if (c == "\\") next
     in_hunk = 0
   }
+  if (in_message) {
+    if (substr(line, 1, 1) == "+") {
+      check_message(substr(line, 2))
+      next
+    }
+    in_message = 0
+  }
   if (substr(line, 1, 1) == "\001") {
+    if (substr(line, 2, 8) == "message ") {
+      message_of = substr(line, 10)
+      message_kind = message_of
+      sub(/ .*/, "", message_of)
+      sub(/^[^ ]* /, "", message_kind)
+      message_line = 0
+      in_message = 1
+      next
+    }
     if (substr(line, 2, 6) == "again ") {
       commit = substr(line, 8)
     } else {
@@ -660,6 +693,24 @@ scan_stream() {
   stream_found=${read_line#* }
 }
 
+message_of_object() {
+  git cat-file "$2" "$1" >"$work/object" </dev/null || die "git cannot read the $2 $1"
+  printf '\001message %s %s\n' "$1" "$2"
+  sed -e '1,/^$/d' -e 's/^/+/' "$work/object" || die "sed could not read the message of the $2 $1"
+}
+
+messages() {
+  while read -r commit; do
+    message_of_object "$commit" commit
+  done <"$1"
+  while read -r object; do
+    while [ "$(git cat-file -t "$object" 2>/dev/null </dev/null)" = tag ]; do
+      message_of_object "$object" tag
+      object=$(sed -n '1s/^object //p' "$work/object") || die 'sed could not read a tag'
+    done
+  done <"$2"
+}
+
 lines_of_a_merge_in_a_binary_file() {
   case $2 in
     '"'*) die "cannot read the lines that merge $1 adds to the binary file $2, whose name git quotes" ;;
@@ -692,6 +743,7 @@ scan() {
       die "git log could not read the commits of $label: $first_error"
     }
   fi
+  messages "$2" "$3" >>"$work/log"
   tr -d '\000' <"$work/log" >"$work/log.text" || die 'tr could not read the output of git log'
   scan_stream "$work/log.text" "$work/hits"
   commits=$stream_commits
@@ -707,9 +759,14 @@ scan() {
     cat "$work/hits-of-merges" >>"$work/hits" || die 'cat failed'
   fi
   own_entries=0
+  in_messages=0
   while read -r tag commit number forms file; do
     case $tag in
       HIT) printf '%s: %s %s:%s: a home path (%s)\n' "$NAME" "$commit" "$file" "$number" "$forms" >&2 ;;
+      MESSAGE)
+        in_messages=$((in_messages + 1))
+        printf '%s: %s the message of the %s, line %s: a home path (%s)\n' "$NAME" "$commit" "$file" "$number" "$forms" >&2
+        ;;
       OWN-UNKNOWN) die "commit $commit adds an entry to $LIST_IN_THE_REPOSITORY at line $number, and HOME is unset or empty, so the scan cannot tell whether the entry names the home directory of the account that pushes" ;;
       OWN)
         own_entries=$((own_entries + 1))
@@ -725,6 +782,7 @@ scan() {
   {
     printf '%s: FAIL: %s: commits read %s, lines with a home path %s.\n' "$NAME" "$label" "$commits" "$found"
     [ "$own_entries" = 0 ] || printf '%s: FAIL: %s: added entries of the list that name the home directory of the account that pushes: %s.\n' "$NAME" "$label" "$own_entries"
+    [ "$in_messages" = 0 ] || printf 'Fix for a message: write the path as a placeholder (/Users/<name>) or leave it out: git commit --amend for the newest commit, git rebase -i with "reword" for an older one, and for a tag, delete it and make it again (git tag -d <tag>, git tag -a <tag>). The list does not apply to a message. Lines in messages: %s of the %s above.\n' "$in_messages" "$found"
     printf 'Fix: take each listed line out of the commit that added it: git commit --amend for the newest commit, git rebase -i with "edit" for an older one. A later commit that removes the line does not help, because the commit that holds it is pushed. Write a location relative to the repository, take it from an environment variable, or write the name as a placeholder (/Users/<name>). If the path is made up for a fixture, is the public account of a hosting service'"'"'s runner, or is no home path but reads as one (a route at the root of a site, a relative path through a directory called home), add the file, the exact path and a reason that says which to %s and commit it: the list is read from the commit that is pushed or scanned, never from the work tree; to try an entry first, run the range mode with --allow <file> (sh scripts/check-home-paths.sh --help, The list).\n' "$LIST_IN_THE_REPOSITORY"
   } >&2
 }
@@ -779,8 +837,10 @@ check_push() {
       3) die "git cannot resolve the object $push_local_object that the push names for $push_local_ref" ;;
       *) die "git could not list the commits of the push of $push_local_ref" ;;
     esac
+    : >"$work/tags"
+    [ "$push_local_object" = "$push_remote_object" ] || printf '%s\n' "$push_local_object" >"$work/tags"
     list_of_commit "$push_local_object^{commit}"
-    scan "$(commit_range_push_label)" "$work/commits"
+    scan "$(commit_range_push_label)" "$work/commits" "$work/tags"
   done
   [ "$any_failed" = 0 ] || return 1
   printf '%s: PASS: the push to %s adds no line with a home path that the list does not allow.\n' "$NAME" "$remote"
@@ -795,8 +855,10 @@ check_range() {
     first_error=$(sed -n 1p "$work/log-error") || first_error=
     die "git could not list the commits of $label: $first_error"
   }
+  git rev-parse --revs-only --end-of-options "$@" >"$work/revisions" 2>/dev/null </dev/null || die "git rev-parse could not read the revisions of $label"
+  sed '/^\^/d' "$work/revisions" >"$work/tags" || die 'sed could not read the revisions'
   list_of_commit "$(sed -n '$p' "$work/commits")"
-  scan "$label" "$work/commits"
+  scan "$label" "$work/commits" "$work/tags"
   [ "$any_failed" = 0 ]
 }
 
@@ -1369,6 +1431,19 @@ self_test_commits() {
 
   same_commits_for_both_checks
 
+  new_case_repo messages
+  printf 'plain\n' >"$case_repo/m.txt"
+  in_case_repo add -A . || die 'git add failed'
+  in_case_repo commit -q -m "$(expand_fixture 'Seen in /{H}/rhea/x')" || die 'commit failed'
+  message_commit=$(in_case_repo rev-parse HEAD) || die 'git rev-parse failed'
+  case_scan range-reads-the-message-of-a-commit 1 'the message of the commit, line 1: a home path (linux)' --allow "$work/empty-list" "$message_commit"
+  printf 'plain\n' >"$case_repo/n.txt"
+  clean_commit=$(commit_case 'Name the place /Users/<name> of a profile') || die 'commit failed'
+  case_scan range-passes-a-message-with-a-placeholder 0 'commits read 1, lines with a home path 0.' --allow "$work/empty-list" "$message_commit..$clean_commit"
+  in_case_repo tag -a -m "$(expand_fixture 'Built in /{U}/rhea')" t-rhea "$clean_commit" || die 'git tag failed'
+  case_scan range-reads-the-message-of-a-tag-that-it-names 1 'the message of the tag, line 1: a home path (macos)' --allow "$work/empty-list" "$message_commit..t-rhea"
+  case_scan range-reads-no-tag-that-it-does-not-name 0 'commits read 1, lines with a home path 0.' --allow "$work/empty-list" "$message_commit..$clean_commit"
+
   new_case_repo wide
   awk 'BEGIN { for (i = 0; i < 20000; i++) printf "/%s/zed%d ", "Users", i; printf "\n" }' >"$case_repo/wide.txt" || die 'awk failed'
   wide=$(commit_case 'one line with 20000 paths') || die 'commit failed'
@@ -1580,6 +1655,23 @@ self_test_hook() {
   expand_fixture 'and /{U}/ada' >>"$repo/fixtures/made-up.txt"
   commit_all 'listed' >/dev/null || die 'commit failed'
   push_case listed-fixture-line pushed 'lines with a home path 0' proof listed
+
+  in_repo checkout -q -b in-a-message trunk || die 'git checkout failed'
+  printf 'plain\n' >"$repo/in-a-message.txt"
+  in_repo add -A . || die 'git add failed'
+  in_repo commit -q -m "$(expand_fixture 'Fix the gate, as seen in /{U}/quinn/notes')" || die 'commit failed'
+  push_case commit-message-with-a-home-path refused 'the message of the commit, line 1: a home path (macos)' proof in-a-message
+  in_repo checkout -q -b listed-in-a-message trunk || die 'git checkout failed'
+  printf 'plain\n' >"$repo/listed-in-a-message.txt"
+  in_repo add -A . || die 'git add failed'
+  in_repo commit -q -m "$(printf 'Name the fixture\n\nIt holds /%s/ada, which the list allows in its file.' "$u")" || die 'commit failed'
+  push_case path-of-an-entry-in-a-commit-message refused 'the message of the commit, line 3: a home path (macos)' proof listed-in-a-message
+  in_repo tag -a -m "$(expand_fixture 'Release, built in C:\{U}\quinn')" t-message trunk || die 'git tag failed'
+  push_case tag-message-with-a-home-path refused 'the message of the tag, line 1: a home path (windows-drive)' proof refs/tags/t-message
+  in_repo tag -a -m 'Release, built from <name>' t-plain trunk || die 'git tag failed'
+  push_case tag-message-without-a-home-path pushed 'the push to proof adds no line' proof refs/tags/t-plain
+  in_repo tag -a -m "$(expand_fixture 'Release of /{H}/quinn')" t-of-a-tag t-plain || die 'git tag failed'
+  push_case message-of-a-tag-that-names-a-tag refused 'the message of the tag, line 1: a home path (linux)' proof refs/tags/t-of-a-tag
 
   in_repo checkout -q -b messages trunk || die 'git checkout failed'
   printf 'plain\n' >"$repo/messages.txt"

@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, in the commits of the head that the default branch does not hold, or in the head commit when the default branch holds it or the checkout does not; it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
+# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or in the head commit when the default branch holds it or the checkout does not, and in the tag of a run that a pushed tag started; it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
 set -u
 name=19-home-paths
 
@@ -23,20 +23,28 @@ scan_head() {
   repo=$1
   cd "$repo" || fail "cannot enter $repo"
   [ -f scripts/check-home-paths.sh ] || fail 'scripts/check-home-paths.sh is missing'
+  tip=HEAD
+  case ${GITHUB_REF:-} in
+    refs/tags/?*)
+      type=$(git cat-file -t "$GITHUB_REF" 2>/dev/null) || type=
+      [ "$type" != tag ] || tip=$GITHUB_REF
+      ;;
+  esac
   if has_commit refs/remotes/origin/main && ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
     kind=since-the-default-branch
-    range=refs/remotes/origin/main..HEAD
+    range=refs/remotes/origin/main..$tip
   elif has_commit HEAD^1; then
     kind=head-commit
-    range='HEAD^!'
+    range="$tip^!"
   else
     kind=root-commit
-    range=HEAD
+    range=$tip
   fi
   sh scripts/check-home-paths.sh "$range" >"$scratch/out" 2>"$scratch/err" </dev/null
   code=$?
   counts=$(sed -n 's/.*commits read \([0-9]*\), lines with a home path \([0-9]*\)\.$/commits=\1 lines=\2/p' "$scratch/out" "$scratch/err") || counts=
-  printf 'range=%s %s exit=%s\n' "$kind" "${counts:-commits=unread lines=unread}" "$code"
+  if [ "$tip" = HEAD ]; then tag=no; else tag=yes; fi
+  printf 'range=%s tag=%s %s exit=%s\n' "$kind" "$tag" "${counts:-commits=unread lines=unread}" "$code"
   case $code in
     0) printf 'PASS %s\n' "$name" ;;
     1) fail "an added line holds a home path that scripts/home-path-allow.txt does not allow; run sh scripts/check-home-paths.sh '$range' on a clone of this head" ;;
@@ -53,7 +61,7 @@ measure() {
 in_fixture() {
   fixture_dir=$scratch/$1
   shift
-  git -C "$fixture_dir" -c commit.gpgsign=false -c core.hooksPath="$scratch/no-hooks" "$@"
+  git -C "$fixture_dir" -c commit.gpgsign=false -c tag.gpgsign=false -c core.hooksPath="$scratch/no-hooks" "$@"
 }
 
 copy_scripts() {
@@ -100,6 +108,7 @@ expect() {
 self_test() {
   repo=${CI_D_REPO:-$(git rev-parse --show-toplevel)} || exit 2
   make_scratch
+  unset GITHUB_REF
   wrong=
   rejected=0
   u=Users
@@ -155,6 +164,22 @@ self_test() {
   add_commit scanner-missing 'more plain text' 'second'
   mv "$scratch/scanner-missing/scripts/check-home-paths.sh" "$scratch/scanner-aside.sh" || exit 2
   expect FAIL scanner-missing
+
+  fixture home-path-in-a-commit-message
+  add_commit home-path-in-a-commit-message 'more plain text' "see /$u/zoe/x"
+  expect FAIL home-path-in-a-commit-message
+
+  fixture home-path-in-the-message-of-the-pushed-tag
+  add_commit home-path-in-the-message-of-the-pushed-tag 'more plain text' 'second'
+  in_fixture home-path-in-the-message-of-the-pushed-tag tag -a -m "built in /$u/zoe" v1 || exit 2
+  GITHUB_REF=refs/tags/v1
+  export GITHUB_REF
+  expect FAIL home-path-in-the-message-of-the-pushed-tag
+  fixture plain-message-of-the-pushed-tag
+  add_commit plain-message-of-the-pushed-tag 'more plain text' 'second'
+  in_fixture plain-message-of-the-pushed-tag tag -a -m 'built in /Users/<name>' v1 || exit 2
+  expect PASS plain-message-of-the-pushed-tag
+  unset GITHUB_REF
 
   fixture list-malformed-in-the-commit
   printf 'x\tnot a path\treason\n' >>"$scratch/list-malformed-in-the-commit/scripts/home-path-allow.txt"
