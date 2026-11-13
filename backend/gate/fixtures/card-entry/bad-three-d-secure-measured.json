@@ -1,0 +1,13 @@
+{
+  "about": "the row three-d-secure says measured",
+  "edits": [
+    {
+      "file": "test-kit/checkout-fields.json",
+      "find": "      \"id\": \"three-d-secure\",\n      \"label\": \"3-D Secure challenge\",\n      \"where\": \"checkout page\",\n      \"class\": \"card\",\n      \"status\": \"not measured\",",
+      "replace": "      \"id\": \"three-d-secure\",\n      \"label\": \"3-D Secure challenge\",\n      \"where\": \"checkout page\",\n      \"class\": \"card\",\n      \"status\": \"measured\","
+    }
+  ],
+  "line": [
+    "three-d-secure=status measured"
+  ]
+}

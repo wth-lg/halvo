@@ -1,0 +1,374 @@
+{
+  "the sync's statements: intervals, a billing period, seals, every answer of a send and a read, the limit and settled": {
+    "seen": [
+      [
+        "intervalAt first",
+        1800000017000
+      ],
+      [
+        "intervalAt same",
+        1800000017000
+      ],
+      [
+        "oldestUnsealed",
+        {
+          "interval": 1800000017000,
+          "end": 1800001817000
+        }
+      ],
+      [
+        "intervalAt after the period",
+        1800001817000
+      ],
+      [
+        "send before any seal",
+        {
+          "call": null,
+          "notBillable": 0
+        }
+      ],
+      [
+        "settled with unsealed",
+        false
+      ],
+      [
+        "oldestUnsealed after the zero seal",
+        {
+          "interval": 1800001817000,
+          "end": 1800005417000
+        }
+      ],
+      [
+        "nextSend with nothing pending",
+        null
+      ],
+      [
+        "nextSend after the seal",
+        1800005417000
+      ],
+      [
+        "send",
+        {
+          "call": {
+            "kind": "send",
+            "interval": 1800001817000,
+            "identifier": "00000000-0000-4000-8000-0000000000e1:1800001817",
+            "amountMinor": 250,
+            "timestamp": 1800005416
+          },
+          "notBillable": 0
+        }
+      ],
+      [
+        "send again before the retry",
+        {
+          "call": null,
+          "notBillable": 0
+        }
+      ],
+      [
+        "record failed",
+        {
+          "call": null,
+          "notBillable": 0
+        }
+      ],
+      [
+        "record refused after failed",
+        {
+          "call": {
+            "kind": "read",
+            "interval": 1800001817000,
+            "from": 1800005416,
+            "to": 1800005417
+          },
+          "notBillable": 0
+        }
+      ],
+      [
+        "record a read that explains nothing",
+        {
+          "call": null,
+          "notBillable": 0
+        }
+      ],
+      [
+        "record a read that lacks the amount",
+        {
+          "call": {
+            "kind": "send",
+            "interval": 1800001817000,
+            "identifier": "00000000-0000-4000-8000-0000000000e1:1800001817",
+            "amountMinor": 250,
+            "timestamp": 1800005416
+          },
+          "notBillable": 0
+        }
+      ],
+      [
+        "record a refusal",
+        {
+          "call": null,
+          "notBillable": 0
+        }
+      ],
+      [
+        "send after the retry",
+        {
+          "call": {
+            "kind": "send",
+            "interval": 1800001817000,
+            "identifier": "00000000-0000-4000-8000-0000000000e1:1800001817",
+            "amountMinor": 250,
+            "timestamp": 1800005416
+          },
+          "notBillable": 0
+        }
+      ],
+      [
+        "record duplicate",
+        {
+          "call": null,
+          "notBillable": 0
+        }
+      ],
+      [
+        "record after the outcome",
+        {
+          "call": null,
+          "notBillable": 0
+        }
+      ],
+      [
+        "record a stale refusal after the outcome",
+        {
+          "call": null,
+          "notBillable": 0
+        }
+      ],
+      [
+        "settled",
+        true
+      ],
+      [
+        "intervalAt third",
+        1800005417000
+      ],
+      [
+        "send past the limit",
+        {
+          "call": null,
+          "notBillable": 1
+        }
+      ],
+      [
+        "settled at the end",
+        true
+      ]
+    ],
+    "tables": {
+      "account": [
+        {
+          "account_id": "00000000-0000-4000-8000-0000000000e1",
+          "origin": 1800000017000,
+          "period_start": 1800001817000,
+          "period_end": 1802592017000,
+          "carry": 0,
+          "written_off": 0,
+          "cut_kind": "delete",
+          "cut_at": 1800005657000
+        }
+      ],
+      "intervals": [
+        {
+          "start": 1800000017000,
+          "end_at": 1800001817000,
+          "sealed_at": 1800001817000,
+          "reported": 5000,
+          "carry_in": 0,
+          "amount": 0,
+          "carry_out": 5000,
+          "identifier": "00000000-0000-4000-8000-0000000000e1:1800000017",
+          "timestamp": 1800001816,
+          "first_attempt": null,
+          "next_attempt": 1800001817000,
+          "attempts": 0,
+          "refusals": 0,
+          "unanswered": 0,
+          "answer_due": 0,
+          "pending_refusal": null,
+          "outcome": "no-call",
+          "refusal": null,
+          "closed_at": 1800001817000
+        },
+        {
+          "start": 1800001817000,
+          "end_at": 1800005417000,
+          "sealed_at": 1800005417000,
+          "reported": 2495000,
+          "carry_in": 5000,
+          "amount": 250,
+          "carry_out": 0,
+          "identifier": "00000000-0000-4000-8000-0000000000e1:1800001817",
+          "timestamp": 1800005416,
+          "first_attempt": 1800005417000,
+          "next_attempt": 1800005597000,
+          "attempts": 4,
+          "refusals": 2,
+          "unanswered": 0,
+          "answer_due": 0,
+          "pending_refusal": null,
+          "outcome": "acknowledged",
+          "refusal": null,
+          "closed_at": 1800005537000
+        },
+        {
+          "start": 1800005417000,
+          "end_at": 1800005657000,
+          "sealed_at": 1800005717000,
+          "reported": 30000,
+          "carry_in": 0,
+          "amount": 3,
+          "carry_out": 0,
+          "identifier": "00000000-0000-4000-8000-0000000000e1:1800005417",
+          "timestamp": 1800005656,
+          "first_attempt": null,
+          "next_attempt": 1800005717000,
+          "attempts": 0,
+          "refusals": 0,
+          "unanswered": 0,
+          "answer_due": 0,
+          "pending_refusal": null,
+          "outcome": "not-billable",
+          "refusal": "send_limit",
+          "closed_at": 1803029717000
+        }
+      ]
+    }
+  },
+  "the accounts module's statements for the cancel's time: kept events, the account made from them, a later and an earlier cancel event, and the seed": [
+    [
+      "kept, a cancel",
+      {
+        "kind": "kept"
+      }
+    ],
+    [
+      "kept, an earlier cancel that is not newer",
+      {
+        "kind": "none"
+      }
+    ],
+    [
+      "kept, a newer cancel",
+      {
+        "kind": "kept"
+      }
+    ],
+    [
+      "kept rows",
+      [
+        {
+          "subscription_id": "sub_1",
+          "state": "cancelled",
+          "period_start": null,
+          "period_end": null,
+          "provider_time": 1800000017430,
+          "kept_order": 0,
+          "ended_at": null,
+          "cancel_first": 1800000017410
+        }
+      ]
+    ],
+    [
+      "complete",
+      {
+        "kind": "account-made",
+        "cap": {
+          "amount": 10,
+          "period": "week"
+        },
+        "period": null
+      }
+    ],
+    [
+      "subscription",
+      {
+        "accountId": "00000000-0000-4000-8000-0000000000e1",
+        "state": "cancelled",
+        "customerId": "cus_1",
+        "subscriptionId": "sub_1",
+        "cancelledAt": 1800000017410
+      }
+    ],
+    [
+      "an earlier cancel that is not newer",
+      {
+        "kind": "cancel-time",
+        "at": 1800000017405
+      }
+    ],
+    [
+      "the same time again",
+      {
+        "kind": "none"
+      }
+    ],
+    [
+      "a stated end",
+      {
+        "kind": "cancel-time",
+        "at": 1800000017402
+      }
+    ],
+    [
+      "subscription after the stated end",
+      {
+        "accountId": "00000000-0000-4000-8000-0000000000e1",
+        "state": "cancelled",
+        "customerId": "cus_1",
+        "subscriptionId": "sub_1",
+        "cancelledAt": 1800000017402
+      }
+    ],
+    [
+      "account row",
+      [
+        {
+          "account_id": "00000000-0000-4000-8000-0000000000e1",
+          "credential_hash": "h",
+          "state": "cancelled",
+          "customer_id": "cus_1",
+          "subscription_id": "sub_1",
+          "period_start": null,
+          "period_end": null,
+          "provider_time": 1800000017440,
+          "ended_at": 1800000017402,
+          "cancel_first": 1800000017405
+        }
+      ]
+    ]
+  ],
+  "the accounts module's seed writes no cancel time": {
+    "subscription": {
+      "accountId": "00000000-0000-4000-8000-0000000000e1",
+      "state": "cancelled",
+      "customerId": "cus_1",
+      "subscriptionId": null
+    },
+    "rows": [
+      {
+        "account_id": "00000000-0000-4000-8000-0000000000e1",
+        "credential_hash": "h",
+        "state": "cancelled",
+        "customer_id": "cus_1",
+        "subscription_id": null,
+        "period_start": null,
+        "period_end": null,
+        "provider_time": null,
+        "ended_at": null,
+        "cancel_first": null
+      }
+    ]
+  }
+}

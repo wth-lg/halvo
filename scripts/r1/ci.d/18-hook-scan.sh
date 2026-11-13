@@ -17,7 +17,7 @@ measure() {
   printf '%s\n' "$out"
   last=$(printf '%s\n' "$out" | tail -n 1)
   case $code:$last in
-    "0:PASS no-ll-hook"*) ;;
+    "0:PASS no-ll-hook") ;;
     *) fail "check-no-ll-hook.sh --measure exited $code and ended with: $last" ;;
   esac
   printf 'PASS %s\n' "$name"
@@ -70,6 +70,8 @@ self_test() {
   check pass-line-is-not-last FAIL 'exited 0 and ended with: FAIL no-ll-hook (active-tap))'
   scan message-on-standard-error-after-the-pass-line 'printf "PASS no-ll-hook\n"; printf "the scan stopped early\n" >&2'
   check message-on-standard-error-after-the-pass-line FAIL 'exited 0 and ended with: the scan stopped early)'
+  scan pass-line-with-more-words 'printf "PASS no-ll-hook and more\n"'
+  check pass-line-with-more-words FAIL 'exited 0 and ended with: PASS no-ll-hook and more)'
   scan scan-missing
   check scan-missing FAIL 'scripts/r1-gate/check-no-ll-hook.sh is missing)'
 

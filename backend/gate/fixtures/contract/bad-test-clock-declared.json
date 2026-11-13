@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "file": "wrangler.jsonc",
+      "find": "\"HOLD_LIFE_MS\": \"3000\",",
+      "replace": "\"HOLD_LIFE_MS\": \"3000\",\n    \"TEST_CLOCK\": \"1\","
+    }
+  ],
+  "line": "config=vars"
+}

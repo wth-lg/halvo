@@ -1,0 +1,1 @@
+16-shell-lint its self-test installs shellcheck with brew on a macOS runner that lacks it, and 17-workflow-lint's self-test installs actionlint, which pours shellcheck too: run at the same time, one install failed with "Bottle destination already exists" (scratch run 43269049946)

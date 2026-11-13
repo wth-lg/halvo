@@ -25,6 +25,9 @@ const STATES = [
   'working',
   'queue',
   'no_service',
+  'needs_sign_in_bind',
+  'needs_confirm_mixed',
+  'needs_confirm_changed',
 ];
 const FIXTURES = 'ui/tests/fixtures/coord';
 const WORDS = `${FIXTURES}/words.json`;
@@ -57,6 +60,9 @@ const FIXTURE_KEYS = [
   'card.lines.*.text',
   'card.runs.*.day',
   'card.runs.*.text',
+  'card.runs.*.effects.*.text',
+  'card.runs.*.effects.*.fields.*.label',
+  'card.runs.*.effects.*.fields.*.from_text',
 ];
 const CONTROL_TEXT = 'snapshot.rows.*.controls.*.text';
 
@@ -359,6 +365,16 @@ function readSentences(repo) {
     if (typeof text !== 'string') throw new Stop('input', WORDS);
     sentences.push({ file: WORDS, line: 1, key, wordsKey: key, text });
   }
+  let names;
+  try {
+    names = fs.readdirSync(path.join(repo, FIXTURES));
+  } catch {
+    throw new Stop('input', FIXTURES);
+  }
+  const filed = names.map((n) => /^state-(.+)\.json$/u.exec(n)).filter(Boolean).map((m) => m[1]);
+  for (const state of [...STATES.filter((s) => !filed.includes(s)), ...filed.filter((s) => !STATES.includes(s))]) {
+    throw new Stop('input', `${FIXTURES}/state-${state}.json`);
+  }
   for (const state of STATES) {
     const file = `${FIXTURES}/state-${state}.json`;
     for (const s of fixtureSentences(parseJson(repo, file), file)) sentences.push({ file, line: 1, ...s });
@@ -524,7 +540,19 @@ function baseState() {
       agent: ID(2),
       name: 'Paying a bill on Site1',
       lines: [{ key: 'level', text: 'Standard' }],
-      runs: [{ day: '3 November 2026', text: 'It finished the task.' }],
+      runs: [
+        {
+          day: '3 November 2026',
+          text: 'It finished the task.',
+          effects: [
+            {
+              key: 'run.effect.payment',
+              text: 'It made this payment.',
+              fields: [{ label: 'Pay to', value: ['City Power'], from: 'you', from_text: 'You gave this' }],
+            },
+          ],
+        },
+      ],
     },
   };
 }
@@ -604,7 +632,7 @@ function selfTest(dir, repo) {
   const base = fixture('base');
   expect(base, 'PASS', {
     lines: [
-      `words sentences=${5 + 18 * 19} never_read=0 long=0 clash=0`,
+      `words sentences=${5 + STATES.length * 22} never_read=0 long=0 clash=0`,
       'words other_views files=0 findings=0',
     ],
   });
@@ -645,6 +673,8 @@ function selfTest(dir, repo) {
     'snapshot.items.*.choices.*.safe',
     'card.agent',
     'card.lines.*.key',
+    'card.runs.*.effects.*.key',
+    'card.runs.*.effects.*.fields.*.from',
   ];
   const longText = Array.from({ length: 21 }, () => 'word').join(' ');
   expect(
@@ -657,7 +687,6 @@ function selfTest(dir, repo) {
         doc.extra = NEVER;
       },
       files: (f) => {
-        f[`${FIXTURES}/state-extra.json`] = `${JSON.stringify({ snapshot: { note: NEVER } })}\n`;
         f[`${FIXTURES}/reply-ok.json`] = `${JSON.stringify({ note: NEVER })}\n`;
       },
     }),
@@ -736,7 +765,7 @@ function selfTest(dir, repo) {
     'FAIL:never_read',
     {
       findings: ['finding file=ui/app/views/agents.js line=2 rule=never_read class=model key=-'],
-      lines: [`words sentences=${5 + 18 * 19 + 2} never_read=1 long=0 clash=0`],
+      lines: [`words sentences=${5 + STATES.length * 22 + 2} never_read=1 long=0 clash=0`],
       secret: [NEVER],
     },
   );
@@ -777,7 +806,7 @@ function selfTest(dir, repo) {
     'FAIL:view',
     {
       lines: [
-        `words sentences=${5 + 18 * 19 + 1} never_read=0 long=0 clash=0`,
+        `words sentences=${5 + STATES.length * 22 + 1} never_read=0 long=0 clash=0`,
         'words other_views files=0 findings=0',
         'words view file=ui/app/views/needs.js line=3',
       ],
@@ -790,7 +819,7 @@ function selfTest(dir, repo) {
       files: (f) => (f['ui/app/views/needs.js'] = view("  id: 'needs',\n  // \"Ask the model now\"\n")),
     }),
     'PASS',
-    { lines: [`words sentences=${5 + 18 * 19 + 1} never_read=0 long=0 clash=0`] },
+    { lines: [`words sentences=${5 + STATES.length * 22 + 1} never_read=0 long=0 clash=0`] },
   );
   expect(
     fixture('a-view-string-with-a-no-break-space-ends-with-view', {
@@ -1002,12 +1031,12 @@ function selfTest(dir, repo) {
       },
     }),
     'PASS',
-    { lines: [`words sentences=${5 + 18 * 19 + 1} never_read=0 long=0 clash=0`] },
+    { lines: [`words sentences=${5 + STATES.length * 22 + 1} never_read=0 long=0 clash=0`] },
   );
   expect(
     fixture('two-classes-in-one-sentence-count-twice', { words: say('Claude saved it to /Users/ann/x.') }),
     'FAIL:never_read',
-    { lines: [`words sentences=${5 + 18 * 19} never_read=2 long=0 clash=0`] },
+    { lines: [`words sentences=${5 + STATES.length * 22} never_read=2 long=0 clash=0`] },
   );
   expect(fixture('ui-app-that-is-a-file', { files: (f) => (f['ui/app'] = 'x\n') }), 'FAIL:input');
   if (process.platform !== 'win32') {
@@ -1047,12 +1076,12 @@ function selfTest(dir, repo) {
   expect(
     fixture('never-read-comes-before-long', { words: (w) => (w['line.time'] = `${NEVER} ${longText}`) }),
     'FAIL:never_read',
-    { lines: [`words sentences=${5 + 18 * 19} never_read=1 long=1 clash=0`] },
+    { lines: [`words sentences=${5 + STATES.length * 22} never_read=1 long=1 clash=0`] },
   );
   expect(
     fixture('long-comes-before-clash', { words: (w) => (w['line.time'] = `It is paused ${longText}`) }),
     'FAIL:long',
-    { lines: [`words sentences=${5 + 18 * 19} never_read=0 long=1 clash=1`] },
+    { lines: [`words sentences=${5 + STATES.length * 22} never_read=0 long=1 clash=1`] },
   );
   for (const [name, space] of [
     ['a-tab', '\t'],
@@ -1165,6 +1194,12 @@ function selfTest(dir, repo) {
   );
 
   expect(fixture('state-file-missing', { files: (f) => (f[`${FIXTURES}/state-queue.json`] = null) }), 'FAIL:input');
+  expect(
+    fixture('a-state-file-that-the-list-does-not-name', {
+      files: (f) => (f[`${FIXTURES}/state-extra.json`] = `${JSON.stringify(baseState())}\n`),
+    }),
+    'FAIL:input',
+  );
   expect(fixture('words-file-missing', { files: (f) => (f[WORDS] = null) }), 'FAIL:input');
   expect(fixture('state-file-not-json', { files: (f) => (f[`${FIXTURES}/state-ten.json`] = '{"snapshot":\n') }), 'FAIL:input');
   expect(

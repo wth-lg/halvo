@@ -1,5 +1,5 @@
 use halvo_schema::executable::body::{CoordinatorCall, CoordinatorReply, RunnerCall, RunnerReply};
-use halvo_schema::executable::names::{ActionClass, FieldName};
+use halvo_schema::executable::names::{ActionClass, Cause, FieldName, Way};
 use halvo_schema::executable::record::{
     AgentBindings, AgentEffect, AgentLog, AgentPlaybook, AgentRun, AgentSession,
 };
@@ -73,7 +73,9 @@ fn bindings(rest: &str) -> String {
     format!(r#"{{"v":1,"workflow":"{W}","agent":"{A}","rev":1,{rest}}}"#)
 }
 
-const ORIGINS_SLOTS: &str = r#""origins":["http://utility.test:18090","http://pay.test:18090"],"slots":[{"name":"payee","value":["Northwind Power"]},{"name":"instrument","value":["card 4242"]}]"#;
+const ORIGINS: &str = r#""origins":["http://utility.test:18090","http://pay.test:18090"]"#;
+
+const SLOTS: &str = r#""slots":[{"name":"payee","value":["Northwind Power"]},{"name":"instrument","value":["card 4242"]}]"#;
 
 fn expect(result: Result<impl std::fmt::Debug, Refusal>, type_name: &str, rule: &str, key: &str) {
     let refusal = result.expect_err("refused");
@@ -896,7 +898,7 @@ fn a_session_part_is_part_of_of_at_most_64_full_but_the_last() {
 
 #[test]
 fn bindings_name_each_origin_and_each_slot_once() {
-    let good = bindings(ORIGINS_SLOTS);
+    let good = bindings(&format!("{ORIGINS},{SLOTS}"));
     assert_eq!(
         AgentBindings::parse(good.as_bytes())
             .unwrap()
@@ -1282,13 +1284,20 @@ fn a_step_or_a_first_step_numbered_above_64_is_refused_with_length() {
 fn coordinator_bodies() -> Vec<String> {
     vec![
         format!(r#"{{"op":"create_agent","workflow":"{W}","agent":"{A}"}}"#),
-        format!(r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}",{ORIGINS_SLOTS}}}"#),
+        format!(r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}",{SLOTS}}}"#),
         format!(r#"{{"op":"set_state","workflow":"{W}","agent":"{A}","state":"active"}}"#),
         format!(
             r#"{{"op":"start_run","workflow":"{W}","agent":"{A}","run":"{R}","mode":"compile"}}"#
         ),
         format!(r#"{{"op":"end_run","workflow":"{W}","agent":"{A}","run":"{R}"}}"#),
+        add_origin("sign_in"),
     ]
+}
+
+fn add_origin(way: &str) -> String {
+    format!(
+        r#"{{"op":"add_origin","workflow":"{W}","agent":"{A}","run":"{R}","origin":"http://pay.test:18090","way":"{way}"}}"#
+    )
 }
 
 #[test]
@@ -1299,7 +1308,9 @@ fn every_coordinator_body_reads_writes_back_and_travels_in_a_coordinator_write()
         "set_state",
         "start_run",
         "end_run",
+        "add_origin",
     ];
+    assert_eq!(coordinator_bodies().len(), ops.len());
     for (text, op) in coordinator_bodies().iter().zip(ops) {
         let call =
             CoordinatorCall::parse(text.as_bytes()).unwrap_or_else(|e| panic!("{e}: {text}"));
@@ -1372,11 +1383,11 @@ fn every_coordinator_body_reads_writes_back_and_travels_in_a_coordinator_write()
         ),
         (
             format!(
-                r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}","origins":["http://a.test:1","http://a.test:1"],"slots":[]}}"#
+                r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}","slots":[{{"name":"payee","value":[]}},{{"name":"payee","value":["x"]}}]}}"#
             ),
             "SetBindings",
             "repeated_name",
-            "origins",
+            "slots",
         ),
         (
             format!(r#"{{"workflow":"{W}","agent":"{A}"}}"#),
@@ -1398,7 +1409,7 @@ fn every_coordinator_body_reads_writes_back_and_travels_in_a_coordinator_write()
 #[test]
 fn each_reply_is_told_apart_by_its_keys_and_answers_its_own_call() {
     let load = format!(
-        r#"{{"config":{CONFIG},"playbook":{{"number":1,"steps":9}},"bindings":{{"rev":1,{ORIGINS_SLOTS}}},"sessions":[{{"origin":"{U}","rev":1,"parts":1}}]}}"#
+        r#"{{"config":{CONFIG},"playbook":{{"number":1,"steps":9}},"bindings":{{"rev":1,{ORIGINS},{SLOTS}}},"sessions":[{{"origin":"{U}","rev":1,"parts":1}}]}}"#
     );
     let empty_load =
         format!(r#"{{"config":{CONFIG},"playbook":null,"bindings":null,"sessions":[]}}"#);
@@ -1515,7 +1526,10 @@ fn each_reply_is_told_apart_by_its_keys_and_answers_its_own_call() {
         .map(|b| CoordinatorCall::parse(b.as_bytes()).unwrap())
         .collect();
     for (text, ops) in [
-        (r#"{"rev":1}"#, vec!["create_agent", "set_bindings"]),
+        (
+            r#"{"rev":1}"#,
+            vec!["create_agent", "set_bindings", "add_origin"],
+        ),
         (r#"{"state":"paused"}"#, vec!["set_state"]),
         (r#"{"ok":"yes"}"#, vec!["start_run", "end_run"]),
     ] {
@@ -1567,5 +1581,369 @@ fn each_reply_is_told_apart_by_its_keys_and_answers_its_own_call() {
         "CoordinatorReply",
         "reply_form",
         "-",
+    );
+}
+
+#[test]
+fn a_set_bindings_body_that_holds_origins_is_refused() {
+    let slots_alone = format!(r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}",{SLOTS}}}"#);
+    let Ok(CoordinatorCall::SetBindings(body)) = CoordinatorCall::parse(slots_alone.as_bytes())
+    else {
+        panic!("slots alone are taken")
+    };
+    assert_eq!(body.slots.len(), 2);
+    assert_eq!(body.to_json().unwrap(), slots_alone);
+    let no_slot = format!(r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}","slots":[]}}"#);
+    assert!(CoordinatorCall::parse(no_slot.as_bytes()).is_ok());
+    let with =
+        |keys: &str| format!(r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}",{keys}}}"#);
+    for text in [
+        with(&format!("{ORIGINS},{SLOTS}")),
+        with(&format!("{SLOTS},{ORIGINS}")),
+        with(&format!(r#""origins":[],{SLOTS}"#)),
+        with(&format!(r#""origins":null,{SLOTS}"#)),
+        with(&format!(r#""origins":"http://pay.test:18090",{SLOTS}"#)),
+    ] {
+        expect(
+            CoordinatorCall::parse(text.as_bytes()),
+            "SetBindings",
+            "unknown_key",
+            "-",
+        );
+    }
+    let cases: Vec<(String, &str, &str, &str)> = vec![
+        (
+            format!(r#"["set_bindings","{W}","{A}",[]]"#),
+            "CoordinatorCall",
+            "not_an_object",
+            "-",
+        ),
+        (
+            with(r#""slots":[["payee",["x"]]]"#),
+            "Slot",
+            "not_an_object",
+            "slots",
+        ),
+        (
+            with(r#""slots":[],"slots":[]"#),
+            "CoordinatorCall",
+            "repeated_key",
+            "-",
+        ),
+        (
+            with(r#""slots":[{"name":"payee","name":"payee","value":[]}]"#),
+            "Slot",
+            "repeated_key",
+            "slots",
+        ),
+        (with(r#""slots":null"#), "list", "not_a_list", "slots"),
+        (with(r#""slots":"[]""#), "list", "not_a_list", "slots"),
+        (
+            with(r#""slots":[{"name":"payee","value":["x"]}],"rev":1"#),
+            "SetBindings",
+            "unknown_key",
+            "-",
+        ),
+        (
+            with(&format!(r#""run":"{R}",{SLOTS}"#)),
+            "SetBindings",
+            "unknown_key",
+            "-",
+        ),
+        (
+            with(&format!(r#""way":"sign_in",{SLOTS}"#)),
+            "SetBindings",
+            "unknown_key",
+            "-",
+        ),
+        (
+            with(r#""slots":[{"name":"payee","value":["x"],"origin":null}]"#),
+            "Slot",
+            "unknown_key",
+            "slots",
+        ),
+        (
+            format!(r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}"}}"#),
+            "SetBindings",
+            "missing_key",
+            "slots",
+        ),
+        (
+            with(r#""slots":[{"name":"payee","value":"x"}]"#),
+            "list",
+            "not_a_list",
+            "value",
+        ),
+    ];
+    for (text, type_name, rule, key) in cases {
+        expect(
+            CoordinatorCall::parse(text.as_bytes()),
+            type_name,
+            rule,
+            key,
+        );
+    }
+}
+
+#[test]
+fn an_add_origin_body_with_a_fourth_way_is_refused() {
+    let names: Vec<&str> = Way::ALL.iter().map(|w| w.as_str()).collect();
+    assert_eq!(names, ["sign_in", "account_link", "new_origin"]);
+    for way in Way::ALL {
+        assert_eq!(Way::parse(way.as_str()), Ok(*way));
+        let text = add_origin(way.as_str());
+        let call =
+            CoordinatorCall::parse(text.as_bytes()).unwrap_or_else(|e| panic!("{e}: {text}"));
+        let CoordinatorCall::AddOrigin(body) = &call else {
+            panic!("{text}")
+        };
+        assert_eq!(
+            (body.way, body.origin.as_str(), body.run.as_str()),
+            (*way, "http://pay.test:18090", R)
+        );
+        assert_eq!(call.to_json().unwrap(), text);
+        assert!(CoordinatorReply::parse(br#"{"rev":7}"#)
+            .unwrap()
+            .answers(&call));
+        assert!(!CoordinatorReply::parse(br#"{"ok":"yes"}"#)
+            .unwrap()
+            .answers(&call));
+        assert!(!CoordinatorReply::parse(br#"{"state":"active"}"#)
+            .unwrap()
+            .answers(&call));
+    }
+    for fourth in [
+        "captcha",
+        "second_factor",
+        "handback",
+        "Sign_in",
+        "sign_in ",
+        "",
+        "new_origins",
+        "account-link",
+    ] {
+        expect(
+            CoordinatorCall::parse(add_origin(fourth).as_bytes()),
+            "Way",
+            "unknown_name",
+            "way",
+        );
+    }
+    let good = add_origin("new_origin");
+    let way = r#""way":"new_origin""#;
+    let at = r#""origin":"http://pay.test:18090""#;
+    let run = format!(r#""run":"{R}""#);
+    let cases: Vec<(String, &str, &str, &str)> = vec![
+        (
+            format!(r#"["add_origin","{W}","{A}","{R}","http://pay.test:18090","sign_in"]"#),
+            "CoordinatorCall",
+            "not_an_object",
+            "-",
+        ),
+        (
+            swap(&good, way, &format!(r#"{way},"way":"sign_in""#)),
+            "CoordinatorCall",
+            "repeated_key",
+            "-",
+        ),
+        (
+            swap(&good, way, r#""way":["new_origin"]"#),
+            "Way",
+            "not_a_string",
+            "way",
+        ),
+        (
+            swap(&good, way, r#""way":null"#),
+            "Way",
+            "not_a_string",
+            "way",
+        ),
+        (
+            swap(&good, &format!(",{way}"), ""),
+            "AddOrigin",
+            "missing_key",
+            "way",
+        ),
+        (
+            swap(&good, at, r#""origin":null"#),
+            "WebOrigin",
+            "not_a_string",
+            "origin",
+        ),
+        (
+            swap(&good, at, r#""origin":"https://pay.test""#),
+            "WebOrigin",
+            "origin_form",
+            "origin",
+        ),
+        (
+            swap(&good, at, r#""origin":"http://Pay.test:18090""#),
+            "WebOrigin",
+            "origin_form",
+            "origin",
+        ),
+        (
+            swap(&good, at, r#""origin":["http://pay.test:18090"]"#),
+            "WebOrigin",
+            "not_a_string",
+            "origin",
+        ),
+        (
+            swap(&good, &run, r#""run":50000000000000000000000000000001"#),
+            "RunId",
+            "not_a_string",
+            "run",
+        ),
+        (
+            swap(&good, &format!("{run},"), ""),
+            "AddOrigin",
+            "missing_key",
+            "run",
+        ),
+        (
+            swap(&good, &run, r#""run":null"#),
+            "RunId",
+            "not_a_string",
+            "run",
+        ),
+        (
+            swap(&good, way, &format!(r#"{way},"slots":[]"#)),
+            "AddOrigin",
+            "unknown_key",
+            "-",
+        ),
+        (
+            swap(
+                &good,
+                way,
+                &format!(r#"{way},"origins":["http://pay.test:18090"]"#),
+            ),
+            "AddOrigin",
+            "unknown_key",
+            "-",
+        ),
+        (
+            swap(&good, way, &format!(r#"{way},"mode":"compile""#)),
+            "AddOrigin",
+            "unknown_key",
+            "-",
+        ),
+        (
+            swap(&good, way, &format!(r#"{way},"answer":null"#)),
+            "AddOrigin",
+            "unknown_key",
+            "-",
+        ),
+        (
+            swap(&good, r#""op":"add_origin""#, r#""op":"add_origins""#),
+            "CoordinatorCall",
+            "unknown_op",
+            "op",
+        ),
+    ];
+    for (text, type_name, rule, key) in cases {
+        expect(
+            CoordinatorCall::parse(text.as_bytes()),
+            type_name,
+            rule,
+            key,
+        );
+    }
+    expect(
+        RunnerCall::parse(good.as_bytes()),
+        "RunnerCall",
+        "unknown_op",
+        "op",
+    );
+}
+
+#[test]
+fn a_log_line_ends_a_run_with_the_cause_secret_and_no_other_spelling() {
+    let event = r#""event":"model_call","step":3,"cause":null"#;
+    let stopped = run_record(
+        R,
+        &swap(
+            LOG_REST,
+            event,
+            r#""event":"stopped","step":3,"cause":"secret""#,
+        ),
+    );
+    let line = AgentLog::parse(stopped.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(line.cause, Some(Cause::Secret));
+    assert_eq!(line.to_json().unwrap(), stopped);
+    assert_eq!(Cause::parse("secret"), Ok(Cause::Secret));
+    assert_eq!(
+        Cause::ALL.iter().filter(|c| c.as_str() == "secret").count(),
+        1
+    );
+    for other in ["Secret", "secrets", "unreadable", "locked", "fault", "none"] {
+        let text = run_record(
+            R,
+            &swap(
+                LOG_REST,
+                event,
+                &format!(r#""event":"stopped","step":3,"cause":"{other}""#),
+            ),
+        );
+        expect(
+            AgentLog::parse(text.as_bytes()),
+            "Cause",
+            "unknown_name",
+            "cause",
+        );
+    }
+}
+
+#[test]
+fn the_reply_of_create_agent_is_revision_1_and_set_bindings_and_add_origin_take_any_revision() {
+    let bodies: Vec<CoordinatorCall> = coordinator_bodies()
+        .iter()
+        .map(|b| CoordinatorCall::parse(b.as_bytes()).unwrap())
+        .collect();
+    let answered = |text: &str| -> Vec<&str> {
+        let reply = CoordinatorReply::parse(text.as_bytes()).unwrap();
+        bodies
+            .iter()
+            .filter(|b| reply.answers(b))
+            .map(|b| b.op())
+            .collect()
+    };
+    assert_eq!(
+        answered(r#"{"rev":1}"#),
+        ["create_agent", "set_bindings", "add_origin"]
+    );
+    for rev in [2, 7, 4_294_967_295_u32] {
+        assert_eq!(
+            answered(&format!(r#"{{"rev":{rev}}}"#)),
+            ["set_bindings", "add_origin"],
+            "{rev}"
+        );
+    }
+}
+
+#[test]
+fn a_load_reply_whose_bindings_name_an_origin_twice_is_refused() {
+    let load = |origins: &str| {
+        format!(
+            r#"{{"config":{CONFIG},"playbook":null,"bindings":{{"rev":3,{origins},{SLOTS}}},"sessions":[]}}"#
+        )
+    };
+    assert!(RunnerReply::parse(load(ORIGINS).as_bytes()).is_ok());
+    expect(
+        RunnerReply::parse(
+            load(r#""origins":["http://pay.test:18090","http://pay.test:18090"]"#).as_bytes(),
+        ),
+        "LoadedBindings",
+        "repeated_name",
+        "origins",
+    );
+    expect(
+        RunnerReply::parse(
+            load(r#""origins":["http://pay.test:18090","http://utility.test:18090","http://pay.test:18090"]"#)
+                .as_bytes(),
+        ),
+        "LoadedBindings",
+        "repeated_name",
+        "origins",
     );
 }

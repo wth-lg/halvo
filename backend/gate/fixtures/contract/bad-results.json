@@ -1,0 +1,19 @@
+{
+  "edits": [
+    {
+      "file": "src/contract/routes.ts",
+      "find": "      results: {\n        pending: [],\n        active: [],",
+      "replace": "      results: {\n        active: [],"
+    }
+  ],
+  "then": [
+    [
+      "node",
+      "scripts/contract-rules",
+      "export",
+      "routes",
+      "--write"
+    ]
+  ],
+  "line": "routes=results-of-status"
+}

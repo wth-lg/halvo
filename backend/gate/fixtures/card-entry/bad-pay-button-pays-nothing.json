@@ -1,0 +1,14 @@
+{
+  "about": "the stand-in page's pay button does not pay the session",
+  "edits": [
+    {
+      "file": "test-kit/provider-fake/fake.mjs",
+      "find": "      if (sessions.has(clientReferenceId)) await pay(clientReferenceId);",
+      "replace": "      if (sessions.has(clientReferenceId)) return;"
+    }
+  ],
+  "line": [
+    "paid=0"
+  ],
+  "stack": "own"
+}

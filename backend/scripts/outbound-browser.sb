@@ -1,0 +1,6 @@
+(version 1)
+(import (param "STRICT"))
+(define (chromium-ipv6-probe-neither-ends-the-browser-nor-leaves-a-record-and-loopback-stays-allowed)
+  (deny network-outbound (remote udp "*:443") (with no-log))
+  (allow network-outbound (remote ip "localhost:*")))
+(chromium-ipv6-probe-neither-ends-the-browser-nor-leaves-a-record-and-loopback-stays-allowed)

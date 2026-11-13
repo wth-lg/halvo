@@ -1,0 +1,19 @@
+{
+  "edits": [
+    {
+      "file": "src/contract/schemas.ts",
+      "find": "export const CapBody = z.strictObject({ cap: Cap });",
+      "replace": "export const CapBody = z.intersection(z.strictObject({ cap: Cap }).describe(\"half\"), z.strictObject({}));"
+    }
+  ],
+  "then": [
+    [
+      "node",
+      "scripts/contract-rules",
+      "export",
+      "schema",
+      "--write"
+    ]
+  ],
+  "line": "rules=allOf at /$defs/CapBody"
+}

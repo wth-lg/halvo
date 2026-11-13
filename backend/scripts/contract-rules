@@ -1,0 +1,161 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const NAMES_FILE = join(ROOT, "contract/names/forbidden-names.json");
+const EXPORTS = {
+  schema: { file: "contract/schema/v1.json", make: async () => (await import("../src/contract/export.ts")).exportSchema() },
+  routes: { file: "contract/routes/v1.json", make: async () => (await import("../src/contract/export.ts")).exportRoutes() },
+};
+const FOLLOWED = new Set([
+  "$schema",
+  "$defs",
+  "$ref",
+  "type",
+  "properties",
+  "required",
+  "additionalProperties",
+  "enum",
+  "minimum",
+  "maximum",
+  "maxLength",
+  "items",
+]);
+const ROOT_ONLY = new Set(["$schema", "$defs"]);
+const TYPES = new Set(["object", "array", "string", "integer", "number"]);
+const REQUEST_ROOT = "CapBody";
+const HOSTED_TIERS = ["low_cost_hosted", "frontier"];
+const DEF_REF = /^#\/\$defs\/([^/]+)$/;
+
+function usage() {
+  process.stderr.write(`Exports the wire contract and walks an export for what the contract refuses.
+
+  node scripts/contract-rules export schema [--write]   print a fresh export of src/contract/schemas.ts,
+                                                        or with --write replace contract/schema/v1.json
+  node scripts/contract-rules export routes [--write]   the same for src/contract/routes.ts and
+                                                        contract/routes/v1.json
+  node scripts/contract-rules walk FILE [--names FILE]  print one line "RULE at POINTER" for each node
+                                                        that the walk refuses and exit 1, or print
+                                                        nothing and exit 0
+
+RULE is a keyword that the walk does not follow, or one of open-object, unbounded-number,
+unbounded-string, tier and forbidden-name. The names come from contract/names/forbidden-names.json
+or from --names FILE; without either, the walk prints "forbidden-name at /". Exit 64 on bad usage.
+`);
+  process.exit(64);
+}
+
+function token(key) {
+  return key.replaceAll("~", "~0").replaceAll("/", "~1");
+}
+
+function requestDefs(defs) {
+  const reached = new Set();
+  const visit = (node) => {
+    if (node === null || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      for (const each of node) visit(each);
+      return;
+    }
+    if (typeof node.$ref === "string") {
+      const name = DEF_REF.exec(node.$ref)?.[1];
+      if (name !== undefined && !reached.has(name) && Object.hasOwn(defs, name)) {
+        reached.add(name);
+        visit(defs[name]);
+      }
+    }
+    for (const [key, value] of Object.entries(node)) if (key !== "$ref") visit(value);
+  };
+  if (REQUEST_ROOT in defs) {
+    reached.add(REQUEST_ROOT);
+    visit(defs[REQUEST_ROOT]);
+  }
+  return reached;
+}
+
+function walk(file, names) {
+  const lines = [];
+  const defs = file !== null && typeof file === "object" && typeof file.$defs === "object" && file.$defs !== null ? file.$defs : {};
+  const requests = requestDefs(defs);
+  const refuse = (rule, pointer) => lines.push(`${rule} at ${pointer === "" ? "/" : pointer}`);
+
+  const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+
+  const firstRule = (node, pointer, inRequest) => {
+    if (!isObject(node)) return "open-object";
+    for (const key of Object.keys(node)) {
+      if (!FOLLOWED.has(key) || ROOT_ONLY.has(key)) return key;
+    }
+    if ("type" in node && !TYPES.has(node.type)) return "type";
+    if ("properties" in node && !isObject(node.properties)) return "properties";
+    if ("required" in node && !(Array.isArray(node.required) && node.required.every((each) => typeof each === "string"))) return "required";
+    if ("enum" in node && !(Array.isArray(node.enum) && node.type === "string" && node.enum.every((each) => typeof each === "string"))) return "enum";
+    for (const key of ["minimum", "maximum", "maxLength"]) if (key in node && typeof node[key] !== "number") return key;
+    if ("additionalProperties" in node && node.additionalProperties !== false) return "additionalProperties";
+    if ("items" in node && !isObject(node.items)) return "items";
+    if (node.type === "array" && !("items" in node)) return "items";
+    if ("$ref" in node && !(typeof node.$ref === "string" && DEF_REF.test(node.$ref) && Object.hasOwn(defs, DEF_REF.exec(node.$ref)[1]))) return "$ref";
+    if (!("type" in node) && !("$ref" in node) && !("enum" in node)) return "open-object";
+    if ((node.type === "object" || "properties" in node) && node.additionalProperties !== false) return "open-object";
+    if (node.type === "number") return "unbounded-number";
+    if (node.type === "integer" && (typeof node.minimum !== "number" || typeof node.maximum !== "number")) return "unbounded-number";
+    if (node.type === "string" && !Array.isArray(node.enum)) {
+      const isUrl = pointer === "/$defs/Url" && typeof node.maxLength === "number";
+      if (!isUrl) return "unbounded-string";
+    }
+    if (node.$ref === "#/$defs/Url" && inRequest) return "unbounded-string";
+    if (node.$ref === "#/$defs/Tier") return "tier";
+    if (pointer !== "/$defs/Tier" && Array.isArray(node.enum) && node.enum.some((each) => HOSTED_TIERS.includes(each))) return "tier";
+    if (pointer === "/$defs/Tier" && JSON.stringify(node.enum) !== JSON.stringify(HOSTED_TIERS)) return "tier";
+    return null;
+  };
+
+  const visit = (node, pointer, inRequest, forbiddenName) => {
+    const rule = firstRule(node, pointer, inRequest) ?? (forbiddenName ? "forbidden-name" : null);
+    if (rule !== null) refuse(rule, pointer);
+    if (!isObject(node)) return;
+    for (const key of Object.keys(node)) {
+      if (key === "properties" && isObject(node.properties)) {
+        for (const [name, value] of Object.entries(node.properties)) {
+          visit(value, `${pointer}/properties/${token(name)}`, inRequest, inRequest && names !== null && names.has(name));
+        }
+      }
+      if (key === "items" && isObject(node.items)) visit(node.items, `${pointer}/items`, inRequest, false);
+    }
+  };
+
+  if (file === null || typeof file !== "object" || Array.isArray(file)) {
+    refuse("open-object", "");
+    return lines;
+  }
+  const rootKeys = Object.keys(file).filter((key) => key !== "$schema" && key !== "$defs");
+  if (rootKeys.length > 0) refuse(rootKeys[0], "");
+  else if (names === null) refuse("forbidden-name", "");
+  for (const [name, node] of Object.entries(defs)) visit(node, `/$defs/${token(name)}`, requests.has(name), false);
+  return lines;
+}
+
+function readNames(path) {
+  const file = JSON.parse(readFileSync(path, "utf8"));
+  return new Set(file.names.map((entry) => entry.name));
+}
+
+async function main(args) {
+  if (args[0] === "export" && (args.length === 2 || (args.length === 3 && args[2] === "--write")) && args[1] in EXPORTS) {
+    const { file, make } = EXPORTS[args[1]];
+    const text = await make();
+    if (args[2] === "--write") writeFileSync(join(ROOT, file), text);
+    else process.stdout.write(text);
+    return 0;
+  }
+  if (args[0] === "walk" && (args.length === 2 || (args.length === 4 && args[2] === "--names"))) {
+    const names = args.length === 4 ? readNames(args[3]) : existsSync(NAMES_FILE) ? readNames(NAMES_FILE) : null;
+    const lines = walk(JSON.parse(readFileSync(args[1], "utf8")), names);
+    for (const line of lines) process.stdout.write(`${line}\n`);
+    return lines.length === 0 ? 0 : 1;
+  }
+  return usage();
+}
+
+process.exitCode = await main(process.argv.slice(2));

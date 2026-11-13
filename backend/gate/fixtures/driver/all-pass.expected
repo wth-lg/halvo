@@ -1,0 +1,2 @@
+PASS good: 1 of 1
+PASS on-stderr: a result line on standard error

@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "requests": {
+    "checkout-start": {
+      "cap": {
+        "amount": 1,
+        "period": "week"
+      }
+    },
+    "cap-set": {
+      "cap": {
+        "amount": 1,
+        "period": "week"
+      }
+    }
+  },
+  "answers": {
+    "checkout-start": {
+      "session": {
+        "result": "session",
+        "url": "http://127.0.0.1:1/x"
+      },
+      "account-exists": {
+        "result": "account-exists"
+      },
+      "credential-mismatch": {
+        "result": "credential-mismatch"
+      },
+      "unavailable": {
+        "result": "unavailable"
+      }
+    },
+    "status": {
+      "pending": {
+        "result": "pending"
+      },
+      "active": {
+        "result": "active"
+      },
+      "payment-failed": {
+        "result": "payment-failed"
+      },
+      "cancelled": {
+        "result": "cancelled"
+      },
+      "no-such-account": {
+        "result": "no-such-account"
+      },
+      "credential-mismatch": {
+        "result": "credential-mismatch"
+      }
+    },
+    "cap-get": {
+      "cap": {
+        "result": "cap",
+        "cap": {
+          "amount": 1,
+          "period": "week"
+        },
+        "spend": {
+          "spent": 0,
+          "held": 0,
+          "period_end": 0
+        }
+      },
+      "no-cap": {
+        "result": "no-cap"
+      },
+      "pending": {
+        "result": "pending"
+      },
+      "no-such-account": {
+        "result": "no-such-account"
+      },
+      "credential-mismatch": {
+        "result": "credential-mismatch"
+      }
+    },
+    "cap-set": {
+      "cap": {
+        "result": "cap",
+        "cap": {
+          "amount": 1,
+          "period": "week"
+        },
+        "spend": {
+          "spent": 0,
+          "held": 0,
+          "period_end": 0
+        }
+      },
+      "pending": {
+        "result": "pending"
+      },
+      "no-such-account": {
+        "result": "no-such-account"
+      },
+      "credential-mismatch": {
+        "result": "credential-mismatch"
+      }
+    },
+    "manage": {
+      "page": {
+        "result": "page",
+        "url": "http://127.0.0.1:1/x"
+      },
+      "pending": {
+        "result": "pending"
+      },
+      "no-such-account": {
+        "result": "no-such-account"
+      },
+      "credential-mismatch": {
+        "result": "credential-mismatch"
+      },
+      "unavailable": {
+        "result": "unavailable"
+      }
+    },
+    "account-delete": {
+      "deleted": {
+        "result": "deleted"
+      },
+      "pending": {
+        "result": "pending"
+      },
+      "not-finished": {
+        "result": "not-finished"
+      },
+      "no-such-account": {
+        "result": "no-such-account"
+      },
+      "credential-mismatch": {
+        "result": "credential-mismatch"
+      }
+    }
+  },
+  "rejected": {
+    "result": "rejected"
+  }
+}

@@ -1,15 +1,20 @@
 use super::Queue;
-use crate::types::{AgentId, Facts, RunEnd, RunId, WorkflowId};
+use crate::types::{AgentId, Facts, ItemId, Lapsed, RunEnd, RunId, WorkflowId};
 
-/// What the coordinator owes the owner for a run of an agent, sent again at each tick until the
-/// owner acknowledges it (I5.9, rulings XB-14 and XB-17).
+/// What the coordinator owes the owner for an agent, sent again at each tick until the owner
+/// acknowledges it (I5.8, I5.9, rulings XB-14, XB-17 and XB-32).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Owing {
-    /// The body `end_run`, for a run that has no runner: its step 7 or 8 failed (XB-14).
-    EndRun,
-    /// The event `run_ended` with its cause, its day and its instant in nanoseconds, which the
-    /// owner did not acknowledge (XB-17).
+    /// The body `end_run` of a run that has no runner: its step 7 or 8 failed (XB-14).
+    EndRun {
+        /// The run.
+        run: RunId,
+    },
+    /// The event `run_ended` of a run with its cause, its day and its instant in nanoseconds,
+    /// which the owner did not acknowledge (XB-17).
     RunEnded {
+        /// The run.
+        run: RunId,
         /// The cause of I5.6.
         cause: RunEnd,
         /// The day of the end.
@@ -17,17 +22,28 @@ pub enum Owing {
         /// The instant of the end.
         at: i64,
     },
+    /// The event `item_lapsed` of an item that an earlier life left open, with its lapse, its
+    /// day and its instant in nanoseconds, in a body of recovery that the owner did not
+    /// acknowledge (I5.8, XB-32).
+    ItemLapsed {
+        /// The item.
+        item: ItemId,
+        /// The lapse, of the cause `app_ended`.
+        lapsed: Lapsed,
+        /// The day of recovery.
+        day: u32,
+        /// The instant of recovery.
+        at: i64,
+    },
 }
 
-/// One thing that the coordinator owes for a run.
+/// One thing that the coordinator owes for an agent.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Owed {
-    /// The run's agent.
+    /// The agent.
     pub agent: AgentId,
     /// The agent's workflow.
     pub workflow: WorkflowId,
-    /// The run.
-    pub run: RunId,
     /// What is owed.
     pub what: Owing,
 }

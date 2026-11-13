@@ -1,0 +1,27 @@
+[package]
+name = "halvo-secrets"
+version = "0.0.0"
+description = "Where the account helper keeps its one secret: the Keychain or a file of mode 0600 on macOS, DPAPI in user scope on Windows"
+edition = "2021"
+publish = false
+
+[features]
+keychain = []
+hosted-store-tests = []
+
+[[test]]
+name = "hosted"
+required-features = ["hosted-store-tests"]
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = { version = "=3.7.0", default-features = false }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "=0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Security_Cryptography",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Threading",
+] }

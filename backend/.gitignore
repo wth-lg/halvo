@@ -1,0 +1,8 @@
+node_modules/
+.tools/
+.stack/
+.tmp/
+.wrangler/
+.claude/
+test/contract/rust/target/
+spikes/s3/crate/target/

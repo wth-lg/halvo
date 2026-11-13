@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "file": "wrangler.jsonc",
+      "find": "\"send_metrics\": false",
+      "replace": "\"send_metrics\": false,\n  \"kv_namespaces\": []"
+    }
+  ],
+  "line": "config=keys"
+}

@@ -1,0 +1,7 @@
+{
+  "expect": "pass",
+  "packages": [
+    { "id": "cheap-api@1.0.0", "license": "MIT" },
+    { "id": "heap-apiary@1.0.0", "license": "MIT" }
+  ]
+}

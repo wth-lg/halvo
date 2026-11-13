@@ -3,19 +3,19 @@ use super::raise::choices;
 use super::{ConfirmState, Confirmation};
 use crate::guard::Table;
 use crate::types::{
-    AgentId, BoundFrom, Candidate, CandidateFrom, Cause, Choice, ChoiceText, Class, ConfirmAsk,
-    Field, FieldFrom, Item, ItemId, ItemKind, Limits, Param, ParamEntry, Presenter, Unknown, YesNo,
+    AgentId, BindResult, BoundFrom, Candidate, CandidateFrom, Cause, Choice, ChoiceText, Class,
+    ConfirmAsk, Field, FieldFrom, Item, ItemId, ItemKind, Limits, Origin, Param, ParamEntry,
+    Presenter, Unknown, YesNo,
 };
 
 const PIECE_MAX: usize = 1024;
 
-/// The kinds whose item holds a title, a text and two choices and nothing else (I3.4).
+/// The kinds whose item holds a title, a text and two choices and nothing else (I3.4); a
+/// `link_account` item also holds the field of its site (`compose_link_account`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Plain {
     /// `sign_in`.
     SignIn,
-    /// `link_account`.
-    LinkAccount,
     /// `stuck`.
     Stuck,
     /// `ready`.
@@ -29,12 +29,39 @@ impl Plain {
     pub const fn kind(self) -> ItemKind {
         match self {
             Plain::SignIn => ItemKind::SignIn,
-            Plain::LinkAccount => ItemKind::LinkAccount,
             Plain::Stuck => ItemKind::Stuck,
             Plain::Ready => ItemKind::Ready,
             Plain::Show => ItemKind::Show,
         }
     }
+}
+
+/// The site's name of an origin, which is what a person reads of it (I1.4, ruling IG-14): its
+/// host, with `:` and its port where the port is not the usual one of its scheme (443 for
+/// `https`, 80 for `http`), and never its scheme.
+pub fn site_name(origin: &Origin) -> String {
+    let usual = match origin.scheme() {
+        "https" => 443,
+        "http" => 80,
+        _ => 0,
+    };
+    let mut site = origin.host().to_owned();
+    if origin.port() != usual {
+        site.push(':');
+        site.push_str(&origin.port().to_string());
+    }
+    site
+}
+
+/// A field set by Halvo that names a site: the sentence of `key` as its label and the site's name
+/// of `origin` as its value (I3.4, I4.3, ruling IG-14).
+fn site_field(key: &str, origin: &Origin) -> Result<Field, Cause> {
+    Ok(Field {
+        label: say(key)?,
+        value: pieces(&[site_name(origin)])?,
+        from: FieldFrom::Halvo,
+        from_text: say(&format!("from.{}", FieldFrom::Halvo.name()))?,
+    })
 }
 
 /// A parameter of a setup with the values of its candidates and where each came from, as the
@@ -187,7 +214,8 @@ fn halvo_line(key: &str) -> Result<Field, Cause> {
 /// `confirm.changed`, with no value and `from` `halvo` (`Table::newest_allows`, rulings IG-6d,
 /// IG-25). For each effect every bound field follows in the
 /// request's order, labelled `field.<class>.<name>` with `from` by its source, and after them a
-/// line `confirm.new_site` for a `new_origin`; `armed` `yes` only while the item is `armed`.
+/// line `confirm.new_site` for a `new_origin`, whose value is the site's name of that origin
+/// (`site_name`, ruling IG-14); `armed` `yes` only while the item is `armed`.
 /// `malformed` for a field that the words table has no label for, or a piece of a value of
 /// more than 1,024 bytes; `state` for a confirmation of another request.
 pub fn compose_confirm(
@@ -228,12 +256,7 @@ pub fn compose_confirm(
             )?);
         }
         if let Some(origin) = &effect.new_origin {
-            fields.push(Field {
-                label: say("confirm.new_site")?,
-                value: pieces(&[origin.as_str().to_owned()])?,
-                from: FieldFrom::Halvo,
-                from_text: say(&format!("from.{}", FieldFrom::Halvo.name()))?,
-            });
+            fields.push(site_field("confirm.new_site", origin)?);
         }
     }
     let choices = match presenter {
@@ -271,11 +294,60 @@ pub fn compose_plain(
     let (item, agent) = (item.clone(), agent.clone());
     Ok(match kind {
         Plain::SignIn => Item::sign_in(item, agent, title, text, choices),
-        Plain::LinkAccount => Item::link_account(item, agent, title, text, choices),
         Plain::Stuck => Item::stuck(item, agent, title, text, choices),
         Plain::Ready => Item::ready(item, agent, title, text, choices),
         Plain::Show => Item::show(item, agent, title, text, choices),
     })
+}
+
+/// The item of the second step of a `sign_in` item (I3.1, I3.4): the title `item.sign_in.title`
+/// with the agent's name, the text `item.sign_in.bind` with the site's name of `origin` (ruling
+/// IG-14), and the two choices `decline` and `allow` with the texts
+/// `choice.sign_in.bind_decline` and `choice.sign_in.bind_allow`, the safe one first (ruling
+/// IG-15).
+pub fn compose_bind(
+    item: &ItemId,
+    agent: &AgentId,
+    name: &str,
+    origin: &Origin,
+) -> Result<Item, Cause> {
+    let title = Key::parse("item.sign_in.title")?.text(&[("name", name)])?;
+    let text = Key::parse("item.sign_in.bind")?.text(&[("origin", &site_name(origin))])?;
+    let mut choices = Vec::new();
+    for (i, result) in BindResult::ALL.iter().enumerate() {
+        choices.push(ChoiceText {
+            choice: result.choice(),
+            text: say(&format!("choice.sign_in.bind_{}", result.name()))?,
+            safe: (i == 0).into(),
+        });
+    }
+    Ok(Item::sign_in(
+        item.clone(),
+        agent.clone(),
+        title,
+        text,
+        choices,
+    ))
+}
+
+/// The item `link_account` (I3.4): the plain parts and one field, labelled
+/// `item.link_account.origin`, whose value is the site's name of the request's `origin` and whose
+/// `from` is `halvo` (ruling IG-14).
+pub fn compose_link_account(
+    item: &ItemId,
+    agent: &AgentId,
+    name: &str,
+    origin: &Origin,
+) -> Result<Item, Cause> {
+    let (title, text) = title_and_text(ItemKind::LinkAccount, name)?;
+    Ok(Item::link_account(
+        item.clone(),
+        agent.clone(),
+        title,
+        text,
+        site_field("item.link_account.origin", origin)?,
+        two_choices(ItemKind::LinkAccount)?,
+    ))
 }
 
 /// The item `check` (I3.4): the plain parts and the kept fields of the effects of an unknown
@@ -313,13 +385,17 @@ pub fn compose_check(
 
 /// The item `setup` (I3.5): the plain parts and one entry per parameter with the label
 /// `param.<name>`, its candidates numbered from 1, none chosen, and `typed` `yes` only for a
-/// parameter with no candidate. `malformed` for more than `setup_params` parameters, more than
-/// `setup_candidates` candidates of one, or a piece of a value of more than 1,024 bytes.
+/// parameter with no candidate; with `not_taken`, for an item that asks every parameter again
+/// after the owner refused its answers by a name after which another value can pass, one field
+/// whose label is `item.setup.not_taken`, with no value and `from` `halvo` (I3.4, ruling IG-34).
+/// `malformed` for more than `setup_params` parameters, more than `setup_candidates` candidates
+/// of one, or a piece of a value of more than 1,024 bytes.
 pub fn compose_setup(
     item: &ItemId,
     agent: &AgentId,
     name: &str,
     params: &[SetupParam],
+    not_taken: bool,
     limits: &Limits,
 ) -> Result<Item, Cause> {
     if params.len() > limits.setup_params as usize {
@@ -346,11 +422,17 @@ pub fn compose_setup(
             candidates,
         });
     }
+    let line = if not_taken {
+        Some(halvo_line("item.setup.not_taken")?)
+    } else {
+        None
+    };
     Ok(Item::setup(
         item.clone(),
         agent.clone(),
         title,
         text,
+        line,
         entries,
         two_choices(ItemKind::Setup)?,
     ))

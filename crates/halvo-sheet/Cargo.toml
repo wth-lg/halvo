@@ -1,0 +1,11 @@
+[package]
+name = "halvo-sheet"
+version = "0.0.0"
+description = "The sheet executor: reads cells and a source file, prepares a changed copy of a workbook beside it with a checkpoint, replaces the workbook in one rename, and refuses a workbook that it cannot carry"
+edition = "2021"
+publish = false
+
+[dependencies]
+calamine = "=0.38.0"
+quick-xml = { version = "=0.42.0", default-features = false }
+zip = { version = "=9.5.1", default-features = false, features = ["deflate"] }

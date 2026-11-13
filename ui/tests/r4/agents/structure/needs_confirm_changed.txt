@@ -1,0 +1,34 @@
+- {"role":"main"}
+  - {"level":1,"name":"Halvo","role":"heading"}
+  - {"name":"What needs you","role":"region"}
+    - {"level":2,"name":"What needs you","role":"heading"}
+    - {"role":"list"}
+      - {"role":"listitem"}
+        - {"name":"Send this?","role":"alertdialog"}
+          - {"level":3,"name":"Send this?","role":"heading"}
+          - {"role":"paragraph","text":"Something changed after you said yes, so it has not done this yet and asks you again."}
+          - {"role":"term","text":"To"}
+          - {"role":"definition","text":"Ben Ola"}
+          - {"role":"definition","text":"From the site"}
+          - {"role":"term","text":"Subject"}
+          - {"role":"definition","text":"Viewing on Friday"}
+          - {"role":"definition","text":"From the site"}
+          - {"role":"term","text":"Message"}
+          - {"role":"definition","text":"Friday at 11 works for the viewing."}
+          - {"role":"definition","text":"Written by the agent"}
+          - {"name":"Don't send","role":"button"}
+          - {"name":"Send","role":"button"}
+  - {"name":"Your agents","role":"region"}
+    - {"level":2,"name":"Your agents","role":"heading"}
+    - {"role":"status"}
+    - {"name":"Needs you","role":"region"}
+      - {"level":3,"name":"Needs you","role":"heading"}
+      - {"role":"list"}
+        - {"role":"listitem"}
+          - {"level":4,"name":"Writing or answering email on Site5","role":"heading"}
+            - {"name":"Writing or answering email on Site5","role":"button"}
+          - {"role":"paragraph","text":"Needs you"}
+          - {"role":"paragraph","text":"Standard"}
+          - {"role":"paragraph","text":"It needs your answer before it can go on."}
+          - {"name":"Stop","role":"button"}
+          - {"name":"Switch off","role":"button"}

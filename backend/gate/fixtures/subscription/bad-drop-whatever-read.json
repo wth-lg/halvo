@@ -1,0 +1,13 @@
+{
+  "about": "a pending checkout is dropped at its first bound whatever its read says",
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "  if (read === \"expired\") return \"expired-unpaid\";",
+      "replace": "  if (now >= expiresAt + PENDING_DROP_MS) return \"dropped\";\n  if (read === \"expired\") return \"expired-unpaid\";"
+    }
+  ],
+  "line": [
+    "the test \"a read that gives no answer keeps the pending checkout at the first bound and removes it at the second\""
+  ]
+}

@@ -1,0 +1,7 @@
+PASS good: ok
+FAIL bad: 0 of 1
+FAIL silent: the check broke its contract (exit 0, 0 result lines)
+FAIL pass-line-exit-1: the check broke its contract (exit 1, 1 result lines)
+FAIL two-lines: the check broke its contract (exit 0, 2 result lines)
+FAIL other-name: the check broke its contract (exit 0, 0 result lines)
+FAIL fail-line-exit-0: the check broke its contract (exit 0, 1 result lines)

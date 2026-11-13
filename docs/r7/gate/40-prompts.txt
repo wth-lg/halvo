@@ -1,0 +1,5 @@
+line: FAIL prompts: stub, not built yet (P6, unit 6.1)
+stamp: 2026-11-12T17:11:47Z
+load: 32.26
+tree: 80f51ca8b3f2cdde39c588991f2d819e8c94e39a
+model: efc73a58fa67ac4a85640e3eeedb7b7c3648f6c3

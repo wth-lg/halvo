@@ -70,6 +70,47 @@ fn step(t: &Table, r: &EffectRecord) -> Result<Table, Refusal> {
     guard_step(t, r, Gives::Confirm)
 }
 
+/// Beside its rows the table keeps, for each run and effect id, the fact that the effect has
+/// begun: set when the owner acknowledged the store of a record `releasing`, `committed` or
+/// `unknown` of it, and not where the guard passes the record, so that a record whose store
+/// failed began nothing; a lapse and a stop keep it, and a new life starts with none (I4.7,
+/// ruling IG-32).
+#[test]
+fn the_fact_begun_is_set_when_the_owner_acknowledged_a_record_releasing_committed_or_unknown() {
+    let t = table();
+    for state in EffectState::ALL {
+        let after = t.stored(&rec(*state, 1, 1, Some(1)));
+        let begun = matches!(
+            state,
+            EffectState::Releasing | EffectState::Committed | EffectState::Unknown
+        );
+        assert_eq!(after.has_begun(&run_id(1), &effect_id(1)), begun, "{state}");
+        assert!(
+            !after.has_begun(&run_id(2), &effect_id(1)),
+            "{state}: another run"
+        );
+        assert!(
+            !after.has_begun(&run_id(1), &effect_id(2)),
+            "{state}: another effect"
+        );
+    }
+    let passed = step(&t, &releasing(1, 1, 1)).unwrap();
+    assert!(
+        !passed.has_begun(&run_id(1), &effect_id(1)),
+        "the guard's pass begins nothing"
+    );
+    let begun = passed.stored(&releasing(1, 1, 1));
+    assert!(begun
+        .lapse(&item_id(1))
+        .stop(&run_id(1))
+        .has_begun(&run_id(1), &effect_id(1)));
+    assert!(!Table::new().has_begun(&run_id(1), &effect_id(1)));
+    let mut other = rec(EffectState::Committed, 1, 1, None);
+    other.run = run_id(2);
+    let both = begun.stored(&other);
+    assert!(both.has_begun(&run_id(1), &effect_id(1)) && both.has_begun(&run_id(2), &effect_id(1)));
+}
+
 #[test]
 fn refusal_guard_unmatched() {
     let t = table();
@@ -395,6 +436,32 @@ fn a_release_counts_the_rows_of_its_own_item_alone() {
         Some(Refusal::Approval),
         "item 3's row, recorded and not released"
     );
+}
+
+/// A second `release` of one item renumbers no row: its decision keeps the number of its first
+/// release, so that a later item's decision for the same effect stays the newest (I4.7, ruling
+/// IG-25; the reader of U2.2b's copy O4).
+#[test]
+fn a_second_release_of_one_item_renumbers_no_row() {
+    let allowed = Decision::new(vec![entry(1, 1, 1, EffectAnswer::AllowOnce)]).unwrap();
+    let rejected = Decision::new(vec![entry(1, 2, 2, EffectAnswer::RejectOnce)]).unwrap();
+    let t = Table::new()
+        .record(&item_id(1), &run_id(1), &allowed)
+        .release(&item_id(1))
+        .record(&item_id(2), &run_id(1), &rejected)
+        .release(&item_id(2));
+    assert_eq!(
+        t.newest_released(&run_id(1), &effect_id(1)),
+        Some(EffectAnswer::RejectOnce)
+    );
+    let again = t.release(&item_id(1));
+    assert_eq!(
+        again.newest_released(&run_id(1), &effect_id(1)),
+        Some(EffectAnswer::RejectOnce),
+        "item 1's decision does not become the newest"
+    );
+    assert!(!again.newest_allows(&run_id(1), &effect_id(1)));
+    assert_eq!(again, t, "the table does not change");
 }
 
 #[test]

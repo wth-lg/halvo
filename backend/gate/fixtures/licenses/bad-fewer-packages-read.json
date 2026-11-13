@@ -1,0 +1,7 @@
+{
+  "expect": "read the license of 1 of the 2 packages the lockfile lists",
+  "packages": [
+    { "id": "plain@1.0.0", "license": "MIT" },
+    { "id": "absent@1.0.0" }
+  ]
+}

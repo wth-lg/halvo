@@ -1,0 +1,14 @@
+{
+  "about": "the account delete removes the account row alone and leaves the object's other tables",
+  "edits": [
+    {
+      "file": "src/do/entries.ts",
+      "find": "      if (last !== \"delete\") return last;\n      await host.deleteAll();\n",
+      "replace": "      if (last !== \"delete\") return last;\n      host.step((sql) => {\n        sql.exec(\"DELETE FROM account\");\n      });\n      host.setAlarm(null);\n"
+    }
+  ],
+  "line": [
+    "deleted-after-cancel=0",
+    "after the account delete of id 4 the object file that held its id still holds the tables"
+  ]
+}

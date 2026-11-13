@@ -328,6 +328,26 @@ pub const KEYS: &[(&str, &str)] = &[
         "You have as many agents as Halvo can hold, so it cannot add one for a new task.",
     ),
     ("tray.needs", "Agents that need you: {count}"),
+    ("item.link_account.origin", "Site of your account"),
+    (
+        "item.sign_in.bind",
+        "This agent will now work on {origin}. Allow this site only if you know it.",
+    ),
+    ("choice.sign_in.bind_decline", "Don't allow this site"),
+    ("choice.sign_in.bind_allow", "Allow this site"),
+    (
+        "item.setup.not_taken",
+        "Halvo could not use those answers, so choose them again.",
+    ),
+    ("run.effect.payment", "It made this payment."),
+    ("run.effect.purchase", "It placed this order."),
+    ("run.effect.send", "It sent this message."),
+    ("run.effect.delete", "It removed this."),
+    ("run.effect.submit", "It sent this form."),
+    ("run.effect.sign", "It signed this document."),
+    ("run.effect.local_edit", "It changed this file."),
+    ("field.local_edit.file", "File"),
+    ("field.local_edit.range", "Where in the file"),
 ];
 
 fn sentence(key: &str) -> Option<&'static str> {
