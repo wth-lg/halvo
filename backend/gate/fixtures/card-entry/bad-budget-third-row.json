@@ -1,0 +1,13 @@
+{
+  "about": "the prompt budget holds a third row that is not measured",
+  "edits": [
+    {
+      "file": "gate/prompt-budget.json",
+      "find": "      \"status\": \"not measured\"\n    },\n    {\n      \"id\": \"wallet-prompt\",",
+      "replace": "      \"status\": \"not measured\"\n    },\n    {\n      \"id\": \"link-prompt\",\n      \"label\": \"Link sign-in\",\n      \"where\": \"checkout page\",\n      \"class\": \"outside\",\n      \"source\": {\n        \"type\": \"unknown\"\n      },\n      \"status\": \"not measured\"\n    },\n    {\n      \"id\": \"wallet-prompt\","
+    }
+  ],
+  "line": [
+    "holds a row that is not measured beside the two: link-prompt"
+  ]
+}

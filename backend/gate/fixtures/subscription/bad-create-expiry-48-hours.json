@@ -1,0 +1,13 @@
+{
+  "about": "the adapter asks for a session that expires 48 hours after the call",
+  "edits": [
+    {
+      "file": "src/billing/stripe/adapter.ts",
+      "find": "          [\"expires_at\", String(Math.ceil(expiresAt / 1000))],\n",
+      "replace": "          [\"expires_at\", String(Math.ceil(expiresAt / 1000) + 172_800 - 1_860)],\n"
+    }
+  ],
+  "line": [
+    "the fake refused the create call of id 1 with status 400"
+  ]
+}

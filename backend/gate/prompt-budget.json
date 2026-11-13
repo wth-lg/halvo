@@ -1,0 +1,156 @@
+{
+  "about": "Written by sh spikes/s4/run.sh. One row for each action that the driver logged on the device-credential path with a US buyer, then the two rows that no check on this machine can observe. budget is the number of measured rows. expected is the count stated before the run (spikes/s4/RESULT.md, Stated before the second run). A row that is not measured carries no count and adds nothing to the budget.",
+  "path": "device credential, no sign-in step, US buyer",
+  "budget": 9,
+  "expected": 9,
+  "rows": [
+    {
+      "n": 1,
+      "action": "click",
+      "target": "subscribe",
+      "where": "app",
+      "class": "start",
+      "source": {
+        "type": "plan",
+        "ref": "plan.md, units S4 and 8.1: the one click, which sets the default cap and starts checkout"
+      },
+      "status": "measured"
+    },
+    {
+      "n": 2,
+      "action": "typed",
+      "target": "email",
+      "where": "checkout page",
+      "class": "outside",
+      "source": {
+        "type": "docs",
+        "rows": [
+          "r1#93",
+          "r5#27"
+        ]
+      },
+      "status": "measured"
+    },
+    {
+      "n": 3,
+      "action": "typed",
+      "target": "card-number",
+      "where": "checkout page",
+      "class": "card",
+      "source": {
+        "type": "docs",
+        "rows": [
+          "r5#107"
+        ]
+      },
+      "status": "measured"
+    },
+    {
+      "n": 4,
+      "action": "typed",
+      "target": "card-expiry",
+      "where": "checkout page",
+      "class": "card",
+      "source": {
+        "type": "docs",
+        "rows": [
+          "r5#107"
+        ]
+      },
+      "status": "measured"
+    },
+    {
+      "n": 5,
+      "action": "typed",
+      "target": "card-cvc",
+      "where": "checkout page",
+      "class": "card",
+      "source": {
+        "type": "docs",
+        "rows": [
+          "r5#107"
+        ]
+      },
+      "status": "measured"
+    },
+    {
+      "n": 6,
+      "action": "typed",
+      "target": "cardholder-name",
+      "where": "checkout page",
+      "class": "card",
+      "source": {
+        "type": "docs",
+        "rows": [
+          "r5#106",
+          "r5#20"
+        ]
+      },
+      "status": "measured"
+    },
+    {
+      "n": 7,
+      "action": "selection",
+      "target": "country",
+      "where": "checkout page",
+      "class": "card",
+      "source": {
+        "type": "docs",
+        "rows": [
+          "r5#106"
+        ]
+      },
+      "status": "measured"
+    },
+    {
+      "n": 8,
+      "action": "typed",
+      "target": "postal-code",
+      "where": "checkout page",
+      "class": "card",
+      "source": {
+        "type": "docs",
+        "rows": [
+          "r5#107",
+          "r5#76"
+        ]
+      },
+      "status": "measured"
+    },
+    {
+      "n": 9,
+      "action": "click",
+      "target": "pay",
+      "where": "checkout page",
+      "class": "card",
+      "source": {
+        "type": "unknown"
+      },
+      "status": "measured"
+    },
+    {
+      "id": "three-d-secure",
+      "label": "3-D Secure challenge",
+      "where": "checkout page",
+      "class": "card",
+      "source": {
+        "type": "unknown"
+      },
+      "status": "not measured"
+    },
+    {
+      "id": "wallet-prompt",
+      "label": "wallet prompt (Apple Pay or Google Pay in place of the card)",
+      "where": "browser",
+      "class": "card",
+      "source": {
+        "type": "docs",
+        "rows": [
+          "r5#104",
+          "r5#105"
+        ]
+      },
+      "status": "not measured"
+    }
+  ]
+}

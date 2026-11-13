@@ -1,0 +1,14 @@
+{
+  "about": "the signature check has no tolerance",
+  "edits": [
+    {
+      "file": "src/billing/stripe/signature.ts",
+      "find": "  if (Math.abs(Math.floor(now / 1000) - signed.timestamp) > SIGNATURE_TOLERANCE_SECONDS) return false;\n",
+      "replace": ""
+    }
+  ],
+  "line": [
+    "rejected=4 of 5",
+    "stale"
+  ]
+}

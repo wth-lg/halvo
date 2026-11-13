@@ -1,0 +1,1 @@
+FAIL cap: read-back=status-501 hold-open=unmeasured set-below=unmeasured settled=unmeasured refused-before-roll=unmeasured roll=unmeasured admitted-after-roll=unmeasured; first failure: GET /v1/cap after the seed answered 501 with ""

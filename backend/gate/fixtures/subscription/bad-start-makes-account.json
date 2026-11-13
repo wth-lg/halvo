@@ -1,0 +1,13 @@
+{
+  "about": "checkout start creates the account",
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "    keepPending(sql, p) {\n      if (accountRow(sql) !== null || pendingRow(sql) !== null) return broken();",
+      "replace": "    keepPending(sql, p) {\n      if (accountRow(sql) !== null || pendingRow(sql) !== null) return broken();\n      sql.exec(\"INSERT INTO account (account_id, credential_hash, state, customer_id, subscription_id, period_start, period_end, provider_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)\", p.accountId, p.credentialHash, \"active\", null, null, null, null, null);"
+    }
+  ],
+  "line": [
+    "accounts-before-payment=1"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "expect": { "problems": [], "lines": ["PASS licenses: packages=4 exceptions=1 bundled=2 cached=3"], "exit": 0 },
+  "packages": [
+    { "id": "plain@1.0.0", "license": "MIT", "cached": true },
+    { "id": "choice@1.0.0", "license": "MIT OR GPL-3.0-only", "cached": true },
+    { "id": "@scope/both@2.1.0", "license": "(Apache-2.0 AND ISC)" },
+    { "id": "native-linux-x64@1.0.0", "license": "LGPL-3.0-or-later", "cached": true }
+  ],
+  "bundled": ["plain@1.0.0", "choice@1.0.0"],
+  "exceptions": [
+    { "package": "native-*", "license": "LGPL-3.0-or-later", "reason": "Test tooling only, never bundled." }
+  ]
+}

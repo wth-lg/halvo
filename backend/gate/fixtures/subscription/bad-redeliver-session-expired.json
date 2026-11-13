@@ -1,0 +1,14 @@
+{
+  "about": "checkout.session.expired is reduced to a subscription event under a new id and the receipt clock",
+  "edits": [
+    {
+      "file": "src/billing/stripe/reduce.ts",
+      "find": "  return { kind: \"ignored\" };\n}",
+      "replace": "  if (type === \"checkout.session.expired\") {\n    const accountId = accountIdOf(object.client_reference_id);\n    const subscriptionId = \"sub_expired\";\n    const customerId = \"cus_expired\";\n    if (accountId !== null && subscriptionId !== null && customerId !== null) {\n      return { kind: \"subscription\", eventId: `${eventId}:${Date.now()}`, providerTime: Date.now(), accountId, subscriptionId, customerId, state: \"cancelled\", period: null };\n    }\n  }\n  return { kind: \"ignored\" };\n}"
+    }
+  ],
+  "line": [
+    "redelivered=7 of 8",
+    "a second delivery of checkout.session.expired"
+  ]
+}

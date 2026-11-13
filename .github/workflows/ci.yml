@@ -84,6 +84,11 @@ jobs:
         run: rustup component add clippy rustfmt
       - name: ci.d self-test
         shell: bash
+        env:
+          GIT_AUTHOR_NAME: Halvo CI
+          GIT_AUTHOR_EMAIL: ci@halvo.invalid
+          GIT_COMMITTER_NAME: Halvo CI
+          GIT_COMMITTER_EMAIL: ci@halvo.invalid
         run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: ci.d
         shell: bash
@@ -130,6 +135,11 @@ jobs:
         run: rustup component add clippy rustfmt
       - name: ci.d self-test
         shell: bash
+        env:
+          GIT_AUTHOR_NAME: Halvo CI
+          GIT_AUTHOR_EMAIL: ci@halvo.invalid
+          GIT_COMMITTER_NAME: Halvo CI
+          GIT_COMMITTER_EMAIL: ci@halvo.invalid
         run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: ci.d
         shell: bash

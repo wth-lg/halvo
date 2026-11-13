@@ -1,0 +1,24 @@
+import { DurableObject } from "cloudflare:workers";
+
+export class Probe extends DurableObject {
+  async fetch() {
+    this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS probe_own (a INTEGER)");
+    await this.ctx.storage.put("probe-key", "probe-value");
+    await this.ctx.storage.setAlarm(Date.now() + 3600000);
+    const sql = this.ctx.storage.sql;
+    const tables = sql.exec("SELECT name, sql FROM sqlite_master WHERE type = 'table'").toArray();
+    const named = tables.some((row) => row.name === "__miniflare_do_name");
+    const rows = named ? sql.exec("SELECT * FROM __miniflare_do_name").toArray() : [];
+    const columns = named ? sql.exec("SELECT * FROM __miniflare_do_name").columnNames : [];
+    return Response.json({ names: tables.map((row) => row.name), columns, rows });
+  }
+
+  async alarm() {}
+}
+
+export default {
+  async fetch(request, env) {
+    if (new URL(request.url).pathname !== "/names") return new Response("ready");
+    return env.PROBE.get(env.PROBE.idFromName("one")).fetch(request);
+  },
+};

@@ -1,0 +1,92 @@
+{
+ "constants": {
+  "logEventTypes": {
+   "SOCKET_ALIVE": 1,
+   "HOST_RESOLVER_MANAGER_IPV6_REACHABILITY_CHECK": 2,
+   "SOCKET_CONNECT": 3,
+   "UDP_CONNECT": 4
+  },
+  "logSourceType": {
+   "MAKER": 1,
+   "UDP_CLIENT_SOCKET": 2,
+   "UDP_SOCKET": 3
+  }
+ },
+ "events": [
+  {
+   "source": {
+    "id": 1,
+    "type": 1
+   },
+   "type": 2,
+   "phase": 0,
+   "params": {
+    "cached": false,
+    "ipv6_available": false
+   }
+  },
+  {
+   "source": {
+    "id": 2,
+    "type": 2
+   },
+   "type": 1,
+   "phase": 1,
+   "params": {
+    "source_dependency": {
+     "id": 1,
+     "type": 1
+    }
+   }
+  },
+  {
+   "source": {
+    "id": 2,
+    "type": 2
+   },
+   "type": 3,
+   "phase": 0,
+   "params": {
+    "address": "[2001:4860:4860::8888]:443",
+    "net_error": -10
+   }
+  },
+  {
+   "source": {
+    "id": 3,
+    "type": 3
+   },
+   "type": 1,
+   "phase": 1,
+   "params": {
+    "source_dependency": {
+     "id": 2,
+     "type": 2
+    }
+   }
+  },
+  {
+   "source": {
+    "id": 3,
+    "type": 3
+   },
+   "type": 4,
+   "phase": 1,
+   "params": {
+    "address": "[2001:4860:4860::8888]:443"
+   }
+  },
+  {
+   "source": {
+    "id": 3,
+    "type": 3
+   },
+   "type": 4,
+   "phase": 2,
+   "params": {
+    "net_error": -10
+   }
+  }
+ ],
+ "polledData": {}
+}

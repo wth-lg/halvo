@@ -1,0 +1,27 @@
+[
+  {
+    "package": "@img/sharp-libvips-*",
+    "license": "LGPL-3.0-or-later",
+    "reason": "The prebuilt libvips that sharp loads. miniflare, the local Worker simulator, depends on sharp. Test tooling only: it runs beside the Worker and is never bundled into it."
+  },
+  {
+    "package": "@img/sharp-win32-*",
+    "license": "Apache-2.0 AND LGPL-3.0-or-later",
+    "reason": "sharp's Windows builds, which carry libvips inside the package. Brought by miniflare. Test tooling only, never bundled."
+  },
+  {
+    "package": "@img/sharp-wasm32",
+    "license": "Apache-2.0 AND LGPL-3.0-or-later AND MIT",
+    "reason": "sharp's WebAssembly build, which carries libvips inside the package. Brought by miniflare. Test tooling only, never bundled."
+  },
+  {
+    "package": "lightningcss",
+    "license": "MPL-2.0",
+    "reason": "The CSS transformer that vite depends on; vitest runs on vite. Test tooling only, never bundled."
+  },
+  {
+    "package": "lightningcss-*",
+    "license": "MPL-2.0",
+    "reason": "The native builds of lightningcss, one per platform. Brought by vite. Test tooling only, never bundled."
+  }
+]

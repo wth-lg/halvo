@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": { "allowImportingTsExtensions": true, "resolveJsonModule": true },
+  "include": ["src", "test", "env.d.ts", "vitest.config.ts"]
+}

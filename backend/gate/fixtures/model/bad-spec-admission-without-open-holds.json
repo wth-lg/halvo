@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "file": "../formal/r7-ledger/CapLedger.tla",
+      "find": "counted == row.reported + row.unreported + row.open",
+      "replace": "counted == row.reported + row.unreported"
+    }
+  ],
+  "line": ["FAIL model: ", "violated=StepA", "first failure: TLC reports that (a) is violated at the bounds of formal/r7-ledger/CapLedger.cfg"]
+}

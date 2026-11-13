@@ -1,0 +1,1 @@
+FAIL schema: seed=20261109 unmodified=unmeasured validator=unmeasured forbidden=unmeasured arbitrary=unmeasured query=unmeasured raw=unmeasured 5xx=unmeasured handler-calls=unmeasured sentinel=unmeasured; first failure: src/app.ts does not load (Error)

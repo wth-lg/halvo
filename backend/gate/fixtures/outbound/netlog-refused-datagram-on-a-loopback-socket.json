@@ -1,0 +1,44 @@
+{
+ "constants": {
+  "logEventTypes": {
+   "SOCKET_ALIVE": 1,
+   "HOST_RESOLVER_MANAGER_IPV6_REACHABILITY_CHECK": 2,
+   "SOCKET_CONNECT": 3,
+   "UDP_CONNECT": 4,
+   "UDP_BYTES_SENT": 5,
+   "UDP_SEND_ERROR": 6,
+   "UDP_LOCAL_ADDRESS": 7,
+   "HOST_RESOLVER_MANAGER_REQUEST": 8
+  },
+  "logSourceType": {
+   "MAKER": 1,
+   "UDP_CLIENT_SOCKET": 2,
+   "UDP_SOCKET": 3
+  }
+ },
+ "events": [
+  {
+   "source": {
+    "id": 7,
+    "type": 3
+   },
+   "type": 7,
+   "phase": 0,
+   "params": {
+    "address": "127.0.0.1:5000"
+   }
+  },
+  {
+   "source": {
+    "id": 7,
+    "type": 3
+   },
+   "type": 6,
+   "phase": 0,
+   "params": {
+    "net_error": -10
+   }
+  }
+ ],
+ "polledData": {}
+}

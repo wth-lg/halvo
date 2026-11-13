@@ -11,6 +11,26 @@ use serde_json::Value;
 
 const TRACKED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../ui/tests/fixtures/coord");
 
+/// A committed payment with the four kept fields of its class (A-A9.3), as the fixture of the
+/// state `card` holds it.
+fn payment() -> PastEffect {
+    let kept = |name: &str, value: &str| Kept {
+        name: Name::parse(name).unwrap(),
+        value: vec![value.into()],
+    };
+    PastEffect {
+        class: Class::Payment,
+        state: EffectState::Committed,
+        cause: None,
+        kept: vec![
+            kept("payee", "City Power"),
+            kept("amount", "42.10 USD"),
+            kept("instrument", "Card ending 4242"),
+            kept("origin", "https://site1.example:443"),
+        ],
+    }
+}
+
 fn history(n: u32, outcome: Outcome) -> RunHistory {
     RunHistory {
         run: PastRun {
@@ -19,15 +39,7 @@ fn history(n: u32, outcome: Outcome) -> RunHistory {
             outcome,
             unknown: 0,
         },
-        effects: vec![PastEffect {
-            class: Class::Payment,
-            state: EffectState::Committed,
-            cause: None,
-            kept: vec![Kept {
-                name: Name::parse("payee").unwrap(),
-                value: vec!["City Power".into()],
-            }],
-        }],
+        effects: vec![payment()],
     }
 }
 
@@ -64,7 +76,11 @@ fn the_card_of_the_fixture_is_its_lines_and_the_runs_that_agent_history_gives() 
             agent.clone(),
             RunHistory {
                 run: past.clone(),
-                effects: vec![],
+                effects: if past.outcome == Outcome::Completed {
+                    vec![payment()]
+                } else {
+                    vec![]
+                },
             },
         ));
     }
@@ -155,5 +171,26 @@ fn an_owner_that_does_not_read_agent_history_answers_no_service() {
     assert_eq!(
         Silent.agent_history(&workflow, &agent, 5),
         Err(PortError::NoService)
+    );
+}
+
+#[test]
+fn a_card_run_shows_its_committed_effects_alone_in_the_order_of_the_reply() {
+    let f = facts(State::Card).remove(0);
+    let mut h = history(1, Outcome::Completed);
+    let mut refused = payment();
+    refused.state = EffectState::Refused;
+    h.effects = vec![refused, payment(), payment()];
+    let c = card(&f.agent, &f.config, "N", &[h], &Limits::PRODUCT).unwrap();
+    let effects = serde_json::to_value(&c.runs[0].effects).unwrap();
+    assert_eq!(effects.as_array().map(Vec::len), Some(2), "{effects}");
+    assert_eq!(effects[0]["key"], "run.effect.payment");
+    let mut bad = payment();
+    bad.kept.pop();
+    let mut h = history(2, Outcome::Completed);
+    h.effects = vec![bad];
+    assert_eq!(
+        card(&f.agent, &f.config, "N", &[h], &Limits::PRODUCT),
+        Err(halvo_coord::types::Cause::Malformed)
     );
 }

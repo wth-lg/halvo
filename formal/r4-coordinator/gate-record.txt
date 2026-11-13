@@ -1,0 +1,82 @@
+gate record of formal/r4-coordinator: sh scripts/r4/ci.d/30-r4-formal.sh --record
+stamp=be20dc54fe83a5138359255c281237be0f9c91da148e33fe840bead5f57ccc6f
+script=8292ac6a69505402f3cf07df5e4f03c570af9700783083d8903f5e31e778b6e5
+selftest fixture=good mode=good as-expected=yes
+selftest fixture=not-compared mode=reads-input as-expected=yes
+selftest rule=scratch held=yes
+selftest rule=jar held=yes
+selftest rule=deadlock held=yes
+selftest rule=configurations held=yes
+selftest rule=removed-after-a-pass held=yes
+selftest fixture=good mode=good as-expected=yes
+selftest fixture=good mode=fetch as-expected=yes
+selftest rule=download held=yes
+selftest fixture=good mode=other-bytes as-expected=yes
+selftest fixture=good mode=java-old as-expected=yes
+selftest fixture=line-beside-its-copy mode=good as-expected=yes
+selftest fixture=unnamed-configuration mode=good as-expected=yes
+selftest fixture=days-not-for-ci mode=good as-expected=yes
+selftest fixture=invariant-twice mode=good as-expected=yes
+selftest fixture=replaced-invariant mode=good as-expected=yes
+selftest fixture=comment-mark mode=good as-expected=yes
+selftest fixture=good mode=violated as-expected=yes
+selftest fixture=good mode=status as-expected=yes
+selftest fixture=good mode=distinct as-expected=yes
+selftest fixture=good mode=unfinished as-expected=yes
+selftest fixture=two-stamps-traces-schedule.jsonl mode=good as-expected=yes
+selftest fixture=other-models mode=good as-expected=yes
+selftest fixture=line-added-traces-schedule.jsonl mode=good as-expected=yes
+selftest fixture=module-outside mode=good as-expected=yes
+selftest fixture=no-job-named mode=good as-expected=yes
+selftest fixture=record-missing mode=good as-expected=yes
+selftest fixture=record-no-stamp mode=good as-expected=yes
+selftest fixture=record-one-digit mode=good as-expected=yes
+selftest fixture=record-other-script mode=good as-expected=yes
+selftest fixture=record-cut mode=good as-expected=yes
+selftest fixture=changed-line-no-job mode=good as-expected=yes
+selftest fixture=not-compared mode=control-holds as-expected=yes
+selftest fixture=control-moved mode=good as-expected=yes
+selftest rule=removed-after-a-failure held=yes
+selftest fixture=not-compared mode=good as-expected=yes
+selftest fixture=not-compared mode=reads-input as-expected=yes
+selftest fixture=not-compared mode=relative as-expected=yes
+selftest fixture=good mode=no-file as-expected=yes
+selftest fixture=good mode=other-size as-expected=yes
+selftest fixture=good mode=java-unreadable as-expected=yes
+selftest fixture=good mode=silent as-expected=yes
+selftest fixture=good mode=killed as-expected=yes
+selftest fixture=good mode=violated as-expected=yes
+selftest fixture=good mode=violated-status as-expected=yes
+selftest fixture=good mode=violated-status as-expected=yes
+selftest fixture=not-compared mode=control-other as-expected=yes
+selftest fixture=not-compared mode=control-status as-expected=yes
+selftest fixture=not-compared mode=control-one as-expected=yes
+selftest fixture=line-deleted mode=good as-expected=yes
+selftest fixture=apart-not-for-ci mode=good as-expected=yes
+selftest fixture=two-spaces mode=violated-apart as-expected=yes
+selftest fixture=name-with-a-dash mode=good as-expected=yes
+selftest fixture=empty-count mode=good as-expected=yes
+selftest fixture=line-cut-short mode=good as-expected=yes
+selftest fixture=renamed-invariant mode=good as-expected=yes
+selftest fixture=extra-invariant mode=good as-expected=yes
+selftest fixture=comment-in-configuration mode=good as-expected=yes
+selftest fixture=full-without-an-invariant mode=good as-expected=yes
+selftest fixture=no-schedule-for-ci mode=good as-expected=yes
+selftest fixture=no-confirm-for-ci mode=good as-expected=yes
+selftest fixture=unknown-job mode=good as-expected=yes
+selftest fixture=no-jobs-line mode=good as-expected=yes
+selftest fixture=line-added-traces-confirm.jsonl mode=good as-expected=yes
+selftest fixture=two-stamps-traces-confirm.jsonl mode=good as-expected=yes
+selftest fixture=line-removed-traces-schedule.jsonl mode=good as-expected=yes
+selftest fixture=changed-line-traces-schedule.jsonl mode=good as-expected=yes
+selftest fixture=line-removed-traces-confirm.jsonl mode=good as-expected=yes
+selftest fixture=changed-line-traces-confirm.jsonl mode=good as-expected=yes
+selftest fixture=other-Schedule-holds.cfg mode=good as-expected=yes
+selftest fixture=other-Schedule-left.cfg mode=good as-expected=yes
+selftest fixture=other-Schedule-reap.cfg mode=good as-expected=yes
+selftest fixture=control-twice mode=good as-expected=yes
+selftest fixture=good mode=signal as-expected=yes
+selftest rule=removed-after-a-signal held=yes
+selftest control=C1 rejected=yes
+selftest control=L5 rejected=yes
+results=78

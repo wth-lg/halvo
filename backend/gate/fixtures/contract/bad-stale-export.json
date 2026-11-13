@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "file": "src/contract/schemas.ts",
+      "find": "export const URL_MAX_LENGTH = 2048;",
+      "replace": "export const URL_MAX_LENGTH = 2049;"
+    }
+  ],
+  "line": "export=differs"
+}

@@ -1,0 +1,11 @@
+{
+  "edits": [
+    {
+      "file": "src/ledger/ledger.ts",
+      "find": "\"SELECT CAST(COALESCE(SUM(CASE WHEN state = ? THEN cost END), 0) AS TEXT) AS reported,",
+      "replace": "\"SELECT CAST(COALESCE(SUM(CASE WHEN state = ? THEN amount END), 0) AS TEXT) AS reported,"
+    }
+  ],
+  "only": "replay",
+  "line": ["FAIL model: ", "first failure: the object does not follow the model: trace ", "intervalTotals.reported: the model has "]
+}

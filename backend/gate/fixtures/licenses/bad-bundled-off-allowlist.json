@@ -1,0 +1,11 @@
+{
+  "expect": "the bundled package native@1.0.0 has the license LGPL-3.0-or-later, which is not on the allowlist",
+  "packages": [
+    { "id": "plain@1.0.0", "license": "MIT" },
+    { "id": "native@1.0.0", "license": "LGPL-3.0-or-later" }
+  ],
+  "bundled": ["native@1.0.0"],
+  "exceptions": [
+    { "package": "native", "license": "LGPL-3.0-or-later", "reason": "Allowed as test tooling, so it must not be bundled." }
+  ]
+}

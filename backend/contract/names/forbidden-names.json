@@ -1,0 +1,220 @@
+{
+  "version": 0,
+  "names": [
+    {
+      "name": "agent_id",
+      "sources": [
+        "kickoff:plan.md:148",
+        "kickoff:plan.md:149"
+      ]
+    },
+    {
+      "name": "audio",
+      "sources": [
+        "kickoff:plan.md:170"
+      ]
+    },
+    {
+      "name": "autonomy_mode",
+      "sources": [
+        "kickoff:plan.md:149"
+      ]
+    },
+    {
+      "name": "budget_cap",
+      "sources": [
+        "kickoff:plan.md:149"
+      ]
+    },
+    {
+      "name": "camera",
+      "sources": [
+        "app@685d846:crates/halvo-capture/src/event.rs:25"
+      ]
+    },
+    {
+      "name": "captured_at",
+      "sources": [
+        "kickoff:plan.md:147"
+      ]
+    },
+    {
+      "name": "confidence",
+      "sources": [
+        "kickoff:plan.md:148"
+      ]
+    },
+    {
+      "name": "embedding",
+      "sources": [
+        "kickoff:plan.md:170"
+      ]
+    },
+    {
+      "name": "event_id",
+      "sources": [
+        "kickoff:plan.md:147"
+      ]
+    },
+    {
+      "name": "foreground_app",
+      "sources": [
+        "app@685d846:crates/halvo-capture/src/event.rs:21",
+        "kickoff:plan.md:147"
+      ]
+    },
+    {
+      "name": "image",
+      "sources": [
+        "kickoff:plan.md:170"
+      ]
+    },
+    {
+      "name": "is_derived",
+      "sources": [
+        "kickoff:plan.md:147"
+      ]
+    },
+    {
+      "name": "keystroke",
+      "sources": [
+        "app@685d846:crates/halvo-capture/src/event.rs:19",
+        "kickoff:plan.md:170"
+      ]
+    },
+    {
+      "name": "label",
+      "sources": [
+        "kickoff:plan.md:148"
+      ]
+    },
+    {
+      "name": "microphone",
+      "sources": [
+        "app@685d846:crates/halvo-capture/src/event.rs:24"
+      ]
+    },
+    {
+      "name": "modality",
+      "sources": [
+        "kickoff:plan.md:147"
+      ]
+    },
+    {
+      "name": "model_tier",
+      "sources": [
+        "kickoff:plan.md:149"
+      ]
+    },
+    {
+      "name": "playbook_ref",
+      "sources": [
+        "kickoff:plan.md:149"
+      ]
+    },
+    {
+      "name": "pointer",
+      "sources": [
+        "app@685d846:crates/halvo-capture/src/event.rs:20",
+        "kickoff:plan.md:170"
+      ]
+    },
+    {
+      "name": "reasoning_level",
+      "sources": [
+        "kickoff:plan.md:149"
+      ]
+    },
+    {
+      "name": "recurrence",
+      "sources": [
+        "kickoff:plan.md:148"
+      ]
+    },
+    {
+      "name": "required_permissions",
+      "sources": [
+        "kickoff:plan.md:149"
+      ]
+    },
+    {
+      "name": "retention_class",
+      "sources": [
+        "kickoff:plan.md:147"
+      ]
+    },
+    {
+      "name": "screen",
+      "sources": [
+        "kickoff:plan.md:170"
+      ]
+    },
+    {
+      "name": "screen_frame",
+      "sources": [
+        "app@685d846:crates/halvo-capture/src/event.rs:18"
+      ]
+    },
+    {
+      "name": "segment_key_id",
+      "sources": [
+        "kickoff:plan.md:147"
+      ]
+    },
+    {
+      "name": "segment_ref",
+      "sources": [
+        "kickoff:plan.md:147"
+      ]
+    },
+    {
+      "name": "state",
+      "sources": [
+        "kickoff:plan.md:148"
+      ]
+    },
+    {
+      "name": "state_version",
+      "sources": [
+        "kickoff:plan.md:149"
+      ]
+    },
+    {
+      "name": "steps",
+      "sources": [
+        "kickoff:plan.md:148"
+      ]
+    },
+    {
+      "name": "system_audio",
+      "sources": [
+        "app@685d846:crates/halvo-capture/src/event.rs:23"
+      ]
+    },
+    {
+      "name": "transcript",
+      "sources": [
+        "kickoff:plan.md:170"
+      ]
+    },
+    {
+      "name": "trigger",
+      "sources": [
+        "kickoff:plan.md:148"
+      ]
+    },
+    {
+      "name": "window_title",
+      "sources": [
+        "app@685d846:crates/halvo-capture/src/event.rs:22"
+      ]
+    },
+    {
+      "name": "workflow_id",
+      "sources": [
+        "kickoff:plan.md:148",
+        "kickoff:plan.md:149"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+[package]
+name = "halvo-learn"
+version = "0.0.0"
+description = "Halvo learning: the rule of admission and rollback of a learned edit, and the routine step"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+serde_json = "1.0.154"

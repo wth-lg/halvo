@@ -1,0 +1,8 @@
+import { SELF } from "cloudflare:test";
+import { expect, test } from "vitest";
+
+test("the workerd project serves the Worker", async () => {
+  const response = await SELF.fetch("http://probe.test/");
+  expect(await response.text()).toBe("workerd");
+  expect(typeof navigator === "object" && navigator.userAgent).toBe("Cloudflare-Workers");
+});

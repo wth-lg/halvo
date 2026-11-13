@@ -1,0 +1,7 @@
+{
+  "expect": "neither on the allowlist nor in the exceptions",
+  "packages": [
+    { "id": "plain@1.0.0", "license": "MIT" },
+    { "id": "copyleft@1.0.0", "license": "GPL-3.0-only" }
+  ]
+}

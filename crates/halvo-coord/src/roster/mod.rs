@@ -5,8 +5,8 @@
 use crate::items::ConfirmState;
 use crate::schedule::{holds, next_slot, Hold};
 use crate::types::{
-    AgentId, Card, CardLine, CardRun, Cause, ConfigView, Control, ControlText, Doing, Facts,
-    FullWorkflow, ItemKind, Limits, LineKey, LivePhase, Permission, Row, RunEnd, RunHistory,
+    AgentId, Card, CardEffect, CardLine, CardRun, Cause, ConfigView, Control, ControlText, Doing,
+    Facts, FullWorkflow, ItemKind, Limits, LineKey, LivePhase, Permission, Row, RunEnd, RunHistory,
     Runtime, StatusLine, Tier, What,
 };
 use crate::words;
@@ -251,8 +251,10 @@ pub fn order(rows: &mut [Placed]) {
 }
 
 /// The card of an agent (I2.6): its settings lines and the first `history_runs` runs of
-/// `history`, which `Owner::agent_history` gives newest first, each with its day and the
-/// sentence of `line.run.<end>`.
+/// `history`, which `Owner::agent_history` gives newest first, each with its day, the sentence
+/// of `line.run.<end>` and one entry for each of its committed effects in the order of the
+/// reply, by `CardEffect::committed` (ruling H-8, filled at this unit's join with U3.2, ruling
+/// RD-28 (k)); a committed effect whose kept fields are not those of its class is `malformed`.
 pub fn card<C: ConfigView>(
     agent: &AgentId,
     config: &C,
@@ -269,9 +271,16 @@ pub fn card<C: ConfigView>(
             .take(limits.history_runs as usize)
             .map(|h| {
                 let end = RunEnd::from(h.run.outcome);
+                let effects = h
+                    .effects
+                    .iter()
+                    .filter(|e| e.state == crate::guard::EffectState::Committed)
+                    .map(|e| CardEffect::committed(e.class, &e.kept))
+                    .collect::<Result<_, _>>()?;
                 text(&format!("line.run.{}", end.name()), &[]).map(|text| CardRun {
                     day: words::day(h.run.day),
                     text,
+                    effects,
                 })
             })
             .collect::<Result<_, _>>()?,

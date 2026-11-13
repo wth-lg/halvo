@@ -1,0 +1,12 @@
+[
+  {
+    "package": "native",
+    "license": "LGPL-3.0-or-later",
+    "reason": "Excepted as test tooling, and this fixture bundles it all the same."
+  },
+  {
+    "package": "other-os",
+    "license": "LGPL-3.0-or-later",
+    "reason": "Not installed on this platform, so its license comes from the cache."
+  }
+]

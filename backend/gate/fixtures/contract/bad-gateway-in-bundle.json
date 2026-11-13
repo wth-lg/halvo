@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "file": "src/index.ts",
+      "find": "import app from \"./app.ts\";",
+      "replace": "import \"./gateway/test-clock.ts\";\nimport app from \"./app.ts\";"
+    }
+  ],
+  "line": "bundle=src/gateway/test-clock.ts"
+}

@@ -1,0 +1,36 @@
+[
+  {
+    "choice": {
+      "type": "count",
+      "count": 3
+    },
+    "note": null,
+    "items": [
+      {
+        "sku": "x"
+      },
+      {
+        "sku": "y"
+      }
+    ]
+  },
+  {
+    "choice": {
+      "type": "unit",
+      "unit": "week"
+    },
+    "note": "a",
+    "items": []
+  },
+  {
+    "choice": {
+      "type": "none"
+    },
+    "note": "b",
+    "items": [
+      {
+        "sku": "y"
+      }
+    ]
+  }
+]

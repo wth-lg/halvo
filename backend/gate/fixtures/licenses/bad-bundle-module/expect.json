@@ -1,0 +1,10 @@
+{
+  "problems": [
+    "the bundle carries modules that the metafile does not list (c68331d7e446495cd5e68246a0c93beeee09a9c2-note.txt); extend this check before shipping them"
+  ],
+  "lines": [
+    "  the bundle carries modules that the metafile does not list (c68331d7e446495cd5e68246a0c93beeee09a9c2-note.txt); extend this check before shipping them",
+    "FAIL licenses: 1 problems; first: the bundle carries modules that the metafile does not list (c68331d7e446495cd5e68246a0c93beeee09a9c2-note.txt); extend this check before shipping them"
+  ],
+  "exit": 1
+}

@@ -1,0 +1,14 @@
+{
+  "about": "the signature check takes any well-formed v1 value without comparing it",
+  "edits": [
+    {
+      "file": "src/billing/stripe/signature.ts",
+      "find": "    if (await crypto.subtle.verify(\"HMAC\", key, bytesOfHex(signature), message)) return true;",
+      "replace": "    if (signature.length === 64 && key !== null) return true;"
+    }
+  ],
+  "line": [
+    "rejected=2 of 5",
+    "tampered"
+  ]
+}

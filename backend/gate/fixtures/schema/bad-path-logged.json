@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "file": "src/app.ts",
+      "find": "if (onPath.length === 0) return rejected(404, \"none\");",
+      "replace": "if (onPath.length === 0) {\n      log({ event: \"rejected\", route: \"none\", error: url.pathname });\n      return rejected(404, \"none\");\n    }"
+    }
+  ],
+  "line": "first failure: the sentinel token is 6: 0 responses and 6 lines hold"
+}

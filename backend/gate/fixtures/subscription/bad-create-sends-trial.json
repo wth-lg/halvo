@@ -1,0 +1,15 @@
+{
+  "about": "the adapter asks for a trial of 14 days in the create call",
+  "edits": [
+    {
+      "file": "src/billing/stripe/adapter.ts",
+      "find": "          [\"allowed_payment_method_types[0]\", \"card\"],\n",
+      "replace": "          [\"allowed_payment_method_types[0]\", \"card\"],\n          [\"subscription_data[trial_period_days]\", \"14\"],\n"
+    }
+  ],
+  "line": [
+    "the create call of id 1 sent the names",
+    "subscription_data[trial_period_days]",
+    "the fake answered 400"
+  ]
+}
