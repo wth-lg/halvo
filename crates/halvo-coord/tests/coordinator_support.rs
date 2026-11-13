@@ -33,6 +33,8 @@ pub struct Both {
     pub panics: Cell<Option<&'static str>>,
     pub loss: Cell<Option<Loss>>,
     pub lost: std::cell::RefCell<Vec<Event>>,
+    /// Whether the next `history` fails, after a `log` of the form `Loss::Unread`.
+    pub unread: Cell<bool>,
     /// Each `Runs::answer_bind`: its run, its answer, whether it did its work, and how many
     /// events the owner held at the call.
     pub binds_at: std::cell::RefCell<Vec<(RunId, BindResult, bool, usize)>>,
@@ -45,10 +47,15 @@ pub struct Both {
 /// the reply is lost, so that the coordinator's read right after the call brings them; or the
 /// call is refused and the rows land in the owner's events after the move (`lost`), so that the
 /// coordinator learns of them through a later refusal `seq`.
+/// Two more forms: `Unread`, the rows stored and the reply lost as `Reply`, with the next read of
+/// the owner's events failing too; and `Nothing`, the call answering `no_service` with nothing
+/// stored, as a refusal whose reply was lost.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Loss {
     Reply,
     Later,
+    Unread,
+    Nothing,
 }
 
 impl Both {
@@ -97,11 +104,20 @@ impl Owner for Both {
                 self.lost.borrow_mut().extend(events.iter().cloned());
                 Err(PortError::NoService)
             }
+            Some(Loss::Unread) => {
+                self.ports.log(events)?;
+                self.unread.set(true);
+                Err(PortError::NoService)
+            }
+            Some(Loss::Nothing) => Err(PortError::NoService),
             None => self.ports.log(events),
         }
     }
 
     fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+        if self.unread.take() {
+            return Err(PortError::NoService);
+        }
         self.ports.history(agent, after)
     }
 
@@ -264,6 +280,7 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
         panics: Cell::new(None),
         loss: Cell::new(None),
         lost: std::cell::RefCell::new(Vec::new()),
+        unread: Cell::new(false),
         binds_at: std::cell::RefCell::new(Vec::new()),
         handbacks_at: std::cell::RefCell::new(Vec::new()),
     }

@@ -1036,9 +1036,10 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
         ),
         Err(Cause::NoService)
     );
+    let calls: Vec<Call> = q.calls.borrow().iter().map(|c| c.call.clone()).collect();
     assert!(
-        q.calls.borrow().is_empty(),
-        "no acknowledgement, no answer to the runner"
+        matches!(&calls[..], [Call::History(..)]),
+        "no acknowledgement, one read and no answer to the runner (ruling RD-52 (c)): {calls:?}"
     );
     let e = ports();
     let mut l = ledger();

@@ -526,19 +526,24 @@ impl Press<'_> {
     }
 }
 
-/// Logs the row of a press, with the rows that wait sent first (ruling RD-61 (c)): one log, and
-/// after a refusal `seq` one read, after which `Press::decide` decides by the newest closing
-/// row, a `Log` there sending the row once more. At an acknowledgement the row is the item's
-/// newest and the press's own. Any other failure, and a second refusal, is the error.
+/// Logs the row of a press (rulings RD-61 (c), RD-52 (c)): one log, and after its failure one
+/// read by `read`, which takes the owner's events into the ledger and says whether it answered.
+/// `Press::decide` then decides by the newest closing row that the read shows: the press's own
+/// row counts as its store, and another row decides. Where it gives `Log`, the row goes once more
+/// after a refusal `seq`, and after any other failure only where the read showed the older `done`
+/// that a declining press follows (RD-61 (f)); where the read showed no closing row of the item
+/// the press's row is not known stored. At an acknowledgement the row is the item's newest and
+/// the press's own. A read that failed, and a failure after the read, is the error.
 fn log_press<P: Owner>(
     ports: &P,
     ledger: &mut Ledger,
     press: &Press<'_>,
     row: &What,
     stamp: Stamp,
+    read: &mut dyn FnMut(&mut Ledger) -> bool,
 ) -> Result<Decided, PortError> {
     let mut events = ledger.number(vec![row.clone()], stamp);
-    let mut resynced = false;
+    let mut once = false;
     loop {
         match ports.log(&events) {
             Ok(()) => {
@@ -546,15 +551,20 @@ fn log_press<P: Owner>(
                 ledger.kept(&events);
                 return Ok(Decided::Own(press.result));
             }
-            Err(e) if refused_with(&e, "seq") && !resynced => {
-                resync(ports, ledger)?;
-                resynced = true;
-                match press.decide(ledger.closing(press.item).map(|e| &e.what)) {
-                    Decided::Log => events = ledger.number(vec![row.clone()], stamp),
+            Err(e) => {
+                if once || !read(ledger) {
+                    return Err(e);
+                }
+                once = true;
+                let newest = ledger.closing(press.item).map(|e| &e.what);
+                match press.decide(newest) {
+                    Decided::Log if refused_with(&e, "seq") || newest.is_some() => {
+                        events = ledger.number(vec![row.clone()], stamp);
+                    }
+                    Decided::Log => return Err(e),
                     decided => return Ok(decided),
                 }
             }
-            Err(e) => return Err(e),
         }
     }
 }
@@ -988,9 +998,12 @@ pub fn answer_from_check<P: Runs>(
 /// `done` that a declining press of an account link follows, the decline goes as a row of its
 /// own (ruling RD-46 B4). A row that for a `link_account` item holds the request's whole origin
 /// (I7.1, ruling IG-14) goes to the run only once it is the newest row by the owner's
-/// acknowledgement or by that read. With no acknowledgement the answer is the store's cause, the
-/// run gets nothing and the item's next press logs its own row first; a run that ended (`ended`)
-/// takes nothing back.
+/// acknowledgement or by that read. A log that fails with no acknowledgement reads the owner's
+/// events once too, and the read decides as after a refusal `seq`, so that a read that shows the
+/// press's own row counts as its store and the run gets the answer in this move (ruling RD-52
+/// (c)). Where no read decides, the answer is the store's cause, the run gets nothing and the
+/// item's next press logs its own row first; a run that ended (`ended`) takes nothing back. The
+/// read is the ledger's own; `answer_handback_reading` takes the coordinator's.
 pub fn answer_handback<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -998,6 +1011,21 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
     item: &ItemId,
     ask: &HandbackAsk,
     choice: Choice,
+) -> Result<(), Cause> {
+    let mut read = |l: &mut Ledger| resync(ports, l).is_ok();
+    answer_handback_reading(ports, ledger, limits, item, ask, choice, &mut read)
+}
+
+/// `answer_handback` with `read` as the one read of the owner's events after a failed log of the
+/// press's row: it takes the events into the ledger and says whether it answered.
+pub fn answer_handback_reading<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    item: &ItemId,
+    ask: &HandbackAsk,
+    choice: Choice,
+    read: &mut dyn FnMut(&mut Ledger) -> bool,
 ) -> Result<(), Cause> {
     let run = &ask.run;
     let kind = handback_kind(ask.reason);
@@ -1032,7 +1060,7 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
         press.decide(ledger.closing(item).map(|e| &e.what))
     };
     let decided = match decided {
-        Decided::Log => match log_press(ports, ledger, &press, &row, stamp) {
+        Decided::Log => match log_press(ports, ledger, &press, &row, stamp, read) {
             Ok(decided) => decided,
             Err(e) => {
                 if !ledger.unsure.contains(item) {

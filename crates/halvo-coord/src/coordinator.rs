@@ -927,9 +927,26 @@ where
                         .map(|(_, a)| a.clone())
                         .ok_or(Cause::State)?;
                     let l = ledger(ledgers, &board.members[i].facts);
-                    let out =
-                        items::answer_handback(&self.ports, l, &self.limits, item, &ask, choice);
-                    self.read_back(board, i);
+                    let mut read_once = false;
+                    let mut read = |l: &mut Ledger| {
+                        read_once = true;
+                        let facts = &mut board.members[i].facts;
+                        let read = schedule::resync(&self.ports, &facts.agent, &mut facts.events);
+                        l.take(&facts.events);
+                        read.is_ok()
+                    };
+                    let out = items::answer_handback_reading(
+                        &self.ports,
+                        l,
+                        &self.limits,
+                        item,
+                        &ask,
+                        choice,
+                        &mut read,
+                    );
+                    if !read_once {
+                        self.read_back(board, i);
+                    }
                     match out {
                         Ok(()) => {}
                         Err(Cause::UnknownItem) => {

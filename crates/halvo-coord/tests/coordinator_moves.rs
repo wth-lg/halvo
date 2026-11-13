@@ -2289,6 +2289,12 @@ fn a_switch_off_marks_the_guards_table_and_the_board_before_a_cancel_that_panics
 /// answered `no_service`: by its own read right after the call, or by a later refusal `seq`.
 const ORDERS: [support::Loss; 2] = [support::Loss::Reply, support::Loss::Later];
 
+/// The orders in which a handback answer whose call answered `no_service` stays stored and not
+/// taken (ruling RD-52 (c)): the row reaching the owner's events after the move, and the read
+/// right after the call failing too. In the order in which that read shows the row the run gets
+/// the answer in the same move, so the tests of RD-40 keep their other order and gain this one.
+const HANDBACK_ORDERS: [support::Loss; 2] = [support::Loss::Later, support::Loss::Unread];
+
 /// A run of agent 0 that waits on a stuck item, which the person answered `done`: the owner
 /// stored the row and the call answered `no_service`, in the order `order`.
 fn answered_with_a_lost_reply(order: support::Loss) -> (Coordinator<Both>, RunId, ItemId) {
@@ -2326,7 +2332,7 @@ fn handed_back(c: &Coordinator<Both>, m: usize) -> Vec<halvo_coord::types::Handb
 #[test]
 fn a_stored_answer_whose_reply_was_lost_counts_for_the_same_answer_again_in_both_orders() {
     use halvo_coord::types::HandbackResult;
-    for order in ORDERS {
+    for order in HANDBACK_ORDERS {
         let (c, _run, item) = answered_with_a_lost_reply(order);
         let m = mark(&c);
         let tried = c.ports().ports.tried.borrow().len();
@@ -2359,7 +2365,7 @@ fn a_stored_answer_whose_reply_was_lost_counts_for_the_same_answer_again_in_both
 fn a_stored_done_whose_reply_was_lost_then_decline_stores_the_decline_and_sends_declined_in_both_orders(
 ) {
     use halvo_coord::types::HandbackResult;
-    for order in ORDERS {
+    for order in HANDBACK_ORDERS {
         let (c, _run, item) = answered_with_a_lost_reply(order);
         let m = mark(&c);
         assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()), "{order:?}");
@@ -2379,7 +2385,7 @@ fn a_stored_done_whose_reply_was_lost_then_decline_stores_the_decline_and_sends_
 
 #[test]
 fn a_stop_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_both_orders() {
-    for order in ORDERS {
+    for order in HANDBACK_ORDERS {
         let (c, run, item) = answered_with_a_lost_reply(order);
         let m = mark(&c);
         assert_eq!(c.control(&agent(0), Action::Stop), Ok(()), "{order:?}");
@@ -2408,7 +2414,7 @@ fn a_stop_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_both_ord
 
 #[test]
 fn the_runners_end_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_both_orders() {
-    for order in ORDERS {
+    for order in HANDBACK_ORDERS {
         let (c, run, item) = answered_with_a_lost_reply(order);
         c.ports().ports.end_runner(&run);
         assert_eq!(
@@ -2436,7 +2442,7 @@ fn the_runners_end_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in
 fn the_wait_limit_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_both_orders() {
     use halvo_coord::types::HandbackResult;
     let limits = Limits::PRODUCT;
-    for order in ORDERS {
+    for order in HANDBACK_ORDERS {
         let (c, run, item) = answered_with_a_lost_reply(order);
         let m = mark(&c);
         c.ports()
@@ -2980,7 +2986,11 @@ fn lossy_sequences_leave_no_item_with_two_closing_rows_and_send_allow_only_by_th
         .and_then(|v| v.parse().ok())
         .unwrap_or(1_280);
     let mut c4 = Vec::new();
-    for form in ORDERS {
+    for form in [
+        support::Loss::Reply,
+        support::Loss::Later,
+        support::Loss::Unread,
+    ] {
         let mut all = Lossy::default();
         for seed in 0..count {
             all.add(lossy_sequence(seed, form));
@@ -3741,7 +3751,7 @@ fn a_taken_allow_gets_no_lapse_at_the_quit() {
 fn a_link_accounts_lost_done_then_the_declining_choice_sends_declined_and_never_done_in_both_forms()
 {
     use halvo_coord::types::HandbackResult;
-    for order in ORDERS {
+    for order in HANDBACK_ORDERS {
         let c = coordinator(&[MANUAL], Limits::PRODUCT);
         let run = start(&c, 0);
         c.on_run(&run, handback(&run, 0, HandbackReason::AccountLink))
@@ -4185,16 +4195,24 @@ fn press_landing_later(c: &Coordinator<Both>, item: &ItemId, choice: Choice) {
     c.ports().ports.events.borrow_mut().extend(lost);
 }
 
+/// A press whose row the owner stores while the reply is lost and the move's read fails too
+/// (`Loss::Unread`), so that the coordinator does not know the row.
+fn press_stored_unread(c: &Coordinator<Both>, item: &ItemId, choice: Choice) {
+    c.ports().loss.set(Some(support::Loss::Unread));
+    assert_eq!(c.answer(item, choice, None), Err(Cause::NoService));
+    c.ports().loss.set(None);
+}
+
 /// RD-61 (h) 4, T-a: on an account link, Done taken by the owner with the port busy, then a
-/// Decline whose row lands with no acknowledgement and no read of its move, then Done: the newest
-/// row is that decline, so the run gets `declined` once and the move answers as for an item that
-/// is no longer open, with the rows done, decline.
+/// Decline whose row the owner stores with no acknowledgement and no read of its move showing it,
+/// then Done: the newest row is that decline, so the run gets `declined` once and the move
+/// answers as for an item that is no longer open, with the rows done, decline.
 #[test]
 fn rd61_t_a_link_done_then_a_decline_landing_unread_then_done_gives_declined_once() {
     use halvo_coord::types::HandbackResult;
     let (c, _run, item) = stored_not_taken(HandbackReason::AccountLink, Choice::Done);
     let m = mark(&c);
-    press_landing_later(&c, &item, Choice::Decline);
+    press_stored_unread(&c, &item, Choice::Decline);
     assert_eq!(c.answer(&item, Choice::Done, None), Err(Cause::UnknownItem));
     assert_eq!(handed_back(&c, m), [HandbackResult::Declined]);
     assert_eq!(step_rows(&c, &item), ["done", "decline"]);
@@ -4208,7 +4226,7 @@ fn rd61_t_b_link_done_then_a_decline_landing_unread_then_decline_stores_no_third
     use halvo_coord::types::HandbackResult;
     let (c, _run, item) = stored_not_taken(HandbackReason::AccountLink, Choice::Done);
     let m = mark(&c);
-    press_landing_later(&c, &item, Choice::Decline);
+    press_stored_unread(&c, &item, Choice::Decline);
     assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()));
     assert_eq!(handed_back(&c, m), [HandbackResult::Declined]);
     assert_eq!(step_rows(&c, &item), ["done", "decline"]);
@@ -4331,13 +4349,9 @@ fn held_not_taken(
             if how == Held::Later {
                 press_landing_later(&c, &item, first);
             } else {
-                c.ports().loss.set(Some(support::Loss::Reply));
-                c.ports()
-                    .ports
-                    .refuse(Method::History, PortError::NoService);
+                c.ports().loss.set(Some(support::Loss::Unread));
                 assert_eq!(c.answer(&item, first, None), Err(Cause::NoService));
                 c.ports().loss.set(None);
-                c.ports().ports.clear_refusals();
             }
             (c, run, item)
         }
@@ -4425,7 +4439,7 @@ fn rd61_t_h_the_clause_holds_for_stuck_and_a_sign_ins_first_step() {
             let (c, _run, item) = stored_not_taken(reason, Choice::Done);
             let m = mark(&c);
             if landed {
-                press_landing_later(&c, &item, Choice::Decline);
+                press_stored_unread(&c, &item, Choice::Decline);
             } else {
                 c.ports().ports.refuse(Method::Log, PortError::NoService);
                 assert_eq!(
@@ -4457,5 +4471,181 @@ fn rd61_t_h_the_clause_holds_for_stuck_and_a_sign_ins_first_step() {
             assert_eq!(answer_choices(&c, &item), rows, "{case}");
             assert_eq!(handed_back(&c, m), [result], "{case}");
         }
+    }
+}
+
+/// The kinds that a handback raises and a test can answer at the Coordinator (RD-52 (c)): the
+/// first step of a `sign_in`, `link_account`, `stuck` and a run's `check`, each with the press
+/// that gives `done`.
+const HANDBACK_KINDS: [(HandbackReason, Choice); 4] = [
+    (HandbackReason::SignIn, Choice::Done),
+    (HandbackReason::AccountLink, Choice::Done),
+    (HandbackReason::StepFailed, Choice::Done),
+    (HandbackReason::EffectUnknown, Choice::TryAgain),
+];
+
+/// A run of agent 0 that waits on the item of a handback of `reason`.
+fn waiting_on(reason: HandbackReason) -> (Coordinator<Both>, RunId, ItemId) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, reason)).unwrap();
+    let (item, _) = open_item(&c);
+    (c, run, item)
+}
+
+/// RD-52 (c) rules 1 and 2: the owner stores the press's row and the reply is lost; the read
+/// right after the call shows the row, which counts as the store: one row, the answer once at the
+/// runner, ok and no card, for each kind.
+#[test]
+fn rd52c_a_handback_answer_whose_row_the_read_shows_is_handed_in_that_move_for_each_kind() {
+    use halvo_coord::types::HandbackResult;
+    for (reason, choice) in HANDBACK_KINDS {
+        let (c, _run, item) = waiting_on(reason);
+        let m = mark(&c);
+        c.ports().loss.set(Some(support::Loss::Reply));
+        assert_eq!(c.answer(&item, choice, None), Ok(()), "{reason:?}");
+        assert_eq!(closing_rows(&c, &item), 1, "{reason:?}: one row");
+        assert_eq!(handed_back(&c, m), [HandbackResult::Done], "{reason:?}");
+        let s = c.snapshot();
+        assert!(s.items.is_empty(), "{reason:?}: no card");
+        assert_eq!(row_line(&s, 0), text("line.working.working"), "{reason:?}");
+    }
+}
+
+/// RD-52 (c) rule 5: the read fails too, or shows no row of the item: the store's cause, nothing
+/// sent and no further log, and the card stays; for each kind.
+#[test]
+fn rd52c_a_handback_answer_whose_read_fails_or_shows_nothing_answers_the_stores_cause() {
+    for (reason, choice) in HANDBACK_KINDS {
+        for loss in [support::Loss::Unread, support::Loss::Nothing] {
+            let case = format!("{reason:?} {loss:?}");
+            let (c, _run, item) = waiting_on(reason);
+            let m = mark(&c);
+            let tried = c.ports().ports.tried.borrow().len();
+            c.ports().loss.set(Some(loss));
+            assert_eq!(
+                c.answer(&item, choice, None),
+                Err(Cause::NoService),
+                "{case}"
+            );
+            assert!(handed_back(&c, m).is_empty(), "{case}: nothing sent");
+            let logs = c.ports().ports.tried.borrow()[tried..]
+                .iter()
+                .filter(|t| matches!(t.call, Call::Log(_)))
+                .count();
+            let lost = usize::from(loss == support::Loss::Unread);
+            assert_eq!(logs, lost, "{case}: no log after the lost one");
+            assert_eq!(open_item(&c).0, item, "{case}: the card stays");
+        }
+    }
+}
+
+/// RD-52 (c) rule 3 with RD-61 (f): an older press whose reply and read were both lost, then a
+/// press whose log answered with nothing stored, and the read shows the older row as the newest:
+/// a decline after a stored `done` goes once more as a row of its own and the run gets
+/// `declined`; Done after a stored decline gives `declined` and `unknown_item`; on a run's check
+/// the stored answer decides (RD-40 (1) (b)).
+#[test]
+fn rd52c_a_read_that_shows_another_choice_as_the_newest_decides_by_rule_3() {
+    use halvo_coord::types::HandbackResult;
+    let cases = [
+        (
+            HandbackReason::StepFailed,
+            Choice::Done,
+            Choice::Decline,
+            Ok(()),
+            HandbackResult::Declined,
+            2,
+        ),
+        (
+            HandbackReason::AccountLink,
+            Choice::Done,
+            Choice::Decline,
+            Ok(()),
+            HandbackResult::Declined,
+            2,
+        ),
+        (
+            HandbackReason::SignIn,
+            Choice::Decline,
+            Choice::Done,
+            Err(Cause::UnknownItem),
+            HandbackResult::Declined,
+            1,
+        ),
+        (
+            HandbackReason::EffectUnknown,
+            Choice::TryAgain,
+            Choice::WentThrough,
+            Err(Cause::UnknownItem),
+            HandbackResult::Done,
+            1,
+        ),
+    ];
+    for (reason, first, then, answer, result, rows) in cases {
+        let case = format!("{reason:?} {first:?} then {then:?}");
+        let (c, _run, item) = waiting_on(reason);
+        c.ports().loss.set(Some(support::Loss::Unread));
+        assert_eq!(
+            c.answer(&item, first, None),
+            Err(Cause::NoService),
+            "{case}"
+        );
+        let m = mark(&c);
+        c.ports().loss.set(Some(support::Loss::Nothing));
+        assert_eq!(c.answer(&item, then, None), answer, "{case}");
+        assert_eq!(handed_back(&c, m), [result], "{case}");
+        assert_eq!(closing_rows(&c, &item), rows, "{case}");
+        assert!(c.snapshot().items.is_empty(), "{case}: no card");
+    }
+}
+
+/// RD-52 (c) with RD-61 (c): an older `done` of an account link that the run did not take, its
+/// row acknowledged with the port busy or its reply and read lost, then the declining press whose
+/// reply is lost: `declined`, with the rows done, decline. With the `done` acknowledged, the
+/// decline's own log is the one whose reply is lost and the read shows its row; with the `done`
+/// unread, the decline's first log meets `seq` and its read shows the `done`.
+#[test]
+fn rd52c_a_stored_done_of_an_account_link_then_a_lost_decline_sends_declined() {
+    use halvo_coord::types::HandbackResult;
+    for how in [Held::Busy, Held::Unread] {
+        let (c, _run, item) = held_not_taken(HandbackReason::AccountLink, Choice::Done, how);
+        let m = mark(&c);
+        c.ports().loss.set(Some(support::Loss::Reply));
+        assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()), "{how:?}");
+        assert_eq!(handed_back(&c, m), [HandbackResult::Declined], "{how:?}");
+        assert_eq!(step_rows(&c, &item), ["done", "decline"], "{how:?}");
+    }
+}
+
+/// RD-52 (c) rule 6: the read shows the press's own row and `Runs::answer_handback` answers busy:
+/// the port's cause and the card stays; the same press then sends the answer again with no
+/// second row, and no move calls the port twice.
+#[test]
+fn rd52c_after_a_busy_port_the_same_press_sends_again_with_no_second_row() {
+    use halvo_coord::types::HandbackResult;
+    for (reason, choice) in HANDBACK_KINDS {
+        let (c, _run, item) = waiting_on(reason);
+        c.ports().loss.set(Some(support::Loss::Reply));
+        c.ports()
+            .ports
+            .refuse(Method::AnswerHandback, PortError::Busy);
+        let tried = c.ports().ports.tried.borrow().len();
+        assert_eq!(
+            c.answer(&item, choice, None),
+            Err(Cause::Busy),
+            "{reason:?}"
+        );
+        let calls = c.ports().ports.tried.borrow()[tried..]
+            .iter()
+            .filter(|t| matches!(t.call, Call::AnswerHandback(..)))
+            .count();
+        assert_eq!(calls, 1, "{reason:?}: the port once");
+        c.ports().ports.clear_refusals();
+        assert_eq!(open_item(&c).0, item, "{reason:?}: the card stays");
+        let m = mark(&c);
+        assert_eq!(c.answer(&item, choice, None), Ok(()), "{reason:?}");
+        assert_eq!(handed_back(&c, m), [HandbackResult::Done], "{reason:?}");
+        assert_eq!(closing_rows(&c, &item), 1, "{reason:?}: no second row");
     }
 }
