@@ -56,7 +56,7 @@ impl PayloadBuffer {
     }
 
     /// Appends `line` and a line end when both fit, and says whether they did.
-    pub fn push_line(&mut self, line: &[u8]) -> bool {
+    pub(super) fn push_line(&mut self, line: &[u8]) -> bool {
         let end = self.len + line.len() + 1;
         if end > self.bytes.len() {
             return false;
@@ -163,7 +163,7 @@ impl Batch {
 
     /// Adds one record of `kind` captured at `at`; `now` is the monotonic
     /// reading. The caller has had [`Admit::Fits`] for it.
-    pub fn push(&mut self, kind: EntryKind, at: i64, record: &[u8], now: Duration) {
+    pub(super) fn push(&mut self, kind: EntryKind, at: i64, record: &[u8], now: Duration) {
         let pushed = self.payload.push_line(record);
         debug_assert!(pushed, "a record was pushed that the batch did not admit");
         if !pushed {
@@ -219,14 +219,14 @@ impl Batch {
 
     /// The write of the batch under `segment_id`, or `None` for an empty batch.
     pub fn write<'a>(&'a self, segment_id: &'a SegmentId) -> Option<SegmentWrite<'a>> {
-        Some(SegmentWrite {
+        Some(SegmentWrite::new(
             segment_id,
-            day: self.day?,
-            first_capture: self.first_capture,
-            last_capture: self.last_capture,
-            entries: &self.entries,
-            payload: self.payload.as_bytes(),
-        })
+            self.day?,
+            self.first_capture,
+            self.last_capture,
+            &self.entries,
+            self.payload.as_bytes(),
+        ))
     }
 
     #[cfg(test)]

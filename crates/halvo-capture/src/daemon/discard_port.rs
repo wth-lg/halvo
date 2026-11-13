@@ -46,7 +46,7 @@ impl CaptureStore for DiscardPort {
         self.next += 1;
         Ok(Written {
             ordinal,
-            logical_bytes: write.payload.len() as u64,
+            logical_bytes: write.payload().len() as u64,
             disk_bytes: 0,
         })
     }

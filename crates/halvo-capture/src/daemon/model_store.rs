@@ -190,14 +190,14 @@ pub(crate) fn write_one<S: CaptureStore>(
         events: 1,
         bytes: payload.len() as u64,
     }];
-    store.write_batch(SegmentWrite {
-        segment_id: &id,
-        day: UtcDay::from_days_since_epoch(0).unwrap(),
-        first_capture: 0,
-        last_capture: 0,
-        entries: &entries,
+    store.write_batch(SegmentWrite::new(
+        &id,
+        UtcDay::from_days_since_epoch(0).unwrap(),
+        0,
+        0,
+        &entries,
         payload,
-    })
+    ))
 }
 
 impl MaintainStore for ModelStore {
@@ -241,7 +241,7 @@ impl CaptureStore for ModelStore {
         let mut state = self.state();
         let answer = model_write(&mut state, &write);
         state.log.push(Call::Write {
-            segment_id: *write.segment_id,
+            segment_id: *write.segment_id(),
             answer: answer.map(|written| written.ordinal),
         });
         answer
@@ -261,7 +261,7 @@ fn model_write(state: &mut State, write: &SegmentWrite<'_>) -> Result<Written, W
     if let Some(stored) = state
         .batches
         .iter()
-        .find(|batch| batch.segment_id == *write.segment_id)
+        .find(|batch| batch.segment_id == *write.segment_id())
     {
         return Err(WriteFault::AlreadyWritten {
             ordinal: stored.ordinal,
@@ -277,18 +277,18 @@ fn model_write(state: &mut State, write: &SegmentWrite<'_>) -> Result<Written, W
     let ordinal = Ordinal::new(state.next_ordinal);
     state.next_ordinal += 1;
     state.batches.push(StoredBatch {
-        segment_id: *write.segment_id,
+        segment_id: *write.segment_id(),
         ordinal,
-        day: write.day,
-        first_capture: write.first_capture,
-        last_capture: write.last_capture,
-        entries: write.entries.to_vec(),
-        payload: write.payload.to_vec(),
+        day: write.day(),
+        first_capture: write.first_capture(),
+        last_capture: write.last_capture(),
+        entries: write.entries().to_vec(),
+        payload: write.payload().to_vec(),
     });
     if let Some(WriteScript::KeepThenFail(fault)) = script {
         return Err(fault);
     }
-    let logical = write.payload.len() as u64;
+    let logical = write.payload().len() as u64;
     Ok(Written {
         ordinal,
         logical_bytes: logical,
