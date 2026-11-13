@@ -86,7 +86,7 @@ What a self-test keeps to, so that it can run beside the others: it writes only 
 | 130, 143, 129 | INT, TERM or HUP reached the driver, which ended every script that it had started. |
 | 64 | Bad usage. |
 
-The driver refuses an entry of a `ci.d` directory, prints `FAIL <name> (<cause>)` for it and counts it as failed in every job, when the entry is not a regular file (a directory or a symbolic link, also a dangling one), when its file name is not `NN-name.sh` (no `.sh` suffix, an upper-case suffix or a hidden name included), when its first ten lines do not hold exactly one `# jobs:` line and one `# rule:` line, when the `# jobs:` line names anything but `macos` and `windows`, when its first ten lines hold more than one `# lane:` line or a `# lane:` line that is not `# lane: free` (a carriage return at its end included), or when another script has the same name.
+The driver refuses an entry of a `ci.d` directory, prints `FAIL <name> (<cause>)` for it and counts it as failed in every job, when the entry is not a regular file (a directory or a symbolic link, also a dangling one), when its file name is not `NN-name.sh` (no `.sh` suffix, an upper-case suffix or a hidden name included), when its first ten lines do not hold exactly one `# jobs:` line and one `# rule:` line, when the `# jobs:` line names anything but `macos` and `windows`, when its first ten lines hold more than one `# lane:` line or a `# lane:` line that is not `# lane: free` (a carriage return at its end does not count), or when another script has the same name.
 
 With no script for the job the driver prints `FAIL run-ci-d (no scripts for <job>)` and exits 1, also with `--self-test`. The one exception is `--self-test run-ci-d`, which runs the driver's own cases and needs no script.
 

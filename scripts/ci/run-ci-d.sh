@@ -143,6 +143,7 @@ inspect() {
       ;;
   esac
   script_lane=$(sed -n '1,10{/^# lane:/p;}' "$script_file")
+  script_lane=${script_lane%"$(printf '\r')"}
   case $script_lane in
     '') script_lane=cargo ;;
     '# lane: free') script_lane=free ;;
@@ -1013,8 +1014,6 @@ own_self_test() {
   own_case two-jobs-lines 1 "FAIL 10-a (its first 10 lines hold no single '# jobs:' line)" macos
   new_repo && add_script r1 10-a.sh "$good$nl# lane: cargo" "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b"
   own_case lane-other-than-free 1 "FAIL 10-a ($lane_refusal)" macos
-  new_repo && add_script r1 10-a.sh "$good$nl# lane: free$cr" "$pass_a"
-  own_case lane-line-with-a-carriage-return 1 "FAIL 10-a ($lane_refusal)" macos
   new_repo && add_script r1 10-a.sh "$good$nl# lane: free$nl# lane: free" "$pass_a"
   own_case two-lane-lines 1 "FAIL 10-a (its first 10 lines hold more than one '# lane:' line)" macos
   new_repo && add_script r1 10-a.sh "$good$nl# lane:" "$pass_a"
@@ -1351,6 +1350,9 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; $check_passes" &&
     add_script r1 20-b.sh "$free" "$prelude_any; meet || $check_alone; $check_passes"
   own_case checks-of-two-lanes-run-at-the-same-time 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; $check_passes" &&
+    add_script r1 20-b.sh "$free$cr" "$prelude_any; meet || $check_alone; $check_passes"
+  own_case lane-line-with-a-carriage-return-names-the-free-lane 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
   new_repo && add_script r1 10-a.sh "$good" "$prelude_any; $cargo_before; w seen; $cargo_after; $check_passes" &&
     add_script r1 20-b.sh "$good" "$prelude_any; $cargo_before; $cargo_after; $check_passes" &&
     add_script r1 30-c.sh "$free" "$prelude_any; w cargo-start.10-a && [ ! -e \"\$CI_D_REPO/cargo-end.10-a\" ] || $check_alone; : >\"\$CI_D_REPO/seen\"; $check_passes"
