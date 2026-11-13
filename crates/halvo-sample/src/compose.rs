@@ -1022,7 +1022,7 @@ pub fn compose(args: &ComposeArgs) -> Result<Vec<String>, Refusal> {
 /// The two halves share no service but a canary's and no episode template, and inside a half each stream after
 /// the first shares a site that is no canary with an earlier stream of that half.
 fn check_halves(c: &Composer, composed: &Composed) -> Result<(), Refusal> {
-    let mut templates: [BTreeSet<Vec<String>>; 2] = [BTreeSet::new(), BTreeSet::new()];
+    let mut templates: [BTreeMap<Vec<String>, Category>; 2] = [BTreeMap::new(), BTreeMap::new()];
     let mut sites: Vec<BTreeSet<String>> = vec![BTreeSet::new(); c.half_size * 2];
     let canaries: BTreeSet<&str> = c.rates.canaries.iter().map(String::as_str).collect();
     for (stream, list) in composed.lines.iter().chain(composed.marked.iter()) {
@@ -1040,17 +1040,21 @@ fn check_halves(c: &Composer, composed: &Composed) -> Result<(), Refusal> {
                     }
                 }
             }
-            if let Line::Episode(_) = l {
+            if let Line::Episode(e) = l {
                 let t: Vec<String> = crate::text::template(items.iter().map(|i| {
                     let st = &composed.steps[&i.step];
-                    site_masked(&st.titles[0], st.site.as_deref())
+                    site_masked(&st.titles[i.title], st.site.as_deref())
                 }));
-                templates[half].insert(t);
+                templates[half].entry(t).or_insert(e.category);
             }
         }
     }
-    if !templates[0].is_disjoint(&templates[1]) {
-        return Err(short("template"));
+    if let Some(category) = templates[0]
+        .iter()
+        .find(|(t, _)| templates[1].contains_key(*t))
+        .map(|(_, c)| *c)
+    {
+        return Err(short(category.as_str()));
     }
     for half in 0..2 {
         let first = half * c.half_size;

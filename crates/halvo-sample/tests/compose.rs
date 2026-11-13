@@ -1163,3 +1163,20 @@ fn compose_refuses_a_title_that_breaks_d12_and_d13() {
     );
     refused(&compose(&dir, &rates(20, 4).write(), &[p], "o"), "short");
 }
+
+#[test]
+fn a_template_on_both_halves_is_short_with_its_category() {
+    let dir = scratch("shared-template");
+    let sites = services(&dir.join("sites"));
+    let p = dir.join("sites/zz-10.json");
+    let text = fs::read_to_string(&p).expect("service");
+    write(
+        &p,
+        &text
+            .replace("quill10", "quill9")
+            .replace("Look quill9 1", "Look quill9 0"),
+    );
+    let o = compose(&dir, &rates(20, 4).write(), &sites, "o");
+    refused(&o, "short");
+    assert_eq!(o.stderr, "REFUSED short: email\n");
+}
