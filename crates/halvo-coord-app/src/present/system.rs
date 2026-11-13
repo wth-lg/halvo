@@ -6,13 +6,23 @@ use super::{Card, Dialog};
 use halvo_coord::items::ConfirmAnswer;
 use tauri::{AppHandle, Runtime};
 
-/// The native dialog in the form `system` of U0.4's verdict (I11.5, ruling RD-42 D2), never
-/// the plugin's message dialog: on macOS the alert of AppKit, shown on the main thread with the
-/// rejecting control first, which is its default control, and with no cancel and no close
-/// control; on Windows the task dialog, with the rejecting control as its default, whose
-/// Escape key and close control give the cancel response. Neither sets a time limit. Every
-/// outcome but the press on the allowing control answers `reject`, a failed call among them;
-/// on another system no dialog is shown and the answer is `reject`.
+/// The native dialog in the form `system` of U0.4's verdict (I11.5, ruling RD-42 D2), never the
+/// plugin's message dialog. Every outcome but the press on the allowing control answers `reject`, a
+/// failed call among them, which the seam tests `wait_alert` and `task_answer` hold on both
+/// systems, and neither form sets a time limit. On macOS it is the alert of AppKit, shown on the
+/// main thread. The test target `dialog_hosted`, on a hosted runner, holds its two buttons, the
+/// rejecting text with the response 1000 and the allowing text with 1001; that no button is titled
+/// Cancel or holds the Escape key; that its message text is the card's title and its informative
+/// text the card's text; and that a press on each button, a stopped and an aborted modal session
+/// answer as the mapping says, each after one report on screen. Which button the laid-out alert
+/// holds as its default, and that its window has no close control, the target asserts where it
+/// reads them; where it gives no reading, they rest on the trial's record and on the hand check of
+/// I9.5. On Windows it is the task dialog. The same target holds that a click of the allowing id
+/// 100 allows, and that a click of the rejecting id 101, of the cancel response 2, which the Escape
+/// key and the close control give, of an id that no button has, and the message WM_CLOSE each
+/// reject, each after one report at the dialog's creation; its default control and the flag that
+/// allows the cancel response are held by the config test. On another system no dialog is shown and
+/// the answer is `reject`.
 pub struct System<R: Runtime> {
     #[cfg(target_os = "macos")]
     app: AppHandle<R>,
