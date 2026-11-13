@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or in the head commit when the default branch holds it or the checkout does not, and in the tag of a run that a pushed tag started; it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
+# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or in the head commit when the default branch holds it or the checkout does not, and in the tag of a run that a pushed tag started, and the list holds no entry that allows nothing in HEAD (sh scripts/check-home-paths.sh --stale); it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
 set -u
 name=19-home-paths
 
@@ -45,10 +45,19 @@ scan_head() {
   counts=$(sed -n 's/.*commits read \([0-9]*\), lines with a home path \([0-9]*\)\.$/commits=\1 lines=\2/p' "$scratch/out" "$scratch/err") || counts=
   if [ "$tip" = HEAD ]; then tag=no; else tag=yes; fi
   printf 'range=%s tag=%s %s exit=%s\n' "$kind" "$tag" "${counts:-commits=unread lines=unread}" "$code"
+  sh scripts/check-home-paths.sh --stale >"$scratch/stale" 2>&1 </dev/null
+  stale_code=$?
+  stale=$(sed -n 's/.*entries read \([0-9]*\), stale \([0-9]*\)\.$/entries=\1 stale=\2/p' "$scratch/stale") || stale=
+  printf 'list %s exit=%s\n' "${stale:-entries=unread stale=unread}" "$stale_code"
   case $code in
-    0) printf 'PASS %s\n' "$name" ;;
-    1) fail "an added line holds a home path that scripts/home-path-allow.txt does not allow; run sh scripts/check-home-paths.sh '$range' on a clone of this head" ;;
+    0) ;;
+    1) fail "an added line or a message holds a home path that scripts/home-path-allow.txt does not allow; run sh scripts/check-home-paths.sh '$range' on a clone of this head" ;;
     *) fail "sh scripts/check-home-paths.sh could not check the range (exit $code)" ;;
+  esac
+  case $stale_code in
+    0) printf 'PASS %s\n' "$name" ;;
+    1) fail "an entry of scripts/home-path-allow.txt allows nothing in HEAD; run sh scripts/check-home-paths.sh --stale" ;;
+    *) fail "sh scripts/check-home-paths.sh --stale could not check the list (exit $stale_code)" ;;
   esac
 }
 
@@ -65,9 +74,10 @@ in_fixture() {
 }
 
 copy_scripts() {
-  for file in check-home-paths.sh commit-range.sh home-path-allow.txt; do
+  for file in check-home-paths.sh commit-range.sh; do
     cp "$repo/scripts/$file" "$1/scripts/$file" || exit 2
   done
+  : >"$1/scripts/home-path-allow.txt" || exit 2
 }
 
 fixture() {
@@ -180,6 +190,16 @@ self_test() {
   in_fixture plain-message-of-the-pushed-tag tag -a -m 'built in /Users/<name>' v1 || exit 2
   expect PASS plain-message-of-the-pushed-tag
   unset GITHUB_REF
+
+  fixture stale-entry-in-the-list
+  printf 'gone.txt\t/%s/zoe\tmade up, for a file that is gone\n' "$u" >>"$scratch/stale-entry-in-the-list/scripts/home-path-allow.txt"
+  add_commit stale-entry-in-the-list 'more plain text' 'second'
+  expect FAIL stale-entry-in-the-list
+
+  fixture listed-line-and-its-entry
+  printf 'notes.txt\t/%s/zoe\tmade up\n' "$u" >>"$scratch/listed-line-and-its-entry/scripts/home-path-allow.txt"
+  add_commit listed-line-and-its-entry "see /$u/zoe/x" 'second'
+  expect PASS listed-line-and-its-entry
 
   fixture list-malformed-in-the-commit
   printf 'x\tnot a path\treason\n' >>"$scratch/list-malformed-in-the-commit/scripts/home-path-allow.txt"

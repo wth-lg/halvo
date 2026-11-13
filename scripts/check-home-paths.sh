@@ -26,6 +26,11 @@ check-home-paths: refuse a home path in the lines that commits add.
       Read the commits that a push would add to <remote>, from the lines that
       git writes to the standard input of a pre-push hook. .githooks/pre-push
       runs this after its check of the commit messages.
+  sh scripts/check-home-paths.sh [--allow <file>] --stale
+      Name each entry of the list in HEAD (or of the list that --allow
+      names) that allows nothing in HEAD: its file is not in HEAD, or no line
+      of the file, and not its name, holds the path of the entry as the scan
+      matches it. Exit 1 when it names one. 19-home-paths runs it.
   sh scripts/check-home-paths.sh --self-test
       Prove the grammar on its fixtures, the reading of commits in throwaway
       repositories, and .githooks/pre-push with pushes to a local bare remote.
@@ -301,7 +306,7 @@ EOF
 
 usage() {
   printf '%s: %s\n' "$NAME" "$1" >&2
-  printf 'Usage: sh scripts/check-home-paths.sh [--allow <file>] (<revision>... | --pre-push <remote>) | --self-test | --help\n' >&2
+  printf 'Usage: sh scripts/check-home-paths.sh [--allow <file>] (<revision>... | --pre-push <remote> | --stale) | --self-test | --help\n' >&2
   exit 64
 }
 
@@ -457,8 +462,8 @@ function scan_text(text, file, use_list,   lowered, size, first, own_end, base, 
             last_match = m
             last_name = substr(nm, 1, k)
             if (kind_of[i] == "word") sub(/-.*/, "", last_name)
-            if (!use_list || !((file SUBSEP m) in allowed))
-              if (index("," out ",", "," form[i] ",") == 0) out = out (out == "" ? "" : ",") form[i]
+            if (use_list && ((file SUBSEP m) in allowed)) used[file SUBSEP m] = 1
+            else if (index("," out ",", "," form[i] ",") == 0) out = out (out == "" ? "" : ",") form[i]
           }
         }
         off += adv
@@ -494,6 +499,10 @@ function load_list(   n, rc, rec, k, rest, file, path, reason) {
     if (nmatch != 1 || last_match != path) malformed(n, "the path is not one home path of the grammar as a whole")
     allowed[file SUBSEP path] = 1
     allowed[list_path SUBSEP path] = 1
+    entries++
+    entry_line[entries] = n
+    entry_file[entries] = file
+    entry_key[entries] = file SUBSEP path
   }
   if (rc < 0) malformed(0, "the list cannot be read")
   close(list)
@@ -660,13 +669,18 @@ BEGIN {
 }
 END {
   if (failed) exit 2
+  if (stale) {
+    for (e = 1; e <= entries; e++)
+      if (!(entry_key[e] in used)) print "STALE " entry_line[e] " " entry_file[e]
+    print "ENTRIES " entries + 0
+  }
   if (!list_forms) print "READ " commits + 0 " " hits + 0
 }
 EOF
 }
 
 run_scan() {
-  awk -v list="$1" -v list_path="$LIST_IN_THE_REPOSITORY" -v list_forms="${3:-}" -v own_check="$own_check" \
+  awk -v list="$1" -v list_path="$LIST_IN_THE_REPOSITORY" -v list_forms="${3:-}" -v own_check="$own_check" -v stale="$stale" \
     -v own_full="$own_full" -v own_unknown="$own_unknown" -v base_list="$base_list" -f "$work/scan.awk" "$2"
 }
 
@@ -860,6 +874,62 @@ check_range() {
   list_of_commit "$(sed -n '$p' "$work/commits")"
   scan "$label" "$work/commits" "$work/tags"
   [ "$any_failed" = 0 ]
+}
+
+files_of_the_list() {
+  awk -F "$TAB" 'FNR == 1 { sub(/^\357\273\277/, "") } { sub(/\r$/, "") } $0 == "" || /^#/ || NF < 3 { next } { print $1 }' "$1" | sort -u
+}
+
+file_as_added_lines() {
+  case $1 in
+    '"'*) inner=${1#?} && inner=${inner%?} && printf 'diff --git "a/%s" "b/%s"\n' "$inner" "$inner" ;;
+    *) printf 'diff --git a/%s b/%s\n' "$1" "$1" ;;
+  esac
+  printf 'new file mode 100644\n@@ -0,0 +1 @@\n'
+  git cat-file blob "$2" </dev/null | tr -d '\000' | sed 's/^/+/' || die "git cannot read $1 in HEAD"
+}
+
+check_stale() {
+  git rev-parse --git-dir >/dev/null 2>&1 || die "$PWD is in no git repository"
+  head=$(git rev-parse -q --verify 'HEAD^{commit}' </dev/null) || die 'HEAD names no commit'
+  list_of_commit "$head"
+  label="the entries of $LIST_IN_THE_REPOSITORY in HEAD"
+  [ -z "$allow_given" ] || label="the entries of $allow"
+  git -c core.quotepath=off ls-tree -r --full-tree "$head" >"$work/tree" </dev/null || die 'git ls-tree could not list the files of HEAD'
+  [ ! -f "$scan_list" ] || files_of_the_list "$scan_list" >"$work/listed-files" || die 'awk could not read the list'
+  : >"$work/gone"
+  {
+    printf '\001commit %s\n' "$head"
+    while IFS= read -r listed; do
+      object=$(awk -F "$TAB" -v f="$listed" '$2 == f { split($1, m, " "); print m[3]; exit }' "$work/tree") || die 'awk could not read the tree'
+      if [ -z "$object" ]; then
+        printf '%s\n' "$listed" >>"$work/gone"
+      else
+        file_as_added_lines "$listed" "$object"
+      fi
+    done <"$work/listed-files"
+  } >"$work/listed.diff"
+  stale=1
+  scan_stream "$work/listed.diff" "$work/stale-hits"
+  entries=$(sed -n 's/^ENTRIES //p' "$work/stale-hits") || entries=
+  [ -n "$entries" ] || die 'awk printed no count of entries'
+  named=0
+  while read -r tag line file; do
+    [ "$tag" = STALE ] || continue
+    named=$((named + 1))
+    if grep -qxF -- "$file" "$work/gone"; then
+      printf '%s: stale entry: %s:%s: %s: the file is not in HEAD\n' "$NAME" "$LIST_IN_THE_REPOSITORY" "$line" "$file"
+    else
+      printf '%s: stale entry: %s:%s: %s: no line of the file, and not its name, holds the path of the entry as the scan matches it\n' "$NAME" "$LIST_IN_THE_REPOSITORY" "$line" "$file"
+    fi
+  done <"$work/stale-hits"
+  if [ "$named" = 0 ]; then
+    printf '%s: PASS: --stale: %s: entries read %s, stale 0.\n' "$NAME" "$label" "$entries"
+    return 0
+  fi
+  printf '%s: FAIL: --stale: %s: entries read %s, stale %s.\n' "$NAME" "$label" "$entries" "$named"
+  printf 'Fix: take each stale entry out of %s and say why in the commit message: the file is gone, or no longer holds the path. An entry allows its path only in its file, so a stale entry allows nothing.\n' "$LIST_IN_THE_REPOSITORY"
+  return 1
 }
 
 grammar_fixtures() {
@@ -1431,6 +1501,27 @@ self_test_commits() {
 
   same_commits_for_both_checks
 
+  new_case_repo stale
+  mkdir -p "$case_repo/scripts" || die 'mkdir failed'
+  expand_fixture 'see /{U}/una and C:\{U}\Una Bee' >"$case_repo/kept.txt"
+  dashed=$(expand_fixture '-{U}-vic-project') || die 'expand failed'
+  mkdir -p "$case_repo/$dashed" || die 'mkdir failed'
+  printf 'plain\n' >"$case_repo/$dashed/x.txt"
+  {
+    expand_fixture "kept.txt${tab}/{U}/una${tab}made up"
+    expand_fixture "kept.txt${tab}C:\\{U}\\Una Bee${tab}made up"
+    expand_fixture "kept.txt${tab}C:\\{U}\\Una${tab}made up, and the file holds only the longer name"
+    expand_fixture "gone.txt${tab}/{U}/una${tab}made up, and the file is gone"
+    printf '%s/x.txt\t%s\tmade up, in the name of a directory\n' "$dashed" "$dashed"
+  } >"$case_repo/$LIST_IN_THE_REPOSITORY"
+  commit_case 'a list with two stale entries' >/dev/null || die 'commit failed'
+  case_scan stale-entry-whose-file-holds-another-path 1 "$LIST_IN_THE_REPOSITORY:3: kept.txt: no line of the file" --stale
+  case_scan stale-entry-for-a-file-that-is-gone 1 "$LIST_IN_THE_REPOSITORY:4: gone.txt: the file is not in HEAD" --stale
+  case_scan stale-entries-counted 1 'entries read 5, stale 2.' --stale
+  sed -e '3,4d' "$case_repo/$LIST_IN_THE_REPOSITORY" >"$work/list-live"
+  case_scan live-entries-pass-the-stale-check 0 'entries read 3, stale 0.' --allow "$work/list-live" --stale
+  case_scan stale-check-of-a-malformed-list 2 'cannot use the list' --allow "$work/list-bad" --stale
+
   new_case_repo messages
   printf 'plain\n' >"$case_repo/m.txt"
   in_case_repo add -A . || die 'git add failed'
@@ -1895,6 +1986,7 @@ own_full=
 own_unknown=
 base_list=
 scan_list=
+stale=
 allow_given=
 while [ $# -gt 0 ]; do
   case $1 in
@@ -1911,6 +2003,10 @@ while [ $# -gt 0 ]; do
       allow=$2
       allow_given=1
       shift 2
+      ;;
+    --stale)
+      mode=stale
+      shift
       ;;
     --pre-push)
       [ $# -ge 2 ] || usage '--pre-push needs the name or the URL of the remote'
@@ -1933,6 +2029,10 @@ case $mode in
   self-test)
     [ $# = 0 ] || usage '--self-test takes no argument'
     self_test
+    ;;
+  stale)
+    [ $# = 0 ] || usage '--stale takes no range'
+    check_stale
     ;;
   pre-push)
     [ $# = 0 ] || usage '--pre-push takes the remote and no range'
