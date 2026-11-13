@@ -23,6 +23,8 @@ value_of() {
 # prints FAIL for the first line that does not hold. With `final` every key of the run must stand there.
 judge() {
   cp "$1" "$1.seen" || fail "the results cannot be read"
+  twice=$(awk '{ if (seen[$1]++) { print $1; exit } }' "$1") || fail "the results cannot be read"
+  [ -z "$twice" ] || fail "the result $twice stands twice"
   while IFS=' ' read -r key value; do
     case $key in
       cargo-build | golden-build | golden-generated | golden-recorded | gen-*-build-1 | gen-*-build-2 | gen-*-labels)
