@@ -1424,3 +1424,39 @@ fn no_reply_of_another_form_answers_load_replies_and_its_reply_answers_no_other_
     }
     assert_eq!(forms, ["load", "steps", "session", "stored", "replies"]);
 }
+
+#[test]
+fn the_debug_form_of_a_provider_id_is_its_type_and_length_and_holds_no_part_of_the_id() {
+    let message = "msg-Zq7Northwind-0042";
+    let draft = "draft-Xw9Southwind-0042";
+    let blocked = "msg-Yv8Eastwind-0043";
+    let id = ProviderId::parse(message).unwrap();
+    assert_eq!(
+        format!("{id:?}"),
+        format!("ProviderId({} bytes)", message.len())
+    );
+    let row = row_of(W, A, message, "drafted", Some(draft));
+    let read = AgentReply::parse(row.as_bytes()).unwrap();
+    let reply = LoadRepliesReply::parse(replies_text(&[row], &[blocked], &[]).as_bytes()).unwrap();
+    for (what, shown) in [
+        ("id", format!("{id:?}")),
+        ("row", format!("{read:?}")),
+        ("reply", format!("{reply:?}")),
+        ("pretty", format!("{reply:#?}")),
+    ] {
+        for secret in [
+            "Zq7",
+            "Northwind",
+            "Xw9",
+            "Southwind",
+            "Yv8",
+            "Eastwind",
+            "0042",
+            "0043",
+        ] {
+            assert!(!shown.contains(secret), "{what}: {secret}");
+        }
+    }
+    assert!(format!("{read:?}").contains(&format!("ProviderId({} bytes)", draft.len())));
+    assert!(format!("{reply:?}").contains(&format!("ProviderId({} bytes)", blocked.len())));
+}
