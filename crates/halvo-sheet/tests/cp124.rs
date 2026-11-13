@@ -218,7 +218,7 @@ fn listing(scratch: &Scratch) -> Vec<String> {
     scratch.names("")
 }
 
-/// The names of `units` units of the system for the bound cases: ASCII, or one non-ASCII
+/// The names of `units` units as the crate counts them, for the bound cases: ASCII, or one non-ASCII
 /// character that is two bytes on macOS and one UTF-16 unit on Windows, padded with ASCII.
 fn long_name(units: usize, wide: bool) -> String {
     let stem_units = units - ".xlsx".len();

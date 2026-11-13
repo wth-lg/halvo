@@ -37,7 +37,8 @@ fn answer(scratch: &Scratch, workbook_len: u64, copy_len: u64) -> Result<Removal
 }
 
 /// A planned row whose workbook holds one byte more than the bound, and a copy that holds the
-/// workbook's first 64 MiB: the read of the workbook counts past the bound, so the copy is not
+/// workbook's first 64 MiB: the read of the workbook takes one byte past the bound, the most that
+/// it reads, to tell a longer workbook, so the copy is not
 /// the workbook and stays (`changed`). A read that stopped at the bound would take the copy for
 /// the workbook and remove it.
 #[test]

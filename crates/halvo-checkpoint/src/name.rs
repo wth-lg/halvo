@@ -34,8 +34,9 @@ pub fn checkpoint_name(workbook: &Path, run: &RunId) -> Option<OsString> {
 /// CJK characters (765 bytes) and refuses one of 256, and refuses a name of 128 characters
 /// outside the Basic Multilingual Plane (128 code points, 256 units). A name never has fewer
 /// bytes than UTF-16 units, so counting bytes on macOS never takes a name that the volume
-/// refuses, and it refuses a non-ASCII name that the volume would take: with an extension of
-/// four letters, a name of more than 173 bytes and at most 173 units. `prepare` refuses a
+/// refuses, and it refuses a non-ASCII name that the volume would take: every name that the
+/// crates build adds 82 units to the workbook's name, so a name of more than 173 bytes and at
+/// most 173 units. `prepare` refuses a
 /// workbook when a name that it or [`crate::remove`] builds for it would hold more
 /// ([`names_fit`]). A volume whose names are shorter, such as a share whose server takes fewer
 /// units, refuses such a name with an error of the system, which `prepare` answers as it

@@ -16,9 +16,9 @@ pub(crate) struct Args {
     pub agent: AgentId,
     pub workflow: WorkflowId,
     pub mode: Mode,
-    /// The data directory of `--data-dir`, read as the daemon's flag is read
-    /// (`DataDir::from_flag`); `None` without the argument, and the file steps then take the
-    /// app's default directory.
+    /// The data directory of `--data-dir`, read by halvo-control's `DataDir::from_flag`, its
+    /// check of a data directory given as a flag; `None` without the argument, and the file
+    /// steps then take the app's default directory.
     pub data_dir: Option<DataDir>,
 }
 

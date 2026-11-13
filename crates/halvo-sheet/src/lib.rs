@@ -127,8 +127,9 @@ impl Folder {
     /// refuses, or a workbook whose name is one that it gives a checkpoint or a prepared copy,
     /// in any letter case ([`PathRefusal::OwnFile`]); a workbook whose name is so long that a
     /// name that `prepare` or the removal of the checkpoint builds would hold more than 255
-    /// units of the system, bytes on macOS and UTF-16 code units on Windows: a name of more
-    /// than 173 units with an extension of four letters ([`PathRefusal::TooLong`], with the
+    /// units as the crate counts them, bytes on macOS and UTF-16 code units on Windows: every
+    /// such name adds 82 units to the workbook's name, so a name of more than 173 units
+    /// ([`PathRefusal::TooLong`], with the
     /// cause `step_failed`; a volume whose names are shorter refuses a longer name with
     /// [`Error::Io`] as the call writes); `values` that do not have the rows and columns of `range`
     /// ([`Error::Shape`]), or that hold a number that is not finite or a text with a character

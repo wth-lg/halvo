@@ -238,7 +238,7 @@ pub(crate) fn prepare(
 }
 
 /// Whether every name that `prepare` builds for `workbook`, and that the removal of the
-/// checkpoint of `run` builds, holds at most [`NAME_MAX`] units of the system: the checkpoint,
+/// checkpoint of `run` builds, holds at most [`NAME_MAX`] units as the crate counts them: the checkpoint,
 /// the name that the removal moves it to, and the prepared copy with the longest part of its
 /// own.
 pub(crate) fn names_fit_for(workbook: &Path, run: &RunId) -> bool {

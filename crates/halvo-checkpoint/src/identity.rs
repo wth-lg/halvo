@@ -192,6 +192,27 @@ mod tests {
         }
     }
 
+    /// CP-134 H1, the review of the round: on a volume without stable ids each part of the old
+    /// test decides alone (the length, the creation time, the time of the last write), the
+    /// stable flag of either side decides, and another volume is never the same file.
+    #[test]
+    fn each_part_of_the_fallback_and_each_side_of_the_flag_decides() {
+        let base = id(false, 7, 1);
+        let mut longer = base;
+        longer.len = 11;
+        assert!(!same_file(&base, &longer), "the length alone");
+        let mut created = base;
+        created.times.0 = Some(UNIX_EPOCH + Duration::from_secs(5));
+        assert!(!same_file(&base, &created), "the creation time alone");
+        assert!(
+            !same_file(&id(false, 7, 1), &id(true, 7, 2)),
+            "the unstable side first"
+        );
+        let mut elsewhere = id(true, 7, 1);
+        elsewhere.volume = 2;
+        assert!(!same_file(&id(true, 7, 1), &elsewhere), "another volume");
+    }
+
     /// CP-134 H1 (the verifier's L15): on a volume whose file ids are not stable, one id with
     /// other times is not the same file, so the check refuses rather than takes; on a volume
     /// whose ids are stable the id decides alone; another id is never the same file.

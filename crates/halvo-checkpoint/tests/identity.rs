@@ -115,6 +115,27 @@ fn no_source_of_either_crate_compares_two_files_outside_the_identity_module() {
     assert!(module.contains("pub fn same_file(a: &FileId, b: &FileId) -> bool"));
 }
 
+/// CP-134 H1: `around` reports a source outside `identity.rs` that reads through the trait's
+/// path or names a read as a value, and skips a file named `identity.rs`.
+#[test]
+fn around_reports_a_source_that_reads_through_the_traits_path() {
+    let dir =
+        Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("cp134-scan-{}", std::process::id()));
+    fs::create_dir_all(&dir).expect("make the directory");
+    fs::write(
+        dir.join("probe.rs"),
+        "fn f(m: &Metadata) -> u64 { MetadataExt::ino(m) }\nfn g(v: &[Metadata]) { v.iter().map(MetadataExt::dev); }\n",
+    )
+    .expect("write the probe");
+    fs::write(
+        dir.join("identity.rs"),
+        "fn h(m: &Metadata) -> u64 { m.ino() }\n",
+    )
+    .expect("write the module's stand-in");
+    let places = around(&[dir.as_path()]);
+    assert_eq!(places, vec!["probe.rs: ino", "probe.rs: dev"]);
+}
+
 /// CP-134 H1: the scan sees a read written through the trait's path or named as a value, not
 /// only as a method, and passes a word of the list used as a plain name.
 #[test]
