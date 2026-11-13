@@ -1,0 +1,493 @@
+{
+  "test_mixed": {
+    "snapshot": {
+      "seq": 1,
+      "rows": [],
+      "items": [
+        {
+          "item": "0000000000000000000000000000000b",
+          "agent": "0000000000000000000000000000000a",
+          "kind": "confirm",
+          "presenter": "page",
+          "armed": "yes",
+          "title": "Do these 2 things?",
+          "text": "",
+          "fields": [
+            { "label": "It will remove this", "value": [], "from": "halvo", "from_text": "Set by Halvo" },
+            { "label": "What to remove", "value": ["Old note from May"], "from": "site", "from_text": "From the site" },
+            { "label": "It will submit this form", "value": [], "from": "halvo", "from_text": "Set by Halvo" },
+            { "label": "Site", "value": ["site3.example"], "from": "halvo", "from_text": "Set by Halvo" },
+            { "label": "What it fills in", "value": ["Name Ann Lee. ", "Flat 2."], "from": "agent", "from_text": "Written by the agent" }
+          ],
+          "params": [],
+          "choices": [
+            { "choice": "reject", "text": "Don't do any of these 2", "safe": "yes" },
+            { "choice": "allow", "text": "Do all 2", "safe": "no" }
+          ]
+        }
+      ],
+      "note": null
+    },
+    "card": null
+  },
+  "test_setup": {
+    "snapshot": {
+      "seq": 1,
+      "rows": [],
+      "items": [
+        {
+          "item": "0000000000000000000000000000000f",
+          "agent": "0000000000000000000000000000000e",
+          "kind": "setup",
+          "presenter": null,
+          "armed": "no",
+          "title": "Answer a few questions for “Ordering from a shop on Site7”",
+          "text": "Choose one answer for each question, then choose Use these answers.",
+          "fields": [],
+          "params": [
+            {
+              "name": "seller",
+              "label": "Which shop",
+              "candidates": [
+                { "n": 1, "value": ["Corner Shop"], "from": "records" },
+                { "n": 2, "value": ["Main Street ", "Shop"], "from": "site" }
+              ],
+              "typed": "no"
+            },
+            { "name": "instrument", "label": "How to pay", "candidates": [], "typed": "yes" },
+            { "name": "start", "label": "Where to start", "candidates": [], "typed": "yes" }
+          ],
+          "choices": [
+            { "choice": "none", "text": "Not now", "safe": "yes" },
+            { "choice": "choose", "text": "Use these answers", "safe": "no" }
+          ]
+        }
+      ],
+      "note": null
+    },
+    "card": null
+  },
+  "test_long": {
+    "snapshot": {
+      "seq": 1,
+      "rows": [],
+      "items": [
+        {
+          "item": "00000000000000000000000000000011",
+          "agent": "00000000000000000000000000000010",
+          "kind": "ready",
+          "presenter": null,
+          "armed": "no",
+          "title": "“Paying a utility bill on myaccount.metropolitanwaterandelectricpowerauthorityofgreaterspringfield.com” is ready to start",
+          "text": "Start it now, or skip it this time.",
+          "fields": [],
+          "params": [],
+          "choices": [
+            { "choice": "skip", "text": "Skip this time", "safe": "yes" },
+            { "choice": "start", "text": "Start now", "safe": "no" }
+          ]
+        }
+      ],
+      "note": null
+    },
+    "card": null
+  },
+  "test_empty_bound": {
+    "snapshot": {
+      "seq": 1,
+      "rows": [],
+      "items": [
+        {
+          "item": "00000000000000000000000000000013",
+          "agent": "00000000000000000000000000000012",
+          "kind": "confirm",
+          "presenter": "page",
+          "armed": "yes",
+          "title": "Send this?",
+          "text": "",
+          "fields": [
+            { "label": "To", "value": ["Ann Lee"], "from": "site", "from_text": "From the site" },
+            { "label": "Subject", "value": [""], "from": "agent", "from_text": "Written by the agent" },
+            { "label": "Message", "value": ["The repair is booked for Monday."], "from": "agent", "from_text": "Written by the agent" }
+          ],
+          "params": [],
+          "choices": [
+            { "choice": "reject", "text": "Don't send", "safe": "yes" },
+            { "choice": "allow", "text": "Send", "safe": "no" }
+          ]
+        }
+      ],
+      "note": null
+    },
+    "card": null
+  },
+  "test_changed": {
+    "snapshot": {
+      "seq": 1,
+      "rows": [],
+      "items": [
+        {
+          "item": "0000000000000000000000000000000d",
+          "agent": "0000000000000000000000000000000c",
+          "kind": "confirm",
+          "presenter": "native",
+          "armed": "no",
+          "title": "Pay this?",
+          "text": "",
+          "fields": [
+            { "label": "Something changed after you said yes, so it has not done this yet and asks you again.", "value": [], "from": "halvo", "from_text": "Set by Halvo" },
+            { "label": "Pay to", "value": ["City Power"], "from": "you", "from_text": "You gave this" },
+            { "label": "Amount", "value": ["42.10 USD"], "from": "site", "from_text": "From the site" },
+            { "label": "Pay with", "value": ["Card ending 4242"], "from": "you", "from_text": "You gave this" },
+            { "label": "Site", "value": ["site1.example"], "from": "halvo", "from_text": "Set by Halvo" }
+          ],
+          "params": [],
+          "choices": [
+            { "choice": "present", "text": "See the details and answer", "safe": "yes" }
+          ]
+        }
+      ],
+      "note": null
+    },
+    "card": null
+  },
+  "test_two_confirms": {
+    "snapshot": {
+      "seq": 1,
+      "rows": [],
+      "items": [
+        {
+          "item": "00000000000000000000000000000021",
+          "agent": "00000000000000000000000000000020",
+          "kind": "confirm",
+          "presenter": "page",
+          "armed": "yes",
+          "title": "Send this?",
+          "text": "",
+          "fields": [
+            {
+              "label": "To",
+              "value": [
+                "Ann Lee"
+              ],
+              "from": "site",
+              "from_text": "From the site"
+            },
+            {
+              "label": "Subject",
+              "value": [
+                "Rent receipt for October"
+              ],
+              "from": "site",
+              "from_text": "From the site"
+            },
+            {
+              "label": "Message",
+              "value": [
+                "Thank you. Your rent for October came in."
+              ],
+              "from": "agent",
+              "from_text": "Written by the agent"
+            },
+            {
+              "label": "To",
+              "value": [
+                "Ben Ola"
+              ],
+              "from": "site",
+              "from_text": "From the site"
+            },
+            {
+              "label": "Subject",
+              "value": [
+                "Viewing on Friday"
+              ],
+              "from": "site",
+              "from_text": "From the site"
+            },
+            {
+              "label": "Message",
+              "value": [
+                "Friday at 10 works for the viewing."
+              ],
+              "from": "agent",
+              "from_text": "Written by the agent"
+            },
+            {
+              "label": "To",
+              "value": [
+                "Cara Diaz"
+              ],
+              "from": "site",
+              "from_text": "From the site"
+            },
+            {
+              "label": "Subject",
+              "value": [
+                "Repair date"
+              ],
+              "from": "site",
+              "from_text": "From the site"
+            },
+            {
+              "label": "Message",
+              "value": [
+                "The repair is booked for Monday."
+              ],
+              "from": "agent",
+              "from_text": "Written by the agent"
+            }
+          ],
+          "params": [],
+          "choices": [
+            {
+              "choice": "reject",
+              "text": "Don't send these 3",
+              "safe": "yes"
+            },
+            {
+              "choice": "allow",
+              "text": "Send all 3",
+              "safe": "no"
+            }
+          ]
+        },
+        {
+          "item": "00000000000000000000000000000023",
+          "agent": "00000000000000000000000000000022",
+          "kind": "confirm",
+          "presenter": "page",
+          "armed": "yes",
+          "title": "Do these 2 things?",
+          "text": "",
+          "fields": [
+            {
+              "label": "It will send this message",
+              "value": [],
+              "from": "halvo",
+              "from_text": "Set by Halvo"
+            },
+            {
+              "label": "To",
+              "value": [
+                "Ann Lee"
+              ],
+              "from": "site",
+              "from_text": "From the site"
+            },
+            {
+              "label": "Subject",
+              "value": [
+                "Rent receipt for October"
+              ],
+              "from": "site",
+              "from_text": "From the site"
+            },
+            {
+              "label": "Message",
+              "value": [
+                "Thank you. Your rent for October came in."
+              ],
+              "from": "agent",
+              "from_text": "Written by the agent"
+            },
+            {
+              "label": "It will remove this",
+              "value": [],
+              "from": "halvo",
+              "from_text": "Set by Halvo"
+            },
+            {
+              "label": "What to remove",
+              "value": [
+                "Draft to Ann Lee from October"
+              ],
+              "from": "site",
+              "from_text": "From the site"
+            }
+          ],
+          "params": [],
+          "choices": [
+            {
+              "choice": "reject",
+              "text": "Don't do any of these 2",
+              "safe": "yes"
+            },
+            {
+              "choice": "allow",
+              "text": "Do all 2",
+              "safe": "no"
+            }
+          ]
+        }
+      ],
+      "note": null
+    },
+    "card": null
+  },
+  "test_many": {
+    "snapshot": {
+      "seq": 1,
+      "rows": [],
+      "items": [
+        {
+          "item": "00000000000000000000000000000031",
+          "agent": "00000000000000000000000000000030",
+          "kind": "ready",
+          "presenter": null,
+          "armed": "no",
+          "title": "“Writing or answering email on Site5” is ready to start",
+          "text": "Start it now, or skip it this time.",
+          "fields": [],
+          "params": [],
+          "choices": [
+            {
+              "choice": "skip",
+              "text": "Skip this time",
+              "safe": "yes"
+            },
+            {
+              "choice": "start",
+              "text": "Start now",
+              "safe": "no"
+            }
+          ]
+        },
+        {
+          "item": "00000000000000000000000000000033",
+          "agent": "00000000000000000000000000000032",
+          "kind": "stuck",
+          "presenter": null,
+          "armed": "no",
+          "title": "Help “Paying a utility bill on Site1” with one step",
+          "text": "Do the next step in its own window and choose Done, or choose Stop this time.",
+          "fields": [],
+          "params": [],
+          "choices": [
+            {
+              "choice": "decline",
+              "text": "Stop this time",
+              "safe": "yes"
+            },
+            {
+              "choice": "done",
+              "text": "Done",
+              "safe": "no"
+            }
+          ]
+        },
+        {
+          "item": "00000000000000000000000000000035",
+          "agent": "00000000000000000000000000000034",
+          "kind": "setup",
+          "presenter": null,
+          "armed": "no",
+          "title": "Answer a few questions for “Ordering from a shop on Site7”",
+          "text": "Choose one answer for each question, then choose Use these answers.",
+          "fields": [],
+          "params": [
+            {
+              "name": "start",
+              "label": "Where to start",
+              "candidates": [
+                {
+                  "n": 1,
+                  "value": [
+                    "site7.example"
+                  ],
+                  "from": "records"
+                }
+              ],
+              "typed": "no"
+            },
+            {
+              "name": "seller",
+              "label": "Which shop",
+              "candidates": [
+                {
+                  "n": 1,
+                  "value": [
+                    "site7.example"
+                  ],
+                  "from": "records"
+                }
+              ],
+              "typed": "no"
+            },
+            {
+              "name": "instrument",
+              "label": "How to pay",
+              "candidates": [],
+              "typed": "yes"
+            }
+          ],
+          "choices": [
+            {
+              "choice": "none",
+              "text": "Not now",
+              "safe": "yes"
+            },
+            {
+              "choice": "choose",
+              "text": "Use these answers",
+              "safe": "no"
+            }
+          ]
+        },
+        {
+          "item": "00000000000000000000000000000037",
+          "agent": "00000000000000000000000000000036",
+          "kind": "confirm",
+          "presenter": "native",
+          "armed": "no",
+          "title": "Pay this?",
+          "text": "",
+          "fields": [
+            {
+              "label": "Pay to",
+              "value": [
+                "City Power"
+              ],
+              "from": "you",
+              "from_text": "You gave this"
+            },
+            {
+              "label": "Amount",
+              "value": [
+                "42.10 USD"
+              ],
+              "from": "site",
+              "from_text": "From the site"
+            },
+            {
+              "label": "Pay with",
+              "value": [
+                "Card ending 4242"
+              ],
+              "from": "you",
+              "from_text": "You gave this"
+            },
+            {
+              "label": "Site",
+              "value": [
+                "site1.example"
+              ],
+              "from": "halvo",
+              "from_text": "Set by Halvo"
+            }
+          ],
+          "params": [],
+          "choices": [
+            {
+              "choice": "present",
+              "text": "See the details and answer",
+              "safe": "yes"
+            }
+          ]
+        }
+      ],
+      "note": null
+    },
+    "card": null
+  }
+}

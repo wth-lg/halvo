@@ -1,4 +1,5 @@
 use std::fmt;
+use std::num::NonZeroU64;
 
 use serde::{Serialize, Serializer};
 use serde_json::value::RawValue;
@@ -164,7 +165,7 @@ impl FromJson for Name {
     }
 }
 
-fn port(s: &str) -> bool {
+pub(in crate::executable) fn is_port(s: &str) -> bool {
     !s.is_empty()
         && !s.starts_with('0')
         && s.len() <= 5
@@ -184,27 +185,44 @@ fn host(s: &str) -> bool {
         })
 }
 
-fn web_origin(s: &str) -> bool {
-    let Some((scheme, rest)) = s.split_once("://") else {
-        return false;
-    };
-    let Some((h, p)) = rest.rsplit_once(':') else {
-        return false;
-    };
-    (scheme == "http" || scheme == "https") && host(h) && port(p)
+fn octet(label: &str) -> bool {
+    (1..=3).contains(&label.len())
+        && label.bytes().all(|b| b.is_ascii_digit())
+        && (label == "0" || !label.starts_with('0'))
+        && label.parse::<u8>().is_ok()
+}
+
+pub(in crate::executable) fn number_form(host: &str) -> bool {
+    let last = host.rsplit('.').next().unwrap_or_default();
+    let numeric = last.bytes().all(|b| b.is_ascii_digit())
+        || last
+            .strip_prefix("0x")
+            .is_some_and(|hex| hex.bytes().all(|b| b.is_ascii_hexdigit()));
+    numeric && !(host.split('.').count() == 4 && host.split('.').all(octet))
+}
+
+fn web_origin(s: &str) -> Option<&str> {
+    let (scheme, rest) = s.split_once("://")?;
+    let (h, p) = rest.rsplit_once(':')?;
+    ((scheme == "http" || scheme == "https") && host(h) && is_port(p)).then_some(h)
 }
 
 /// A web origin, `<scheme>://<host>:<port>` in lower case with the port always written: the scheme `http` or
-/// `https`, the host a name of dot-separated labels of `a` to `z`, `0` to `9` and `-` (an IPv4 address among them)
-/// of at most 253 bytes, the port a decimal from 1 to 65,535 with no leading zero.
+/// `https`, the host a name of dot-separated labels of `a` to `z`, `0` to `9` and `-` of at most 253 bytes, the port
+/// a decimal from 1 to 65,535 with no leading zero. A host whose last label is a number, all digits or `0x` and hex
+/// digits, is an IPv4 address only as four decimal labels of 0 to 255 with no leading zero; in any other form
+/// (`127.1`, `0x7f000001`, `2130706433`, `0177.0.0.1`, `1.2.3.04`) it is no origin, as `WebOrigin::of_address`
+/// refuses it.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WebOrigin(String);
 
 impl WebOrigin {
-    /// Returns the origin when `s` has the form, else the refusal with the rule `origin_form`.
+    /// Returns the origin when `s` has the form, else the refusal with the rule `origin_form`, or `origin_ipv4` for a
+    /// host of that form whose last label is a number and that is no four decimal octets.
     pub fn parse(s: &str) -> Result<WebOrigin, Refusal> {
-        if !web_origin(s) {
-            return Err(Refusal::malformed("WebOrigin", "origin_form"));
+        let host = web_origin(s).ok_or(Refusal::malformed("WebOrigin", "origin_form"))?;
+        if number_form(host) {
+            return Err(Refusal::malformed("WebOrigin", "origin_ipv4"));
         }
         Ok(WebOrigin(s.to_owned()))
     }
@@ -356,7 +374,7 @@ impl Endpoint {
     /// Returns the address when `s` is `127.0.0.1:` and a port, else the refusal with the rule `endpoint_form`.
     pub fn parse(s: &str) -> Result<Endpoint, Refusal> {
         match s.strip_prefix("127.0.0.1:") {
-            Some(p) if port(p) => Ok(Endpoint(s.to_owned())),
+            Some(p) if is_port(p) => Ok(Endpoint(s.to_owned())),
             _ => Err(Refusal::malformed("Endpoint", "endpoint_form")),
         }
     }
@@ -379,15 +397,65 @@ impl FromJson for Endpoint {
     }
 }
 
-/// The value of an entry of the supervisor's secret store, which only a `secret_reply` frame carries. `Debug`
-/// prints the type name alone.
+/// The creation time of a process as the process table records it on macOS and on Windows, in microseconds since
+/// the Unix epoch, written as a string of 1 to 20 decimal digits with no leading zero: 1 to 18,446,744,073,709,551,615.
+/// 0, which the process table gives a process whose creation time it could not read, is refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CreationTime(NonZeroU64);
+
+impl CreationTime {
+    /// Returns the creation time when `s` has the form, else the refusal with the rule `creation_time`.
+    pub fn parse(s: &str) -> Result<CreationTime, Refusal> {
+        let fail = || Refusal::malformed("CreationTime", "creation_time");
+        if s.starts_with('0') || !s.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(fail());
+        }
+        s.parse::<NonZeroU64>()
+            .map(CreationTime)
+            .map_err(|_| fail())
+    }
+
+    /// The creation time of the microseconds that the process table records.
+    pub fn from_micros(micros: NonZeroU64) -> CreationTime {
+        CreationTime(micros)
+    }
+
+    /// The microseconds.
+    pub fn micros(self) -> NonZeroU64 {
+        self.0
+    }
+}
+
+impl fmt::Display for CreationTime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Serialize for CreationTime {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(&self.0)
+    }
+}
+
+impl FromJson for CreationTime {
+    fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
+        CreationTime::parse(&json::string("CreationTime", raw)?)
+    }
+}
+
+/// The value of an entry of the supervisor's secret store, which only a `secret_reply` frame carries: at least one
+/// byte. `Debug` prints the type name alone.
 #[derive(Clone, PartialEq, Eq)]
 pub struct SecretText(String);
 
 impl SecretText {
-    /// The value.
-    pub fn new(s: &str) -> SecretText {
-        SecretText(s.to_owned())
+    /// The value `s`, or the refusal with the rule `empty_secret` when it is empty.
+    pub fn parse(s: &str) -> Result<SecretText, Refusal> {
+        if s.is_empty() {
+            return Err(Refusal::malformed("SecretText", "empty_secret"));
+        }
+        Ok(SecretText(s.to_owned()))
     }
 
     /// The value.
@@ -410,7 +478,7 @@ impl Serialize for SecretText {
 
 impl FromJson for SecretText {
     fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
-        Ok(SecretText(json::string("SecretText", raw)?))
+        SecretText::parse(&json::string("SecretText", raw)?)
     }
 }
 
@@ -430,6 +498,26 @@ impl FromJson for V1 {
             return Err(Refusal::malformed("V1", "version"));
         }
         Ok(V1)
+    }
+}
+
+/// The JSON `null` of a key that a body always holds as null, as `workflow` and `agent` of `list_checkpoints`, a
+/// body over all agents: read from the text `null` alone.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Null;
+
+impl Serialize for Null {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_unit()
+    }
+}
+
+impl FromJson for Null {
+    fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
+        if raw.get() != "null" {
+            return Err(Refusal::malformed("Null", "not_null"));
+        }
+        Ok(Null)
     }
 }
 

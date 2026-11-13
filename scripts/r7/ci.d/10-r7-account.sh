@@ -1,7 +1,9 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ and no package named with sqlite or sqlcipher, and cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, no tracked file differs from HEAD after cargo ran, and on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job, while its self-test runs every case in the macos job and, in the windows job, only the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/ and the windows job's hosted stores) and three controls, because the windows job is held under ST-22's line, and fails when a case of its job's list did not run, when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives and that harness cases of both jobs check with values of their own; the windows job no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; a tree that such a case stands for is refused by the macos job of the same commit.
+# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, the dep-info files that this build wrote for the packages of account/, each package with at least one, list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account, and no tracked file differs from HEAD after cargo ran; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right, member-named-with-a-hash in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Two lists of the script name every case of the self-test, 89 and 71: the macos job runs both, and the windows job runs the first alone and prints one line for each case of the second, because the windows job is held under ST-22's line. The first holds the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/, the drive and cygpath spellings, names whose bytes the tools of the windows runner read in their own way, includes-inside and the hosted store of the windows job), the controls unchanged, git-source-in-lock, banned-package-in-graph, dep-info-path-outside and tracked-file-under-the-target, and the harness cases. The self-test fails when a case of its job's list did not run (the link case alone may print that its system made no symbolic link), when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives and that harness cases check with values of their own. The windows job therefore no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
 set -u
+LC_ALL=C
+export LC_ALL
 name=10-r7-account
 case $0 in
   /*) self=$0 ;;
@@ -17,13 +19,13 @@ prompt-budget.json gate/prompt-budget.json'
 required_bans='rusqlite libsqlite3-sys sqlite sqlite3-sys sqlite3-src sqlx-sqlite libsql libsql-sys libsql-ffi limbo limbo_core turso turso_core sentry sentry-core sentry-types sentry-rust-minidump tauri-plugin-sentry bugsnag rollbar honeybadger airbrake posthog-rs segment aptabase tauri-plugin-aptabase opentelemetry-otlp'
 crates_io='registry+https://github.com/rust-lang/crates.io-index'
 outside_licences='webpki-root-certs 1.0.11'
-windows_cases='no-repository unchanged hosted-windows hosted-line-inside-another
-hosted-windows-line-missing deny-other-version deny-absent
-vendored-byte-schema.v1.json recorded-sha256-schema.v1.json vendored-byte-routes.v1.json
-recorded-sha256-routes.v1.json vendored-byte-samples.v1.json recorded-sha256-samples.v1.json
-vendored-byte-prompt-budget.json recorded-sha256-prompt-budget.json record-without-a-file
-record-with-another-commit-line commit-of-41-digits commit-in-upper-case sum-of-65-digits
-sum-in-upper-case record-with-a-fifth-line fifth-line-without-newline config-source-replacement
+windows_cases='no-repository unchanged hosted-windows hosted-line-inside-another hosted-windows-line-missing
+deny-other-version deny-absent vendored-byte-schema.v1.json recorded-sha256-schema.v1.json
+vendored-byte-routes.v1.json recorded-sha256-routes.v1.json vendored-byte-samples.v1.json
+recorded-sha256-samples.v1.json vendored-byte-prompt-budget.json
+recorded-sha256-prompt-budget.json record-without-a-file record-with-another-commit-line
+commit-of-41-digits commit-in-upper-case sum-of-65-digits sum-in-upper-case
+record-with-a-fifth-line fifth-line-without-newline config-source-replacement
 config-patch-under-account config-name-in-another-case link-out-of-account escaped-path-key
 escaped-build-key path-outside-account git-source-in-lock crlf-line-ends licence-added-to-list
 licence-exception git-allowed unknown-git-warns extra-line-without-newline ban-with-wrappers
@@ -34,17 +36,37 @@ banned-package-in-graph edit-that-changes-nothing crlf-without-carriage-returns 
 no-job-runs-every-case windows-job-runs-its-list-alone macos-job-misses-a-case
 windows-job-misses-a-case case-on-no-list verdict-names-a-case-not-run
 verdict-names-a-case-on-no-list verdict-names-a-left-out-count verdict-names-a-job-not-read
-verdict-of-right-values-has-no-word'
-macos_cases='tests-fail no-test-ran test-count-not-a-number build-fails deny-fails fmt-fails
-clippy-fails self-hosted-runner actions-not-true hosted-macos hosted-test-fails
-hosted-line-missing hosted-line-of-another-store hosted-file-line-missing hosted-other-job
-empty-registry respelled-lock-entry metadata-source-outside-crates-io
-metadata-name-with-sqlite-in-mixed-case metadata-name-with-sqlcipher metadata-without-a-package
-sqlite-in-lock sqlite-in-lock-mixed-case sqlcipher-in-lock git-source-in-lock-without-spaces
-git-source-in-manifest registry-in-manifest patch-in-workspace patch-as-dotted-key
-patch-in-quoted-header path-in-literal-string path-absolute multi-line-string
-member-outside-crates outside-licence-another outside-licence-unnamed outside-licence-exit
-outside-licence-one-less licence-outside-list'
+verdict-of-right-values-has-no-word record-line-with-another-name record-line-with-another-path
+manifest-outside-account dep-info-path-outside dep-info-windows-separators
+dep-info-windows-drive dep-info-name-starting-with-a-hash tracked-file-under-the-target
+metadata-path-in-a-sibling-of-account dep-info-escaped-space
+dep-info-name-with-a-colon-and-a-newline target-in-another-spelling target-in-the-drive-spelling
+dep-info-name-with-a-newline includes-inside ban-with-a-third-key ban-reason-with-a-backslash
+ban-line-cut-after-its-reason macos-list-emptied windows-list-emptied
+whole-run-without-a-real-build windows-job-runs-a-macos-build macos-job-misses-a-left-out-case
+windows-job-misses-a-case-of-its-list windows-job-runs-a-left-out-case'
+macos_cases='tests-fail no-test-ran test-count-not-a-number build-fails deny-fails fmt-fails clippy-fails
+self-hosted-runner actions-not-true hosted-macos hosted-test-fails hosted-line-missing
+hosted-line-of-another-store hosted-file-line-missing hosted-other-job empty-registry
+respelled-lock-entry metadata-source-outside-crates-io metadata-name-with-sqlite-in-mixed-case
+metadata-name-with-sqlcipher metadata-without-a-package sqlite-in-lock sqlite-in-lock-mixed-case
+sqlcipher-in-lock git-source-in-lock-without-spaces git-source-in-manifest registry-in-manifest
+patch-in-workspace patch-as-dotted-key patch-in-quoted-header path-in-literal-string
+path-absolute multi-line-string member-outside-crates outside-licence-another
+outside-licence-unnamed outside-licence-exit outside-licence-one-less licence-outside-list
+dep-info-absent dep-info-absolute-path-outside dep-info-missing-file dep-info-missing-directory
+dep-info-head-elsewhere dep-info-unopenable member-without-dep-info dep-info-link-then-dot-dot
+dep-info-target-outside-out dep-info-file-beside-out dep-info-in-another-out-directory
+dep-info-out-directory-without-build dep-info-out-directory-not-named-out
+dep-info-out-directory-two-levels-deep dep-info-head-names-a-missing-file
+dep-info-in-a-sibling-of-account repository-through-a-link path-attribute-outside
+include-outside include-str-outside include-bytes-outside include-from-the-target-directory
+moved-tree moved-tree-with-an-outside-include source-put-right member-named-with-a-hash
+target-through-a-link link-as-account-target dep-info-link-in-a-source-directory
+dep-info-link-in-an-out-directory dep-info-backslash-in-a-directory-name
+dep-info-letter-and-colon-directory'
+real_builds_macos='path-attribute-outside include-outside include-str-outside include-bytes-outside include-from-the-target-directory includes-inside moved-tree moved-tree-with-an-outside-include source-put-right member-named-with-a-hash'
+real_builds_windows='includes-inside'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -131,7 +153,7 @@ check_config_files() {
 }
 
 check_links() {
-  find account -path account/target -prune -o -type l -print >"$work/links.txt" 2>/dev/null
+  find account -path account/target -type d -prune -o -type l -print >"$work/links.txt" 2>/dev/null
   [ ! -s "$work/links.txt" ] || fail 'account/ holds a symbolic link'
 }
 
@@ -251,6 +273,7 @@ function closed(   j) {
   if (where[d] != "root.packages[]") return
   print "name\t" package
   if (null_source) {
+    print "member\t" package "\t" manifest
     print "local\t" manifest
     print "path\t" manifest
     for (j = 1; j <= paths; j++) print "path\t" path_of[j]
@@ -316,12 +339,15 @@ inside_account() {
     [A-Za-z]:*) if command -v cygpath >/dev/null 2>&1; then place=$(cygpath -u "$place") || return 1; fi ;;
   esac
   if [ -d "$place" ]; then
-    resolved=$(cd "$place" 2>/dev/null && pwd -P) || return 1
+    dir=$place
+    leaf=
   else
-    parent=$(dirname "$place")
-    resolved=$(cd "$parent" 2>/dev/null && pwd -P) || return 1
-    resolved=$resolved/${place##*/}
+    dir=$(dirname "$place")
+    leaf=/${place##*/}
   fi
+  both=$(cd "$dir" 2>/dev/null && pwd -L && pwd -P) || return 1
+  [ "${both%%"$nl"*}" = "${both#*"$nl"}" ] || return 1
+  resolved=${both#*"$nl"}$leaf
   case $resolved/ in
     "$account_dir"/*) return 0 ;;
   esac
@@ -335,8 +361,14 @@ check_metadata() {
   json_pairs <"$work/metadata.json" >"$work/metadata.pairs" || fail 'cargo metadata printed nothing that this script reads'
   account_dir=$(cd account && pwd -P) || fail 'cannot enter account/'
   packages=0
-  while IFS="$tab" read -r kind value || [ -n "$kind" ]; do
+  members=
+  : >"$work/members.tsv" || fail 'cannot write in the temp directory'
+  while IFS="$tab" read -r kind value manifest || [ -n "$kind" ]; do
     case $kind in
+      member)
+        members="$members -p $value"
+        printf '%s\t%s\n' "$value" "$manifest" >>"$work/members.tsv"
+        ;;
       name)
         case $value in
           *[sS][qQ][lL][iI][tT][eE]* | *[sS][qQ][lL][cC][iI][pP][hH][eE][rR]*) fail "account/'s metadata holds a package whose name contains sqlite or sqlcipher" ;;
@@ -351,6 +383,235 @@ check_metadata() {
     esac
   done <"$work/metadata.pairs"
   [ "$packages" -gt 0 ] || fail "account/'s metadata holds no package"
+  [ -n "$members" ] || fail "account/'s metadata holds no package of account/"
+}
+
+check_tracked_target() {
+  git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || return 0
+  tracked=$(git -C "$repo" ls-files -- target/account) || fail 'git ls-files cannot read the index'
+  [ -z "$tracked" ] || fail 'a tracked file lies under the build target directory target/account'
+}
+
+clear_members() {
+  set --
+  while IFS="$tab" read -r member manifest || [ -n "$member" ]; do
+    set -- "$@" -p "$member"
+  done <"$work/members.tsv"
+  CARGO_TARGET_DIR=$target cargo clean --offline "$@" --manifest-path account/Cargo.toml
+  code=$?
+  [ "$code" -eq 0 ] || fail "cargo clean --offline of the packages of account/ exited $code"
+}
+
+dep_info_read() {
+  awk '
+function add(k, i, v, unescape) {
+  if (unescape) gsub(/\\ /, " ", v)
+  n++; kind[n] = k; idx[n] = i; value[n] = v
+}
+function whole(p) { return substr(p, 1, 1) == "/" ? p : account "/" p }
+function parent(p) { sub(/\/[^\/]*$/, "", p); return p == "" ? "/" : p }
+BEGIN {
+  account = ENVIRON["DEP_INFO_ACCOUNT"]; names = ENVIRON["DEP_INFO_NAMES"]
+  list = ENVIRON["DEP_INFO_LIST"]; members = ENVIRON["DEP_INFO_MEMBERS"]
+  n = 0; files = 0; unopenable = 0
+  while ((getline file < list) > 0) {
+    files++
+    status = (getline line < file)
+    if (status < 0) { unopenable++; continue }
+    while (status > 0) {
+      if (index(line, "# env-dep:OUT_DIR=") == 1) add("outdir", files, substr(line, 19), 1)
+      else if (index(line, "# env-dep:") == 1 || line == "") { }
+      else if (line ~ /:$/) add("path", files, substr(line, 1, length(line) - 1), 1)
+      else if (index(line, ": ") > 1) add("head", files, substr(line, 1, index(line, ": ") - 1), 1)
+      else bad[files] = 1
+      status = (getline line < file)
+    }
+    close(file)
+  }
+  close(list)
+  while ((getline line < members) > 0) {
+    split(line, part, "\t")
+    add("member", part[1], part[2], 0)
+  }
+  close(members)
+  if (ENVIRON["DEP_INFO_CONVERT"] == "1") {
+    for (i = 1; i <= n; i++) print value[i] > names
+    close(names)
+    command = "cygpath -u -f \"" names "\""
+    converted = 0
+    while ((command | getline line) > 0) value[++converted] = line
+    close(command)
+    if (converted != n) { print "unconverted\t0\t-\t-"; exit }
+  }
+  for (i = 1; i <= n; i++) if (kind[i] == "path" && substr(value[i], 1, 1) != "/") local[idx[i]] = 1
+  count = 0; unread = 0
+  for (f in local) { count++; if (f in bad) unread++ }
+  print "local\t" count "\t-\t-"
+  print "unopenable\t" unopenable "\t-\t-"
+  print "unread\t" unread "\t-\t-"
+  for (i = 1; i <= n; i++) if (kind[i] == "outdir" && idx[i] in local) print "outdir\t" idx[i] "\t" whole(value[i]) "\t."
+  dirs = 0
+  for (i = 1; i <= n; i++) {
+    if ((kind[i] != "path" && kind[i] != "head") || !(idx[i] in local)) continue
+    p = whole(value[i]); dir = parent(p)
+    if (!(dir in group)) order[++dirs] = dir
+    group[dir] = group[dir] kind[i] "\t" idx[i] "\t" dir "\t" substr(p, length(dir) + 2) "\n"
+  }
+  for (d = 1; d <= dirs; d++) printf "%s", group[order[d]]
+  for (i = 1; i <= n; i++) if (kind[i] == "member") print "member\t" idx[i] "\t" parent(whole(value[i])) "\t."
+}'
+}
+
+place_of() {
+  place=$1
+  while :; do
+    if [ "$place" -ef "$account_dir" ]; then
+      place=account
+      return 0
+    fi
+    if [ "$place" -ef "$target" ]; then
+      place=target
+      return 0
+    fi
+    case $place in
+      */*) place=${place%/*} ;;
+      *) break ;;
+    esac
+    [ -n "$place" ] || break
+  done
+  place=other
+}
+
+below() {
+  inner=$1
+  while :; do
+    [ "$inner" -ef "$2" ] && return 0
+    case $inner in
+      */*) inner=${inner%/*} ;;
+      *) return 1 ;;
+    esac
+    [ -n "$inner" ] || return 1
+  done
+}
+
+out_dir_of() {
+  cd -P "$1" 2>/dev/null || return 1
+  out_real=$PWD
+  [ "${out_real##*/}" = out ] || return 1
+  build=${out_real%/*}
+  build=${build%/*}
+  [ "${build##*/}" = build ] || return 1
+  [ "${build%/*/*}" -ef "$target" ]
+}
+
+read_dir_below() {
+  found=no
+  old_ifs=$IFS
+  IFS=$nl
+  set -f
+  for read_dir in $read_dirs; do
+    if below "$read_dir" "$1"; then
+      found=yes
+      break
+    fi
+  done
+  set +f
+  IFS=$old_ifs
+  [ "$found" = yes ]
+}
+
+check_sources() {
+  stale_fix='cargo clean --manifest-path account/Cargo.toml --target-dir target/account clears it'
+  find "$target" -name '*.d' -type f >"$work/dep-info.txt" || fail "the search for dep-info files under target/account failed; $stale_fix"
+  convert=0
+  if command -v cygpath >/dev/null 2>&1; then
+    convert=1
+  fi
+  DEP_INFO_LIST=$work/dep-info.txt DEP_INFO_MEMBERS=$work/members.tsv DEP_INFO_ACCOUNT=$account_dir DEP_INFO_NAMES=$work/dep-info.names DEP_INFO_CONVERT=$convert dep_info_read >"$work/dep-info.read" || fail 'awk cannot read the dep-info files'
+  here=$PWD
+  dep_info=0
+  unopenable=0
+  unread=0
+  elsewhere=0
+  missing=0
+  links=0
+  outside=0
+  member_missing=
+  outs=$nl
+  read_dirs=
+  last_dir=
+  real=
+  place=other
+  while IFS="$tab" read -r kind idx dir leaf || [ -n "$kind" ]; do
+    case $kind in
+      local) dep_info=$idx ;;
+      unconverted) fail 'cygpath gave fewer paths than the dep-info files hold' ;;
+      unopenable) unopenable=$idx ;;
+      unread)
+        unread=$idx
+        [ "$unread" -eq 0 ] || printf 'a dep-info file of account/ holds a line that names no file whole\n'
+        ;;
+      outdir) ! out_dir_of "$dir" || outs=$outs$idx$tab$out_real$nl ;;
+      member)
+        cd -P "$dir" 2>/dev/null || fail "cannot enter the directory of the package $idx"
+        if [ -z "$member_missing" ] && ! read_dir_below "$PWD"; then
+          printf 'no dep-info file names a source of the package %s\n' "$idx"
+          member_missing=$idx
+        fi
+        ;;
+      head | path)
+        if [ "$dir" != "$last_dir" ]; then
+          last_dir=$dir
+          if cd -P "$dir" 2>/dev/null; then
+            real=$PWD
+            place_of "$real"
+            [ "$place" != account ] || read_dirs=$read_dirs$real$nl
+          else
+            real=
+            place=other
+          fi
+        fi
+        if [ "$kind" = head ]; then
+          if [ -z "$real" ] || [ ! -f "$real/$leaf" ] || [ "$place" != target ]; then
+            elsewhere=$((elsewhere + 1))
+          fi
+        elif [ -z "$real" ] || { [ ! -e "$real/$leaf" ] && [ ! -L "$real/$leaf" ]; }; then
+          missing=$((missing + 1))
+        elif [ -L "$real/$leaf" ]; then
+          links=$((links + 1))
+          printf 'read through a symbolic link: %s\n' "$leaf"
+        elif [ "$place" = target ]; then
+          admitted=no
+          case $outs in
+            *"$nl$idx$tab"*)
+              out=${outs#*"$nl$idx$tab"}
+              out=${out%%"$nl"*}
+              ! below "$real" "$out" || admitted=yes
+              ;;
+          esac
+          if [ "$admitted" = no ]; then
+            outside=$((outside + 1))
+            printf 'read outside account/: a file under target/account outside the out directory of its build script\n'
+          fi
+        elif [ "$place" != account ]; then
+          outside=$((outside + 1))
+          case $real/$leaf in
+            "${account_dir%/*}"/*) printf 'read outside account/: %s\n' "${real#"${account_dir%/*}"/}/$leaf" ;;
+            *) printf 'read outside account/: a file outside the repository\n' ;;
+          esac
+        fi
+        ;;
+    esac
+  done <"$work/dep-info.read"
+  cd "$here" || fail 'cannot return to the repository'
+  [ "$unopenable" -eq 0 ] || fail "the target holds a dep-info file that this check cannot open; $stale_fix"
+  [ "$unread" -eq 0 ] || fail 'a source of account/ reads a file outside account/'
+  [ "$elsewhere" -eq 0 ] || fail "the target holds dep-info that this build did not write, whose rule names another place; $stale_fix"
+  [ "$missing" -eq 0 ] || fail "the target holds dep-info that this build did not write, which lists a file that is not there; $stale_fix"
+  [ "$links" -eq 0 ] || fail 'a source of account/ reads a file through a symbolic link'
+  [ "$outside" -eq 0 ] || fail 'a source of account/ reads a file outside account/'
+  [ "$dep_info" -gt 0 ] || fail 'cargo wrote no dep-info file of a package of account/'
+  [ -z "$member_missing" ] || fail 'a package of account/ has no dep-info file that this check read'
 }
 
 outside_names() {
@@ -474,10 +735,12 @@ measure() {
   check_fetched
   check_metadata
   target=$repo/target/account
+  check_tracked_target
   CARGO_TARGET_DIR=$target cargo deny --offline --locked --manifest-path account/Cargo.toml check bans licenses sources
   code=$?
   [ "$code" -eq 0 ] || fail "cargo deny check bans licenses sources exited $code"
   check_outside_licences
+  clear_members
   CARGO_TARGET_DIR=$target cargo build --manifest-path account/Cargo.toml --locked --offline
   code=$?
   [ "$code" -eq 0 ] || fail "cargo build --locked --offline exited $code"
@@ -495,8 +758,9 @@ measure() {
   CARGO_TARGET_DIR=$target cargo clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked --offline -- -D warnings
   code=$?
   [ "$code" -eq 0 ] || fail "cargo clippy --all-targets --locked --offline exited $code"
+  check_sources
   check_tracked
-  printf 'account packages=%s vendored=%s of 4 bans=%s tests=%s cargo-deny=%s %s\n' "$packages" "$compared" "$bans" "$tests" "$pin" "$tool"
+  printf 'account packages=%s vendored=%s of 4 bans=%s tests=%s cargo-deny=%s %s dep-info=%s\n' "$packages" "$compared" "$bans" "$tests" "$pin" "$tool" "$dep_info"
   printf 'PASS %s\n' "$name"
 }
 
@@ -528,7 +792,36 @@ case $1 in
     esac
     exit "${STUB_DENY_EXIT:-0}"
     ;;
-  build) exit "${STUB_BUILD_EXIT:-0}" ;;
+  clean)
+    [ -z "${STUB_BUILD_REAL:-}" ] || exec "$STUB_REAL_CARGO" "$@"
+    exit "${STUB_CLEAN_EXIT:-0}"
+    ;;
+  build)
+    [ -z "${STUB_BUILD_REAL:-}" ] || exec "$STUB_REAL_CARGO" "$@"
+    t=$CARGO_TARGET_DIR
+    mkdir -p "$t/debug/deps" || exit 98
+    if [ -z "${STUB_NO_DEP_INFO:-}" ]; then
+      s=${STUB_TARGET_SPELLING:-$t}
+      out=${STUB_OUT_DIR:-debug/build/halvo-wire-0/out}
+      mkdir -p "$t/$out" && printf 'pub const X: u8 = 0;\n' >"$t/$out/bounds.rs" || exit 98
+      extra=${STUB_DEP:+$STUB_DEP:}
+      if [ -n "${STUB_TARGET_DEP:-}" ]; then
+        mkdir -p "$t/${STUB_TARGET_DEP%/*}" && printf 'x\n' >"$t/$STUB_TARGET_DEP" || exit 98
+        extra=$s/$STUB_TARGET_DEP:
+      fi
+      case ${STUB_LINK_IN:-} in
+        src) ln -s ../../../../outside/code.rs account/crates/halvo-wire/src/linked.rs && extra='crates/halvo-wire/src/linked.rs:' || exit 98 ;;
+        out) ln -s "$(pwd -P)/outside/code.rs" "$t/$out/linked.rs" && extra=$s/$out/linked.rs: || exit 98 ;;
+      esac
+      printf '%s: crates/halvo-wire/src/lib.rs\n\ncrates/halvo-wire/src/lib.rs:\ncrates/halvo-wire/src/../build.rs:\n%s/%s/bounds.rs:\n%s\n# env-dep:OUT_DIR=%s/%s\n# env-dep:STUB=../../../../../../../..\n' "${STUB_HEAD:-$s/debug/deps/${STUB_HEAD_IN_TARGET:-halvo_wire-0.d}}" "$s" "$out" "$extra" "$s" "$out" >"$t/debug/deps/halvo_wire-0.d" || exit 98
+      if [ -z "${STUB_SKIP_SECRETS:-}" ]; then
+        printf '%s/debug/deps/halvo_secrets-0.d: crates/halvo-secrets/src/lib.rs\n\ncrates/halvo-secrets/src/lib.rs:\n' "$s" >"$t/debug/deps/halvo_secrets-0.d" || exit 98
+      fi
+      printf '%s/debug/deps/itoa-0.d: /registry/itoa/src/lib.rs\n\n/registry/itoa/src/lib.rs:\n' "$t" >"$t/debug/deps/itoa-0.d" || exit 98
+      [ -z "${STUB_UNREADABLE:-}" ] || chmod 000 "$t/debug/deps/halvo_wire-0.d" || exit 98
+    fi
+    exit "${STUB_BUILD_EXIT:-0}"
+    ;;
   test)
     case " $* " in
       *' --test hosted '*)
@@ -581,7 +874,36 @@ make_fixture() {
   for entry in Cargo.toml Cargo.lock deny.toml schema crates; do
     cp -R "$repo/account/$entry" "$fixture/account/$entry" || return 1
   done
-  mkdir "$fixture/scripts" && cp "$repo/scripts/prerequisites.sh" "$fixture/scripts/prerequisites.sh"
+  mkdir "$fixture/scripts" && cp "$repo/scripts/prerequisites.sh" "$fixture/scripts/prerequisites.sh" || return 1
+  mkdir "$fixture/outside" && printf 'pub fn included() {}\n' >"$fixture/outside/code.rs"
+}
+
+write_stand_in() {
+  mkdir "$1" || return 1
+  cat >"$1/cygpath" <<'EOF' || return 1
+#!/bin/sh
+case $1 in
+  -u)
+    [ "$2" = -f ] || exit 2
+    awk 'BEGIN { root = ENVIRON["STAND_IN_DRIVE"] } { line = $0; gsub(/\\/, "/", line); if (line ~ /^[Zz]:\//) line = root substr(line, 3); print line }' "$3"
+    ;;
+  -w)
+    rest=${2#"$STAND_IN_DRIVE"}
+    [ "$rest" != "$2" ] || exit 1
+    printf 'Z:%s\n' "$(printf '%s' "$rest" | tr '/' '\\')"
+    ;;
+  *) exit 2 ;;
+esac
+EOF
+  chmod +x "$1/cygpath"
+}
+
+windows_name() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$1"
+  else
+    STAND_IN_DRIVE=$work "$work/stand-in/cygpath" -w "$1"
+  fi
 }
 
 edit() {
@@ -613,6 +935,33 @@ write_crate() {
   : >"$1/src/lib.rs"
 }
 
+make_probe_fixture() {
+  fixture=$work/$1
+  mkdir "$fixture" "$fixture/account" "$fixture/outside" "$fixture/scripts" || return 1
+  for entry in Cargo.toml deny.toml schema; do
+    cp -R "$repo/account/$entry" "$fixture/account/$entry" || return 1
+  done
+  cp "$repo/scripts/prerequisites.sh" "$fixture/scripts/prerequisites.sh" || return 1
+  write_crate "$fixture/account/crates/probe" probe || return 1
+  mkdir "$fixture/account/crates/probe/inner" || return 1
+  printf 'pub fn outside() {}\n' >"$fixture/outside/module.rs" || return 1
+  printf 'pub fn included() {}\n' >"$fixture/outside/code.rs" || return 1
+  printf 'text\n' >"$fixture/outside/text.txt" || return 1
+  printf 'bytes\n' >"$fixture/outside/bytes.bin" || return 1
+  printf 'pub fn inner() {}\n' >"$fixture/account/crates/probe/inner/module.rs" || return 1
+  printf 'text\n' >"$fixture/account/crates/probe/inner/text.txt" || return 1
+  printf '%s\n' "$2" >"$fixture/account/crates/probe/src/lib.rs" || return 1
+  relock
+}
+
+write_probe_build_script() {
+  printf 'fn main() {\n    let out = std::env::var("OUT_DIR").unwrap();\n    std::fs::write(std::path::Path::new(&out).join("generated.rs"), "pub fn generated() {}\\n").unwrap();\n}\n' >"$fixture/account/crates/probe/build.rs"
+}
+
+build_probe() {
+  (cd "$fixture" && CARGO_TARGET_DIR=$fixture/target/account "$real_cargo" build --offline --manifest-path account/Cargo.toml >/dev/null 2>&1)
+}
+
 relock() {
   (cd "$fixture" && "$real_cargo" metadata --offline --format-version 1 --manifest-path account/Cargo.toml >/dev/null 2>&1)
 }
@@ -634,7 +983,7 @@ in_list() {
 
 takes_case() {
   in_list "$1" "$windows_cases" && return 0
-  [ "${2-$self_test_job}" != windows ]
+  [ "${2-$job}" != windows ]
 }
 
 all_taken() {
@@ -698,23 +1047,64 @@ split_verdict() {
   [ "$1" = "$2" ] || printf ' job-not-read'
 }
 
+runs_here() {
+  selected "$1" || return 1
+  takes_case "$1" && return 0
+  left_out "$1"
+  return 1
+}
+
+split_holds() {
+  case $1 in
+    macos | windows) ;;
+    *) return 1 ;;
+  esac
+  missing=$(cases_missing "$1" "$2") || return 1
+  [ -z "$missing" ] && return 0
+  printf 'the %s job did not run%s\n' "$1" "$missing"
+  return 1
+}
+
+job_real_builds() {
+  case $1 in
+    macos) real_builds=$real_builds_macos ;;
+    windows) real_builds=$real_builds_windows ;;
+    *) real_builds= ;;
+  esac
+  [ -n "$real_builds" ]
+}
+
+no_real_build() {
+  [ "$1" = whole ] && [ "$2" -eq 0 ]
+}
+
+real_build() {
+  case " $real_builds " in
+    *" $1 "*) return 0 ;;
+  esac
+  left_out "$1"
+  return 1
+}
+
 run_case() {
   case=$1
-  selected "$case" || return 0
-  if ! takes_case "$case"; then
-    left_out "$case"
-    return 0
-  fi
+  runs_here "$case" || return 0
   note_case "$case"
   want=$2
   mode=$3
   shift 3
+  case " $* " in
+    *' STUB_BUILD_REAL=1 '*) real_runs=$((real_runs + 1)) ;;
+  esac
   if [ "$mode" = stub ]; then
     path=$stub:$PATH
   else
     path=$PATH
   fi
-  out=$(env -u GITHUB_ACTIONS -u RUNNER_ENVIRONMENT PATH="$path" CI_D_REPO="$fixture" CI_D_ARTIFACTS="$fixture" STUB_DENY_VERSION="$pin" STUB_REAL_CARGO="$real_cargo" STUB_DENY_OUTSIDE="$outside_default" STUB_LOG="$fixture/cargo-calls.txt" "$@" sh "$self" 2>&1 </dev/null)
+  case " $* " in
+    *' STAND_IN_CYGPATH=1 '*) command -v cygpath >/dev/null 2>&1 || path=$work/stand-in:$path ;;
+  esac
+  out=$(env -u GITHUB_ACTIONS -u RUNNER_ENVIRONMENT PATH="$path" CI_D_REPO="$fixture" CI_D_ARTIFACTS="$fixture" STUB_DENY_VERSION="$pin" STUB_REAL_CARGO="$real_cargo" STUB_DENY_OUTSIDE="$outside_default" STUB_LOG="$fixture/cargo-calls.txt" STAND_IN_DRIVE="$work" "$@" sh "$self" 2>&1 </dev/null)
   code=$?
   last=${out##*"$nl"}
   case $want in
@@ -728,7 +1118,7 @@ run_case() {
   fi
   if [ "$want" = "PASS $name" ]; then
     case $nl$out$nl in
-      *"${nl}account packages=$packages vendored=4 of 4 bans=$bans tests=3 cargo-deny=$pin found$nl"*) ;;
+      *"${nl}account packages=${want_packages:-$packages} vendored=4 of 4 bans=$bans tests=3 cargo-deny=$pin found dep-info=${want_dep_info:-2}$nl"*) ;;
       *) got="$got, without its counts line" ;;
     esac
     calls=$(cat "$fixture/cargo-calls.txt" 2>/dev/null)
@@ -737,16 +1127,15 @@ run_case() {
   printf 'case %s/%s want=%s got=%s\n' "$name" "$case" "$want" "$got"
   if [ "$got" != "$want" ]; then
     wrong="$wrong $case"
+    printf '%s\n' "$out" | grep -E '^(read outside account/|a dep-info file of account/)'
   elif [ "$want" != "PASS $name" ]; then
     rejected=$((rejected + 1))
   fi
 }
 
 stub_case() {
-  if ! make_fixture "$1"; then
-    takes_case "$1" && fail "cannot make the fixture $1"
-    return 0
-  fi
+  runs_here "$1" || return 0
+  make_fixture "$1" || fail "cannot make the fixture $1"
   run_case "$@"
 }
 
@@ -766,12 +1155,17 @@ harness_case() {
 }
 
 self_test() {
-  self_test_job=${CI_D_JOB:-}
+  case ${CI_D_JOB:-} in
+    macos | windows) ;;
+    *) fail 'CI_D_JOB names neither macos nor windows' ;;
+  esac
+  job=$CI_D_JOB
   split=' split-not-checked'
   ran=
   left=0
   unlisted=
   enter_repository
+  real_runs=0
   work=$(mktemp -d "${TMPDIR:-/tmp}/r7-account-self-test.XXXXXX") || fail 'mktemp -d failed'
   real_cargo=$(command -v cargo) || fail 'cargo is not on the PATH'
   stub=$work/stub
@@ -782,11 +1176,13 @@ self_test() {
   check_metadata
   rejected=0
   wrong=
+  write_stand_in "$work/stand-in" || fail 'cannot write the stand-in cygpath'
   calls_before="deny --version
 fetch --locked --offline --manifest-path account/Cargo.toml
 metadata --locked --offline --format-version 1 --manifest-path account/Cargo.toml
 deny --offline --locked --manifest-path account/Cargo.toml check bans licenses sources
 deny --format json --color never --config CONFIG --offline --locked --manifest-path account/Cargo.toml check licenses
+clean --offline$members --manifest-path account/Cargo.toml
 build --manifest-path account/Cargo.toml --locked --offline
 test --manifest-path account/Cargo.toml --locked --offline"
   calls_after="fmt --manifest-path account/Cargo.toml --all --check
@@ -806,6 +1202,28 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   cause_outside='the packages of account/Cargo.lock that no target of Halvo compiles and whose licence is outside the allow list differ from outside_licences of this script; read each and list it there'
   outside_default=$work/outside-default.json
   deny_json >"$outside_default" || fail 'cannot write in the temp directory'
+  cause_source='a source of account/ reads a file outside account/'
+  cause_no_dep_info='cargo wrote no dep-info file of a package of account/'
+  stale_fix='cargo clean --manifest-path account/Cargo.toml --target-dir target/account clears it'
+  cause_unopenable="the target holds a dep-info file that this check cannot open; $stale_fix"
+  cause_elsewhere="the target holds dep-info that this build did not write, whose rule names another place; $stale_fix"
+  cause_missing="the target holds dep-info that this build did not write, which lists a file that is not there; $stale_fix"
+  cause_link='a source of account/ reads a file through a symbolic link'
+  cause_member='a package of account/ has no dep-info file that this check read'
+  cause_tracked='a tracked file lies under the build target directory target/account'
+  inside_source='include!(concat!(env!("OUT_DIR"), "/generated.rs"));
+#[path = "../inner/module.rs"]
+pub mod inner;
+pub const TEXT: &str = include_str!("../inner/text.txt");'
+  probe_calls="deny --version
+fetch --locked --offline --manifest-path account/Cargo.toml
+metadata --locked --offline --format-version 1 --manifest-path account/Cargo.toml
+deny --offline --locked --manifest-path account/Cargo.toml check bans licenses sources
+deny --format json --color never --config CONFIG --offline --locked --manifest-path account/Cargo.toml check licenses
+clean --offline -p probe --manifest-path account/Cargo.toml
+build --manifest-path account/Cargo.toml --locked --offline
+test --manifest-path account/Cargo.toml --locked --offline
+$calls_after"
 
   fixture=$work/no-repository
   run_case no-repository "FAIL $name (cannot enter the repository that CI_D_REPO names)" stub
@@ -859,6 +1277,10 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
     run_case record-with-a-fifth-line "FAIL $name ($cause_record)" stub
   make_fixture fifth-line-without-newline && edit schema/vendored.txt awk 'BEGIN { while ((getline line) > 0) print line; printf "%s", "x" }' &&
     run_case fifth-line-without-newline "FAIL $name ($cause_record)" stub
+  make_fixture record-line-with-another-name && edit schema/vendored.txt sed 's/ schema\.v1\.json / schema.v2.json /' &&
+    run_case record-line-with-another-name "FAIL $name ($cause_record)" stub
+  make_fixture record-line-with-another-path && edit schema/vendored.txt sed 's| contract/routes/v1\.json$| contract/routes/v2.json|' &&
+    run_case record-line-with-another-path "FAIL $name ($cause_record)" stub
 
   make_fixture config-source-replacement && mkdir "$fixture/.cargo" &&
     printf '[source.crates-io]\nreplace-with = "vendored"\n\n[source.vendored]\ndirectory = "vendor"\n' >"$fixture/.cargo/config.toml" &&
@@ -880,12 +1302,25 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   make_fixture escaped-path-key && write_crate "$fixture/outside-crate" outside &&
     edit crates/halvo-wire/Cargo.toml awk 'BEGIN { while ((getline line) > 0) { print line; if (line == "[dependencies]") print "outside = { \"\\u0070ath\" = \"../../../outside-crate\" }" } }' &&
     relock && run_case escaped-path-key "FAIL $name ($cause_path)" stub
-  make_fixture escaped-build-key && mkdir "$fixture/outside" && printf 'fn main() {}\n' >"$fixture/outside/build.rs" &&
+  make_fixture escaped-build-key && printf 'fn main() {}\n' >"$fixture/outside/build.rs" &&
     edit crates/halvo-wire/Cargo.toml awk 'BEGIN { while ((getline line) > 0) { print line; if (line == "publish = false") print "\"\\u0062uild\" = \"../../../outside/build.rs\"" } }' &&
     run_case escaped-build-key "FAIL $name ($cause_path)" stub
   make_fixture path-outside-account && write_crate "$fixture/outside-crate" outside &&
     edit crates/halvo-wire/Cargo.toml awk 'BEGIN { while ((getline line) > 0) { print line; if (line == "[dependencies]") print "outside = { path = \"../../../outside-crate\" }" } }' &&
     relock && run_case path-outside-account "FAIL $name ($cause_path)" stub
+  make_fixture manifest-outside-account && write_crate "$fixture/outside-crate" outside &&
+    printf '[lib]\npath = "../account/sources/lib.rs"\n' >>"$fixture/outside-crate/Cargo.toml" && mkdir "$fixture/account/sources" && : >"$fixture/account/sources/lib.rs" &&
+    edit crates/halvo-wire/Cargo.toml awk 'BEGIN { while ((getline line) > 0) { print line; if (line == "[dependencies]") print "outside = { path = \"../../../outside-crate\" }" } }' &&
+    relock && run_case manifest-outside-account "FAIL $name ($cause_path)" stub
+  if runs_here target-through-a-link; then
+    make_fixture target-through-a-link && ln -s account "$fixture/link-to-account" 2>/dev/null
+    if [ -L "$fixture/link-to-account" ]; then
+      edit crates/halvo-wire/Cargo.toml awk '{ print } END { print ""; print "[[test]]"; print "name = \"through_a_link\""; print "path = \"../../../link-to-account/crates/halvo-wire/tests/request.rs\"" }' &&
+        relock && run_case target-through-a-link "FAIL $name ($cause_path)" stub
+    else
+      printf 'case %s/target-through-a-link not run: this system made no symbolic link\n' "$name"
+    fi
+  fi
   make_fixture respelled-lock-entry && write_crate "$fixture/account/crates/sqlite-shim" sqlite-shim && relock &&
     edit Cargo.lock sed "s/^name = \"sqlite-shim\"\$/name = 'sqlite-shim'/" &&
     run_case respelled-lock-entry "FAIL $name ($cause_name)" stub
@@ -906,6 +1341,134 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   run_case metadata-name-with-sqlite-in-mixed-case "FAIL $name ($cause_name)" stub STUB_METADATA="$work/sqlite.json"
   run_case metadata-name-with-sqlcipher "FAIL $name ($cause_name)" stub STUB_METADATA="$work/sqlcipher.json"
   run_case metadata-without-a-package "FAIL $name (account/'s metadata holds no package)" stub STUB_METADATA="$work/empty.json"
+
+  stub_case dep-info-absent "FAIL $name ($cause_no_dep_info)" stub STUB_NO_DEP_INFO=1
+  stub_case dep-info-path-outside "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/../../../../outside/code.rs'
+  runs_here dep-info-absolute-path-outside && make_fixture dep-info-absolute-path-outside &&
+    run_case dep-info-absolute-path-outside "FAIL $name ($cause_source)" stub STUB_DEP="$fixture/outside/code.rs"
+  stub_case dep-info-windows-separators "FAIL $name ($cause_source)" stub STUB_DEP='crates\halvo-wire\src\..\..\..\..\outside\code.rs' STAND_IN_CYGPATH=1
+  make_fixture dep-info-windows-drive && drive_name=$(windows_name "$fixture/outside/code.rs") &&
+    run_case dep-info-windows-drive "FAIL $name ($cause_source)" stub STUB_DEP="$drive_name" STAND_IN_CYGPATH=1
+  stub_case dep-info-missing-file "FAIL $name ($cause_missing)" stub STUB_DEP='crates/halvo-wire/src/gone.rs'
+  stub_case dep-info-missing-directory "FAIL $name ($cause_missing)" stub STUB_DEP='crates/halvo-wire/gone/lib.rs'
+  stub_case dep-info-head-elsewhere "FAIL $name ($cause_elsewhere)" stub STUB_HEAD=crates/halvo-wire/Cargo.toml
+  if runs_here dep-info-unopenable; then
+    make_fixture dep-info-unopenable && probe_file=$fixture/mode-000 && : >"$probe_file" && chmod 000 "$probe_file"
+    if [ -r "$probe_file" ]; then
+      printf 'case %s/dep-info-unopenable not run: this system reads a file of mode 000\n' "$name"
+    else
+      run_case dep-info-unopenable "FAIL $name ($cause_unopenable)" stub STUB_UNREADABLE=1
+    fi
+  fi
+  stub_case member-without-dep-info "FAIL $name ($cause_member)" stub STUB_SKIP_SECRETS=1
+  runs_here dep-info-name-starting-with-a-hash && make_fixture dep-info-name-starting-with-a-hash && mkdir -p "$fixture/account/#m/src" &&
+    run_case dep-info-name-starting-with-a-hash "FAIL $name ($cause_source)" stub STUB_DEP='#m/src/../../../outside/code.rs'
+  if runs_here dep-info-link-then-dot-dot; then
+    make_fixture dep-info-link-then-dot-dot && mkdir -p "$fixture/elsewhere/d" "$fixture/elsewhere/account/crates/halvo-wire/src" &&
+      : >"$fixture/elsewhere/account/crates/halvo-wire/src/lib.rs" && ln -s elsewhere/d "$fixture/sneak" 2>/dev/null
+    if [ -L "$fixture/sneak" ]; then
+      run_case dep-info-link-then-dot-dot "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/../../../../sneak/../account/crates/halvo-wire/src/lib.rs'
+    else
+      printf 'case %s/dep-info-link-then-dot-dot not run: this system made no symbolic link\n' "$name"
+    fi
+  fi
+  if runs_here link-as-account-target; then
+    make_fixture link-as-account-target && mkdir "$fixture/elsewhere" && ln -s ../elsewhere "$fixture/account/target" 2>/dev/null
+    if [ -L "$fixture/account/target" ]; then
+      run_case link-as-account-target "FAIL $name (account/ holds a symbolic link)" stub
+    else
+      printf 'case %s/link-as-account-target not run: this system made no symbolic link\n' "$name"
+    fi
+  fi
+  stub_case dep-info-link-in-a-source-directory "FAIL $name ($cause_link)" stub STUB_LINK_IN=src
+  stub_case dep-info-link-in-an-out-directory "FAIL $name ($cause_link)" stub STUB_LINK_IN=out
+  make_fixture dep-info-backslash-in-a-directory-name && mkdir "$fixture/account/crates/halvo-wire/src/a\\b" &&
+    run_case dep-info-backslash-in-a-directory-name "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/a\b/../../../../../outside/code.rs'
+  make_fixture dep-info-letter-and-colon-directory && mkdir -p "$fixture/account/c:x/src" &&
+    run_case dep-info-letter-and-colon-directory "FAIL $name ($cause_source)" stub STUB_DEP='c:x/src/../../../outside/code.rs'
+  stub_case dep-info-target-outside-out "FAIL $name ($cause_source)" stub STUB_TARGET_DEP=debug/deps/code.rs
+  stub_case dep-info-file-beside-out "FAIL $name ($cause_source)" stub STUB_TARGET_DEP=debug/build/halvo-wire-0/other.rs
+  stub_case dep-info-in-another-out-directory "FAIL $name ($cause_source)" stub STUB_TARGET_DEP=debug/build/fake-0/out/code.rs
+  stub_case dep-info-out-directory-without-build "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/notbuild/halvo-wire-0/out
+  stub_case dep-info-out-directory-not-named-out "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/build/halvo-wire-0/notout
+  stub_case dep-info-out-directory-two-levels-deep "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/extra/build/halvo-wire-0/out
+  stub_case dep-info-head-names-a-missing-file "FAIL $name ($cause_elsewhere)" stub STUB_HEAD_IN_TARGET=gone.d
+  make_fixture tracked-file-under-the-target && mkdir -p "$fixture/target/account/debug/build/fake-0/out" &&
+    cp "$fixture/outside/code.rs" "$fixture/target/account/debug/build/fake-0/out/code.rs" &&
+    git -C "$fixture" init -q >/dev/null 2>&1 && git -C "$fixture" add -f target/account/debug/build/fake-0/out/code.rs >/dev/null 2>&1 &&
+    run_case tracked-file-under-the-target "FAIL $name ($cause_tracked)" stub
+  runs_here dep-info-in-a-sibling-of-account && make_fixture dep-info-in-a-sibling-of-account && mkdir "$fixture/account-tools" && cp "$fixture/outside/code.rs" "$fixture/account-tools/code.rs" &&
+    run_case dep-info-in-a-sibling-of-account "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/../../../../account-tools/code.rs'
+  make_fixture metadata-path-in-a-sibling-of-account && write_crate "$fixture/account-tools/sibling" sibling &&
+    edit crates/halvo-wire/Cargo.toml awk 'BEGIN { while ((getline line) > 0) { print line; if (line == "[dependencies]") print "sibling = { path = \"../../../account-tools/sibling\" }" } }' &&
+    relock && run_case metadata-path-in-a-sibling-of-account "FAIL $name ($cause_path)" stub
+  runs_here dep-info-escaped-space && make_fixture dep-info-escaped-space && mkdir "$fixture/account/crates/halvo-wire/s " &&
+    run_case dep-info-escaped-space "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/s\ /../../../../outside/code.rs'
+  stub_case dep-info-name-with-a-colon-and-a-newline "FAIL $name ($cause_elsewhere)" stub STUB_DEP="crates/halvo-wire/src/../../../../x: y${nl}z.txt"
+  if runs_here repository-through-a-link; then
+    make_fixture repository-through-a-link && mkdir -p "$fixture/target/account/debug/build/halvo-wire-0/out" && ln -s "${fixture##*/}" "$work/link-to-the-repository" 2>/dev/null
+    if [ -L "$work/link-to-the-repository" ]; then
+      run_case repository-through-a-link "PASS $name" stub CI_D_REPO="$work/link-to-the-repository"
+    else
+      printf 'case %s/repository-through-a-link not run: this system made no symbolic link\n' "$name"
+    fi
+  fi
+  make_fixture target-in-another-spelling && mkdir -p "$fixture/target/account/debug/build/halvo-wire-0/out"
+  spelling=
+  if command -v cygpath >/dev/null 2>&1; then
+    spelling=$(cygpath -m "$fixture/target/account") || spelling=
+  elif ln -s "${fixture##*/}/target/account" "$work/another-spelling-of-the-target" 2>/dev/null; then
+    spelling=$work/another-spelling-of-the-target
+  fi
+  if [ -n "$spelling" ]; then
+    run_case target-in-another-spelling "PASS $name" stub STUB_TARGET_SPELLING="$spelling"
+  else
+    printf 'case %s/target-in-another-spelling could not name the target in another spelling\n' "$name"
+    wrong="$wrong target-in-another-spelling"
+  fi
+  make_fixture target-in-the-drive-spelling && mkdir -p "$fixture/target/account" && drive_target=$(windows_name "$fixture/target/account") &&
+    run_case target-in-the-drive-spelling "PASS $name" stub STUB_TARGET_SPELLING="$drive_target" STAND_IN_CYGPATH=1
+  stub_case dep-info-name-with-a-newline "FAIL $name ($cause_source)" stub STUB_DEP="crates/halvo-wire/src/../../../../x${nl}y.txt"
+  job_real_builds "$job" || wrong="$wrong real-builds-of-the-$job-job"
+  want_packages=1
+  real_build path-attribute-outside && make_probe_fixture path-attribute-outside '#[path = "../../../../outside/module.rs"]
+pub mod outside;' && run_case path-attribute-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
+  real_build include-outside && make_probe_fixture include-outside 'include!("../../../../outside/code.rs");' &&
+    run_case include-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
+  real_build include-str-outside && make_probe_fixture include-str-outside 'pub const TEXT: &str = include_str!("../../../../outside/text.txt");' &&
+    run_case include-str-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
+  real_build include-bytes-outside && make_probe_fixture include-bytes-outside 'pub const BYTES: &[u8] = include_bytes!("../../../../outside/bytes.bin");' &&
+    run_case include-bytes-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
+  real_build include-from-the-target-directory && make_probe_fixture include-from-the-target-directory 'include!("../../../../target/account/code.rs");' &&
+    mkdir -p "$fixture/target/account" && cp "$fixture/outside/code.rs" "$fixture/target/account/code.rs" &&
+    run_case include-from-the-target-directory "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
+  want_dep_info=2
+  want_calls=$probe_calls
+  real_build includes-inside && make_probe_fixture includes-inside "$inside_source" && write_probe_build_script &&
+    run_case includes-inside "PASS $name" stub STUB_BUILD_REAL=1
+  if real_build moved-tree && make_probe_fixture moved-tree-before-the-move "$inside_source" && write_probe_build_script && build_probe &&
+    mv "$fixture" "$work/moved-tree" && fixture=$work/moved-tree; then
+    run_case moved-tree "PASS $name" stub STUB_BUILD_REAL=1
+    if real_build moved-tree-with-an-outside-include; then
+      printf 'include!("../../../../outside/code.rs");\n' >>"$fixture/account/crates/probe/src/lib.rs"
+      run_case moved-tree-with-an-outside-include "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
+    fi
+  fi
+  want_dep_info=1
+  if real_build source-put-right && make_probe_fixture source-put-right 'pub const TEXT: &str = include_str!("../../../../outside/text.txt");' && build_probe &&
+    printf 'pub const TEXT: &str = include_str!("../inner/text.txt");\n' >"$fixture/account/crates/probe/src/lib.rs" &&
+    edit crates/probe/Cargo.toml sed 's/^version = "0.1.0"$/version = "0.1.1"/' && relock; then
+    run_case source-put-right "PASS $name" stub STUB_BUILD_REAL=1
+  fi
+  want_packages=2
+  if real_build member-named-with-a-hash && make_probe_fixture member-named-with-a-hash '' && write_crate "$fixture/account/#m" hashm &&
+    printf 'pub const TEXT: &str = include_str!("../../../outside/text.txt");\n' >"$fixture/account/#m/src/lib.rs" &&
+    edit Cargo.toml sed 's|^members = \["crates/\*"\]$|members = ["crates/*", "#m"]|' && relock; then
+    run_case member-named-with-a-hash "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
+  fi
+  want_calls=$calls_before$nl$calls_after
+  want_packages=
+  want_dep_info=
 
   make_fixture sqlite-in-lock && edit Cargo.lock awk '{ print } END { print ""; print "[[package]]"; print "name = \"libsqlite3-sys\""; print "version = \"0.35.0\""; print "source = \"registry+https://github.com/rust-lang/crates.io-index\"" }' &&
     run_case sqlite-in-lock "FAIL $name ($cause_fetch)" stub
@@ -965,6 +1528,12 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
     run_case ban-name-with-other-characters "FAIL $name ($cause_ban)" stub
   make_fixture ban-reason-with-a-quote && edit deny.toml sed 's/reason = "SQLite: bindings/reason = "SQLite: \\"bindings/' &&
     run_case ban-reason-with-a-quote "FAIL $name ($cause_ban)" stub
+  make_fixture ban-with-a-third-key && edit deny.toml sed 's/^    { crate = "rusqlite", reason = ".*" },$/    { crate = "rusqlite", reason = "SQLite", use-instead = "none" },/' &&
+    run_case ban-with-a-third-key "FAIL $name ($cause_ban)" stub
+  make_fixture ban-reason-with-a-backslash && edit deny.toml sed 's/{ crate = "rusqlite", reason = "SQLite: bindings/{ crate = "rusqlite", reason = "SQLite:\\tbindings/' &&
+    run_case ban-reason-with-a-backslash "FAIL $name ($cause_ban)" stub
+  make_fixture ban-line-cut-after-its-reason && edit deny.toml sed 's/^\(    { crate = "rusqlite", reason = ".*\)" },$/\1/' &&
+    run_case ban-line-cut-after-its-reason "FAIL $name ($cause_ban)" stub
   make_fixture ban-deleted && edit deny.toml sed '/{ crate = "sentry", /d' &&
     run_case ban-deleted "FAIL $name (account/deny.toml lacks the ban of sentry)" stub
   make_fixture ban-renamed && edit deny.toml sed 's/{ crate = "libsqlite3-sys"/{ crate = "libsqlite4-sys"/' &&
@@ -1020,6 +1589,46 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
   else
     harness_case crlf-without-carriage-returns refused
   fi
+  run=whole
+  [ -z "${R7_ACCOUNT_CASES:-}" ] || run=part
+  if no_real_build "$run" "$real_runs"; then
+    printf 'the %s job ran no real build\n' "$job"
+    wrong="$wrong no-real-build"
+  fi
+  saved_macos=$real_builds_macos
+  saved_windows=$real_builds_windows
+  real_builds_macos=
+  real_builds_windows=
+  got=accepted
+  job_real_builds macos || got=refused
+  harness_case macos-list-emptied "$got"
+  got=accepted
+  job_real_builds windows || got=refused
+  harness_case windows-list-emptied "$got"
+  real_builds_macos=$saved_macos
+  real_builds_windows=$saved_windows
+  got=accepted
+  no_real_build whole 0 && got=refused
+  harness_case whole-run-without-a-real-build "$got"
+  got=accepted
+  saved_left=$left
+  job_real_builds windows && real_build include-outside >/dev/null || got=refused
+  left=$saved_left
+  harness_case windows-job-runs-a-macos-build "$got"
+  got=accepted
+  split_holds macos ' ' >/dev/null || got=refused
+  harness_case macos-job-misses-a-left-out-case "$got"
+  got=accepted
+  split_holds windows ' ' >/dev/null || got=refused
+  harness_case windows-job-misses-a-case-of-its-list "$got"
+  saved_job=$job
+  saved_left=$left
+  job=windows
+  got=accepted
+  runs_here dep-info-absent >/dev/null || got=refused
+  job=$saved_job
+  left=$saved_left
+  harness_case windows-job-runs-a-left-out-case "$got"
 
   saved_job=${CI_D_JOB:-}
   CI_D_JOB=windows
@@ -1109,7 +1718,7 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
     harness_case verdict-of-right-values-has-no-word "gave '$verdict'"
   fi
 
-  split=$(split_verdict "$self_test_job" "${CI_D_JOB:-}" "$ran" "$unlisted" "$left") ||
+  split=$(split_verdict "$job" "${CI_D_JOB:-}" "$ran" "$unlisted" "$left") ||
     split="$split split-verdict-failed"
   printf 'cases left to the macos job: %s\n' "$left"
   if [ -n "$split$wrong" ]; then
