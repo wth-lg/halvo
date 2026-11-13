@@ -1589,6 +1589,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-runner"
+version = "0.0.0"
+dependencies = [
+ "halvo-policy",
+ "halvo-schema",
+ "halvo-sheet",
+ "serde_json",
+]
+
+[[package]]
 name = "halvo-schema"
 version = "0.0.0"
 dependencies = [
