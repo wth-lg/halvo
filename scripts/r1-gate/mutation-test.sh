@@ -359,24 +359,25 @@ run_rows() {
     row_now=$(date +%s)
     row_seconds
   fi
-  missing=0; unnamed=0
-  if [ -f "$tree/scripts/r1-gate/mutants.expected" ]; then
-    while IFS= read -r expected_name; do
+  missing=0; unnamed=0; expected_list=$tree/scripts/r1-gate/mutants.expected
+  if [ -f "$expected_list" ]; then
+    while IFS= read -r expected_name || [ -n "$expected_name" ]; do
       [ -n "$expected_name" ] || continue
       expected_row=$(awk -F '\t' -v n="$expected_name" '$3 == n ""' "$table")
       [ -z "$expected_row" ] || continue
       missing=$((missing + 1))
       [ "$strict" = no ] || say FAIL "$expected_name" "named in mutants.expected, and no row file holds or retires it"
-    done < "$tree/scripts/r1-gate/mutants.expected"
-    awk -F '\t' 'FILENAME == ARGV[1] { if ($0 != "") named[$0] = 1; next }
-      $7 ~ /^required/ && !($3 in named) { print $3 "\t" $1 }' "$tree/scripts/r1-gate/mutants.expected" "$table" > "$work/unnamed.tsv" || return 2
-    while IFS="$TAB" read -r unnamed_name unnamed_file; do
-      unnamed=$((unnamed + 1))
-      [ "$strict" = no ] || say FAIL "$unnamed_name" "strict: a required row of $unnamed_file, and mutants.expected does not name it"
-    done < "$work/unnamed.tsv"
-  elif [ "$strict" = yes ]; then
-    say FAIL expected "scripts/r1-gate/mutants.expected is missing, and --strict needs it"; failures=$((failures + 1))
+    done < "$expected_list"
+  else
+    expected_list=/dev/null
+    [ "$strict" = no ] || { say FAIL expected "scripts/r1-gate/mutants.expected is missing, and --strict needs it"; failures=$((failures + 1)); }
   fi
+  awk -F '\t' 'FILENAME == ARGV[1] { if ($0 != "") named[$0] = 1; next }
+    $7 ~ /^required/ && !($3 in named) { print $3 "\t" $1 }' "$expected_list" "$table" > "$work/unnamed.tsv" || return 2
+  while IFS="$TAB" read -r unnamed_name unnamed_file; do
+    unnamed=$((unnamed + 1))
+    [ "$strict" = no ] || [ "$expected_list" = /dev/null ] || say FAIL "$unnamed_name" "strict: a required row of $unnamed_file, and mutants.expected does not name it"
+  done < "$work/unnamed.tsv"
   printf 'mutation rows: %s caught, %s failed, %s open, %s transitional, %s for the measuring Mac not run, %s expected names with no row, %s required rows with no expected name\n' "$caught" "$failures" "$opens" "$transitionals" "$unrun" "$missing" "$unnamed"
   [ "$failures" -eq 0 ] || return 1
   [ "$strict" = no ] && return 0
@@ -856,6 +857,14 @@ cases() {
   printf 'named-row\n' > "$gate_scratch/unnamed-place/scripts/r1-gate/mutants.expected"
   t required-on-a-place-row-with-no-expected-name-fails-strict FAIL not_ci fixture_run unnamed-place yes yes
   t required-on-a-place-row-is-named-with-its-file PASS not_ci fixture_says unnamed-place 'FAIL mutation:other-row (strict: a required row of code/mutants.rows, and mutants.expected does not name it)' yes yes
+  fixture_tree unterminated
+  row unterminated/scripts/r1-gate/mutants.rows applies b.sh 's/two/three/' leak required X-1
+  printf 'applies\nnever-written' > "$gate_scratch/unterminated/scripts/r1-gate/mutants.expected"
+  t expected-name-on-a-last-line-without-its-line-end-fails-strict FAIL fixture_run unterminated yes yes
+  fixture_tree no-list-counted
+  row no-list-counted/scripts/r1-gate/mutants.rows counted b.sh 's/two/three/' leak required X-1
+  mv "$gate_scratch/no-list-counted/scripts/r1-gate/mutants.expected" "$gate_scratch/no-list-counted/expected-moved-away"
+  t required-row-is-counted-when-mutants-expected-is-missing PASS fixture_says no-list-counted ', 1 required rows with no expected name' yes
   fixture_tree empty
   t no-row-at-all FAIL fixture_run empty yes
   fixture_tree missing-file
