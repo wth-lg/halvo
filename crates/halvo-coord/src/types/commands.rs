@@ -120,6 +120,7 @@ const fn arg(name: &'static str, kind: ArgType) -> Arg {
 
 const ITEM: Arg = arg("item", ArgType::Id);
 const AGENT: Arg = arg("agent", ArgType::Id);
+const STEP: Arg = arg("step", ArgType::Count);
 const OK: &[&str] = &["reply-ok"];
 
 /// The commands of I8.1 in their order, each with its arguments, the stems of its reply files
@@ -153,6 +154,7 @@ pub const LIST: [Command; 7] = [
         name: "agents_answer",
         args: &[
             ITEM,
+            STEP,
             Arg {
                 values: Some(&CHOICES),
                 ..arg("choice", ArgType::Name)
@@ -186,6 +188,7 @@ pub const LIST: [Command; 7] = [
         name: "agents_setup_typed",
         args: &[
             ITEM,
+            STEP,
             Arg {
                 values: Some(&PARAMS),
                 ..arg("param", ArgType::Name)

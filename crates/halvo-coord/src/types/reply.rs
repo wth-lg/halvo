@@ -417,6 +417,7 @@ pub struct Item {
     item: ItemId,
     agent: AgentId,
     kind: ItemKind,
+    step: u32,
     presenter: Option<Presenter>,
     armed: YesNo,
     title: String,
@@ -439,6 +440,7 @@ impl Item {
             item,
             agent,
             kind,
+            step: 0,
             presenter: None,
             armed,
             title,
@@ -623,6 +625,18 @@ impl Item {
     /// `choices`: the safe one first.
     pub fn choices(&self) -> &[ChoiceText] {
         &self.choices
+    }
+
+    /// `step`: the item's step mark (I3.4, ruling RD-87 1), 0 at its first ask and one more at
+    /// each move after which the open item asks again; an answer carries the mark of the step
+    /// that the person saw.
+    pub fn step(&self) -> u32 {
+        self.step
+    }
+
+    /// The item at the step mark `step`.
+    pub fn at_step(self, step: u32) -> Item {
+        Item { step, ..self }
     }
 }
 

@@ -942,22 +942,25 @@ where
     /// The person's answer to an item (I8.1 `agents_answer`): a confirmation's `allow` or
     /// `reject` from the page, a handback's choice, after which the run resumes, and the choices
     /// of the items that no run raises, through the schedule's moves and the setup flow. A
-    /// `choose` names its parameter and its candidate.
+    /// `choose` names its parameter and its candidate. `step` is the step mark of the item that
+    /// the page showed: an answer whose step is no longer the item's current one is refused with
+    /// `state`, a decline among them, and nothing is stored or sent (I3.4, ruling RD-28 (k)).
     pub fn answer(
         &self,
         item: &ItemId,
         choice: Choice,
         pick: Option<(Param, u32)>,
+        step: u32,
     ) -> Result<(), Cause> {
         let mut st = self.lock();
         let before = Self::offs(&st);
-        let out = self.answer_in(&mut st, item, choice, pick, Presenter::Page);
+        let out = self.answer_in(&mut st, item, choice, pick, Some(step), Presenter::Page);
         self.after_reads(&mut st, &before);
         self.publish(&mut st);
         out
     }
 
-    /// The answer of the native dialog of a confirmation (I4.5).
+    /// The answer of the native dialog of a confirmation (I4.5), whose item keeps its one step.
     pub fn answer_native(&self, item: &ItemId, answer: ConfirmAnswer) -> Result<(), Cause> {
         let choice = match answer {
             ConfirmAnswer::Allow => Choice::Allow,
@@ -965,10 +968,19 @@ where
         };
         let mut st = self.lock();
         let before = Self::offs(&st);
-        let out = self.answer_in(&mut st, item, choice, None, Presenter::Native);
+        let out = self.answer_in(&mut st, item, choice, None, None, Presenter::Native);
         self.after_reads(&mut st, &before);
         self.publish(&mut st);
         out
+    }
+
+    /// The step mark of the open item `item`: the setup's own, and 0 for every other kind, whose
+    /// item never asks again under its id (I3.4, ruling RD-87 1).
+    fn step_of(st: &State<Cfg<P>>, item: &ItemId) -> u32 {
+        st.setups
+            .iter()
+            .find(|s| s.item() == item)
+            .map_or(0, Setup::step)
     }
 
     fn owner_of(&self, st: &State<Cfg<P>>, item: &ItemId) -> Result<(usize, Doing), Cause> {
@@ -987,9 +999,14 @@ where
         item: &ItemId,
         choice: Choice,
         pick: Option<(Param, u32)>,
+        step: Option<u32>,
         from: Presenter,
     ) -> Result<(), Cause> {
         let (i, doing) = self.owner_of(st, item)?;
+        let step = step.unwrap_or_else(|| Self::step_of(st, item));
+        if step != Self::step_of(st, item) {
+            return Err(Cause::State);
+        }
         let agent = st.board.as_ref().map(|b| b.members[i].facts.agent.clone());
         let agent = agent.ok_or(Cause::UnknownItem)?;
         match doing {
@@ -1074,10 +1091,10 @@ where
                     let answer = CheckAnswer::parse(choice.name())?;
                     self.schedule(st, Move::Check { agent, answer })
                 }
-                (OwnItemKind::Setup, Choice::None) => self.setup(st, item, SetupInput::None),
+                (OwnItemKind::Setup, Choice::None) => self.setup(st, item, SetupInput::None, step),
                 (OwnItemKind::Setup, Choice::Choose) => {
                     let (param, n) = pick.ok_or(Cause::Malformed)?;
-                    self.setup(st, item, SetupInput::Choose { param, n })
+                    self.setup(st, item, SetupInput::Choose { param, n }, step)
                 }
                 _ => Err(Cause::Malformed),
             },
@@ -1158,12 +1175,16 @@ where
         st: &mut State<Cfg<P>>,
         item: &ItemId,
         input: SetupInput<'_>,
+        step: u32,
     ) -> Result<(), Cause> {
         let k = st
             .setups
             .iter()
             .position(|s| s.item() == item)
             .ok_or(Cause::Stale)?;
+        if st.setups[k].step() != step {
+            return Err(Cause::State);
+        }
         let State {
             board,
             ledgers,
@@ -1181,11 +1202,18 @@ where
     }
 
     /// The text of a parameter of a setup item that has no candidate (I8.1
-    /// `agents_setup_typed`).
-    pub fn setup_typed(&self, item: &ItemId, param: Param, text: &str) -> Result<(), Cause> {
+    /// `agents_setup_typed`), at the step mark `step` that the page showed, which is refused with
+    /// `state` where it is no longer the item's (I3.4).
+    pub fn setup_typed(
+        &self,
+        item: &ItemId,
+        param: Param,
+        text: &str,
+        step: u32,
+    ) -> Result<(), Cause> {
         let mut st = self.lock();
         let before = Self::offs(&st);
-        let out = self.setup(&mut st, item, SetupInput::Typed { param, text });
+        let out = self.setup(&mut st, item, SetupInput::Typed { param, text }, step);
         self.after_reads(&mut st, &before);
         self.publish(&mut st);
         out

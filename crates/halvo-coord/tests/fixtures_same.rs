@@ -204,6 +204,7 @@ fn every_state_file_has_the_shapes_of_i8_1_and_its_facts() {
                     "item",
                     "agent",
                     "kind",
+                    "step",
                     "presenter",
                     "armed",
                     "title",

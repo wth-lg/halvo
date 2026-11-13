@@ -89,6 +89,17 @@ fn handback(run: &RunId, n: usize, reason: HandbackReason) -> RunEvent {
     })
 }
 
+/// The step mark that the last published state shows for the item, as the page sends it with
+/// its answer (I3.4); 0, the mark of every item's first ask, for an item that the state does not
+/// hold.
+fn shown(c: &Coordinator<Both>, item: &ItemId) -> u32 {
+    c.snapshot()
+        .items
+        .iter()
+        .find(|i| i.item() == item)
+        .map_or(0, |i| i.step())
+}
+
 fn open_item(c: &Coordinator<Both>) -> (ItemId, ItemKind) {
     let s = c.snapshot();
     assert_eq!(s.items.len(), 1, "{s:?}");
@@ -223,7 +234,10 @@ fn the_persons_stop_of_a_run_whose_confirmation_is_recorded_works() {
     c.ports().ports.set_clock(T0 + 1_000, DAY);
     c.tick();
     c.ports().drop_decision.set(true);
-    assert_eq!(c.answer(&item, Choice::Allow, None), Err(Cause::NoService));
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, shown(&c, &item)),
+        Err(Cause::NoService)
+    );
     assert_eq!(c.snapshot().rows[0].status, Status::Working);
     let m = mark(&c);
     assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
@@ -427,15 +441,28 @@ fn setup_agent() -> (Coordinator<Both>, AgentId, ItemId) {
 #[test]
 fn an_agent_whose_setup_body_the_owner_ended_is_unknown_agent_to_the_persons_moves() {
     let (c, made, item) = setup_agent();
-    c.answer(&item, Choice::Choose, Some((Param::Start, 1)))
-        .unwrap();
-    c.answer(&item, Choice::Choose, Some((Param::Payee, 1)))
-        .unwrap();
+    c.answer(
+        &item,
+        Choice::Choose,
+        Some((Param::Start, 1)),
+        shown(&c, &item),
+    )
+    .unwrap();
+    c.answer(
+        &item,
+        Choice::Choose,
+        Some((Param::Payee, 1)),
+        shown(&c, &item),
+    )
+    .unwrap();
     c.ports().ports.refuse(
         Method::Send,
         PortError::Refused(Name::parse("no_workflow").unwrap()),
     );
-    assert_eq!(c.setup_typed(&item, Param::Instrument, "Card 4242"), Ok(()));
+    assert_eq!(
+        c.setup_typed(&item, Param::Instrument, "Card 4242", shown(&c, &item)),
+        Ok(())
+    );
     c.ports().ports.clear_refusals();
     let m = mark(&c);
     assert_eq!(c.control(&made, Action::RunNow), Err(Cause::UnknownAgent));
@@ -513,7 +540,8 @@ fn the_page_holds_the_state_of_a_new_snapshot_after_each_move_and_hears_each_cha
     assert_eq!(attention.last(), Some(&1));
     check(&c, &mut held);
     let (item, _) = open_item(&c);
-    c.answer(&item, Choice::Done, None).unwrap();
+    c.answer(&item, Choice::Done, None, shown(&c, &item))
+        .unwrap();
     check(&c, &mut held);
     let quiet = heard(&c);
     c.tick();
@@ -547,7 +575,10 @@ fn recorded_with_the_answer_failed_by_the_stand_in(c: &Coordinator<Both>) -> (Ru
     c.ports().ports.set_clock(T0 + 1_000, DAY);
     c.tick();
     c.ports().drop_decision.set(true);
-    assert_eq!(c.answer(&item, Choice::Allow, None), Err(Cause::NoService));
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, shown(c, &item)),
+        Err(Cause::NoService)
+    );
     (run, item)
 }
 
@@ -650,7 +681,12 @@ fn a_tick_after_the_first_step_of_the_quit_makes_no_move() {
 fn a_setup_answer_that_is_refused_leaves_the_item_open_and_its_owed_body_owed() {
     let (c, made, item) = setup_agent();
     assert_eq!(
-        c.answer(&item, Choice::Choose, Some((Param::Start, 99))),
+        c.answer(
+            &item,
+            Choice::Choose,
+            Some((Param::Start, 99)),
+            shown(&c, &item)
+        ),
         Err(Cause::Malformed)
     );
     let s = c.snapshot();
@@ -659,13 +695,29 @@ fn a_setup_answer_that_is_refused_leaves_the_item_open_and_its_owed_body_owed() 
         Status::NeedsYou
     );
     assert_eq!(s.items.len(), 1);
-    c.answer(&item, Choice::Choose, Some((Param::Start, 1)))
-        .unwrap();
-    c.answer(&item, Choice::Choose, Some((Param::Payee, 1)))
-        .unwrap();
+    c.answer(
+        &item,
+        Choice::Choose,
+        Some((Param::Start, 1)),
+        shown(&c, &item),
+    )
+    .unwrap();
+    c.answer(
+        &item,
+        Choice::Choose,
+        Some((Param::Payee, 1)),
+        shown(&c, &item),
+    )
+    .unwrap();
     c.ports().ports.refuse(Method::Send, PortError::Busy);
-    assert_eq!(c.setup_typed(&item, Param::Instrument, "Card 4242"), Ok(()));
-    assert_eq!(c.answer(&item, Choice::None, None), Err(Cause::State));
+    assert_eq!(
+        c.setup_typed(&item, Param::Instrument, "Card 4242", shown(&c, &item)),
+        Ok(())
+    );
+    assert_eq!(
+        c.answer(&item, Choice::None, None, shown(&c, &item)),
+        Err(Cause::State)
+    );
     c.ports().ports.clear_refusals();
     let m = mark(&c);
     c.tick();
@@ -745,7 +797,10 @@ fn a_second_step_is_raised_answered_and_handed_to_the_runner_through_answer_bind
         .map(|t| t.choice)
         .collect();
     assert_eq!(choices, [Choice::Decline, Choice::Allow]);
-    assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()));
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, shown(&c, &item)),
+        Ok(())
+    );
     assert_eq!(
         bind_answers(&c),
         [(run.clone(), halvo_coord::types::BindResult::Allow)]
@@ -753,7 +808,7 @@ fn a_second_step_is_raised_answered_and_handed_to_the_runner_through_answer_bind
     assert!(c.snapshot().items.is_empty());
     assert_eq!(row_line(&c.snapshot(), 0), text("line.working.working"));
     assert_eq!(
-        c.answer(&item, Choice::Allow, None),
+        c.answer(&item, Choice::Allow, None, shown(&c, &item)),
         Err(Cause::UnknownItem)
     );
 }
@@ -804,7 +859,10 @@ fn the_persons_stop_of_a_second_step_whose_row_is_stored_answers_decline_and_lap
     c.ports()
         .ports
         .refuse(Method::AnswerBind, PortError::NoService);
-    assert_eq!(c.answer(&item, Choice::Allow, None), Err(Cause::NoService));
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, shown(&c, &item)),
+        Err(Cause::NoService)
+    );
     c.ports().ports.clear_refusals();
     let m = mark(&c);
     assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
@@ -901,7 +959,10 @@ fn a_link_account_item_shows_its_origin_and_its_answer_stores_it() {
     assert_eq!(s.items[0].kind(), ItemKind::LinkAccount);
     assert_eq!(s.items[0].fields().len(), 1, "the site of the account");
     let item = s.items[0].item().clone();
-    assert_eq!(c.answer(&item, Choice::Done, None), Ok(()));
+    assert_eq!(
+        c.answer(&item, Choice::Done, None, shown(&c, &item)),
+        Ok(())
+    );
     assert!(events(&c).iter().any(|w| matches!(
         w,
         What::ItemAnswered { item: i, answer: halvo_coord::types::Answered::LinkAccount(a) }
@@ -962,7 +1023,10 @@ fn a_confirm_request_for_an_effect_whose_newest_release_rejected_it_gets_no_card
 {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let (run, item) = allowed(&c);
-    assert_eq!(c.answer(&item, Choice::Reject, None), Ok(()));
+    assert_eq!(
+        c.answer(&item, Choice::Reject, None, shown(&c, &item)),
+        Ok(())
+    );
     let before = items_raised(&c);
     let m = mark(&c);
     assert_eq!(c.on_run(&run, ask_confirm(&run, 0)), Err(Cause::State));
@@ -975,7 +1039,10 @@ fn a_confirm_request_for_an_effect_whose_newest_release_rejected_it_gets_no_card
 fn a_confirm_request_for_an_effect_that_has_begun_gets_no_card_and_ends_its_run() {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let (run, item) = allowed(&c);
-    assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()));
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, shown(&c, &item)),
+        Ok(())
+    );
     c.stored(&halvo_coord::guard::EffectRecord {
         run: run.clone(),
         agent: agent(0),
@@ -1000,7 +1067,8 @@ fn a_request_after_items_per_run_items_ends_its_run_with_budget() {
         c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
             .unwrap();
         let (item, _) = open_item(&c);
-        c.answer(&item, Choice::Done, None).unwrap();
+        c.answer(&item, Choice::Done, None, shown(&c, &item))
+            .unwrap();
     }
     let before = items_raised(&c);
     let m = mark(&c);
@@ -1015,15 +1083,28 @@ fn a_request_after_items_per_run_items_ends_its_run_with_budget() {
 #[test]
 fn an_agent_whose_setup_body_the_owner_refused_with_binding_is_unknown_agent() {
     let (c, made, item) = setup_agent();
-    c.answer(&item, Choice::Choose, Some((Param::Start, 1)))
-        .unwrap();
-    c.answer(&item, Choice::Choose, Some((Param::Payee, 1)))
-        .unwrap();
+    c.answer(
+        &item,
+        Choice::Choose,
+        Some((Param::Start, 1)),
+        shown(&c, &item),
+    )
+    .unwrap();
+    c.answer(
+        &item,
+        Choice::Choose,
+        Some((Param::Payee, 1)),
+        shown(&c, &item),
+    )
+    .unwrap();
     c.ports().ports.refuse(
         Method::Send,
         PortError::Refused(Name::parse("binding").unwrap()),
     );
-    assert_eq!(c.setup_typed(&item, Param::Instrument, "Card 4242"), Ok(()));
+    assert_eq!(
+        c.setup_typed(&item, Param::Instrument, "Card 4242", shown(&c, &item)),
+        Ok(())
+    );
     c.ports().ports.clear_refusals();
     let m = mark(&c);
     for action in [
@@ -1067,15 +1148,28 @@ fn a_second_request_while_the_run_waits_lapses_its_item_and_ends_the_run_with_ki
 #[test]
 fn a_setup_body_refused_with_config_asks_every_parameter_again_on_the_same_item() {
     let (c, made, item) = setup_agent();
-    c.answer(&item, Choice::Choose, Some((Param::Start, 1)))
-        .unwrap();
-    c.answer(&item, Choice::Choose, Some((Param::Payee, 1)))
-        .unwrap();
+    c.answer(
+        &item,
+        Choice::Choose,
+        Some((Param::Start, 1)),
+        shown(&c, &item),
+    )
+    .unwrap();
+    c.answer(
+        &item,
+        Choice::Choose,
+        Some((Param::Payee, 1)),
+        shown(&c, &item),
+    )
+    .unwrap();
     c.ports().ports.refuse(
         Method::Send,
         PortError::Refused(Name::parse("config").unwrap()),
     );
-    assert_eq!(c.setup_typed(&item, Param::Instrument, "Card 4242"), Ok(()));
+    assert_eq!(
+        c.setup_typed(&item, Param::Instrument, "Card 4242", shown(&c, &item)),
+        Ok(())
+    );
     c.ports().ports.clear_refusals();
     let s = c.snapshot();
     assert_eq!(
@@ -1086,7 +1180,12 @@ fn a_setup_body_refused_with_config_asks_every_parameter_again_on_the_same_item(
     assert_eq!(s.items[0].item(), &item);
     assert_eq!(s.items[0].params().len(), 3, "every parameter again");
     assert_eq!(
-        c.answer(&item, Choice::Choose, Some((Param::Start, 1))),
+        c.answer(
+            &item,
+            Choice::Choose,
+            Some((Param::Start, 1)),
+            shown(&c, &item)
+        ),
         Ok(())
     );
 }
@@ -1157,10 +1256,20 @@ fn the_second_step_of_the_quit_waits_for_the_latest_stop_of_two_live_runs() {
 #[test]
 fn the_card_of_an_agent_whose_setup_body_the_owner_ended_is_unknown_agent() {
     let (c, made, item) = setup_agent();
-    c.answer(&item, Choice::Choose, Some((Param::Start, 1)))
-        .unwrap();
-    c.answer(&item, Choice::Choose, Some((Param::Payee, 1)))
-        .unwrap();
+    c.answer(
+        &item,
+        Choice::Choose,
+        Some((Param::Start, 1)),
+        shown(&c, &item),
+    )
+    .unwrap();
+    c.answer(
+        &item,
+        Choice::Choose,
+        Some((Param::Payee, 1)),
+        shown(&c, &item),
+    )
+    .unwrap();
     assert!(
         c.card(&made).is_ok(),
         "a card before the owner ends the body"
@@ -1169,7 +1278,10 @@ fn the_card_of_an_agent_whose_setup_body_the_owner_ended_is_unknown_agent() {
         Method::Send,
         PortError::Refused(Name::parse("no_workflow").unwrap()),
     );
-    assert_eq!(c.setup_typed(&item, Param::Instrument, "Card 4242"), Ok(()));
+    assert_eq!(
+        c.setup_typed(&item, Param::Instrument, "Card 4242", shown(&c, &item)),
+        Ok(())
+    );
     c.ports().ports.clear_refusals();
     for action in [
         Action::RunNow,
@@ -1422,11 +1534,24 @@ fn a_setup_that_the_quit_or_recovery_lapsed_is_raised_again_by_the_next_lifes_fi
 #[test]
 fn a_setup_answered_in_this_life_is_not_raised_again_by_a_later_creation_move() {
     let (c, made, item) = setup_agent();
-    c.answer(&item, Choice::Choose, Some((Param::Start, 1)))
-        .unwrap();
-    c.answer(&item, Choice::Choose, Some((Param::Payee, 1)))
-        .unwrap();
-    assert_eq!(c.setup_typed(&item, Param::Instrument, "Card 4242"), Ok(()));
+    c.answer(
+        &item,
+        Choice::Choose,
+        Some((Param::Start, 1)),
+        shown(&c, &item),
+    )
+    .unwrap();
+    c.answer(
+        &item,
+        Choice::Choose,
+        Some((Param::Payee, 1)),
+        shown(&c, &item),
+    )
+    .unwrap();
+    assert_eq!(
+        c.setup_typed(&item, Param::Instrument, "Card 4242", shown(&c, &item)),
+        Ok(())
+    );
     assert!(c.snapshot().items.is_empty());
     for _ in 0..2 {
         c.tick();
@@ -1612,7 +1737,7 @@ fn the_coordinator_calls_neither_log_nor_send_itself() {
     c.on_screen(&item);
     c.ports().ports.set_clock(T0 + 1_000, DAY);
     c.tick();
-    let _ = c.answer(&item, Choice::Allow, None);
+    let _ = c.answer(&item, Choice::Allow, None, shown(&c, &item));
     c.ports().ports.end_runner(&first);
     let _ = c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)));
     let second = start(&c, 1);
@@ -1634,13 +1759,23 @@ fn the_coordinator_calls_neither_log_nor_send_itself() {
     let (setup, made, open) = setup_agent();
     setup.ports().trace.set(true);
     setup
-        .answer(&open, Choice::Choose, Some((Param::Start, 1)))
+        .answer(
+            &open,
+            Choice::Choose,
+            Some((Param::Start, 1)),
+            shown(&setup, &open),
+        )
         .unwrap();
     setup
-        .answer(&open, Choice::Choose, Some((Param::Payee, 1)))
+        .answer(
+            &open,
+            Choice::Choose,
+            Some((Param::Payee, 1)),
+            shown(&setup, &open),
+        )
         .unwrap();
     assert_eq!(
-        setup.setup_typed(&open, Param::Instrument, "Card 4242"),
+        setup.setup_typed(&open, Param::Instrument, "Card 4242", shown(&setup, &open)),
         Ok(())
     );
     let _ = setup.control(&made, Action::RunNow);
@@ -2148,7 +2283,10 @@ fn a_lapse_of_an_item_whose_answer_was_stored_with_a_lost_acknowledgement_stores
         .unwrap();
     let (item, _) = open_item(&c);
     c.ports().ports.refuse(Method::Log, PortError::NoService);
-    assert_eq!(c.answer(&item, Choice::Done, None), Err(Cause::NoService));
+    assert_eq!(
+        c.answer(&item, Choice::Done, None, shown(&c, &item)),
+        Err(Cause::NoService)
+    );
     lose_the_acknowledgement(&c);
     let m = mark(&c);
     assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
@@ -2167,7 +2305,10 @@ fn a_lapse_of_an_own_item_whose_answer_was_stored_with_a_lost_acknowledgement_st
     let (item, kind) = open_item(&c);
     assert_eq!(kind, ItemKind::Ready);
     c.ports().ports.refuse(Method::Log, PortError::NoService);
-    assert_eq!(c.answer(&item, Choice::Start, None), Err(Cause::NoService));
+    assert_eq!(
+        c.answer(&item, Choice::Start, None, shown(&c, &item)),
+        Err(Cause::NoService)
+    );
     lose_the_acknowledgement(&c);
     let _ = c.quit_stop();
     assert_eq!(closing_rows(&c, &item), 1, "{:?}", events(&c));
@@ -2191,10 +2332,17 @@ fn a_second_answer_after_a_lost_acknowledgement_counts_the_same_choice_and_store
             .unwrap();
         let (item, _) = open_item(&c);
         c.ports().ports.refuse(Method::Log, PortError::NoService);
-        assert_eq!(c.answer(&item, Choice::Done, None), Err(Cause::NoService));
+        assert_eq!(
+            c.answer(&item, Choice::Done, None, shown(&c, &item)),
+            Err(Cause::NoService)
+        );
         lose_the_acknowledgement(&c);
         let m = mark(&c);
-        assert_eq!(c.answer(&item, second, None), Ok(()), "{second:?}");
+        assert_eq!(
+            c.answer(&item, second, None, shown(&c, &item)),
+            Ok(()),
+            "{second:?}"
+        );
         assert_eq!(
             closing_rows(&c, &item),
             rows,
@@ -2225,7 +2373,10 @@ fn an_item_answered_before_wait_limit_does_not_lapse_at_it() {
         .unwrap();
     let (item, _) = open_item(&c);
     c.ports().ports.set_clock(T0 + 1_000, DAY);
-    assert_eq!(c.answer(&item, Choice::Done, None), Ok(()));
+    assert_eq!(
+        c.answer(&item, Choice::Done, None, shown(&c, &item)),
+        Ok(())
+    );
     let m = mark(&c);
     c.ports()
         .ports
@@ -2306,7 +2457,7 @@ fn answered_with_a_lost_reply(order: support::Loss) -> (Coordinator<Both>, RunId
     let (item, _) = open_item(&c);
     c.ports().loss.set(Some(order));
     assert_eq!(
-        c.answer(&item, Choice::Done, None),
+        c.answer(&item, Choice::Done, None, shown(&c, &item)),
         Err(Cause::NoService),
         "{order:?}"
     );
@@ -2337,7 +2488,11 @@ fn a_stored_answer_whose_reply_was_lost_counts_for_the_same_answer_again_in_both
         let (c, _run, item) = answered_with_a_lost_reply(order);
         let m = mark(&c);
         let tried = c.ports().ports.tried.borrow().len();
-        assert_eq!(c.answer(&item, Choice::Done, None), Ok(()), "{order:?}");
+        assert_eq!(
+            c.answer(&item, Choice::Done, None, shown(&c, &item)),
+            Ok(()),
+            "{order:?}"
+        );
         assert_eq!(closing_rows(&c, &item), 1, "{order:?}: one item_answered");
         if order == support::Loss::Reply {
             let refused = c.ports().ports.tried.borrow()[tried..]
@@ -2369,7 +2524,11 @@ fn a_stored_done_whose_reply_was_lost_then_decline_stores_the_decline_and_sends_
     for order in UNSEEN {
         let (c, _run, item) = answered_with_a_lost_reply(order);
         let m = mark(&c);
-        assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()), "{order:?}");
+        assert_eq!(
+            c.answer(&item, Choice::Decline, None, shown(&c, &item)),
+            Ok(()),
+            "{order:?}"
+        );
         assert_eq!(
             closing_rows(&c, &item),
             2,
@@ -2806,7 +2965,7 @@ fn lossy_sequence(seed: u64, form: support::Loss) -> Lossy {
                                 .refuse(Method::AnswerHandback, PortError::Busy);
                         }
                     }
-                    let answered = c.answer(&id, choice, None);
+                    let answered = c.answer(&id, choice, None, shown(&c, &id));
                     c.ports().ports.clear_refusals();
                     if second {
                         pressed = Some((id.clone(), choice));
@@ -3083,7 +3242,10 @@ fn a_stop_after_an_answer_whose_row_was_stored_and_whose_handback_failed_stores_
     c.ports()
         .ports
         .refuse(Method::AnswerHandback, PortError::NoService);
-    assert_eq!(c.answer(&item, Choice::Done, None), Err(Cause::NoService));
+    assert_eq!(
+        c.answer(&item, Choice::Done, None, shown(&c, &item)),
+        Err(Cause::NoService)
+    );
     c.ports().ports.clear_refusals();
     assert_eq!(
         closing_rows(&c, &item),
@@ -3161,7 +3323,10 @@ fn the_persons_stop_of_an_agent_with_no_live_run_or_a_stopping_one_lapses_nothin
     assert_eq!(kind, ItemKind::Ready);
     let first = start(&c, 0);
     c.ports().ports.refuse(Method::Log, PortError::NoService);
-    assert_eq!(c.answer(&ready, Choice::Start, None), Ok(()));
+    assert_eq!(
+        c.answer(&ready, Choice::Start, None, shown(&c, &ready)),
+        Ok(())
+    );
     c.ports().ports.clear_refusals();
     assert_eq!(started(&c).len(), 1, "agent 1's start waits in the queue");
     assert_eq!(
@@ -3223,7 +3388,7 @@ fn first_press(c: &Coordinator<Both>, item: &ItemId, choice: Choice, how: First)
         First::Lost(order) => {
             c.ports().loss.set(Some(order));
             assert_eq!(
-                c.answer(item, choice, None),
+                c.answer(item, choice, None, shown(c, item)),
                 Err(Cause::NoService),
                 "{how:?}"
             );
@@ -3233,7 +3398,11 @@ fn first_press(c: &Coordinator<Both>, item: &ItemId, choice: Choice, how: First)
         }
         First::Taken => {
             c.ports().ports.refuse(Method::AnswerBind, PortError::Busy);
-            assert_eq!(c.answer(item, choice, None), Err(Cause::Busy), "{how:?}");
+            assert_eq!(
+                c.answer(item, choice, None, shown(c, item)),
+                Err(Cause::Busy),
+                "{how:?}"
+            );
             c.ports().ports.clear_refusals();
         }
     }
@@ -3300,7 +3469,11 @@ fn a_lost_allow_then_allow_sends_allow_once_in_the_second_move_in_both_forms() {
         first_press(&c, &item, Choice::Allow, First::Lost(order));
         assert_eq!(allows(&c), 0, "{order:?}");
         let m = mark(&c);
-        assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()), "{order:?}");
+        assert_eq!(
+            c.answer(&item, Choice::Allow, None, shown(&c, &item)),
+            Ok(()),
+            "{order:?}"
+        );
         assert_eq!(step_rows(&c, &item), ["allow", "allow"], "{order:?}");
         assert_eq!(binds_since(&c, m), [BindResult::Allow], "{order:?}");
         assert_eq!(allows(&c), 1, "{order:?}");
@@ -3313,7 +3486,11 @@ fn a_lost_allow_then_dont_allow_sends_decline_and_never_allow_in_both_forms() {
     for order in ORDERS {
         let (c, run, item) = second_step();
         first_press(&c, &item, Choice::Allow, First::Lost(order));
-        assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()), "{order:?}");
+        assert_eq!(
+            c.answer(&item, Choice::Decline, None, shown(&c, &item)),
+            Ok(()),
+            "{order:?}"
+        );
         assert_eq!(step_rows(&c, &item), ["allow", "decline"], "{order:?}");
         assert_eq!(
             bind_answers(&c).iter().map(|(_, r)| *r).collect::<Vec<_>>(),
@@ -3341,12 +3518,20 @@ fn a_lost_decline_then_the_persons_last_press_decides_in_both_forms() {
     for order in ORDERS {
         let (c, _run, item) = second_step();
         first_press(&c, &item, Choice::Decline, First::Lost(order));
-        assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()), "{order:?}");
+        assert_eq!(
+            c.answer(&item, Choice::Allow, None, shown(&c, &item)),
+            Ok(()),
+            "{order:?}"
+        );
         assert_eq!(step_rows(&c, &item), ["decline", "allow"], "{order:?}");
         assert_eq!(allows(&c), 1, "{order:?}: by the person's last press");
         let (c, _run, item) = second_step();
         first_press(&c, &item, Choice::Decline, First::Lost(order));
-        assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()), "{order:?}");
+        assert_eq!(
+            c.answer(&item, Choice::Decline, None, shown(&c, &item)),
+            Ok(()),
+            "{order:?}"
+        );
         assert_eq!(step_rows(&c, &item), ["decline", "decline"], "{order:?}");
         assert_eq!(
             bind_answers(&c).iter().map(|(_, r)| *r).collect::<Vec<_>>(),
@@ -3485,7 +3670,10 @@ fn a_stored_allow_that_the_run_did_not_take_then_allow_sends_allow_once_with_one
     let (c, _run, item) = second_step();
     first_press(&c, &item, Choice::Allow, First::Taken);
     let m = mark(&c);
-    assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()));
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, shown(&c, &item)),
+        Ok(())
+    );
     assert_eq!(step_rows(&c, &item), ["allow"]);
     assert_eq!(binds_since(&c, m), [BindResult::Allow]);
     assert_eq!(allows(&c), 1);
@@ -3497,7 +3685,10 @@ fn a_stored_allow_that_the_run_did_not_take_then_dont_allow_stores_and_sends_dec
     let (c, run, item) = second_step();
     first_press(&c, &item, Choice::Allow, First::Taken);
     let m = mark(&c);
-    assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()));
+    assert_eq!(
+        c.answer(&item, Choice::Decline, None, shown(&c, &item)),
+        Ok(())
+    );
     assert_eq!(step_rows(&c, &item), ["allow", "decline"]);
     assert_eq!(binds_since(&c, m), [BindResult::Decline]);
     assert_eq!(allows(&c), 0);
@@ -3517,14 +3708,17 @@ fn a_stored_allow_that_the_run_did_not_take_then_dont_allow_stores_and_sends_dec
     c.ports().ports.refuse(Method::Log, PortError::NoService);
     let m = mark(&c);
     assert_eq!(
-        c.answer(&item, Choice::Decline, None),
+        c.answer(&item, Choice::Decline, None, shown(&c, &item)),
         Err(Cause::NoService)
     );
     c.ports().ports.clear_refusals();
     assert!(binds_since(&c, m).is_empty(), "nothing is sent");
     assert_eq!(step_rows(&c, &item), ["allow"]);
     let m = mark(&c);
-    assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()));
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, shown(&c, &item)),
+        Ok(())
+    );
     assert_eq!(
         step_rows(&c, &item),
         ["allow", "allow"],
@@ -3539,10 +3733,16 @@ fn a_stored_decline_that_the_run_did_not_take_refuses_allow_and_sends_decline_ag
     let (c, _run, item) = second_step();
     first_press(&c, &item, Choice::Decline, First::Taken);
     let m = mark(&c);
-    assert_eq!(c.answer(&item, Choice::Allow, None), Err(Cause::State));
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, shown(&c, &item)),
+        Err(Cause::State)
+    );
     assert!(binds_since(&c, m).is_empty());
     assert_eq!(step_rows(&c, &item), ["decline"]);
-    assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()));
+    assert_eq!(
+        c.answer(&item, Choice::Decline, None, shown(&c, &item)),
+        Ok(())
+    );
     assert_eq!(step_rows(&c, &item), ["decline"]);
     assert_eq!(binds_since(&c, m), [BindResult::Decline]);
 }
@@ -3618,7 +3818,7 @@ fn the_stop_of_a_stored_allow_sends_decline_before_one_cancel_and_holds_no_step_
         assert_eq!(c.live(), 0, "{way}");
         assert!(c.snapshot().items.is_empty(), "{way}");
         assert_eq!(
-            c.answer(&item, Choice::Allow, None),
+            c.answer(&item, Choice::Allow, None, shown(&c, &item)),
             Err(Cause::UnknownItem),
             "{way}: no step held"
         );
@@ -3664,7 +3864,10 @@ fn a_quit_whose_lapse_got_no_acknowledgement_leaves_the_rows_of_a_kill() {
 fn an_allow_that_answer_bind_refuses_with_ended_answers_ok_and_stores_no_lapse() {
     let (c, run, item) = second_step();
     c.ports().ports.end_runner(&run);
-    assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()));
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, shown(&c, &item)),
+        Ok(())
+    );
     assert_eq!(step_rows(&c, &item), ["allow"]);
     assert_eq!(
         c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed))),
@@ -3681,7 +3884,7 @@ fn a_second_step_answered_after_the_runs_end_is_unknown_item() {
     c.ports().ports.end_runner(&run);
     assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
     assert_eq!(
-        c.answer(&item, Choice::Allow, None),
+        c.answer(&item, Choice::Allow, None, shown(&c, &item)),
         Err(Cause::UnknownItem)
     );
     assert_eq!(step_rows(&c, &item), ["lapsed:run_ended"]);
@@ -3692,7 +3895,7 @@ fn two_second_steps_of_one_run_keep_their_own_rows_and_a_second_bind_ends_the_ru
     use halvo_coord::types::BindResult;
     let (c, run, a) = second_step();
     first_press(&c, &a, Choice::Allow, First::Lost(support::Loss::Reply));
-    assert_eq!(c.answer(&a, Choice::Allow, None), Ok(()));
+    assert_eq!(c.answer(&a, Choice::Allow, None, shown(&c, &a)), Ok(()));
     let other = RunEvent::Bind(halvo_coord::types::BindAsk {
         run: run.clone(),
         agent: agent(0),
@@ -3701,7 +3904,7 @@ fn two_second_steps_of_one_run_keep_their_own_rows_and_a_second_bind_ends_the_ru
     c.on_run(&run, other).unwrap();
     let (b, _) = open_item(&c);
     assert_ne!(a, b);
-    assert_eq!(c.answer(&b, Choice::Decline, None), Ok(()));
+    assert_eq!(c.answer(&b, Choice::Decline, None, shown(&c, &b)), Ok(()));
     assert_eq!(step_rows(&c, &a), ["allow", "allow"]);
     assert_eq!(step_rows(&c, &b), ["decline"]);
     assert_eq!(
@@ -3724,7 +3927,11 @@ fn two_second_steps_of_one_run_keep_their_own_rows_and_a_second_bind_ends_the_ru
 /// or the quit; the item gets no `item_lapsed` (ruling RD-46 (5) T18).
 fn a_taken_allow_then(way: &str) {
     let (c, run, item) = second_step();
-    assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()), "{way}");
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, shown(&c, &item)),
+        Ok(()),
+        "{way}"
+    );
     match way {
         "end" => {
             c.ports().ports.end_runner(&run);
@@ -3770,14 +3977,18 @@ fn a_link_accounts_lost_done_then_the_declining_choice_sends_declined_and_never_
         let (item, _) = open_item(&c);
         c.ports().loss.set(Some(order));
         assert_eq!(
-            c.answer(&item, Choice::Done, None),
+            c.answer(&item, Choice::Done, None, shown(&c, &item)),
             Err(Cause::NoService),
             "{order:?}"
         );
         let lost: Vec<halvo_coord::types::Event> = c.ports().lost.borrow_mut().drain(..).collect();
         c.ports().ports.events.borrow_mut().extend(lost);
         let m = mark(&c);
-        assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()), "{order:?}");
+        assert_eq!(
+            c.answer(&item, Choice::Decline, None, shown(&c, &item)),
+            Ok(()),
+            "{order:?}"
+        );
         assert_eq!(handed_back(&c, m), [HandbackResult::Declined], "{order:?}");
         assert_eq!(step_rows(&c, &item), ["done", "decline"], "{order:?}");
         let (c2, item2) = {
@@ -3789,11 +4000,18 @@ fn a_link_accounts_lost_done_then_the_declining_choice_sends_declined_and_never_
             (c, item)
         };
         c2.ports().loss.set(Some(order));
-        assert_eq!(c2.answer(&item2, Choice::Done, None), Err(Cause::NoService));
+        assert_eq!(
+            c2.answer(&item2, Choice::Done, None, shown(&c2, &item2)),
+            Err(Cause::NoService)
+        );
         let lost: Vec<halvo_coord::types::Event> = c2.ports().lost.borrow_mut().drain(..).collect();
         c2.ports().ports.events.borrow_mut().extend(lost);
         let m = mark(&c2);
-        assert_eq!(c2.answer(&item2, Choice::Done, None), Ok(()), "{order:?}");
+        assert_eq!(
+            c2.answer(&item2, Choice::Done, None, shown(&c2, &item2)),
+            Ok(()),
+            "{order:?}"
+        );
         assert_eq!(handed_back(&c2, m), [HandbackResult::Done], "{order:?}");
         assert_eq!(step_rows(&c2, &item2), ["done"], "{order:?}");
         let c3 = coordinator(&[MANUAL], Limits::PRODUCT);
@@ -3802,21 +4020,24 @@ fn a_link_accounts_lost_done_then_the_declining_choice_sends_declined_and_never_
             .unwrap();
         let (item3, _) = open_item(&c3);
         c3.ports().loss.set(Some(order));
-        assert_eq!(c3.answer(&item3, Choice::Done, None), Err(Cause::NoService));
+        assert_eq!(
+            c3.answer(&item3, Choice::Done, None, shown(&c3, &item3)),
+            Err(Cause::NoService)
+        );
         let lost: Vec<halvo_coord::types::Event> = c3.ports().lost.borrow_mut().drain(..).collect();
         c3.ports().ports.events.borrow_mut().extend(lost);
         c3.ports()
             .ports
             .refuse(Method::AnswerHandback, PortError::Busy);
         assert_eq!(
-            c3.answer(&item3, Choice::Decline, None),
+            c3.answer(&item3, Choice::Decline, None, shown(&c3, &item3)),
             Err(Cause::Busy),
             "{order:?}"
         );
         c3.ports().ports.clear_refusals();
         let m = mark(&c3);
         assert_eq!(
-            c3.answer(&item3, Choice::Decline, None),
+            c3.answer(&item3, Choice::Decline, None, shown(&c3, &item3)),
             Ok(()),
             "{order:?}"
         );
@@ -4037,7 +4258,7 @@ fn a_queued_start_of_a_ready_item_whose_read_brings_a_lost_switch_off_is_refused
         let starts = run_starts_of(&c, 1);
         let m = mark(&c);
         assert_eq!(
-            c.answer(&ready, Choice::Start, None),
+            c.answer(&ready, Choice::Start, None, shown(&c, &ready)),
             Err(Cause::Hold),
             "{order:?}"
         );
@@ -4191,7 +4412,10 @@ fn stored_not_taken(reason: HandbackReason, first: Choice) -> (Coordinator<Both>
     c.ports()
         .ports
         .refuse(Method::AnswerHandback, PortError::Busy);
-    assert_eq!(c.answer(&item, first, None), Err(Cause::Busy));
+    assert_eq!(
+        c.answer(&item, first, None, shown(&c, &item)),
+        Err(Cause::Busy)
+    );
     c.ports().ports.clear_refusals();
     (c, run, item)
 }
@@ -4200,7 +4424,10 @@ fn stored_not_taken(reason: HandbackReason, first: Choice) -> (Coordinator<Both>
 /// move showing it (`Loss::Later`); the row then lands at the owner.
 fn press_landing_later(c: &Coordinator<Both>, item: &ItemId, choice: Choice) {
     c.ports().loss.set(Some(support::Loss::Later));
-    assert_eq!(c.answer(item, choice, None), Err(Cause::NoService));
+    assert_eq!(
+        c.answer(item, choice, None, shown(c, item)),
+        Err(Cause::NoService)
+    );
     c.ports().loss.set(None);
     let lost: Vec<halvo_coord::types::Event> = c.ports().lost.borrow_mut().drain(..).collect();
     c.ports().ports.events.borrow_mut().extend(lost);
@@ -4210,7 +4437,10 @@ fn press_landing_later(c: &Coordinator<Both>, item: &ItemId, choice: Choice) {
 /// (`Loss::Unread`), so that the coordinator does not know the row.
 fn press_stored_unread(c: &Coordinator<Both>, item: &ItemId, choice: Choice) {
     c.ports().loss.set(Some(support::Loss::Unread));
-    assert_eq!(c.answer(item, choice, None), Err(Cause::NoService));
+    assert_eq!(
+        c.answer(item, choice, None, shown(c, item)),
+        Err(Cause::NoService)
+    );
     c.ports().loss.set(None);
 }
 
@@ -4224,7 +4454,10 @@ fn rd61_t_a_link_done_then_a_decline_landing_unread_then_done_gives_declined_onc
     let (c, _run, item) = stored_not_taken(HandbackReason::AccountLink, Choice::Done);
     let m = mark(&c);
     press_stored_unread(&c, &item, Choice::Decline);
-    assert_eq!(c.answer(&item, Choice::Done, None), Err(Cause::UnknownItem));
+    assert_eq!(
+        c.answer(&item, Choice::Done, None, shown(&c, &item)),
+        Err(Cause::UnknownItem)
+    );
     assert_eq!(handed_back(&c, m), [HandbackResult::Declined]);
     assert_eq!(step_rows(&c, &item), ["done", "decline"]);
     assert!(c.snapshot().items.is_empty());
@@ -4238,7 +4471,10 @@ fn rd61_t_b_link_done_then_a_decline_landing_unread_then_decline_stores_no_third
     let (c, _run, item) = stored_not_taken(HandbackReason::AccountLink, Choice::Done);
     let m = mark(&c);
     press_stored_unread(&c, &item, Choice::Decline);
-    assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()));
+    assert_eq!(
+        c.answer(&item, Choice::Decline, None, shown(&c, &item)),
+        Ok(())
+    );
     assert_eq!(handed_back(&c, m), [HandbackResult::Declined]);
     assert_eq!(step_rows(&c, &item), ["done", "decline"]);
 }
@@ -4252,11 +4488,14 @@ fn rd61_t_c_link_done_then_a_decline_that_never_landed_then_done_stores_done_aga
     let m = mark(&c);
     c.ports().ports.refuse(Method::Log, PortError::NoService);
     assert_eq!(
-        c.answer(&item, Choice::Decline, None),
+        c.answer(&item, Choice::Decline, None, shown(&c, &item)),
         Err(Cause::NoService)
     );
     c.ports().ports.clear_refusals();
-    assert_eq!(c.answer(&item, Choice::Done, None), Ok(()));
+    assert_eq!(
+        c.answer(&item, Choice::Done, None, shown(&c, &item)),
+        Ok(())
+    );
     assert_eq!(handed_back(&c, m), [HandbackResult::Done]);
     assert_eq!(step_rows(&c, &item), ["done", "done"]);
 }
@@ -4270,10 +4509,16 @@ fn rd61_t_d_pin_link_done_then_a_known_decline_whose_call_was_busy_then_done_giv
     c.ports()
         .ports
         .refuse(Method::AnswerHandback, PortError::Busy);
-    assert_eq!(c.answer(&item, Choice::Decline, None), Err(Cause::Busy));
+    assert_eq!(
+        c.answer(&item, Choice::Decline, None, shown(&c, &item)),
+        Err(Cause::Busy)
+    );
     c.ports().ports.clear_refusals();
     let m = mark(&c);
-    assert_eq!(c.answer(&item, Choice::Done, None), Err(Cause::UnknownItem));
+    assert_eq!(
+        c.answer(&item, Choice::Done, None, shown(&c, &item)),
+        Err(Cause::UnknownItem)
+    );
     assert_eq!(handed_back(&c, m), [HandbackResult::Declined]);
     assert_eq!(step_rows(&c, &item), ["done", "decline"]);
 }
@@ -4361,7 +4606,10 @@ fn held_not_taken(
                 press_landing_later(&c, &item, first);
             } else {
                 c.ports().loss.set(Some(support::Loss::Unread));
-                assert_eq!(c.answer(&item, first, None), Err(Cause::NoService));
+                assert_eq!(
+                    c.answer(&item, first, None, shown(&c, &item)),
+                    Err(Cause::NoService)
+                );
                 c.ports().loss.set(None);
             }
             (c, run, item)
@@ -4399,7 +4647,11 @@ fn rd61_t_f_a_stored_done_not_taken_then_decline_stores_two_rows_and_sends_decli
             let case = format!("{reason:?} {how:?}");
             let (c, _run, item) = held_not_taken(reason, Choice::Done, how);
             let m = mark(&c);
-            assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()), "{case}");
+            assert_eq!(
+                c.answer(&item, Choice::Decline, None, shown(&c, &item)),
+                Ok(()),
+                "{case}"
+            );
             assert_eq!(
                 answer_choices(&c, &item),
                 [Choice::Done, Choice::Decline],
@@ -4422,7 +4674,7 @@ fn rd61_t_g_pin_a_stored_decline_not_taken_then_done_sends_declined_and_answers_
             let (c, _run, item) = held_not_taken(reason, Choice::Decline, how);
             let m = mark(&c);
             assert_eq!(
-                c.answer(&item, Choice::Done, None),
+                c.answer(&item, Choice::Done, None, shown(&c, &item)),
                 Err(Cause::UnknownItem),
                 "{case}"
             );
@@ -4454,13 +4706,13 @@ fn rd61_t_h_the_clause_holds_for_stuck_and_a_sign_ins_first_step() {
             } else {
                 c.ports().ports.refuse(Method::Log, PortError::NoService);
                 assert_eq!(
-                    c.answer(&item, Choice::Decline, None),
+                    c.answer(&item, Choice::Decline, None, shown(&c, &item)),
                     Err(Cause::NoService),
                     "{case}"
                 );
                 c.ports().ports.clear_refusals();
             }
-            let out = c.answer(&item, then, None);
+            let out = c.answer(&item, then, None, shown(&c, &item));
             let (answer, rows, result) = match (landed, then) {
                 (true, Choice::Done) => (
                     Err(Cause::UnknownItem),
@@ -4514,7 +4766,11 @@ fn rd52c_a_handback_answer_whose_row_the_read_shows_is_handed_in_that_move_for_e
         let (c, _run, item) = waiting_on(reason);
         let m = mark(&c);
         c.ports().loss.set(Some(support::Loss::Reply));
-        assert_eq!(c.answer(&item, choice, None), Ok(()), "{reason:?}");
+        assert_eq!(
+            c.answer(&item, choice, None, shown(&c, &item)),
+            Ok(()),
+            "{reason:?}"
+        );
         assert_eq!(closing_rows(&c, &item), 1, "{reason:?}: one row");
         assert_eq!(handed_back(&c, m), [HandbackResult::Done], "{reason:?}");
         let s = c.snapshot();
@@ -4535,7 +4791,7 @@ fn rd52c_a_handback_answer_whose_read_fails_or_shows_nothing_answers_the_stores_
             let tried = c.ports().ports.tried.borrow().len();
             c.ports().loss.set(Some(loss));
             assert_eq!(
-                c.answer(&item, choice, None),
+                c.answer(&item, choice, None, shown(&c, &item)),
                 Err(Cause::NoService),
                 "{case}"
             );
@@ -4598,13 +4854,17 @@ fn rd52c_a_read_that_shows_another_choice_as_the_newest_decides_by_rule_3() {
         let (c, _run, item) = waiting_on(reason);
         c.ports().loss.set(Some(support::Loss::Unread));
         assert_eq!(
-            c.answer(&item, first, None),
+            c.answer(&item, first, None, shown(&c, &item)),
             Err(Cause::NoService),
             "{case}"
         );
         let m = mark(&c);
         c.ports().loss.set(Some(support::Loss::Nothing));
-        assert_eq!(c.answer(&item, then, None), answer, "{case}");
+        assert_eq!(
+            c.answer(&item, then, None, shown(&c, &item)),
+            answer,
+            "{case}"
+        );
         assert_eq!(handed_back(&c, m), [result], "{case}");
         assert_eq!(closing_rows(&c, &item), rows, "{case}");
         assert!(c.snapshot().items.is_empty(), "{case}: no card");
@@ -4623,7 +4883,11 @@ fn rd52c_a_stored_done_of_an_account_link_then_a_lost_decline_sends_declined() {
         let (c, _run, item) = held_not_taken(HandbackReason::AccountLink, Choice::Done, how);
         let m = mark(&c);
         c.ports().loss.set(Some(support::Loss::Reply));
-        assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()), "{how:?}");
+        assert_eq!(
+            c.answer(&item, Choice::Decline, None, shown(&c, &item)),
+            Ok(()),
+            "{how:?}"
+        );
         assert_eq!(handed_back(&c, m), [HandbackResult::Declined], "{how:?}");
         assert_eq!(step_rows(&c, &item), ["done", "decline"], "{how:?}");
     }
@@ -4643,7 +4907,7 @@ fn rd52c_after_a_busy_port_the_same_press_sends_again_with_no_second_row() {
             .refuse(Method::AnswerHandback, PortError::Busy);
         let tried = c.ports().ports.tried.borrow().len();
         assert_eq!(
-            c.answer(&item, choice, None),
+            c.answer(&item, choice, None, shown(&c, &item)),
             Err(Cause::Busy),
             "{reason:?}"
         );
@@ -4655,7 +4919,11 @@ fn rd52c_after_a_busy_port_the_same_press_sends_again_with_no_second_row() {
         c.ports().ports.clear_refusals();
         assert_eq!(open_item(&c).0, item, "{reason:?}: the card stays");
         let m = mark(&c);
-        assert_eq!(c.answer(&item, choice, None), Ok(()), "{reason:?}");
+        assert_eq!(
+            c.answer(&item, choice, None, shown(&c, &item)),
+            Ok(()),
+            "{reason:?}"
+        );
         assert_eq!(handed_back(&c, m), [HandbackResult::Done], "{reason:?}");
         assert_eq!(closing_rows(&c, &item), 1, "{reason:?}: no second row");
     }
@@ -4878,7 +5146,7 @@ fn rd52b_t_i_an_answer_whose_read_shows_a_stored_switch_off_stops_the_run_first(
             switched_off_unseen(&c, &item, order, &case);
             let m = mark(&c);
             assert_eq!(
-                c.answer(&item, Choice::Done, None),
+                c.answer(&item, Choice::Done, None, shown(&c, &item)),
                 Err(Cause::UnknownItem),
                 "{case}"
             );
@@ -5020,7 +5288,7 @@ fn rd62a_pin_a_start_whose_read_brings_a_hold_failures_answers_hold_and_the_next
         failures_unseen(&c, 0);
         let press = |c: &Coordinator<Both>| match &ready {
             None => c.control(&agent(0), Action::RunNow),
-            Some(item) => c.answer(item, Choice::Start, None),
+            Some(item) => c.answer(item, Choice::Start, None, shown(c, item)),
         };
         let before = events(&c).len();
         let m = mark(&c);
@@ -5228,7 +5496,10 @@ fn rd52a_the_start_of_a_ready_item_answers_budget_and_queue_full_as_its_row_says
         if cause == Cause::QueueFull {
             start(&c, 0);
         }
-        assert_eq!(c.answer(&ready, Choice::Start, None), Err(cause));
+        assert_eq!(
+            c.answer(&ready, Choice::Start, None, shown(&c, &ready)),
+            Err(cause)
+        );
         assert!(row.errors.contains(&cause), "{cause:?} in the row");
         assert!(row.errors.contains(&Cause::Hold), "hold in the row");
     }
@@ -5296,4 +5567,173 @@ fn rd52b_a_switch_on_whose_hold_cleared_reply_is_lost_in_both_forms() {
             assert!(states_sent(&c, m).is_empty(), "{order:?}");
         }
     }
+}
+
+/// Answers every parameter of the setup item of `setup_agent`, the last one's body refused with
+/// `refusal` where one is given; the answer of that last press.
+fn answer_setup(c: &Coordinator<Both>, item: &ItemId, refusal: Option<&str>) -> Result<(), Cause> {
+    c.answer(
+        item,
+        Choice::Choose,
+        Some((Param::Start, 1)),
+        shown(c, item),
+    )
+    .unwrap();
+    c.answer(
+        item,
+        Choice::Choose,
+        Some((Param::Payee, 1)),
+        shown(c, item),
+    )
+    .unwrap();
+    if let Some(name) = refusal {
+        c.ports()
+            .ports
+            .refuse(Method::Send, PortError::Refused(Name::parse(name).unwrap()));
+    }
+    let out = c.setup_typed(item, Param::Instrument, "Card 4242", shown(c, item));
+    c.ports().ports.clear_refusals();
+    out
+}
+
+/// RD-87 1: two refusals by name in a row give three different step marks for one item id.
+#[test]
+fn rd87_two_refusals_in_a_row_give_three_marks_for_one_id() {
+    let (c, _made, item) = setup_agent();
+    let mut marks = vec![shown(&c, &item)];
+    for _ in 0..2 {
+        assert_eq!(answer_setup(&c, &item, Some("config")), Ok(()));
+        assert_eq!(open_item(&c).0, item, "the same id asks again");
+        marks.push(shown(&c, &item));
+    }
+    assert_eq!(marks, [0, 1, 2]);
+}
+
+/// RD-87 1: the mark changes at every refusal by name, `config`, `malformed`, `too_large`,
+/// `length`, `overlap` (no arm of its own; ruled for U2.4g) and a name that the reader does not
+/// know, and at no refusal that keeps the body owed.
+#[test]
+fn rd87_each_refusal_by_name_changes_the_mark_and_an_owed_body_does_not() {
+    let by_name = [
+        "config",
+        "malformed",
+        "too_large",
+        "length",
+        "overlap",
+        "not_a_name_of_the_list",
+    ];
+    for name in by_name
+        .into_iter()
+        .chain(["busy", "store_unavailable", "internal", "state"])
+    {
+        let (c, _made, item) = setup_agent();
+        let before = shown(&c, &item);
+        let _ = answer_setup(&c, &item, Some(name));
+        let after = shown(&c, &item);
+        if by_name.contains(&name) {
+            assert_eq!(after, before + 1, "{name}: asked again");
+        } else {
+            assert_eq!(after, before, "{name}: the body is owed");
+        }
+    }
+}
+
+/// RD-87 1 and RD-73 5.6: a taken answer, `armed`, an owed body, a name and a place among
+/// confirmations never change the mark.
+#[test]
+fn rd87_the_moves_that_ask_nothing_new_leave_the_mark() {
+    let (c, made, item) = setup_agent();
+    let before = shown(&c, &item);
+    c.answer(&item, Choice::Choose, Some((Param::Start, 1)), before)
+        .unwrap();
+    assert_eq!(shown(&c, &item), before, "a taken answer");
+    let name = |c: &Coordinator<Both>| {
+        c.snapshot()
+            .rows
+            .iter()
+            .find(|r| r.agent == made)
+            .unwrap()
+            .name
+            .clone()
+    };
+    let old = name(&c);
+    for w in c.ports().ports.workflows.borrow_mut().iter_mut() {
+        if let Workflow::Full(f) = w {
+            f.site = Some("site2.example".into());
+        }
+    }
+    c.tick();
+    assert_ne!(name(&c), old, "the agent's name changed");
+    assert_eq!(shown(&c, &item), before, "a name");
+    c.ports().ports.refuse(Method::Send, PortError::Busy);
+    c.answer(&item, Choice::Choose, Some((Param::Payee, 1)), before)
+        .unwrap();
+    let _ = c.setup_typed(&item, Param::Instrument, "Card 4242", before);
+    c.ports().ports.clear_refusals();
+    assert_eq!(shown(&c, &item), before, "an owed body");
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let first = start(&c, 0);
+    let second = start(&c, 1);
+    c.on_run(&first, ask_confirm(&first, 0)).unwrap();
+    c.on_run(&second, ask_confirm(&second, 1)).unwrap();
+    let marks = |c: &Coordinator<Both>| -> Vec<u32> {
+        c.snapshot().items.iter().map(|i| i.step()).collect()
+    };
+    let before = marks(&c);
+    for i in c.snapshot().items {
+        c.on_screen(i.item());
+    }
+    c.ports().ports.set_clock(T0 + limits.arm_ms + 1, DAY);
+    c.tick();
+    assert!(c
+        .snapshot()
+        .items
+        .iter()
+        .all(|i| i.armed() == halvo_coord::types::YesNo::Yes));
+    assert_eq!(marks(&c), before, "armed");
+    let one = c.snapshot().items[0].item().clone();
+    assert_eq!(c.answer(&one, Choice::Reject, None, 0), Ok(()));
+    assert_eq!(marks(&c), [before[1]], "a place among confirmations");
+}
+
+/// I3.4: an answer binds to the step that the person saw, so an answer whose step is no longer
+/// the item's current one is refused with `state`, a decline among them, and nothing is stored
+/// or sent; the answer of the current step is taken.
+#[test]
+fn rd87_an_answer_of_a_step_that_is_no_longer_current_is_refused_with_state() {
+    let (c, _made, item) = setup_agent();
+    assert_eq!(answer_setup(&c, &item, Some("config")), Ok(()));
+    assert_eq!(shown(&c, &item), 1);
+    let stored = events(&c).len();
+    let m = mark(&c);
+    assert_eq!(
+        c.answer(&item, Choice::Choose, Some((Param::Start, 1)), 0),
+        Err(Cause::State),
+        "the answer of the step before the refusal"
+    );
+    assert_eq!(
+        c.setup_typed(&item, Param::Instrument, "Card 4242", 0),
+        Err(Cause::State)
+    );
+    assert_eq!(events(&c).len(), stored, "nothing stored");
+    assert!(calls_since(&c, m)
+        .iter()
+        .all(|call| matches!(call, Call::Changed | Call::Attention(_))));
+    assert_eq!(
+        c.answer(&item, Choice::Choose, Some((Param::Start, 1)), 1),
+        Ok(())
+    );
+    let (c, _run, item) = waiting("stuck");
+    let m = mark(&c);
+    assert_eq!(
+        c.answer(&item, Choice::Decline, None, 1),
+        Err(Cause::State),
+        "a decline of a step that is not the item's"
+    );
+    assert!(handed_back(&c, m).is_empty());
+    assert_eq!(c.answer(&item, Choice::Decline, None, 0), Ok(()));
 }

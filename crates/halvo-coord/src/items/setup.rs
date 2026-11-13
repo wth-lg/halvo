@@ -100,6 +100,7 @@ pub struct Setup {
     params: Vec<SetupParam>,
     given: Vec<Option<Vec<String>>>,
     not_taken: bool,
+    step: u32,
     state: SetupState,
 }
 
@@ -129,8 +130,16 @@ impl Setup {
             given: vec![None; params.len()],
             params,
             not_taken: false,
+            step: 0,
             state: SetupState::Open,
         })
+    }
+
+    /// The step mark (I3.4, ruling RD-87 1): 0 at the first ask, and one more each time the owner
+    /// refuses the body by a name after which the item asks every parameter again; no other move
+    /// changes it.
+    pub fn step(&self) -> u32 {
+        self.step
     }
 
     /// The item id.
@@ -176,6 +185,7 @@ impl Setup {
             self.not_taken,
             limits,
         )
+        .map(|item| item.at_step(self.step))
     }
 
     fn at(&self, param: Param) -> Result<usize, Cause> {
@@ -217,8 +227,8 @@ fn typed(text: &str) -> Result<Vec<String>, Cause> {
 /// refuses an answer of the person with `unknown_agent` (ruling IG-36) and every other move with
 /// `stale`; a closed item and one whose workflow is gone refuse every move with `stale`. While the
 /// body is owed, an answer is refused with `state` (ruling IG-10), the acknowledgement closes the
-/// item, `not_taken` makes it open again with every answer cleared and the line
-/// `item.setup.not_taken` (ruling IG-34), and `gone` ends it. An open item refuses the
+/// item, `not_taken` makes it open again with every answer cleared, its step mark one more, and
+/// the line `item.setup.not_taken` (ruling IG-34), and `gone` ends it. An open item refuses the
 /// acknowledgement and `not_taken` with `state`, keeps everything at `none` (I3.5, ruling RD-23
 /// (b)), and takes `choose` of a candidate that it shows, or a typed line for a parameter with no
 /// candidate (`malformed` otherwise); a later answer for a parameter replaces the earlier one.
@@ -235,6 +245,7 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
         (SetupState::Owed(_), SetupMove::NotTaken) => {
             next.given = vec![None; setup.params.len()];
             next.not_taken = true;
+            next.step = setup.step.saturating_add(1);
             next.state = SetupState::Open;
             return Ok(next);
         }
