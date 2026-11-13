@@ -194,8 +194,6 @@ pub fn login_item_state(
 
 #[cfg(target_os = "macos")]
 mod user {
-    /// The process's effective user. Its one constructor reads the process, so that no
-    /// caller can pass another user id, such as the owner of the file being checked.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) struct EffectiveUser(u32);
 
@@ -331,7 +329,7 @@ pub struct LoginItemRemoval {
 
 /// Takes the login item's file away, then the temporary files of dead installs. An error
 /// of the file's removal is the error of the call; an error of the sweep is reported beside
-/// the outcome, so that a removed login item reads as removed.
+/// the outcome.
 #[cfg(target_os = "macos")]
 pub fn remove_login_item(
     spec: &LoginItemSpec,

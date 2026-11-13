@@ -37,8 +37,7 @@ impl Verb {
     }
 }
 
-/// `halvo-capture ctl [--data-dir DIR] VERB`; with no `--data-dir` the caller takes
-/// `DataDir::for_current_user()`.
+/// `halvo-capture ctl [--data-dir DIR] VERB`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ctl {
     pub data_dir: Option<DataDir>,

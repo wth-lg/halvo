@@ -76,7 +76,7 @@ pub(crate) fn check_server(
     Ok(())
 }
 
-/// The unix connector (contracts.md C3.5). Before it sends, it requires the socket's
+/// Before it sends, it requires the socket's
 /// directory to be a directory of this user with mode 0700, the socket to be a socket of
 /// this user, and the server to run as this user; with an expected pid, the server must
 /// be that process.
@@ -103,7 +103,7 @@ impl UnixConnector {
         }
     }
 
-    /// Accepts only the server process `pid`: the app passes the pid of the child it started.
+    /// Accepts only the server process `pid`.
     pub fn expecting_pid(mut self, pid: u32) -> Self {
         self.expected_pid = Some(pid);
         self

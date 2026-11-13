@@ -167,9 +167,7 @@ pub struct KeychainItem {
 
 pub const KEYCHAIN_ITEMS: [KeychainItem; 0] = [];
 
-/// The name of the store directory of the billing run's account helper, which its release
-/// build computes under the system's folder for an app's local data; a test of that run
-/// pins the same text.
+/// The name of the store directory of the billing run's account helper.
 pub const ACCOUNT_HELPER_STORE_DIR: &str = "com.halvo.account";
 
 /// A directory outside the data directory that a run of Halvo keeps files in (contracts.md
@@ -684,8 +682,6 @@ mod system {
         }
     }
 
-    /// The buffer of SHGetKnownFolderPath, which the caller frees whether the call
-    /// succeeds or not.
     struct TaskMem(PWSTR);
 
     impl Drop for TaskMem {
@@ -703,8 +699,6 @@ mod system {
         }
     }
 
-    /// Runs `call` with the out pointer of a buffer that is freed on every path, a failure
-    /// included, and copies the string out of it on success.
     fn known_folder(
         call: impl FnOnce(*mut PWSTR) -> HRESULT,
     ) -> Result<Option<OsString>, PathError> {

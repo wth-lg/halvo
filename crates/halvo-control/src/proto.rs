@@ -106,7 +106,7 @@ pub enum Decoded {
 }
 
 /// A request that the v1 table does not hold: a reserved name, an op that no version
-/// knows, or, under the feature `r2`, a body of a later version.
+/// knows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnknownRequest {
     version: u64,
@@ -286,7 +286,7 @@ fn read_envelope(frame: &[u8]) -> Option<(Option<u64>, Object)> {
     }
 }
 
-/// Decodes one request frame. A version other than [`PROTOCOL_VERSION`] is
+/// A version other than [`PROTOCOL_VERSION`] is
 /// `UnsupportedVersion`; an op outside [`V1_OPS`] is [`Decoded::Unknown`]; a body that does
 /// not fit its op, also one with a field the op does not have, is `BadBody`.
 pub fn decode_request(frame: &[u8]) -> Result<Decoded, RequestError> {
@@ -335,7 +335,7 @@ pub enum ReplyError {
     Body(String),
 }
 
-/// Decodes one reply frame. A field that this build does not know is skipped.
+/// A field that this build does not know is skipped.
 pub fn decode_reply(frame: &[u8]) -> Result<Reply, ReplyError> {
     let (version, body) = read_envelope(frame).ok_or(ReplyError::NotAnEnvelope)?;
     match version {
@@ -407,7 +407,7 @@ one_spelling!(ErrorCode, "error code", [
     Internal => "internal",
 ]);
 
-/// An error reply. The message is a fixed text of the server and holds no captured content.
+/// The message is a fixed text of the server and holds no captured content.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorReply {
     pub code: ErrorCode,
@@ -550,8 +550,7 @@ pub enum InventoryReplyError {
     Totals,
 }
 
-/// The inventory reply: per-day rows of the rollup, in day and kind order, whose sums are
-/// the totals.
+/// The inventory reply: per-day rows of the rollup, in day and kind order.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "InventoryWire", into = "InventoryWire")]
 pub struct InventoryReply {
@@ -902,7 +901,7 @@ impl StoreState {
 }
 
 /// The storage cap as Status reports it: known bytes, or unknown when the stored cap is
-/// out of range (no cap eviction runs then).
+/// out of range.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Cap {
     Known(StorageCap),
@@ -1010,7 +1009,7 @@ one_spelling!(StopKind, "stop kind", [
 ]);
 
 /// What the last life received and did not store. With `final_figures` false the count is an
-/// upper bound, because the hard end came before the final figures.
+/// upper bound.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LostRecord {
     pub events: u64,
@@ -1036,7 +1035,7 @@ impl LostRecord {
 }
 
 /// A source whose shutdown answered neither Ok nor ThreadEnded in the stop that ended the last
-/// life, with its typed error.
+/// life.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StopSourceLine {
     pub name: SourceName,
@@ -1108,8 +1107,8 @@ impl SourceName {
     }
 }
 
-/// The source that emits `kind` on `platform`, so that a reader can place a kind's loss on
-/// a source; `None` for a kind that no source of the system emits.
+/// The source that emits `kind` on `platform`; `None` for a kind that no source of the system
+/// emits.
 pub const fn source_of(kind: Modality, platform: Platform) -> Option<SourceName> {
     match (platform, kind) {
         (_, Modality::ScreenFrame) => Some(SourceName::Screen),
@@ -1636,10 +1635,9 @@ pub enum DeleteDecision {
     DashWithAnId,
 }
 
-/// The delete rule of contracts.md C2.6, which the daemon's handler and the scripted
-/// server share: a deleting or locked store is busy; otherwise the armed id must be the
-/// id that Status shows, a stale id is already deleted, and no id is taken only when
-/// Status shows none.
+/// The delete rule of contracts.md C2.6: a deleting or locked store is busy; otherwise the
+/// armed id must be the id that Status shows, a stale id is already deleted, and no id is
+/// taken only when Status shows none.
 pub fn delete_decision(status: &DaemonStatus, armed: Option<StoreId>) -> DeleteDecision {
     let f = status.fields();
     if f.store == StoreState::Deleting || f.store_error == Some(StoreErrorKind::Locked) {
@@ -1654,7 +1652,7 @@ pub fn delete_decision(status: &DaemonStatus, armed: Option<StoreId>) -> DeleteD
     }
 }
 
-/// Who starts the permission request child (spike S1). Form A: the daemon, which serves
+/// Who starts the permission request child. Form A: the daemon, which serves
 /// `request_permission`; form B: the app, which sends `permission_asked`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PermissionForm {
@@ -1676,8 +1674,7 @@ impl PermissionForm {
     }
 }
 
-/// Who may send a request that changes daemon state. R1 can build only `SameUser`; the
-/// signature check is the second value and has no value until builds are signed.
+/// Who may send a request that changes daemon state. R1 can build only `SameUser`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PeerPolicy {
     SameUser,

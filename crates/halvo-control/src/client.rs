@@ -11,7 +11,7 @@ use crate::wire::{read_one_frame, write_frame, FrameError, REPLY_MAX_BYTES, REQU
 
 /// A connected stream to the daemon that carries one request and its reply.
 pub trait Transport: Read + Write {
-    /// Bounds the next read or write; the client calls it with the time left before each.
+    /// Bounds the next read or write.
     fn set_timeout(&mut self, timeout: Duration) -> std::io::Result<()>;
 
     /// Ends the request, so that the server reads the frame and then the end of the stream.
@@ -113,8 +113,7 @@ pub enum DeleteOutcome {
 }
 
 /// The client of protocol v1. Each call makes one connection, sends one request and reads
-/// one reply inside the request's deadline. A plain status read and a read with the
-/// indicator claim are two methods, so that no caller renews the lease by accident.
+/// one reply inside the request's deadline.
 #[derive(Debug, Clone)]
 pub struct Client<C> {
     connector: C,
@@ -162,7 +161,6 @@ impl<C: Connector> Client<C> {
         &self.connector
     }
 
-    /// The one connect step of every request: the connected transport, after the peer checks.
     pub(crate) fn connect(&self, deadline: Instant) -> Result<C::Transport, ClientError> {
         let timeout = left(deadline).map_err(|_| ClientError::Deadline { seconds: 0 })?;
         self.connector.connect(timeout)
@@ -230,8 +228,7 @@ impl<C: Connector> Client<C> {
         self.status_reply(Request::Status { indicator: false })
     }
 
-    /// Reads the status and renews the indicator lease. The app calls it only while its
-    /// tray item is installed; `ctl status --indicator` calls it for the gate.
+    /// Reads the status and renews the indicator lease.
     pub fn status_claiming_the_indicator(&self) -> Result<DaemonStatus, ClientError> {
         self.status_reply(Request::Status { indicator: true })
     }
@@ -298,12 +295,11 @@ impl<C: Connector> Client<C> {
 }
 
 /// The connector of a system that has no control channel yet: every call answers
-/// [`ClientError::Unsupported`] (contracts.md C15.8, until win-5).
+/// [`ClientError::Unsupported`] (contracts.md C15.8).
 #[derive(Debug, Clone)]
 pub struct UnsupportedConnector;
 
-/// A transport that no connector of this crate makes; it exists for the type of
-/// [`UnsupportedConnector`].
+/// A transport that no connector of this crate makes.
 #[derive(Debug)]
 pub enum NoTransport {}
 

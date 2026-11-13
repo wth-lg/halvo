@@ -142,8 +142,6 @@ const SCREEN_PANE: &str = "Screen & System Audio Recording";
 const INPUT_MONITORING_PANE: &str = "Input Monitoring";
 const ALERT_BUTTON: &str = "Open System Settings";
 
-/// Only the row for 27 was observed, on macOS 27.2. The other rows carry its
-/// words, with the older Accessibility title, until someone observes them.
 pub const MACOS_ROWS: [MacosRow; 4] = [
     MacosRow {
         major: MACOS_FLOOR_MAJOR,

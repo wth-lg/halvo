@@ -247,9 +247,9 @@ pub fn sample_delete_report() -> DeleteReport {
     .expect("the sample report holds together")
 }
 
-/// A daemon in memory that answers requests through the real decoder and the rules that
-/// the daemon's handler shares: the delete rule, the permission form and one mutation at a
-/// time. It records every request that reached its handlers.
+/// A daemon in memory that answers requests through the real decoder, the delete rule, the
+/// permission form and one mutation at a time. It records every request that reached its
+/// handlers.
 #[derive(Debug, Clone)]
 pub struct ScriptedDaemon {
     status: DaemonStatus,
@@ -302,12 +302,10 @@ impl ScriptedDaemon {
         self.form = form;
     }
 
-    /// While set, every mutation answers `busy`, as when another mutation is in flight.
     pub fn set_mutation_in_flight(&mut self, in_flight: bool) {
         self.in_flight = in_flight;
     }
 
-    /// While set, the daemon reads each request and never replies.
     pub fn set_silent(&mut self, silent: bool) {
         self.silent = silent;
     }
@@ -505,7 +503,7 @@ impl ScriptedDaemon {
         (!self.silent).then(|| encode_reply(&reply))
     }
 
-    /// The reply frame to the bytes that a client sent on one connection; `None` while silent.
+    /// The reply frame to the bytes that a client sent on one connection.
     pub fn serve(&mut self, received: &[u8]) -> Option<Vec<u8>> {
         if let Some(raw) = &self.raw_reply {
             return Some(raw.clone());
@@ -575,7 +573,6 @@ impl ScriptedConnector {
     }
 }
 
-/// The transport of [`ScriptedConnector`].
 #[derive(Debug)]
 pub struct ScriptedTransport {
     shared: Arc<Mutex<Shared>>,

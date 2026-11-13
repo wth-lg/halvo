@@ -5,8 +5,6 @@ use crate::proto::{
     Cap, Custody, DaemonStatus, OnOff, PasswordGuard, Platform, SwitchLine, SwitchName,
 };
 
-/// The sentences that the view shows about what Halvo records, one table for both systems.
-/// They are the recommended text until the owner approves the table once for each system.
 pub const SCREEN_ACTIVITY_NOT_RECORDED: &str = "Screen activity is not recorded.";
 
 pub const TYPING_NOT_OBSERVED_ON_WINDOWS: &str =
@@ -37,11 +35,7 @@ pub struct Recorded {
     pub text: &'static str,
 }
 
-/// The sentences of `recorded` for the switches a daemon reports, in their order: the
-/// sentence of each switch that is on, `Screen activity is not recorded.` while
-/// `screen_activity` is off, and on Windows the sentence that typing is not observed in
-/// place of the key classes, because no Windows service run of R1 starts the keyboard
-/// source.
+/// The sentences of `recorded` for the switches a daemon reports, in their order.
 pub fn recorded(platform: Platform, switches: &[SwitchLine]) -> Vec<Recorded> {
     let mut out = Vec::new();
     for line in switches {
