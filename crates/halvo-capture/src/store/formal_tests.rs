@@ -1,10 +1,10 @@
 use std::cell::Cell;
 use std::fs::OpenOptions;
-use std::io::{self, Cursor, ErrorKind, Read, Write};
+use std::io::{self, Cursor, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -21,7 +21,7 @@ use crate::event::{
     CaptureStreamEvent, CapturedAt, Modality, MonotonicSequence, SegmentKeyId, SegmentRef,
 };
 
-use super::db::test_support::pages;
+use super::db::test_support::{key_statement, pages};
 use super::db::{failpoint, unix_secs_now, EncryptedStore, KeyFile};
 use super::segment::{self, segment_path, SegmentKey, CHUNK};
 use super::verify::{raw_key_at_rest, root_state, RootState};
@@ -39,6 +39,14 @@ const OLDEST_FIRST_PER_PASS: usize = 7;
 const OLDEST_FIRST_PASSES: usize = 50;
 const A_SOURCE_DIES_AFTER_EVERY: usize = 3;
 const WRAPPED_KEY_MIDDLE: Range<usize> = 24..56;
+const DATABASE_FILES: [&str; 4] = [
+    "store.db",
+    "store.db-journal",
+    "store.db-shm",
+    "store.db-wal",
+];
+const DATABASE_PAGE: u64 = 4096;
+const KEY_BESIDE: &str = "derived.key";
 const FILES_OF_A_STORE: [&str; 7] = [
     "segments",
     "store.db",
@@ -52,6 +60,13 @@ const FILES_OF_A_STORE: [&str; 7] = [
 const RACE_CASES: u32 = 30;
 const MAX_CONTENDERS: usize = 5;
 const MAX_ACQUISITIONS: usize = 3;
+
+const CREATOR_CASES: u32 = 12;
+const LOCK_PATHS_UNLINKED_EVERY: Duration = Duration::from_micros(200);
+const CREATE_DIR: &str = "HALVO_FORMAL_CREATE_DIR";
+const CREATE_WAITS: &str = "HALVO_FORMAL_CREATE_WAITS";
+const AROUND_DIR: &str = "HALVO_FORMAL_AROUND_DIR";
+const AROUND_ROLE: &str = "HALVO_FORMAL_AROUND_ROLE";
 
 const CONTEND_DIR: &str = "HALVO_FORMAL_CONTEND_DIR";
 const CONTEND_INDEX: &str = "HALVO_FORMAL_CONTEND_INDEX";
@@ -110,10 +125,50 @@ enum Op {
     Recreate,
     CreateThatFailsAfterItsDatabase,
     CreateUnderTheRootOfThisStore,
-    ShredAllThatStopsAfterItsRootStep,
+    ArmFault(Fault),
     DestroyTheRootAgain,
     Append { index_row_fails: bool },
     CreateWhoseRootStepFails,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Fault {
+    DamagedPage,
+    QueryOnly,
+    KeyAndRootReadOnly,
+    RootStep,
+    KeyFileStep,
+    DatabaseStep,
+    BlockedShard,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+struct Left {
+    root: bool,
+    key_file: bool,
+    database: bool,
+    segment_files: u64,
+}
+
+struct InTheWay {
+    fault: Fault,
+    blocked_shard: Option<(PathBuf, u64)>,
+}
+
+fn fault() -> impl Strategy<Value = Fault> {
+    prop_oneof![
+        Just(Fault::DamagedPage),
+        Just(Fault::QueryOnly),
+        Just(Fault::KeyAndRootReadOnly),
+        Just(Fault::RootStep),
+        Just(Fault::KeyFileStep),
+        Just(Fault::DatabaseStep),
+        Just(Fault::BlockedShard),
+    ]
+}
+
+fn another_label() -> crate::custody::KeyLabel {
+    crate::custody::KeyLabel::new("derived").expect("a label of the listed letters")
 }
 
 fn segment_len() -> impl Strategy<Value = usize> {
@@ -152,7 +207,7 @@ fn op_with_failures() -> impl Strategy<Value = Op> {
         1 => Just(Op::Recreate),
         2 => Just(Op::CreateThatFailsAfterItsDatabase),
         2 => Just(Op::CreateUnderTheRootOfThisStore),
-        2 => Just(Op::ShredAllThatStopsAfterItsRootStep),
+        3 => fault().prop_map(Op::ArmFault),
         1 => Just(Op::DestroyTheRootAgain),
         3 => any::<bool>().prop_map(|index_row_fails| Op::Append { index_row_fails }),
         2 => Just(Op::CreateWhoseRootStepFails),
@@ -198,8 +253,10 @@ struct Harness {
     roots: Vec<RootId>,
     store: Option<EncryptedStore>,
     deleted_since_last_create: bool,
-    delete_all_owes_its_files: bool,
+    stopped: Option<Left>,
+    armed: Option<Fault>,
     latest_created_key_file: Option<KeyFile>,
+    key_beside: Option<tempfile::TempDir>,
     segments: Vec<ModelSegment>,
     moves_that_did_not_apply: usize,
 }
@@ -222,8 +279,10 @@ impl Harness {
             roots: Vec::new(),
             store: None,
             deleted_since_last_create: false,
-            delete_all_owes_its_files: false,
+            stopped: None,
+            armed: None,
             latest_created_key_file: None,
+            key_beside: None,
             segments: Vec::new(),
             moves_that_did_not_apply: 0,
         };
@@ -263,10 +322,192 @@ impl Harness {
             !raw_key_at_rest,
             "store.key of the fresh store holds the raw store key"
         );
+        let beside = tempfile::tempdir().expect("a temp dir for a key file beside the store");
+        let custody = crate::store::roots::custody(root);
+        let another = custody
+            .wrap_store_key(
+                &crate::custody::StoreKey::from_bytes([7u8; 32]),
+                another_label(),
+            )
+            .expect("a second key wraps under the root of the store");
+        KeyFile::at(&beside.path().join(KEY_BESIDE))
+            .and_then(|place| place.publish(&KeyFile::new(&custody, another_label(), &another)))
+            .expect("the key file of another label is written beside the store");
+        self.key_beside = Some(beside);
         self.latest_created_key_file = Some(key_file);
         self.store = Some(store);
         self.deleted_since_last_create = false;
-        self.delete_all_owes_its_files = false;
+        self.stopped = None;
+        let beside = self.unwrap_of_the_key_beside();
+        assert!(
+            beside.is_ok(),
+            "the key file of another label beside a fresh store does not unwrap under the root of the store: {beside:?}"
+        );
+    }
+
+    fn unwrap_of_the_key_beside(&self) -> Result<(), CustodyError> {
+        let beside = self
+            .key_beside
+            .as_ref()
+            .expect("the key file beside the store");
+        let key_file = KeyFile::at(&beside.path().join(KEY_BESIDE))
+            .and_then(|place| place.read(another_label()))
+            .expect("the key file beside the store reads");
+        let wrapped = key_file
+            .wrapped_store_key()
+            .expect("the wrapped key beside the store decodes");
+        let custody =
+            custody_for(&key_file.locator(&crate::store::roots::roots_of(key_file.root_id)))
+                .expect("the dev-fallback custody rebuilds");
+        custody
+            .unwrap_store_key(&wrapped, another_label())
+            .map(drop)
+    }
+
+    fn left_on_disk(&self) -> Left {
+        let root_id = self
+            .latest_created_key_file
+            .as_ref()
+            .expect("the key file of the store")
+            .root_id;
+        let stands = |name: &str| std::fs::symlink_metadata(self.dir.join(name)).is_ok();
+        Left {
+            root: !matches!(crate::store::roots::custody(root_id).root_bytes(), Ok(None)),
+            key_file: stands("store.key"),
+            database: DATABASE_FILES.iter().any(|name| stands(name)),
+            segment_files: files_below(&self.dir.join("segments")),
+        }
+    }
+
+    fn put_in_the_way(&mut self, fault: Fault) -> Option<InTheWay> {
+        let live = !self.deleted_since_last_create;
+        let on_disk = self.left_on_disk();
+        let mut blocked_shard = None;
+        match fault {
+            Fault::DamagedPage if live => self.damage_a_page_of_the_events(),
+            Fault::QueryOnly if live => self
+                .store
+                .as_ref()?
+                .db()
+                .expect("the open store's db")
+                .connection()
+                .execute_batch("PRAGMA query_only = ON;")
+                .expect("the connection of the store takes the read-only setting"),
+            Fault::KeyAndRootReadOnly if cfg!(unix) && on_disk.key_file && on_disk.root => {
+                set_mode(&self.dir.join("store.key"), 0o400);
+                set_mode(&self.root_file(), 0o400);
+            }
+            Fault::RootStep if live => self.reopen_under_a_custody_whose_root_step_fails_once(),
+            Fault::KeyFileStep if on_disk.key_file => failpoint::arm("key_file_destroy"),
+            Fault::DatabaseStep if on_disk.database => failpoint::arm("database_destroy"),
+            Fault::BlockedShard if cfg!(unix) => {
+                let shard = a_shard_with_a_file(&self.dir.join("segments"))?;
+                let files = files_below(&shard);
+                set_mode(&shard, 0o500);
+                blocked_shard = Some((shard, files));
+            }
+            _ => return None,
+        }
+        Some(InTheWay {
+            fault,
+            blocked_shard,
+        })
+    }
+
+    fn take_out_of_the_way(&self, in_the_way: Option<&InTheWay>) -> Result<Left, TestCaseError> {
+        let mut expected = Left::default();
+        let Some(put) = in_the_way else {
+            return Ok(expected);
+        };
+        match put.fault {
+            Fault::KeyFileStep => {
+                prop_assert!(
+                    failpoint::hit("key_file_destroy").is_ok(),
+                    "delete-all did not reach the removal of its key file"
+                );
+                expected.key_file = true;
+            }
+            Fault::DatabaseStep => {
+                prop_assert!(
+                    failpoint::hit("database_destroy").is_ok(),
+                    "delete-all did not reach the removal of its database"
+                );
+                expected.database = true;
+            }
+            Fault::RootStep => expected.root = true,
+            Fault::BlockedShard => {
+                let (shard, files) = put
+                    .blocked_shard
+                    .as_ref()
+                    .expect("the shard that the fault blocked");
+                set_mode(shard, 0o700);
+                expected.segment_files = *files;
+            }
+            Fault::DamagedPage | Fault::QueryOnly | Fault::KeyAndRootReadOnly => {}
+        }
+        Ok(expected)
+    }
+
+    fn root_file(&self) -> PathBuf {
+        let root_id = self
+            .latest_created_key_file
+            .as_ref()
+            .expect("the key file of the store")
+            .root_id;
+        crate::store::roots::roots_of(root_id).join(format!("{root_id}.root"))
+    }
+
+    fn damage_a_page_of_the_events(&mut self) {
+        let store = self.store.take().expect("an open store");
+        let page = {
+            let db = store.db().expect("the open store's db");
+            let page: i64 = db
+                .connection()
+                .query_row(
+                    "SELECT rootpage FROM sqlite_master WHERE type = 'table' AND name = 'events'",
+                    [],
+                    |r| r.get(0),
+                )
+                .expect("the root page of the events");
+            db.checkpoint_truncate()
+                .expect("the log of the store drains into store.db");
+            page as u64
+        };
+        drop(store);
+        let mut file = OpenOptions::new()
+            .write(true)
+            .open(self.dir.join("store.db"))
+            .expect("store.db opens for a write");
+        file.seek(SeekFrom::Start((page - 1) * DATABASE_PAGE + 100))
+            .expect("the place of the damage in store.db");
+        file.write_all(&[0xa5; 512])
+            .expect("the damage of one page writes");
+        file.sync_all().expect("the damaged page syncs");
+        drop(file);
+        self.store = Some(
+            crate::store::roots::open(&self.dir, DEFAULT_RETENTION)
+                .expect("a store with one damaged page of its events opens"),
+        );
+    }
+
+    fn reopen_under_a_custody_whose_root_step_fails_once(&mut self) {
+        self.store = None;
+        let roots = crate::store::roots::roots_for_store(&self.dir);
+        let store = EncryptedStore::open_with(
+            &self.dir,
+            &roots,
+            DEFAULT_RETENTION,
+            |locator: &crate::custody::CustodyLocator| {
+                let custody: Box<dyn KeyCustody + Send> =
+                    Box::new(ACustodyWhoseRootStepFailsOnce {
+                        inner: custody_for(locator)?,
+                        failed: AtomicBool::new(false),
+                    });
+                Ok(custody)
+            },
+        )
+        .expect("the store reopens under a custody whose root step fails once");
+        self.store = Some(store);
     }
 
     fn does_not_apply(&mut self) -> Result<(), TestCaseError> {
@@ -292,8 +533,9 @@ impl Harness {
             Op::Recreate => self.recreate(),
             Op::CreateThatFailsAfterItsDatabase => self.create_that_fails_after_its_database(),
             Op::CreateUnderTheRootOfThisStore => self.create_under_the_root_of_this_store(),
-            Op::ShredAllThatStopsAfterItsRootStep => {
-                self.shred_all_that_stops_after_its_root_step()
+            Op::ArmFault(fault) => {
+                self.armed = Some(*fault);
+                Ok(())
             }
             Op::DestroyTheRootAgain => self.destroy_the_root_again(),
             Op::Append { index_row_fails } => self.append(*index_row_fails),
@@ -443,37 +685,109 @@ impl Harness {
     }
 
     fn shred_all(&mut self) -> Result<(), TestCaseError> {
-        let Some(store) = self.store.as_mut() else {
+        if self.store.is_none() {
             return self.does_not_apply();
-        };
-        let result = store.crypto_shred_all();
-        if self.deleted_since_last_create {
-            self.delete_all_owes_its_files = false;
-            prop_assert!(
-                matches!(
-                    result,
-                    Ok(ShredReport {
-                        segments_shredded: 0,
-                        keys_destroyed: 0
-                    })
-                ),
-                "a second delete-all did not finish with nothing left to shred: {:?}",
-                result
-            );
-            return Ok(());
         }
-        let report = result.expect("delete-all on an open store");
+        let first_call = !self.deleted_since_last_create;
         let live = self
             .segments
             .iter()
             .filter(|s| s.fate == Fate::Live)
             .count() as u64;
+        let in_the_way = match self.armed.take() {
+            Some(fault) => {
+                let put = self.put_in_the_way(fault);
+                if put.is_none() {
+                    self.moves_that_did_not_apply += 1;
+                }
+                put
+            }
+            None => None,
+        };
+        let way = in_the_way.as_ref().map(|put| put.fault);
+        let store = self.store.as_mut().expect("the handle of the store");
+        let result = store.crypto_shred_all();
+        let expected = self.take_out_of_the_way(in_the_way.as_ref())?;
         for seg in &mut self.segments {
             seg.fate = Fate::Shredded;
         }
         self.deleted_since_last_create = true;
-        prop_assert_eq!(report.segments_shredded, live);
-        prop_assert_eq!(report.keys_destroyed, live + 1);
+        self.stopped = Some(expected).filter(|left| *left != Left::default());
+        if !expected.root {
+            self.require_the_root_destroyed()?;
+        }
+        let store = self.store.as_mut().expect("the handle of the store");
+        let write = store
+            .write_segment(&mut Cursor::new(b"written after delete-all"))
+            .map(drop);
+        prop_assert!(
+            matches!(write, Err(StoreError::Sealed)),
+            "after a delete-all that returned {:?}, a write on its handle answered {:?} in place of Sealed",
+            result,
+            write
+        );
+        let on_disk = self.left_on_disk();
+        match &result {
+            Ok(report) => {
+                prop_assert!(
+                    expected == Left::default(),
+                    "a delete-all with {:?} in its way returned Ok, and the step that failed leaves {:?}",
+                    way,
+                    expected
+                );
+                if first_call {
+                    prop_assert_eq!(report.segments_shredded, live);
+                    prop_assert_eq!(report.keys_destroyed, live + 1);
+                } else {
+                    prop_assert!(
+                        *report == ShredReport::default(),
+                        "a second delete-all did not finish with nothing left to shred: {:?}",
+                        result
+                    );
+                }
+            }
+            Err(StoreError::DeleteIncomplete(report)) if expected != Left::default() => {
+                prop_assert!(
+                    report.root_destroyed() != on_disk.root
+                        && report.key_file_gone != on_disk.key_file
+                        && report.database_left == on_disk.database
+                        && report.files_left == on_disk.segment_files,
+                    "a delete-all that returned an error reported {:?}, and a look at the disk finds {:?}",
+                    report,
+                    on_disk
+                );
+                prop_assert!(
+                    on_disk == expected,
+                    "a delete-all with {:?} in its way left {:?}, and only {:?} could stay, so it skipped a step after the one that failed",
+                    way,
+                    on_disk,
+                    expected
+                );
+                if expected.root {
+                    let root_id = self
+                        .latest_created_key_file
+                        .as_ref()
+                        .expect("the key file of the store")
+                        .root_id;
+                    prop_assert!(
+                        report.roots.left == vec![root_id],
+                        "a delete-all whose root step failed reported {:?}, which does not name the root of the store as the one that stays",
+                        report
+                    );
+                }
+            }
+            Err(_) if first_call => prop_assert!(
+                false,
+                "a delete-all with {:?} in its way returned {:?}",
+                way,
+                result
+            ),
+            Err(_) => prop_assert!(
+                false,
+                "a second delete-all did not finish with nothing left to shred: {:?}",
+                result
+            ),
+        }
         Ok(())
     }
 
@@ -482,25 +796,24 @@ impl Harness {
         if !self.deleted_since_last_create {
             widen_the_database_file(&self.dir);
         }
-        match crate::store::roots::open(&self.dir, DEFAULT_RETENTION) {
-            Ok(store) => {
-                prop_assert!(!self.deleted_since_last_create, "a deleted store reopened");
-                self.store = Some(store);
+        let reopened = crate::store::roots::open(&self.dir, DEFAULT_RETENTION);
+        if !self.deleted_since_last_create {
+            match reopened {
+                Ok(store) => self.store = Some(store),
+                Err(e) => prop_assert!(false, "reopen failed: {e}"),
             }
-            Err(StoreError::Sealed) => {
-                prop_assert!(
-                    self.deleted_since_last_create && !self.delete_all_owes_its_files,
-                    "a store whose delete-all did not finish reopened as Sealed"
-                );
-            }
-            Err(StoreError::Custody(CustodyError::RootMissing) | StoreError::DatabaseMissing) => {
-                prop_assert!(
-                    self.delete_all_owes_its_files,
-                    "a store whose delete-all did not stop after its root step reopened as RootMissing \
-                     or DatabaseMissing"
-                );
-            }
-            Err(e) => prop_assert!(false, "reopen failed: {e}"),
+            return Ok(());
+        }
+        let key_file_left = self.stopped.is_some_and(|left| left.key_file);
+        match reopened.map(drop) {
+            Ok(()) => prop_assert!(false, "a deleted store reopened"),
+            Err(StoreError::DatabaseMissing) if key_file_left => {}
+            Err(StoreError::Sealed) if !key_file_left => {}
+            Err(e) => prop_assert!(
+                false,
+                "after a delete-all that left {:?}, the store reopened as {e:?}; with its key file left it answers DatabaseMissing, and Sealed without it",
+                self.stopped.unwrap_or_default()
+            ),
         }
         Ok(())
     }
@@ -544,7 +857,9 @@ impl Harness {
     }
 
     fn recreate(&mut self) -> Result<(), TestCaseError> {
-        if self.deleted_since_last_create && !self.delete_all_owes_its_files {
+        let key_file_left = self.stopped.is_some_and(|left| left.key_file);
+        let no_handle_and_no_key_file = self.store.is_none() && !key_file_left;
+        if self.deleted_since_last_create && (self.stopped.is_none() || no_handle_and_no_key_file) {
             self.store = None;
             self.create_store();
             return Ok(());
@@ -565,7 +880,7 @@ impl Harness {
     }
 
     fn create_that_fails_after_its_database(&mut self) -> Result<(), TestCaseError> {
-        if !self.deleted_since_last_create || self.delete_all_owes_its_files {
+        if !self.deleted_since_last_create || self.stopped.is_some() {
             return self.does_not_apply();
         }
         self.store = None;
@@ -672,37 +987,8 @@ impl Harness {
         Ok(())
     }
 
-    fn shred_all_that_stops_after_its_root_step(&mut self) -> Result<(), TestCaseError> {
-        if self.deleted_since_last_create {
-            return self.does_not_apply();
-        }
-        let Some(store) = self.store.as_mut() else {
-            return self.does_not_apply();
-        };
-        failpoint::arm("key_file_destroy");
-        let result = store.crypto_shred_all();
-        let reached_its_key_file = failpoint::hit("key_file_destroy").is_ok();
-        for seg in &mut self.segments {
-            seg.fate = Fate::Shredded;
-        }
-        self.deleted_since_last_create = true;
-        self.delete_all_owes_its_files = true;
-        prop_assert!(
-            reached_its_key_file,
-            "delete-all did not reach the removal of its key file: {:?}",
-            result
-        );
-        prop_assert!(
-            matches!(&result, Err(StoreError::DeleteIncomplete(report))
-                if !report.key_file_gone && report.root_destroyed()),
-            "a delete-all whose key file could not be removed returned {:?}",
-            result
-        );
-        Ok(())
-    }
-
     fn destroy_the_root_again(&mut self) -> Result<(), TestCaseError> {
-        if !self.deleted_since_last_create {
+        if !self.deleted_since_last_create || self.stopped.is_some_and(|left| left.root) {
             return self.does_not_apply();
         }
         let root = self
@@ -864,7 +1150,7 @@ impl Harness {
         Ok(())
     }
 
-    fn check_deleted(&self) -> Result<(), TestCaseError> {
+    fn require_the_root_destroyed(&self) -> Result<(), TestCaseError> {
         let key_file = self
             .latest_created_key_file
             .as_ref()
@@ -876,8 +1162,32 @@ impl Harness {
             .wrapped_store_key()
             .expect("the retained wrapped key decodes");
         require_a_destroyed_root(custody.as_ref(), &wrapped)?;
+        match self.unwrap_of_the_key_beside() {
+            Err(CustodyError::RootMissing) => Ok(()),
+            Ok(()) => Err(TestCaseError::fail(
+                "after delete-all the key file of another label under the root of the store still unwraps",
+            )),
+            Err(error) => Err(TestCaseError::fail(format!(
+                "after delete-all the unwrap of the key file of another label failed with {error:?}, which does not say that the root is missing"
+            ))),
+        }
+    }
+
+    fn check_deleted(&self) -> Result<(), TestCaseError> {
+        if !self.stopped.is_some_and(|left| left.root) {
+            self.require_the_root_destroyed()?;
+        }
+        if let Some(left) = self.stopped {
+            let on_disk = self.left_on_disk();
+            prop_assert!(
+                on_disk == left,
+                "a delete-all that stopped left {:?}, and the store directory now holds {:?}",
+                left,
+                on_disk
+            );
+        }
         for name in names_in(&self.dir) {
-            if self.delete_all_owes_its_files {
+            if self.stopped.is_some() {
                 prop_assert!(
                     FILES_OF_A_STORE.contains(&name.as_str()),
                     "a delete-all that stopped left {name}, which is no file of a store"
@@ -972,6 +1282,48 @@ impl KeyCustody for AStandInCustody {
     }
     fn destroy_root(&self) -> Result<(), CustodyError> {
         (self.destroy)()
+    }
+}
+
+struct ACustodyWhoseRootStepFailsOnce {
+    inner: Box<dyn KeyCustody + Send>,
+    failed: AtomicBool,
+}
+
+impl KeyCustody for ACustodyWhoseRootStepFailsOnce {
+    fn kind(&self) -> crate::custody::CustodyKind {
+        self.inner.kind()
+    }
+    fn root_id(&self) -> RootId {
+        self.inner.root_id()
+    }
+    fn roots(&self) -> Option<&std::path::Path> {
+        None
+    }
+
+    fn wrap_store_key(
+        &self,
+        key: &crate::custody::StoreKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<WrappedKey, CustodyError> {
+        self.inner.wrap_store_key(key, label)
+    }
+    fn create_root(&self) -> Result<(), CustodyError> {
+        self.inner.create_root()
+    }
+    fn unwrap_store_key(
+        &self,
+        wrapped: &WrappedKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<crate::custody::StoreKey, CustodyError> {
+        self.inner.unwrap_store_key(wrapped, label)
+    }
+    fn destroy_root(&self) -> Result<(), CustodyError> {
+        if self.failed.swap(true, Ordering::SeqCst) {
+            self.inner.destroy_root()
+        } else {
+            Err(CustodyError::RootDenied)
+        }
     }
 }
 
@@ -1076,6 +1428,45 @@ fn widen_the_database_file(store_dir: &Path) {
 
 #[cfg(not(unix))]
 fn widen_the_database_file(_store_dir: &Path) {}
+
+#[cfg(unix)]
+fn set_mode(path: &Path, mode: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode));
+}
+
+#[cfg(not(unix))]
+fn set_mode(_path: &Path, _mode: u32) {}
+
+fn files_below(dir: &Path) -> u64 {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    entries
+        .map(|entry| {
+            let entry = entry.expect("an entry below segments");
+            let is_dir = entry
+                .file_type()
+                .expect("the type of an entry below segments")
+                .is_dir();
+            if is_dir {
+                files_below(&entry.path())
+            } else {
+                1
+            }
+        })
+        .sum()
+}
+
+fn a_shard_with_a_file(segments: &Path) -> Option<PathBuf> {
+    let mut shards: Vec<PathBuf> = std::fs::read_dir(segments)
+        .ok()?
+        .map(|entry| entry.expect("an entry of segments").path())
+        .filter(|shard| files_below(shard) > 0)
+        .collect();
+    shards.sort();
+    shards.into_iter().next()
+}
 
 fn names_in(dir: &Path) -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(dir)
@@ -1192,7 +1583,8 @@ fn no_failed_or_refused_move_leaves_a_half_store_in_a_fixed_order() {
         Op::Append {
             index_row_fails: true,
         },
-        Op::ShredAllThatStopsAfterItsRootStep,
+        Op::ArmFault(Fault::KeyFileStep),
+        Op::ShredAll,
         Op::DestroyTheRootAgain,
         Op::Recreate,
         Op::ShredAll,
@@ -1214,6 +1606,44 @@ fn no_failed_or_refused_move_leaves_a_half_store_in_a_fixed_order() {
         Op::Reopen,
         Op::CreateWhoseRootStepFails,
     ];
+    let a_store_with_events = [
+        Op::Recreate,
+        Op::Write {
+            len: SCALED_SEGMENT_LEN,
+            expiry: Expiry::Future,
+        },
+        Op::Append {
+            index_row_fails: false,
+        },
+    ];
+    let mut moves = moves.to_vec();
+    for (fault, stops) in [
+        (Fault::DamagedPage, false),
+        (Fault::QueryOnly, false),
+        (Fault::RootStep, true),
+        (Fault::DatabaseStep, true),
+        (Fault::KeyAndRootReadOnly, false),
+        (Fault::BlockedShard, true),
+    ] {
+        let unix_alone = matches!(fault, Fault::KeyAndRootReadOnly | Fault::BlockedShard);
+        if unix_alone && !cfg!(unix) {
+            continue;
+        }
+        moves.extend(a_store_with_events.iter().cloned());
+        moves.extend([Op::ArmFault(fault), Op::ShredAll]);
+        if stops {
+            moves.push(Op::ShredAll);
+        }
+    }
+    moves.extend(a_store_with_events.iter().cloned());
+    moves.extend([Op::ArmFault(Fault::DatabaseStep), Op::ShredAll, Op::Reopen]);
+    moves.extend(a_store_with_events.iter().cloned());
+    moves.extend([
+        Op::ArmFault(Fault::KeyFileStep),
+        Op::ShredAll,
+        Op::Reopen,
+        Op::Recreate,
+    ]);
     let dir = tempfile::tempdir().expect("a temp dir for the store");
     let mut harness = Harness::create(dir.path());
     hold(harness.check());
@@ -1318,6 +1748,591 @@ fn a_destroyed_root_destroys_again_only_when_its_custody_returns_ok() {
         refused.contains("destroy_root on a root that delete-all had destroyed")
             && refused.contains("RootMissing"),
         "{refused}"
+    );
+}
+
+fn creators_config() -> ProptestConfig {
+    ProptestConfig {
+        cases: CREATOR_CASES,
+        ..race_config()
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Creators {
+    creators: usize,
+    first_waits_before_its_database_step: bool,
+    lock_paths_unlinked: bool,
+}
+
+fn creators() -> impl Strategy<Value = Creators> {
+    (
+        2..=MAX_CONTENDERS,
+        prop::bool::weighted(0.75),
+        prop::bool::weighted(0.75),
+    )
+        .prop_map(
+            |(creators, first_waits_before_its_database_step, lock_paths_unlinked)| Creators {
+                creators,
+                first_waits_before_its_database_step,
+                lock_paths_unlinked,
+            },
+        )
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CreatorAnswer {
+    Created { segment: Uuid },
+    Closing { files_without_a_name: usize },
+    Refused(String),
+}
+
+fn creator_refusal(error: &StoreError) -> String {
+    match error {
+        StoreError::Locked => "locked".to_string(),
+        StoreError::AlreadyExists => "already-exists".to_string(),
+        StoreError::Io(ErrorKind::PermissionDenied) => "access-denied".to_string(),
+        other => format!("{other:?}").replace(' ', ""),
+    }
+}
+
+fn bytes_of_creator(index: usize) -> Vec<u8> {
+    format!("written by creator {index}").into_bytes()
+}
+
+fn wait_for(mark: &Path) {
+    let started = Instant::now();
+    while !mark.exists() && started.elapsed() < Duration::from_secs(60) {
+        std::thread::sleep(LOCK_PATHS_UNLINKED_EVERY);
+    }
+}
+
+fn put_the_mark(mark: &Path) {
+    if !mark.exists() {
+        std::fs::write(mark, b"").expect("a mark of the race writes");
+    }
+}
+
+#[cfg(unix)]
+fn open_files_without_a_name() -> usize {
+    use std::os::unix::fs::MetadataExt;
+    let Ok(descriptors) = std::fs::read_dir("/dev/fd") else {
+        return 0;
+    };
+    descriptors
+        .filter_map(|descriptor| std::fs::metadata(descriptor.ok()?.path()).ok())
+        .filter(|open| open.is_file() && open.nlink() == 0)
+        .count()
+}
+
+#[cfg(not(unix))]
+fn open_files_without_a_name() -> usize {
+    0
+}
+
+#[cfg(unix)]
+#[test]
+fn the_look_for_open_files_without_a_name_sees_a_removed_file() {
+    let dir = tempfile::tempdir().expect("a temp dir for a file that loses its name");
+    let path = dir.path().join("removed-while-open");
+    let held = std::fs::File::create(&path).expect("the file is made");
+    std::fs::remove_file(&path).expect("the file loses its name");
+    let seen = open_files_without_a_name();
+    drop(held);
+    assert!(
+        seen >= 1,
+        "a file that was removed while open is not among the open files without a name"
+    );
+}
+
+#[test]
+fn create_a_store_for_parent() {
+    let Ok(dir) = std::env::var(CREATE_DIR) else {
+        println!(
+            "create_a_store_for_parent: {CREATE_DIR} is not set, so no race asked for a creator"
+        );
+        return;
+    };
+    let dir = PathBuf::from(dir);
+    let index: usize = env_number(CONTEND_INDEX);
+    let waits = env_number::<u8>(CREATE_WAITS) == 1;
+    let log = dir.join("race.log");
+    let custody = crate::store::roots::custody(RootId::fresh().expect("a fresh root id"));
+    let _window = waits.then(|| {
+        let (held, release) = (dir.join("held"), dir.join("release"));
+        failpoint::at(super::db::SEAM_BEFORE_THE_DATABASE_STEP, move || {
+            put_the_mark(&held);
+            wait_for(&release);
+        })
+    });
+    put_the_mark(&dir.join(format!("ready-{index}")));
+    if !waits {
+        wait_for(&dir.join("go"));
+    }
+    match EncryptedStore::create(&dir.join("store"), Box::new(custody), DEFAULT_RETENTION) {
+        Ok(mut store) => {
+            let (segment, _) = store
+                .write_segment(&mut Cursor::new(bytes_of_creator(index)))
+                .unwrap_or_else(|e| panic!("creator {index}: write failed with {e}"));
+            log_text(
+                &log,
+                &format!("{index} created {}\n", segment.segment_id.simple()),
+            );
+            wait_for(&dir.join("close"));
+            log_text(
+                &log,
+                &format!("{index} closing {}\n", open_files_without_a_name()),
+            );
+            drop(store);
+        }
+        Err(error) => log_text(
+            &log,
+            &format!("{index} refused {}\n", creator_refusal(&error)),
+        ),
+    }
+}
+
+fn creator_answers(log: &Path) -> Vec<(usize, CreatorAnswer)> {
+    let text = std::fs::read_to_string(log).unwrap_or_default();
+    text.split_inclusive('\n')
+        .filter(|line| line.ends_with('\n'))
+        .map(|line| {
+            let mut parts = line.split_whitespace();
+            let index = parts
+                .next()
+                .and_then(|s| s.parse().ok())
+                .expect("the index of a creator");
+            let verb = parts.next();
+            let word = parts.next().expect("the word after a creator's answer");
+            let answer = match verb {
+                Some("created") => CreatorAnswer::Created {
+                    segment: Uuid::parse_str(word).expect("the segment of a creator"),
+                },
+                Some("closing") => CreatorAnswer::Closing {
+                    files_without_a_name: word.parse().expect("a count of open files"),
+                },
+                Some("refused") => CreatorAnswer::Refused(word.to_string()),
+                other => panic!("unknown answer of a creator {other:?}"),
+            };
+            (index, answer)
+        })
+        .collect()
+}
+
+fn spawn_creator(dir: &Path, roots: &Path, index: usize, waits: bool) -> Child {
+    Command::new(std::env::current_exe().expect("the test binary path"))
+        .args([
+            "--exact",
+            "store::formal_tests::create_a_store_for_parent",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env(CREATE_DIR, dir)
+        .env(crate::store::roots::ROOTS_OF_THE_PARENT, roots)
+        .env(CONTEND_INDEX, index.to_string())
+        .env(CREATE_WAITS, if waits { "1" } else { "0" })
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .expect("the creator spawns")
+}
+
+fn attend_the_creators(
+    dir: &Path,
+    case: &Creators,
+    children: &mut [Child],
+) -> Vec<std::process::ExitStatus> {
+    let lock_path = dir.join("store").join("writer.lock");
+    let log = dir.join("race.log");
+    let started = Instant::now();
+    let mut statuses: Vec<Option<std::process::ExitStatus>> = vec![None; children.len()];
+    while statuses.iter().any(Option::is_none) {
+        assert!(
+            started.elapsed() < Duration::from_secs(120),
+            "the creators did not finish in time"
+        );
+        for (child, status) in children.iter_mut().zip(statuses.iter_mut()) {
+            if status.is_none() {
+                *status = child.try_wait().expect("the creator's status polls");
+            }
+        }
+        let answered: Vec<usize> = creator_answers(&log)
+            .into_iter()
+            .map(|(index, _)| index)
+            .collect();
+        let settled = |index: usize| answered.contains(&index) || statuses[index].is_some();
+        let ready =
+            |index: usize| dir.join(format!("ready-{index}")).exists() || statuses[index].is_some();
+        let first_stands_in_its_window =
+            !case.first_waits_before_its_database_step || dir.join("held").exists() || settled(0);
+        if (0..children.len()).all(ready) && first_stands_in_its_window {
+            put_the_mark(&dir.join("go"));
+        }
+        if (1..children.len()).all(settled) {
+            put_the_mark(&dir.join("release"));
+        }
+        if (0..children.len()).all(settled) {
+            put_the_mark(&dir.join("close"));
+        }
+        if case.lock_paths_unlinked {
+            let _ = std::fs::remove_file(&lock_path);
+        }
+        std::thread::sleep(LOCK_PATHS_UNLINKED_EVERY);
+    }
+    statuses
+        .into_iter()
+        .map(|s| s.expect("every status"))
+        .collect()
+}
+
+#[derive(Default)]
+struct CreatorsSeen {
+    created: Cell<u64>,
+    locked: Cell<u64>,
+    already_exists: Cell<u64>,
+    access_denied: Cell<u64>,
+    other_under_the_unlink: Cell<u64>,
+    refused_while_the_first_stood_before_its_database_step: Cell<u64>,
+    cases_with_no_creator: Cell<u64>,
+    others: std::cell::RefCell<std::collections::BTreeSet<String>>,
+}
+
+fn one_more(count: &Cell<u64>) {
+    count.set(count.get() + 1);
+}
+
+fn one_creators_race(case: &Creators, seen: &CreatorsSeen) -> Result<(), TestCaseError> {
+    let dir = tempfile::tempdir().expect("a temp dir for the creators");
+    let store_dir = dir.path().join("store");
+    let roots = dir.path().join("roots");
+    std::fs::create_dir(&store_dir).expect("the empty store directory");
+    let mut children: Vec<Child> = (0..case.creators)
+        .map(|index| {
+            let waits = index == 0 && case.first_waits_before_its_database_step;
+            spawn_creator(dir.path(), &roots, index, waits)
+        })
+        .collect();
+    let statuses = attend_the_creators(dir.path(), case, &mut children);
+    let answers = creator_answers(&dir.path().join("race.log"));
+    let stood_in_its_window = dir.path().join("held").exists();
+
+    for (i, status) in statuses.iter().enumerate() {
+        prop_assert!(status.success(), "creator {i} exited with {status}");
+    }
+    let created: Vec<(usize, Uuid)> = answers
+        .iter()
+        .filter_map(|(index, answer)| match answer {
+            CreatorAnswer::Created { segment } => Some((*index, *segment)),
+            _ => None,
+        })
+        .collect();
+    prop_assert!(
+        created.len() <= 1,
+        "creators {:?} each created a store in the one directory",
+        created.iter().map(|(index, _)| *index).collect::<Vec<_>>()
+    );
+    let under_the_unlink_on_windows = cfg!(windows) && case.lock_paths_unlinked;
+    if let Some(&(winner, segment)) = created.first() {
+        let without_a_name = answers.iter().find_map(|(index, answer)| match answer {
+            CreatorAnswer::Closing {
+                files_without_a_name,
+            } if *index == winner => Some(*files_without_a_name),
+            _ => None,
+        });
+        prop_assert!(
+            without_a_name == Some(0),
+            "creator {} got the store and, at its close, held open files that had lost their name: {:?}; another creator removed its database",
+            winner,
+            without_a_name
+        );
+        let reopened = EncryptedStore::open(&store_dir, &roots, DEFAULT_RETENTION);
+        prop_assert!(
+            reopened.is_ok(),
+            "after the creators the store of creator {} did not reopen: {:?}",
+            winner,
+            reopened.as_ref().err()
+        );
+        let store = reopened.expect("the reopened store");
+        let mut read_back = Vec::new();
+        let read = store.read_segment(segment, &mut read_back);
+        prop_assert!(
+            read.is_ok() && read_back == bytes_of_creator(winner),
+            "after the creators the segment that creator {} wrote does not read back: {:?}",
+            winner,
+            read
+        );
+        drop(store);
+        let root_of_the_store = KeyFile::read(&store_dir)
+            .expect("the key file of the winner")
+            .root_id;
+        let mut root_files: Vec<String> = std::fs::read_dir(&roots)
+            .expect("the roots directory of the creators lists")
+            .map(|entry| {
+                entry
+                    .expect("an entry of the roots directory")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .filter(|name| name.ends_with(".root"))
+            .collect();
+        root_files.sort();
+        prop_assert!(
+            root_files == vec![format!("{root_of_the_store}.root")],
+            "after the creators the roots directory holds {:?}, and the one store has the root {}",
+            root_files,
+            root_of_the_store
+        );
+        for name in names_in(&store_dir) {
+            prop_assert!(
+                FILES_OF_A_STORE.contains(&name.as_str()),
+                "after the creators the store directory holds {name}, which is no file of a store"
+            );
+        }
+    }
+    for (index, answer) in &answers {
+        let CreatorAnswer::Refused(refusal) = answer else {
+            continue;
+        };
+        let class = match refusal.as_str() {
+            "locked" => &seen.locked,
+            "already-exists" => &seen.already_exists,
+            "access-denied" if cfg!(windows) => &seen.access_denied,
+            other => {
+                prop_assert!(
+                    under_the_unlink_on_windows && other.starts_with("Io("),
+                    "creator {} was answered {}, which is no refusal of a second creator",
+                    index,
+                    other
+                );
+                seen.others.borrow_mut().insert(other.to_string());
+                &seen.other_under_the_unlink
+            }
+        };
+        one_more(class);
+        if stood_in_its_window && *index != 0 {
+            one_more(&seen.refused_while_the_first_stood_before_its_database_step);
+        }
+    }
+    prop_assert!(
+        !case.first_waits_before_its_database_step
+            || stood_in_its_window
+            || under_the_unlink_on_windows,
+        "the first creator did not come to the place between its probe and its database step"
+    );
+    if created.is_empty() {
+        one_more(&seen.cases_with_no_creator);
+        prop_assert!(
+            under_the_unlink_on_windows,
+            "no creator got the empty directory: {:?}",
+            answers
+        );
+    } else {
+        one_more(&seen.created);
+    }
+    Ok(())
+}
+
+#[test]
+fn at_most_one_creator_gets_an_empty_store_directory() {
+    let config = contextualize_config(creators_config());
+    let cases = config.cases;
+    let seen = CreatorsSeen::default();
+    let mut runner = TestRunner::new(config);
+    if let Err(failure) = runner.run(&creators(), |case| one_creators_race(&case, &seen)) {
+        panic!("{failure}\n{runner}");
+    }
+    let in_a_window = seen
+        .refused_while_the_first_stood_before_its_database_step
+        .get();
+    let _ = writeln!(
+        io::stderr(),
+        "check 2 creators in {cases} cases: created={} locked={} already_exists={} access_denied={} other_under_the_unlink={} {:?} refused_while_the_first_stood_before_its_database_step={in_a_window} cases_with_no_creator={}",
+        seen.created.get(),
+        seen.locked.get(),
+        seen.already_exists.get(),
+        seen.access_denied.get(),
+        seen.other_under_the_unlink.get(),
+        seen.others.borrow(),
+        seen.cases_with_no_creator.get(),
+    );
+    assert!(
+        cases < CREATOR_CASES || in_a_window > 0,
+        "in {cases} cases no creator was refused while the first stood before its database step, so this run cannot tell a lock from no lock"
+    );
+}
+
+fn direct_answer(result: &halvo_sqlcipher::rusqlite::Result<()>) -> String {
+    match result {
+        Ok(()) => "got-in".to_string(),
+        Err(e) => format!("refused-{:?}", e.sqlite_error_code()),
+    }
+}
+
+#[test]
+fn go_around_the_directory_lock_for_parent() {
+    let Ok(dir) = std::env::var(AROUND_DIR) else {
+        println!("go_around_the_directory_lock_for_parent: {AROUND_DIR} is not set, so no parent asked for a process around the lock");
+        return;
+    };
+    let dir = PathBuf::from(dir);
+    let role = std::env::var(AROUND_ROLE).expect("the role of the process around the lock");
+    let store_dir = dir.join("store");
+    let key_file = KeyFile::read(&store_dir).expect("the key file of the store reads");
+    let wrapped = key_file
+        .wrapped_store_key()
+        .expect("the wrapped store key decodes");
+    let store_key = custody_for(&key_file.locator(&dir.join("roots")))
+        .and_then(|custody| custody.unwrap_store_key(&wrapped, crate::custody::KeyLabel::STORE))
+        .expect("the store key unwraps for the process around the lock");
+    let conn = Connection::open(store_dir.join("store.db")).expect("store.db opens by its name");
+    conn.busy_timeout(Duration::ZERO)
+        .expect("the connection waits for no lock");
+    conn.execute_batch(&key_statement(store_key.expose()))
+        .expect("the connection takes the store key");
+    match role.as_str() {
+        "holds" => {
+            conn.execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
+                .expect("the connection asks for the database alone");
+            conn.query_row("SELECT count(*) FROM segment_keys", [], |r| {
+                r.get::<_, i64>(0)
+            })
+            .expect("the process around the lock reads a database that no one holds");
+            conn.execute_batch("BEGIN EXCLUSIVE; COMMIT;")
+                .expect("the process around the lock takes the database");
+            put_the_mark(&dir.join("holding"));
+            wait_for(&dir.join("stop"));
+        }
+        "reads" => {
+            let read = conn
+                .query_row("SELECT count(*) FROM segment_keys", [], |r| {
+                    r.get::<_, i64>(0)
+                })
+                .map(drop);
+            let write = conn.execute_batch("BEGIN IMMEDIATE; COMMIT;");
+            std::fs::write(
+                dir.join("answers"),
+                format!(
+                    "read={} write={}",
+                    direct_answer(&read),
+                    direct_answer(&write)
+                ),
+            )
+            .expect("the answers of the process around the lock write");
+        }
+        other => panic!("unknown role of a process around the lock {other:?}"),
+    }
+}
+
+fn spawn_around_the_lock(dir: &Path, role: &str) -> Child {
+    Command::new(std::env::current_exe().expect("the test binary path"))
+        .args([
+            "--exact",
+            "store::formal_tests::go_around_the_directory_lock_for_parent",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env(AROUND_DIR, dir)
+        .env(AROUND_ROLE, role)
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .expect("the process around the lock spawns")
+}
+
+#[test]
+fn a_process_that_goes_around_the_directory_lock_is_refused_at_the_database() {
+    let dir = tempfile::tempdir().expect("a temp dir for the store");
+    let store_dir = dir.path().join("store");
+    let roots = dir.path().join("roots");
+    let root = RootId::fresh().expect("a fresh root id");
+    let mut store = EncryptedStore::create(
+        &store_dir,
+        Box::new(crate::custody::dev_fallback::DevFallbackCustody::new(
+            root,
+            roots.clone(),
+        )),
+        DEFAULT_RETENTION,
+    )
+    .expect("the store creates");
+    store
+        .write_segment(&mut Cursor::new(
+            b"written before the process around the lock",
+        ))
+        .expect("the holder writes");
+
+    let reader = spawn_around_the_lock(dir.path(), "reads")
+        .wait()
+        .expect("the process that reads the database itself ends");
+    let answers = std::fs::read_to_string(dir.path().join("answers")).unwrap_or_default();
+    let holder_wrote_after = store
+        .write_segment(&mut Cursor::new(
+            b"written after the process around the lock",
+        ))
+        .map(drop);
+    drop(store);
+
+    let mut holder = spawn_around_the_lock(dir.path(), "holds");
+    let started = Instant::now();
+    while !dir.path().join("holding").exists() {
+        let ended = holder.try_wait().expect("the holder's status polls");
+        assert!(
+            ended.is_none() && started.elapsed() < Duration::from_secs(60),
+            "the process that holds the database itself did not come to hold it: {ended:?}"
+        );
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    let asked_its_custody = Cell::new(false);
+    let while_held = EncryptedStore::open_with(
+        &store_dir,
+        &roots,
+        DEFAULT_RETENTION,
+        |locator: &crate::custody::CustodyLocator| {
+            asked_its_custody.set(true);
+            custody_for(locator)
+        },
+    )
+    .map(drop);
+    put_the_mark(&dir.path().join("stop"));
+    let holder = holder.wait().expect("the holder ends");
+    let after =
+        EncryptedStore::open(&store_dir, &roots, DEFAULT_RETENTION).and_then(|mut store| {
+            store
+                .write_segment(&mut Cursor::new(b"written after the holder left"))
+                .map(drop)
+        });
+    crate::custody::dev_fallback::DevFallbackCustody::new(root, roots)
+        .destroy_root()
+        .expect("the root of the store is destroyed");
+
+    let _ = writeln!(
+        io::stderr(),
+        "check 2 around the directory lock: {answers} open_while_another_held_the_database={while_held:?} asked_its_custody={}",
+        asked_its_custody.get()
+    );
+    assert!(
+        reader.success() && holder.success(),
+        "a process around the lock exited with {reader} and {holder}"
+    );
+    assert!(
+        answers.starts_with("read=refused-") && answers.contains(" write=refused-"),
+        "a process that opened store.db itself, without the directory lock, was answered {answers:?} while another process held the store"
+    );
+    assert!(
+        holder_wrote_after.is_ok(),
+        "after a process tried the database itself, the holder of the store could not write: {holder_wrote_after:?}"
+    );
+    assert!(
+        matches!(&while_held, Err(error) if writer_refusal(error).is_some()),
+        "an open while another process held the database itself answered {while_held:?}, which is no refusal of a second writer"
+    );
+    assert!(
+        !asked_its_custody.get(),
+        "an open that was refused while another process held the database itself had asked its custody"
+    );
+    assert!(
+        after.is_ok(),
+        "after the process that held the database itself left, the store did not open and write: {after:?}"
     );
 }
 
