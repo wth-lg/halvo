@@ -1456,6 +1456,73 @@ pub(crate) mod tests {
         );
     }
 
+    static HELD_HANDLE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    static NAMED_AT_POST: AtomicU64 = AtomicU64::new(0);
+    static OPENED_AT_POST: std::sync::atomic::AtomicBool =
+        std::sync::atomic::AtomicBool::new(false);
+    static ORDER_POSTS: AtomicU64 = AtomicU64::new(0);
+
+    fn post_that_reads_the_handle(id: PumpThreadId) {
+        use windows::Win32::Foundation::{CloseHandle, HANDLE};
+        use windows::Win32::System::Threading::{
+            GetThreadId, OpenThread, THREAD_QUERY_LIMITED_INFORMATION,
+        };
+        let raw = HELD_HANDLE.load(Ordering::SeqCst) as *mut core::ffi::c_void;
+        // SAFETY: GetThreadId reads a handle value and answers 0 for one that
+        // names no thread; it reads no memory of ours.
+        let named = unsafe { GetThreadId(HANDLE(raw)) };
+        NAMED_AT_POST.store(u64::from(named), Ordering::SeqCst);
+        // SAFETY: OpenThread takes an access mask, a flag and a thread id and
+        // answers a new handle or an error; it reads no memory of ours.
+        let opened = unsafe { OpenThread(THREAD_QUERY_LIMITED_INFORMATION, false, id.get()) };
+        OPENED_AT_POST.store(opened.is_ok(), Ordering::SeqCst);
+        if let Ok(handle) = opened {
+            // SAFETY: `handle` is the handle that OpenThread just answered,
+            // closed once.
+            unsafe {
+                let _ = CloseHandle(handle);
+            }
+        }
+        ORDER_POSTS.fetch_add(1, Ordering::SeqCst);
+        post_quit_to(id);
+    }
+
+    #[test]
+    fn the_drop_after_a_timeout_posts_while_it_holds_the_thread_handle() {
+        use std::os::windows::io::AsRawHandle;
+        let (release, gate) = std::sync::mpsc::channel::<()>();
+        let mut stuck = spawn_pump("halvo-pump-order".to_string(), move |ready, _signal| {
+            ready.report(Ok(()));
+            let _ = gate.recv();
+        })
+        .expect("the pump")
+        .with_post(post_that_reads_the_handle);
+        let stopped = stuck.stop(Duration::from_millis(50));
+        let _ = release.send(());
+        let join = stuck
+            .join
+            .as_ref()
+            .expect("a stop that timed out keeps the join handle");
+        wait_until("the pump thread did not end", || join.is_finished());
+        HELD_HANDLE.store(join.as_raw_handle() as usize, Ordering::SeqCst);
+        let id = u64::from(stuck.id.get());
+        let before = ORDER_POSTS.load(Ordering::SeqCst);
+        drop(stuck);
+        let posts = ORDER_POSTS.load(Ordering::SeqCst) - before;
+        let named = NAMED_AT_POST.load(Ordering::SeqCst);
+        let opened = OPENED_AT_POST.load(Ordering::SeqCst);
+        assert!(
+            matches!(stopped, Err(CaptureError::Timeout { .. })),
+            "{stopped:?}"
+        );
+        assert_eq!(posts, 1, "the drop after a timeout posts once");
+        assert_eq!(
+            (named, opened),
+            (id, true),
+            "the drop posted after it had let the thread handle go: at the post the handle named thread {named}, the pump was thread {id}, and the id opened: {opened}"
+        );
+    }
+
     #[test]
     fn the_read_at_a_stop_takes_what_is_queued_and_ends_at_its_bound() {
         use windows::Win32::Foundation::{LPARAM, WPARAM};
