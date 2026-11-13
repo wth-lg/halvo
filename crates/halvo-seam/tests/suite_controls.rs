@@ -1218,7 +1218,7 @@ fn control_a_read_before_the_replace_that_gets_closed() {
         [
             Pass,
             Pass,
-            Pass,
+            Fail("check open_while_open: the read before an open_cursor while a cursor stands at the watermark: read_batch got a reply other than batch or error"),
             Fail("the read before replace_live got a reply other than batch or error"),
         ],
     );
