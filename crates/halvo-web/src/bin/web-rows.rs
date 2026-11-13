@@ -20,6 +20,9 @@
 //!   the places of `crash_row::places` is listed by name, size and time and compared. Hosted
 //!   runners alone: no browser is made to crash on the development Mac.
 //!
+//! - `checks --browser PATH --kind chrome|edge --port N`: the six rules of the start-to-stop check
+//!   with the product's flags, read after the start, during a session and after the stop.
+//!
 //! `start_only` and `foreign_connect` are the children of those rows.
 
 use std::path::{Path, PathBuf};
@@ -205,6 +208,79 @@ fn by_place(files: &[crash_row::File]) -> String {
         .map(|(k, v)| format!("{k}:{v}"))
         .collect::<Vec<_>>()
         .join(",")
+}
+
+fn check_line(machine: &str, kind: &str, read: &str, s: &halvo_web::checks::Subject<'_>) -> bool {
+    let (counts, _) = halvo_web::checks::check_named(s);
+    let holds = halvo_web::checks::read_holds(&counts);
+    let rules: Vec<String> = counts
+        .iter()
+        .map(|c| format!("{}={}", c.rule, c.count))
+        .collect();
+    println!(
+        "row checks machine={machine} browser={kind} read={read} {} holds={}",
+        rules.join(" "),
+        if holds { "yes" } else { "no" }
+    );
+    holds
+}
+
+/// The six rules of the start-to-stop check (A11.1, CP-89 (c)) with the product's flags, its means
+/// against a crash's dump among them (CP-167 E6): read after the start, during a session on a
+/// fixture page, and after the stop with the pipe kept.
+async fn checks_row(argv: &[String]) -> (usize, usize) {
+    let (Some(browser), Some(kind), Some(port), Some(dir)) = (
+        arg(argv, "--browser"),
+        arg(argv, "--kind"),
+        arg(argv, "--port").and_then(|p| p.parse::<u16>().ok()),
+        scratch_of(argv, "checks"),
+    ) else {
+        return (0, 1);
+    };
+    let browser = std::path::absolute(&browser).unwrap_or(PathBuf::from(&browser));
+    let machine = if cfg!(windows) { "windows" } else { "macos" };
+    let Ok(relay) = Relay::start(Names::Fixture).await else {
+        return (0, 3);
+    };
+    relay.handle().allow("utility.agent.test", port);
+    let profile = dir.join("p");
+    let Some(opts) = options(&browser, profile.clone(), &relay) else {
+        return (0, 3);
+    };
+    let mut ex = match Executor::start(&opts).await {
+        Ok(ex) => ex,
+        Err(f) => {
+            println!(
+                "row checks machine={machine} browser={kind} result=notrun cause={}",
+                f.cause
+            );
+            return (0, 3);
+        }
+    };
+    let root = ex.root().clone();
+    let ids = ex.pipe_ids().clone();
+    let subject = halvo_web::checks::Subject {
+        root: &root,
+        profile: &profile,
+        pipe: Some(&ids),
+        relay_port: Some(relay.port),
+    };
+    let mut ok = usize::from(check_line(machine, &kind, "start", &subject));
+    let _ = ex
+        .open(&format!("http://utility.agent.test:{port}/signin"))
+        .await;
+    ok += usize::from(check_line(machine, &kind, "session", &subject));
+    let kept = ex.keep_pipe();
+    let stopped = ex.stop_and_remove().await;
+    ok += usize::from(check_line(machine, &kind, "end", &subject));
+    drop(kept);
+    relay.stop();
+    println!(
+        "row checks machine={machine} browser={kind} removed={}",
+        if stopped.removed { "yes" } else { "no" }
+    );
+    let _ = std::fs::remove_dir(&dir);
+    (ok, 3)
 }
 
 /// The crash row (CP-165 (2), CP-167 E1 to E4) for one browser: a start and stop with no crash,
@@ -649,6 +725,7 @@ fn main() -> ExitCode {
         "killed_start" => runtime.block_on(killed_start(&argv)),
         "relay_foreign" => runtime.block_on(relay_foreign(&argv)),
         "crash" => runtime.block_on(crash(&argv)),
+        "checks" => runtime.block_on(checks_row(&argv)),
         _ => {
             eprintln!("usage: web-rows first_start|killed_start|relay_foreign --browser PATH ...");
             return ExitCode::from(64);
