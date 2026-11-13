@@ -529,7 +529,9 @@ object_type! {
     /// which another agent holds `begun`, `committed` or `unknown`, and in `blocked_withheld` those for which another
     /// agent holds `withheld` and none of the three. Its rows are of one agent and one workflow, and it names at most
     /// 25 ids in all. Its bound, `RUNNER_REPLY_VALUE_MAX`, counts the bytes given to `parse` and to
-    /// `RunnerReply::parse`, and the compact text that the writer writes; a reply over it is refused whole.
+    /// `RunnerReply::parse`, and the compact text that the writer writes; a reply over it is refused whole. Through
+    /// `RunnerReply::parse` the text is read as JSON before this bound refuses it and no row is read before it does,
+    /// so a text over the bound that is no JSON is refused as malformed.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct LoadRepliesReply {
         pub replies: Vec<AgentReply> = "replies" => list(AgentReply::from_raw),

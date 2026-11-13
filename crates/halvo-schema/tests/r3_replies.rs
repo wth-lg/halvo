@@ -1479,3 +1479,47 @@ fn the_debug_form_of_a_provider_id_is_its_type_and_length_and_holds_no_part_of_t
     assert!(format!("{read:?}").contains(&format!("ProviderId({} bytes)", draft.len())));
     assert!(format!("{reply:?}").contains(&format!("ProviderId({} bytes)", blocked.len())));
 }
+
+#[test]
+fn the_bound_of_a_load_replies_reply_decides_before_a_row_is_read_and_after_the_json_read() {
+    let misspell = |text: &str| text.replacen(r#""message":"#, r#""messagx":"#, 1);
+    let at = misspell(&reply_of_length(RUNNER_REPLY_VALUE_MAX));
+    assert_eq!(at.len(), RUNNER_REPLY_VALUE_MAX);
+    expect(
+        LoadRepliesReply::parse(at.as_bytes()),
+        "AgentReply",
+        "unknown_key",
+        "replies",
+    );
+    expect(
+        RunnerReply::parse(at.as_bytes()),
+        "AgentReply",
+        "unknown_key",
+        "replies",
+    );
+    let over = misspell(&reply_of_length(RUNNER_REPLY_VALUE_MAX + 1));
+    assert_eq!(over.len(), RUNNER_REPLY_VALUE_MAX + 1);
+    length(
+        LoadRepliesReply::parse(over.as_bytes()),
+        "LoadRepliesReply",
+        "reply_bytes",
+    );
+    length(
+        RunnerReply::parse(over.as_bytes()),
+        "RunnerReply",
+        "reply_bytes",
+    );
+    let not_json = format!("x{}", &reply_of_length(RUNNER_REPLY_VALUE_MAX + 1)[1..]);
+    assert_eq!(not_json.len(), RUNNER_REPLY_VALUE_MAX + 1);
+    length(
+        LoadRepliesReply::parse(not_json.as_bytes()),
+        "LoadRepliesReply",
+        "reply_bytes",
+    );
+    expect(
+        RunnerReply::parse(not_json.as_bytes()),
+        "RunnerReply",
+        "json",
+        "-",
+    );
+}
