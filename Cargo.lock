@@ -1441,6 +1441,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-agent-client"
+version = "0.0.0"
+dependencies = [
+ "halvo-schema",
+]
+
+[[package]]
+name = "halvo-agent-store"
+version = "0.0.0"
+dependencies = [
+ "halvo-policy",
+ "halvo-schema",
+ "serde_json",
+]
+
+[[package]]
 name = "halvo-cap"
 version = "0.0.0"
 dependencies = [

@@ -29,6 +29,7 @@ interface Hold {
   expiresAt: Ms;
   state: HoldState;
   dispatched: boolean;
+  endedAt: Ms | null;
   cost: Micro | null;
   overrun: Micro;
   lateAt: Ms | null;
@@ -103,6 +104,7 @@ function holdOf(row: Row): Hold {
     expiresAt: int(row, "expires_at"),
     state: oneOf(row, "state", HOLD_STATES),
     dispatched: int(row, "dispatched") === 1,
+    endedAt: intOrNull(row, "ended_at"),
     cost: intOrNull(row, "cost"),
     overrun: int(row, "overrun"),
     lateAt: intOrNull(row, "late_at"),
@@ -116,7 +118,7 @@ function readCap(sql: Sql): CapRow | null {
 
 function readHold(sql: Sql, requestId: string): Hold | null {
   const row = sql.exec(
-    "SELECT request_id, tier, amount, input_price, output_price, period_start, expires_at, state, dispatched, cost, overrun, late_at FROM ledger_holds WHERE request_id = ?",
+    "SELECT request_id, tier, amount, input_price, output_price, period_start, expires_at, state, dispatched, ended_at, cost, overrun, late_at FROM ledger_holds WHERE request_id = ?",
     requestId,
   )[0];
   return row === undefined ? null : holdOf(row);
@@ -142,9 +144,17 @@ function switchPeriodType(call: Call): void {
   call.sql.exec("UPDATE ledger_cap SET period = ?, anchor = ?, next_period = ?, switch_at = ?", cap.nextPeriod, cap.switchAt, null, null);
 }
 
+function endAtExpiry(dispatched: boolean, amount: Micro): { state: "expired" | "voided"; unreported: Micro } {
+  return dispatched ? { state: "expired", unreported: amount } : { state: "voided", unreported: 0 };
+}
+
+function voidedAtExpiry(hold: Hold): boolean {
+  return (hold.endedAt ?? rowBroken("ended_at")) >= hold.expiresAt;
+}
+
 function expireDue(call: Call): void {
   const due = call.sql.exec(
-    "SELECT request_id, amount, period_start FROM ledger_holds WHERE state = ? AND expires_at <= ? ORDER BY expires_at, request_id",
+    "SELECT request_id, amount, period_start, dispatched FROM ledger_holds WHERE state = ? AND expires_at <= ? ORDER BY expires_at, request_id",
     "open",
     call.now,
   );
@@ -152,9 +162,10 @@ function expireDue(call: Call): void {
     const requestId = row.request_id;
     if (typeof requestId !== "string") rowBroken("request_id");
     const amount = int(row, "amount");
+    const end = endAtExpiry(int(row, "dispatched") === 1, amount);
     call.sql.exec(
       "UPDATE ledger_holds SET state = ?, ended_at = ?, ended_seq = ?, ended_by = ? WHERE request_id = ?",
-      "expired",
+      end.state,
       call.now,
       nextSeq(call),
       call.by,
@@ -163,7 +174,7 @@ function expireDue(call: Call): void {
     call.sql.exec(
       "UPDATE ledger_periods SET open = open - ?, unreported = unreported + ? WHERE period_start = ?",
       amount,
-      amount,
+      end.unreported,
       int(row, "period_start"),
     );
     call.expired += 1;
@@ -185,11 +196,34 @@ function samePrice(a: Price, b: Price): boolean {
   return a.input === b.input && a.output === b.output;
 }
 
+function isSumText(value: unknown): value is string {
+  return typeof value === "string" && value !== "" && (value === "0" || value[0] !== "0") && [...value].every((each) => each >= "0" && each <= "9");
+}
+
+function exactSum(row: Row, key: string): Micro {
+  const value = row[key];
+  if (!isSumText(value)) return rowBroken(key);
+  if (BigInt(value) > COUNTED_SPEND_MAX) throw new RangeError(`the ${key} sum of the sync interval is above the largest integer that a number holds exactly`);
+  return Number(value);
+}
+
 function settleOpen(call: Call, hold: Hold, usage: Usage): EndResult {
   const cost = costOf(hold.price, usage);
   const totals = readTotals(call.sql, hold.periodStart) ?? rowBroken("the totals of the hold's period");
   if (BigInt(totals.reported) + BigInt(totals.unreported) + BigInt(totals.open) - BigInt(hold.amount) + BigInt(cost) > COUNTED_SPEND_MAX) {
     throw new RangeError("the cost would take the counted spend of its period above the largest integer that a number holds exactly");
+  }
+  const interval = call.sql.exec("SELECT sync_interval FROM ledger_holds WHERE request_id = ?", hold.requestId)[0] ?? rowBroken("sync_interval");
+  const reported =
+    call.sql.exec(
+      "SELECT CAST(COALESCE(SUM(cost), 0) AS TEXT) AS reported FROM ledger_holds WHERE sync_interval = ? AND state = ?",
+      int(interval, "sync_interval"),
+      "settled",
+    )[0] ?? rowBroken("the reported sum of the sync interval");
+  const reportedText = reported.reported;
+  if (!isSumText(reportedText)) return rowBroken("the reported sum of the sync interval");
+  if (BigInt(reportedText) + BigInt(cost) > COUNTED_SPEND_MAX) {
+    throw new RangeError("the cost would take the reported sum of its sync interval above the largest integer that a number holds exactly");
   }
   const overrun = Math.max(0, cost - hold.amount);
   call.sql.exec(
@@ -370,7 +404,7 @@ export function makeLedger(config: { holdLifeMs: number }): Ledger {
         if (hold === null) return { outcome: "refused", reason: "unknown-request" };
         switch (hold.state) {
           case "voided":
-            return { outcome: "voided" };
+            return voidedAtExpiry(hold) ? { outcome: "refused", reason: "already-ended" } : { outcome: "voided" };
           case "settled":
           case "expired":
             return { outcome: "refused", reason: "already-ended" };
@@ -397,13 +431,13 @@ export function makeLedger(config: { holdLifeMs: number }): Ledger {
     intervalTotals(sql, interval) {
       const row =
         sql.exec(
-          "SELECT COALESCE(SUM(CASE WHEN state = ? THEN cost END), 0) AS reported, COALESCE(SUM(CASE WHEN state = ? THEN amount END), 0) AS unreported, COUNT(CASE WHEN state = ? THEN 1 END) AS open FROM ledger_holds WHERE sync_interval = ?",
+          "SELECT CAST(COALESCE(SUM(CASE WHEN state = ? THEN cost END), 0) AS TEXT) AS reported, CAST(COALESCE(SUM(CASE WHEN state = ? THEN amount END), 0) AS TEXT) AS unreported, COUNT(CASE WHEN state = ? THEN 1 END) AS open FROM ledger_holds WHERE sync_interval = ?",
           "settled",
           "expired",
           "open",
           interval,
         )[0] ?? rowBroken("the interval totals");
-      return { reported: int(row, "reported"), unreported: int(row, "unreported"), open: int(row, "open") };
+      return { reported: exactSum(row, "reported"), unreported: exactSum(row, "unreported"), open: int(row, "open") };
     },
 
     openHolds(sql) {
