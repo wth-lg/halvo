@@ -1854,7 +1854,7 @@ mod tests {
         key_down(&held.ctx);
         key_down(&held.ctx);
         let mut slot = HoldSlot {
-            hold: stand_in_hold,
+            hold: || crate::secure_input_macos::hold_with(|| 0, || 0),
             held: None,
             refusal: Arc::new(Mutex::new(None)),
             own_take: Some(OwnTake {
@@ -2102,6 +2102,7 @@ mod tests {
     #[test]
     #[ignore = "a measurement of MA-12 F3: run it through the timed helper"]
     fn measure_the_readings_of_the_hold() {
+        let session = read_session();
         let read_ns = per_call_ns(10_000, || {
             let _ = secure_input_reading(Session::AtConsole);
         });
@@ -2153,7 +2154,7 @@ mod tests {
         };
         let over_gap = spacing.iter().filter(|&&ns| ns > 30 * MS).count();
         println!(
-            "measure read_ns={read_ns} session_ns={session_ns} readings={} \
+            "measure session={session:?} read_ns={read_ns} session_ns={session_ns} readings={} \
              wakeups_per_s={:.1} spacing_p50_us={} spacing_p99_us={} spacing_max_us={} \
              gaps_over_30ms={over_gap} key_still_held={held}",
             times.len(),
