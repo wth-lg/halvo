@@ -3,6 +3,7 @@
 pub mod client;
 #[cfg(target_os = "macos")]
 pub mod client_unix;
+pub mod ctl_text;
 pub mod model;
 pub mod onboarding;
 pub mod paths;

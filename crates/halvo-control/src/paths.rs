@@ -79,6 +79,8 @@ pub const INSTANCE_LOCK_FILE: &str = "daemon.lock";
 pub const CONTROL_SOCKET: &str = "control.sock";
 pub const RUN_MARKER: &str = "running";
 pub const DAEMON_ERR: &str = "daemon.err";
+/// The extension of a root file under `roots/`, named `<root id>.root`.
+pub const ROOT_FILE_EXT: &str = "root";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntryKind {
