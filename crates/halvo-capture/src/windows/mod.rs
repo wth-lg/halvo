@@ -35,8 +35,7 @@ impl EventPlacement {
     /// the nil sentinel and the key id is 0. `byte_len` carries the decoded
     /// payload's measured size where the source knows it, so the quantity of
     /// captured data is visible in the event even before the store holds the
-    /// bytes. The nil segment id is the signal that no payload has been
-    /// persisted yet.
+    /// bytes.
     pub fn unpersisted(byte_len: u64) -> Self {
         Self {
             segment_ref: SegmentRef {
@@ -78,8 +77,6 @@ mod packet {
     use crate::event::Modality;
     use crate::secure_input::KeystrokeClearance;
 
-    /// A kind that a packet holds without a clearance: every kind but the
-    /// keystroke.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum Observed {
         Pointer,
@@ -88,8 +85,6 @@ mod packet {
         ScreenFrame,
     }
 
-    /// One captured event on its way to the sink. A keystroke packet is made
-    /// only by [`Packet::keystroke`], which takes the key's clearance.
     pub(crate) struct Packet {
         kind: Modality,
         pub(crate) app: Option<String>,
@@ -324,7 +319,6 @@ impl Producer {
         self.shared.lock().writer_gone
     }
 
-    /// Counts `packets` that the source could not hand over as lost.
     pub(crate) fn lose(&self, packets: u64) {
         self.shared.counts.lose(packets);
     }
@@ -438,18 +432,12 @@ pub(crate) fn os_error(stage: &'static str, error: &windows::core::Error) -> Cap
 
 const PUMP_ENDED_UNREPORTED: &str = "the pump thread ended before it reported its setup";
 
-/// How long `shutdown` of the keyboard, pointer, window_title and foreground
-/// sources waits for its thread to end (C12.7, first value).
 pub const INPUT_STOP_DEADLINE: Duration = Duration::from_millis(1_000);
 
-/// How long `shutdown` of the screen source waits for its capture thread to
-/// end (C12.7, first value).
 pub const SCREEN_STOP_DEADLINE: Duration = Duration::from_millis(6_000);
 
 const STOP_POLL: Duration = Duration::from_millis(5);
 
-/// How many messages a pump reads at its stop, after its quit message or its
-/// stop event, before it returns; input that keeps coming cannot hold a stop.
 pub const STOP_READ_LIMIT: usize = 4_096;
 
 fn deadline_ms(deadline: Duration) -> u64 {
@@ -478,7 +466,6 @@ impl StopSignal {
         Ok(Self(event, Mutex::new(None)))
     }
 
-    /// Keeps the first failed removal call of the pump, which its stop answers.
     pub(crate) fn report_removal(&self, stage: &'static str, removed: windows::core::Result<()>) {
         if let Err(error) = removed {
             self.1
@@ -669,8 +656,6 @@ impl Lifecycle {
         self.counts.read()
     }
 
-    /// Records a removal call that failed after the pump's stop, so that the
-    /// source reads as failed with that error and starts no more.
     pub(crate) fn removal_failed(&mut self, error: CaptureError) {
         self.removal_failed.get_or_insert(error);
     }
@@ -684,8 +669,6 @@ impl Drop for Lifecycle {
     }
 }
 
-/// The app of the shared cell, `None` when the cell holds none or cannot be
-/// read.
 pub(crate) fn app_of(cell: &Mutex<Option<String>>) -> Option<String> {
     cell.lock().ok().and_then(|app| app.clone())
 }
@@ -847,7 +830,7 @@ pub(crate) mod tests {
         _callback: windows::Win32::UI::Accessibility::WINEVENTPROC,
     ) -> windows::Win32::UI::Accessibility::HWINEVENTHOOK {
         // SAFETY: SetWinEventHook takes the event range, no module and no
-        // callback, and passes no pointer of ours; the system refuses the hook.
+        // callback, and passes no pointer of ours.
         unsafe {
             windows::Win32::UI::Accessibility::SetWinEventHook(
                 event,

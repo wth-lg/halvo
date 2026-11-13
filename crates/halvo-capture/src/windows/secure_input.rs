@@ -1,11 +1,5 @@
 //! The Windows probe of `secure_input`: the password-field detector of the
-//! keyboard source. Windows sets no secure-input flag, so a detector on a
-//! thread of its own reads the focused element through UI Automation, and a
-//! gate holds each key until the detector has decided for the key's input
-//! time. Only a positive answer that the field is no password field is
-//! Clear; a password field is Password, and every other answer, an error, a
-//! start, a desktop switch and a Firefox focus are Unknown. A key gets its
-//! clearance only through [`super::check`] with the gate's reading.
+//! keyboard source.
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -18,16 +12,14 @@ use super::{check, seal, KeystrokeClearance, SecureInputProbe, SecureInputReadin
 pub enum FieldState {
     /// The element answered that it is no password field.
     Clear,
-    /// The element is a password field, or was one while it kept the focus.
+    /// The element is a password field.
     Password,
     /// No answer, or one that cannot be trusted.
     Unknown,
 }
 
-/// What one read of the focused element gave.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FocusRead {
-    /// The provider answered the IsPassword property.
     Answered {
         is_password: bool,
         protected: bool,
@@ -39,8 +31,6 @@ pub(crate) enum FocusRead {
     Unreadable,
 }
 
-/// The state of one read; `same_password_element` says that the element is
-/// the one last read as Password, which stays Password while it has focus.
 pub(crate) fn state_of(read: FocusRead, same_password_element: bool) -> FieldState {
     if same_password_element {
         return FieldState::Password;
@@ -61,28 +51,16 @@ pub(crate) fn state_of(read: FocusRead, same_password_element: bool) -> FieldSta
     }
 }
 
-/// How long the gate holds each key: a focus change that the detector learns
-/// of within this time after the key's input time may have come before the
-/// key. A first value above the largest delay that spike S3 measured from a
-/// key to its focus event, 75.3 ms.
 pub const KEY_HOLD: Duration = Duration::from_millis(120);
 
-/// How long after a key or a click that moves the focus the detector reads
-/// the focused element again when no focus event has come.
 pub const LATCH_SETTLE: Duration = Duration::from_millis(100);
 
-/// The most marks that the gate keeps.
 const MARKS_KEPT: usize = 256;
 
-/// A mark of the gate: a read of the focused field, or a latch at an input
-/// time; an ordered latch comes from the keys of the input thread, in their
-/// order, and any other latch may reach the gate after later keys.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mark {
     /// A read of the focused field that a focus event gave.
     Field(FieldState),
-    /// A read that the detector made itself: at its start, or once the
-    /// settle time after a latch has passed.
     Read(FieldState),
     Latch {
         ordered: bool,
@@ -96,8 +74,6 @@ struct Entry {
     mark: Mark,
 }
 
-/// A key that the gate holds: its input time, the marks that the gate had
-/// when the key arrived and whether the focus window was a password edit.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct HeldKey {
     tick: u32,
@@ -111,10 +87,8 @@ impl HeldKey {
     }
 }
 
-/// The gate's answer for one held key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Judgment {
-    /// The key waits for a later mark or for its hold to pass.
     Wait,
     Decided(SecureInputReading),
 }
@@ -131,12 +105,6 @@ fn most_restrictive(a: FieldState, b: FieldState) -> FieldState {
     }
 }
 
-/// The reading for `key` at tick `now` from the gate's marks, in the order
-/// the gate took them. The state before the key is the last mark taken before
-/// it arrived, or after a latch the first field mark that follows the latch.
-/// A field mark taken after the key and before the next latch may describe a
-/// focus change that came before the key, so the key is Clear only when all
-/// of them are Clear, and only after its hold has passed.
 fn judge(marks: &VecDeque<Entry>, key: &HeldKey, now: u32) -> Judgment {
     if key.password_edit {
         return Judgment::Decided(SecureInputReading::Active);
@@ -191,7 +159,6 @@ fn judge(marks: &VecDeque<Entry>, key: &HeldKey, now: u32) -> Judgment {
 }
 
 /// The probe of the Windows keyboard source: the gate's reading for one key.
-/// Only this module makes one with a reading other than Unknown.
 #[derive(Debug, Clone, Copy)]
 pub struct PasswordFieldProbe(SecureInputReading);
 
@@ -262,8 +229,7 @@ impl Shared {
     }
 }
 
-/// The gate of the Windows keyboard source and its password-field detector,
-/// which runs on a thread of its own only while the source runs.
+/// The gate of the Windows keyboard source and its password-field detector.
 #[derive(Debug, Default)]
 pub struct PasswordGate {
     shared: Arc<Shared>,
@@ -272,13 +238,11 @@ pub struct PasswordGate {
 }
 
 impl PasswordGate {
-    /// A gate whose detector is not attached; every key reads Unknown.
+    /// A gate whose detector is not attached.
     pub fn new() -> PasswordGate {
         PasswordGate::default()
     }
 
-    /// The key of `tick` held from now; `password_edit` says that the focus
-    /// window was an edit control with the password style when it arrived.
     pub(crate) fn hold(&self, tick: u32, password_edit: bool) -> HeldKey {
         HeldKey {
             tick,
@@ -287,16 +251,11 @@ impl PasswordGate {
         }
     }
 
-    /// Closes the gate for keys from `tick` on until the next field mark: a
-    /// click that the detector's thread saw, whose mark may come after keys
-    /// that the input thread already holds.
     #[cfg(test)]
     fn click(&self, tick: u32) {
         self.shared.latch(tick, false);
     }
 
-    /// Closes the gate at `tick` until the next field mark: a key or a click
-    /// that moves the focus before the focus event arrives.
     pub(crate) fn latch(&self, tick: u32) {
         self.shared.latch(tick, true);
         #[cfg(target_os = "windows")]
@@ -310,9 +269,6 @@ impl PasswordGate {
         }
     }
 
-    /// The clearance for `key` at tick `now`, why there is none, or `None`
-    /// while the key waits. A key that has waited past the late bound gets
-    /// the answer for a late key.
     pub(crate) fn clearance(
         &self,
         key: &HeldKey,
@@ -327,8 +283,7 @@ impl PasswordGate {
         Some(check(&PasswordFieldProbe(reading), Some(age)))
     }
 
-    /// The state that the gate's last field mark holds, Unknown before the
-    /// first read.
+    /// The state that the gate's last field mark holds.
     pub fn field_now(&self) -> FieldState {
         self.shared
             .lock()
@@ -353,8 +308,6 @@ impl PasswordGate {
     }
 }
 
-/// A key code whose key-down moves the focus: Tab, Enter, Escape and the two
-/// Windows keys.
 pub(crate) fn moves_focus(vkey: u16) -> bool {
     matches!(vkey, 0x09 | 0x0D | 0x1B | 0x5B | 0x5C)
 }
@@ -469,8 +422,6 @@ mod detector {
     }
 
     impl PasswordGate {
-        /// Starts the detector: the gate reads Unknown until its first read of
-        /// the focused element. Fails with the step that the system refused.
         pub(crate) fn attach(&self) -> Result<(), CaptureError> {
             let mut detector = self
                 .detector
@@ -515,8 +466,6 @@ mod detector {
             }
         }
 
-        /// Stops the detector and answers the first of its removal calls that
-        /// failed, or `Timeout` when its thread does not end within `deadline`.
         pub(crate) fn detach(&self, deadline: std::time::Duration) -> Result<(), CaptureError> {
             let taken = self
                 .detector
@@ -878,8 +827,7 @@ mod detector {
             }
         };
         LATCHED.with(|cell| *cell.borrow_mut() = Some(Arc::clone(shared)));
-        // SAFETY: the hook procedure has the HOOKPROC signature; this thread
-        // pumps its messages below, which a low-level hook needs.
+        // SAFETY: the hook procedure has the HOOKPROC signature.
         let mouse: Option<HHOOK> =
             unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_proc), module(), 0) }.ok();
         // SAFETY: an out-of-context hook with no module and a callback with the
@@ -944,7 +892,7 @@ mod detector {
             removed = removed.and(Err(os("RemoveFocusChangedEventHandler", &error)));
         }
         if let Some(mouse) = mouse {
-            // SAFETY: `mouse` is the hook that this thread installed above.
+            // SAFETY: `mouse` is the hook installed above.
             if let Err(error) = unsafe { UnhookWindowsHookEx(mouse) } {
                 removed = removed.and(Err(os("UnhookWindowsHookEx", &error)));
             }
@@ -960,8 +908,6 @@ mod detector {
         removed
     }
 
-    /// Whether the window that has the keyboard focus in the foreground
-    /// thread is an edit control with the password style.
     pub(crate) fn focus_window_is_password_edit() -> bool {
         let mut info = GUITHREADINFO {
             cbSize: core::mem::size_of::<GUITHREADINFO>() as u32,

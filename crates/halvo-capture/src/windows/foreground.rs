@@ -29,7 +29,6 @@ pub(crate) const HOOK_FLAGS: u32 = WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCE
 
 pub(crate) type HookInstaller = fn(u32, WINEVENTPROC) -> HWINEVENTHOOK;
 
-/// The call that removes a WinEvent hook that this thread installed.
 pub(crate) type HookRemover = fn(HWINEVENTHOOK) -> windows::core::Result<()>;
 
 pub(crate) fn unhook_win_event(hook: HWINEVENTHOOK) -> windows::core::Result<()> {
@@ -91,11 +90,8 @@ pub(crate) fn process_path(pid: u32) -> Option<String> {
     path
 }
 
-/// The longest path that the system writes, in UTF-16 units.
 const LONGEST_PATH_UNITS: usize = 32_768;
 
-/// The path that `query` writes, read first into a buffer of MAX_PATH units
-/// and again into one of [`LONGEST_PATH_UNITS`] when the first is too small.
 #[cfg(target_os = "windows")]
 pub(crate) fn image_path_with(
     mut query: impl FnMut(&mut [u16], &mut u32) -> windows::core::Result<()>,
@@ -116,31 +112,24 @@ pub(crate) fn image_path_with(
     None
 }
 
-/// The app in front as one read gives it: the process that a foreground
-/// change is keyed on, and its executable path when the path can be read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct FrontApp {
     pub(crate) pid: u32,
     pub(crate) path: Option<String>,
 }
 
-/// What one foreground event changes: the foreground record to emit, with its
-/// app or none, and whether the title of the window in front is read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Change {
     pub(crate) emit: Option<Option<String>>,
     pub(crate) read_title: bool,
 }
 
-/// The state of the foreground callback between two events.
 #[derive(Debug, Default)]
 pub(crate) struct FrontTracker {
     last_pid: Option<u32>,
 }
 
 impl FrontTracker {
-    /// The change of one foreground event for `hwnd`, whose app `resolve`
-    /// reads; it writes the app in front into `cell`.
     pub(crate) fn on_window<W>(
         &mut self,
         cell: &Mutex<Option<String>>,
@@ -171,8 +160,6 @@ impl FrontTracker {
     }
 }
 
-/// The process that a frame-host window hosts: the first of its child
-/// windows' processes that is not the frame host's own.
 pub(crate) fn hosted_pid(frame_pid: u32, child_pids: &[u32]) -> Option<u32> {
     child_pids
         .iter()
@@ -180,13 +167,11 @@ pub(crate) fn hosted_pid(frame_pid: u32, child_pids: &[u32]) -> Option<u32> {
         .find(|&pid| pid != 0 && pid != frame_pid)
 }
 
-/// Whether `path` names the frame host of packaged apps.
 pub(crate) fn is_frame_host(path: &str) -> bool {
     let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
     name.eq_ignore_ascii_case("ApplicationFrameHost.exe")
 }
 
-/// The executable path as an event carries it.
 pub(crate) fn capped_app(mut path: String) -> String {
     let cap = crate::floor::text::TEXT_MAX_BYTES;
     if path.len() <= cap {
@@ -206,8 +191,7 @@ struct ForegroundState {
     tracker: FrontTracker,
 }
 
-/// Foreground-app capture source. `begin` installs the WinEvent hook on its
-/// own pump thread.
+/// Foreground-app capture source.
 pub struct ForegroundAppSource {
     last_app: Arc<Mutex<Option<String>>>,
     life: Lifecycle,
@@ -277,9 +261,6 @@ unsafe extern "system" fn foreground_proc(
     on_foreground_window(hwnd, time);
 }
 
-/// The interval of the poll that reads the window in front again, so that a
-/// hosted app that its frame host shows after the foreground event is named
-/// (contracts.md C13.2, RD-38).
 #[cfg(target_os = "windows")]
 pub(crate) const FOREGROUND_POLL_MS: u32 = 400;
 

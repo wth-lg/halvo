@@ -10,18 +10,15 @@ use crate::sink::{SinkError, SinkHandle};
 /// source, because every such box has one address: either panics with the text
 /// for a source that implements neither pair.
 pub trait CaptureSource {
-    /// Retired: no product code calls it, and the default body panics.
     fn modality(&self) -> Modality {
         panic!("CaptureSource::modality is retired and has no default answer")
     }
 
-    /// The old form of [`CaptureSource::begin`].
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
         let _call = DefaultPairCall::enter(&*self, DefaultMember::Start);
         self.begin(SourceContext::new(sink)).map(|_| ())
     }
 
-    /// The old form of [`CaptureSource::shutdown`].
     fn stop(&mut self) {
         let _call = DefaultPairCall::enter(&*self, DefaultMember::Stop);
         let _ = self.shutdown();
@@ -104,7 +101,6 @@ impl Drop for DefaultPairCall {
 /// started is [`CaptureError::AlreadyStarted`], whatever the source answers
 /// itself. A `shutdown` that returns `Ok` or [`CaptureError::ThreadEnded`]
 /// ends the started state; after any other answer the source counts as started.
-/// The daemon starts every source through it.
 pub struct StartGuard {
     source: Box<dyn CaptureSource>,
     started: bool,
@@ -225,7 +221,6 @@ pub enum HealthReason {
     TitleReadErrors,
     StreamBlank,
     StreamSuspended,
-    /// A source thread that ended.
     ThreadEnded,
     /// The writer of the source's events is gone; a restart cannot help.
     WriterGone,
@@ -311,7 +306,7 @@ pub struct HeldSamples {
 pub trait EventSink: sealed::Sealed {
     /// The old emit. It takes any `CaptureStreamEvent`, with no keep verdict,
     /// no clearance and no text filter point, and stays the remaining route of
-    /// a capture event to a stored record until core-3 removes it.
+    /// a capture event to a stored record.
     fn emit(&self, event: CaptureStreamEvent) -> Result<EmitOutcome, SinkError>;
 }
 

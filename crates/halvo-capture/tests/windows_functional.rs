@@ -230,7 +230,6 @@ unsafe impl std::alloc::GlobalAlloc for CountingAllocator {
 #[global_allocator]
 static ALLOCATOR: CountingAllocator = CountingAllocator;
 
-/// The allocations that `body` makes on this thread.
 fn allocations_of(body: impl FnOnce()) -> u64 {
     COUNTED_ALLOCATIONS.with(|count| count.set(Some(0)));
     body();
@@ -239,8 +238,6 @@ fn allocations_of(body: impl FnOnce()) -> u64 {
         .unwrap_or(0)
 }
 
-/// One call of the fault handler for a fault at `address`: the allocations it
-/// made on this thread, the lines it wrote and its answer.
 fn one_fault(address: *mut core::ffi::c_void) -> (u64, u32, i32) {
     use std::sync::atomic::Ordering::SeqCst;
     FAULT_LINES.store(0, SeqCst);
@@ -512,8 +509,6 @@ fn app_class(app: &str, own_exe: &str) -> &'static str {
     }
 }
 
-/// The source's `shutdown`, with one line that the runner counts for T14:
-/// `TF shutdown source=<name> ok=<true|false>`.
 fn stop_counted<S: CaptureSource>(source: &mut S, name: &str) -> Result<(), CaptureError> {
     let stopped = source.shutdown();
     println!("TF shutdown source={name} ok={}", stopped.is_ok());
@@ -954,7 +949,6 @@ impl Drop for TestWindow {
     }
 }
 
-/// A control of a [`FieldWindow`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Field {
     Plain,
@@ -975,10 +969,6 @@ enum FieldAnswer {
     PasswordIntervals(Vec<(u128, u128)>),
 }
 
-/// A window with a plain edit and a password edit, made and served by a
-/// thread of its own that pumps its messages the whole time, so that the
-/// keyboard source's detector can read its controls while the test thread
-/// waits. Tab moves the focus between the two edits.
 struct FieldWindow {
     commands: mpsc::Sender<FieldCommand>,
     answers: mpsc::Receiver<FieldAnswer>,
@@ -1092,8 +1082,6 @@ fn pump_dialog(hwnd: HWND) {
     }
 }
 
-/// A run of phase C: its start, its span, the next move, the seed of the
-/// intervals and the unix milliseconds of each stay in the password field.
 type Wander = (Instant, Duration, Instant, u64, Vec<(u128, u128)>);
 
 fn serve_fields(
@@ -1180,8 +1168,6 @@ fn serve_fields(
     }
 }
 
-/// Types `letters` letters, each a key-down and a key-up 20 ms apart, and
-/// answers how many key events SendInput took.
 fn type_letters_slowly(letters: u32) -> u32 {
     use windows::Win32::UI::Input::KeyboardAndMouse::VK_A;
     let mut accepted = 0;
@@ -3464,8 +3450,6 @@ fn class_of_window(hwnd: HWND) -> String {
     String::from_utf16_lossy(&buf[..usize::try_from(len).unwrap_or(0)])
 }
 
-/// The foreground window's class and process image, and the processes of its
-/// child windows, by image name and class: what the hosted-app resolver sees.
 fn window_sample(hwnd: HWND) -> String {
     use windows::core::BOOL;
     use windows::Win32::UI::WindowsAndMessaging::EnumChildWindows;
@@ -3523,11 +3507,6 @@ fn processes_named(image: &str) -> usize {
         .count()
 }
 
-/// Brings `hwnd`, a window of this thread or of another process, to the
-/// front with the calls that the system allows a process that holds or may
-/// take the foreground, and no keyboard or pointer input: SetForegroundWindow,
-/// then the same call with this thread's input joined to the foreground
-/// thread's, then a minimize and a restore of a window of this thread.
 fn foreground_without_input(hwnd: HWND, own: bool) -> (bool, &'static str) {
     // SAFETY: the calls take a window handle by value.
     unsafe {
@@ -3589,9 +3568,6 @@ fn top_windows() -> Vec<HWND> {
     all
 }
 
-/// The visible frame window of the Settings app: a window of the class
-/// ApplicationFrameWindow whose sample names SystemSettings.exe, or a window
-/// of SystemSettings.exe itself.
 fn settings_window() -> Option<HWND> {
     use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
     top_windows().into_iter().find(|hwnd| {
@@ -4292,8 +4268,6 @@ impl Drop for BrowserRun<'_> {
     }
 }
 
-/// The keystroke events of one phase: the browser opens the fixture page at
-/// `phase`, `typing` types into it, and the page's own counts come back.
 fn browser_phase(
     test: &str,
     run: &mut BrowserRun,

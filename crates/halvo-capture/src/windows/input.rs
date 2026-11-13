@@ -40,9 +40,7 @@ pub struct KeyStroke {
 }
 
 impl KeyStroke {
-    /// The measured size of this key's decoded payload: the virtual-key code. A
-    /// metadata-only event carries this as its placement's `byte_len`, so the
-    /// quantity of captured key data is visible before the store holds the bytes.
+    /// The measured size of this key's decoded payload: the virtual-key code.
     pub const fn payload_len(self) -> u64 {
         core::mem::size_of::<u16>() as u64
     }
@@ -60,8 +58,7 @@ pub struct PointerSample {
 
 impl PointerSample {
     /// The measured size of this sample's decoded payload: the two movement
-    /// deltas, the button flags and the wheel delta. Carried as the metadata-only
-    /// event's placement `byte_len`.
+    /// deltas, the button flags and the wheel delta.
     pub const fn payload_len(self) -> u64 {
         (core::mem::size_of::<i32>() * 2
             + core::mem::size_of::<u16>()
@@ -76,8 +73,6 @@ impl PointerSample {
     }
 }
 
-/// The keys that are down, by virtual-key code, as the keyboard source has
-/// seen them since it started.
 #[derive(Debug)]
 pub(crate) struct KeyState {
     down: [bool; 256],
@@ -89,18 +84,14 @@ impl Default for KeyState {
     }
 }
 
-/// The virtual-key code of a packet that names no key.
 pub(crate) const NO_KEY: u16 = 0xFF;
 
-/// Control, Alt and the Windows keys, which make a key pressed with them a
-/// shortcut; Shift does not.
 const CHORD_KEYS: [u16; 8] = [0x11, 0xA2, 0xA3, 0x12, 0xA4, 0xA5, 0x5B, 0x5C];
 
 fn is_modifier(vkey: u16) -> bool {
     matches!(vkey, 0x10..=0x12 | 0xA0..=0xA5 | 0x5B | 0x5C)
 }
 
-/// The class of a key-down of `vkey` with no chord key held.
 pub(crate) fn class_of(vkey: u16) -> KeyClass {
     match vkey {
         0x41..=0x5A | 0x30..=0x39 | 0x20 | 0x60..=0x6F | 0xBA..=0xC0 | 0xDB..=0xDF | 0xE2 => {
@@ -114,8 +105,6 @@ pub(crate) fn class_of(vkey: u16) -> KeyClass {
     }
 }
 
-/// The keystroke event of one keyboard packet: the class of a key-down
-/// transition, or `None` for a packet that is no event.
 pub(crate) fn map_keystroke(state: &mut KeyState, key: KeyStroke) -> Option<KeyClass> {
     if key.vkey >= NO_KEY {
         return None;
@@ -140,8 +129,6 @@ pub(crate) fn map_keystroke(state: &mut KeyState, key: KeyStroke) -> Option<KeyC
     Some(class_of(key.vkey))
 }
 
-/// The packet of a key that the gate cleared: the clearance is taken by
-/// value, so no keystroke packet exists without one.
 pub(crate) fn keystroke_packet(
     clearance: KeystrokeClearance,
     foreground_app: Option<String>,
@@ -202,9 +189,6 @@ struct InputState {
     gate: Option<GateState>,
 }
 
-/// The keyboard source's side of the password gate: the keys it holds, with
-/// the app in front at each key's input time, and the counts that its health
-/// reads.
 struct GateState {
     gate: Arc<PasswordGate>,
     held: VecDeque<(HeldKey, Option<String>)>,
@@ -217,11 +201,8 @@ struct GateCounts {
     withheld: AtomicBool,
 }
 
-/// How often the keyboard pump asks the gate again for the keys it holds.
 const GATE_POLL_MS: u32 = 15;
 
-/// Hands every held key that the gate has decided to the producer, in input
-/// order; at the stop, a key that still waits is counted lost.
 fn release_held(gate: &mut GateState, producer: &Producer, at_stop: bool) {
     let now = super::now_tick();
     while let Some((key, _)) = gate.held.front() {
@@ -310,11 +291,8 @@ const SYSTEM_CALLS: StartCalls = StartCalls {
     remove_device: register_raw_input_device,
 };
 
-/// The stage of the call that removes a device's Raw Input registration.
 pub(crate) const REMOVE_STAGE: &str = "RegisterRawInputDevices(RIDEV_REMOVE)";
 
-/// The removal of a device's registration for the whole process: no target
-/// window, so that any thread of the process may make it.
 fn removal_of(device: RawDevice) -> RAWINPUTDEVICE {
     RAWINPUTDEVICE {
         usUsagePage: HID_USAGE_PAGE_GENERIC,
@@ -324,8 +302,6 @@ fn removal_of(device: RawDevice) -> RAWINPUTDEVICE {
     }
 }
 
-/// Whether a run's registration was removed; the first of the pump and the
-/// stopping thread to take it makes the one removal call.
 type Removed = Arc<Mutex<bool>>;
 
 fn remove_once(
@@ -411,9 +387,7 @@ fn register_class(
     Ok(())
 }
 
-/// Raw Input capture source for one device. `begin` opens a message-only
-/// window on its own pump thread and registers the device. One source of each
-/// device runs in a process at a time.
+/// Raw Input capture source for one device.
 pub struct RawInputSource {
     device: RawDevice,
     last_app: Arc<Mutex<Option<String>>>,
@@ -426,8 +400,7 @@ pub struct RawInputSource {
 
 impl RawInputSource {
     /// A keyboard source, attributing keystrokes to `last_app` (shared with the
-    /// foreground source). It records a key only when `gate` clears it; the
-    /// gate's detector runs while the source runs.
+    /// foreground source).
     pub fn keyboard(last_app: Arc<Mutex<Option<String>>>, gate: PasswordGate) -> Self {
         Self {
             gate: Some(Arc::new(gate)),
@@ -435,7 +408,6 @@ impl RawInputSource {
         }
     }
 
-    /// A pointer source.
     pub fn pointer(last_app: Arc<Mutex<Option<String>>>) -> Self {
         Self::new(RawDevice::Pointer, last_app)
     }

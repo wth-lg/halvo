@@ -20,8 +20,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
     EVENT_OBJECT_NAMECHANGE, EVENT_SYSTEM_FOREGROUND, OBJID_WINDOW,
 };
 
-/// The most UTF-16 units that one title read asks for: the byte cap of a
-/// title, which no title of more units can stay under.
 pub(crate) const TITLE_READ_UNITS: usize = crate::floor::text::TEXT_MAX_BYTES;
 
 pub(crate) fn title_packet(title: &str, exe_path: Option<String>, tick: u32) -> Option<Packet> {
@@ -36,8 +34,6 @@ pub(crate) fn title_packet(title: &str, exe_path: Option<String>, tick: u32) -> 
     ))
 }
 
-/// Whether a name-change event names the title of the window in front: the
-/// event's window, its object and child ids, and the foreground window.
 #[cfg(target_os = "windows")]
 pub(crate) fn keeps_title_event(window: HWND, object: i32, child: i32, front: HWND) -> bool {
     !front.0.is_null()
@@ -46,9 +42,6 @@ pub(crate) fn keeps_title_event(window: HWND, object: i32, child: i32, front: HW
         && child == CHILDID_SELF as i32
 }
 
-/// The title of `hwnd`, read into a buffer of [`TITLE_READ_UNITS`] units and
-/// the terminating NUL, then cut on a character boundary to at most the byte
-/// cap of a title. An unpaired surrogate reads as U+FFFD.
 #[cfg(target_os = "windows")]
 pub(crate) fn read_window_title(hwnd: HWND) -> String {
     if hwnd.0.is_null() {
@@ -73,14 +66,10 @@ pub(crate) fn read_window_title(hwnd: HWND) -> String {
     title
 }
 
-/// The last title that the source emitted: its window and a digest of its
-/// text, so that a repeat is dropped without the text being kept.
 #[derive(Debug, Default)]
 pub(crate) struct LastTitle(Option<(usize, u64)>);
 
 impl LastTitle {
-    /// Whether `title` of `window` differs from the last one emitted; when it
-    /// does, it becomes the last one.
     pub(crate) fn is_new(&mut self, window: usize, title: &str) -> bool {
         use std::hash::{Hash, Hasher};
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
@@ -93,9 +82,6 @@ impl LastTitle {
         true
     }
 
-    /// Whether `title` of `window` is a title to emit: not empty, and new
-    /// against the last one read, an empty one included, so that a return to
-    /// a window after one with no title emits its title again.
     pub(crate) fn shows_new(&mut self, window: usize, title: &str) -> bool {
         self.is_new(window, title) && !title.trim().is_empty()
     }
@@ -106,8 +92,7 @@ struct TitleState {
     last: LastTitle,
 }
 
-/// Window-title capture source. `begin` installs the name-change hook on its
-/// own pump thread.
+/// Window-title capture source.
 pub struct WindowTitleSource {
     life: Lifecycle,
     installer: HookInstaller,
@@ -349,7 +334,6 @@ mod tests {
             Self::made(title).0
         }
 
-        /// The window and whether SetWindowTextW answered success.
         fn made(title: &[u16]) -> (TitledWindow, bool) {
             use windows::Win32::UI::WindowsAndMessaging::{
                 CreateWindowExW, SetWindowTextW, WINDOW_EX_STYLE, WINDOW_STYLE,
@@ -412,8 +396,6 @@ mod tests {
         assert!(!last.shows_new(1, "Inbox"));
     }
 
-    /// The facts of one long title: whether it was set, the length that the
-    /// system holds, and what each read gives.
     fn title_facts(units: usize) -> (String, usize, usize) {
         use windows::Win32::UI::WindowsAndMessaging::GetWindowTextLengthW;
         let long: Vec<u16> = std::iter::repeat_n(u16::from(b'x'), units).collect();

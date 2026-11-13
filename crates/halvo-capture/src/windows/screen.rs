@@ -77,11 +77,6 @@ mod apartment {
     #[derive(Debug, Clone, Copy)]
     pub(super) struct MtaHeld(());
 
-    /// One reference on the process's multithreaded apartment, taken before
-    /// the first capture session and never released, because without it the
-    /// process can fault when one of its windows is destroyed after its last
-    /// capture session has ended (RR-windows-04; the test
-    /// c8b_window_destroyed_after_the_last_capture_session).
     pub(super) fn hold_process_mta() -> Result<MtaHeld, CaptureError> {
         static HELD: Mutex<bool> = Mutex::new(false);
         let mut held = HELD.lock().unwrap_or_else(PoisonError::into_inner);
