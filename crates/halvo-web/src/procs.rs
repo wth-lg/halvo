@@ -469,6 +469,40 @@ mod tests {
         );
     }
 
+    /// CP-170 E10, m47: a directory whose name holds `.app` inside and not at its end is no
+    /// bundle root.
+    #[test]
+    fn a_name_with_app_inside_is_no_bundle() {
+        assert_eq!(
+            bundle_root(Path::new("/x/Foo.app.d/bin/b")),
+            PathBuf::from("/x/Foo.app.d/bin")
+        );
+        assert_eq!(
+            bundle_root(Path::new("/x/my.apps/b")),
+            PathBuf::from("/x/my.apps")
+        );
+    }
+
+    /// CP-170 E10, m46: `adopted` takes a process whose parent is 1 and no process of another
+    /// parent that is outside the tree.
+    #[test]
+    fn adopted_asks_the_parent_number_1() {
+        let roots = vec![PathBuf::from("/B.app")];
+        let row = |pid: u32, ppid: u32| Proc {
+            pid,
+            ppid,
+            started_us: 20,
+            pgid: 0,
+            exe: Some(PathBuf::from("/B.app/Contents/MacOS/h")),
+        };
+        let table = vec![row(10, 1), row(11, 77)];
+        let got: Vec<u32> = adopted(&table, &[], 10, &roots)
+            .iter()
+            .map(|p| p.pid)
+            .collect();
+        assert_eq!(got, vec![10]);
+    }
+
     #[test]
     fn bundle_root_is_the_app_or_the_directory() {
         assert_eq!(

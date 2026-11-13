@@ -1810,7 +1810,26 @@ pub(crate) mod tests {
             PathBuf::from("/p/profile"),
             relay,
         );
-        let mut want: Vec<String> = crate::PRODUCT_FLAGS.iter().map(|f| f.to_string()).collect();
+        let mut want: Vec<String> = [
+            "--disable-background-networking",
+            "--disable-component-update",
+            "--disable-sync",
+            "--disable-field-trial-config",
+            "--disable-client-side-phishing-detection",
+            "--disable-default-apps",
+            "--disable-domain-reliability",
+            "--metrics-recording-only",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-updater-scheduler",
+            "--dns-prefetch-disable",
+            "--no-pings",
+            "--disable-extensions",
+            "--disable-component-extensions-with-background-pages",
+            "--disable-features=FetchLaterAPI,MediaRouter,DialMediaRouteProvider,CastMediaRouteProvider,SignedHTTPExchange,SignedExchangeSubresourcePrefetch,Prerender2,PrefetchProxy,NetworkErrorLogging,Reporting,DocumentReporting,FedCm,PaymentHandler,WebAuthenticationCable,AttributionReporting,PrivacySandboxAdsAPIs,InterestFeedContentSuggestions,OptimizationHints,Translate,WebRtcHideLocalIpsWithMdns",
+        ]
+        .map(String::from)
+        .to_vec();
         want.extend(
             [
                 "--disable-breakpad",
