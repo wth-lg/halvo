@@ -1786,6 +1786,10 @@ pub enum DeleteDecision {
     Refused,
 }
 
+fn may_yet_show_an_id(store: StoreState) -> bool {
+    store == StoreState::Opening
+}
+
 /// The delete rule of ruling PL-8 part (4)(a), in its order. A deleting store or a locked one
 /// is busy, before any id is read. An armed id that is the shown id is accepted; two ids that
 /// differ are already deleted, with the shown id; an armed id with no shown id, or no armed id
@@ -1809,7 +1813,7 @@ pub fn delete_decision(
         (None, None) if matches!(store, StoreState::Open | StoreState::NoReleaseCustody) => {
             DeleteDecision::Refused
         }
-        (None, None) if store == StoreState::Opening => DeleteDecision::Busy,
+        (None, None) if may_yet_show_an_id(store) => DeleteDecision::Busy,
         (None, None) => DeleteDecision::Accept,
     }
 }
