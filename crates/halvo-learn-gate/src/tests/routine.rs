@@ -4,8 +4,8 @@ use halvo_schema::learning::names::Mark;
 
 use crate::cli::Cause;
 use crate::routine::{
-    line, newest, play, play_all, read_sample, report, run, Event, Played, Stream, Train, LAST_DAY,
-    REPLAY_FROM, SAMPLE_PATH, TRAINS,
+    line, newest, play, play_all, read_sample, report, report_with, run, threads, Event, Played,
+    Stream, Train, LAST_DAY, REPLAY_FROM, SAMPLE_PATH, TRAINS,
 };
 
 fn sample() -> Vec<Train> {
@@ -59,7 +59,7 @@ fn routine_plays_each_train_in_both_streams_in_order_with_runs_from_day_120_and_
     let mut changed = train.clone();
     changed.events[0].period = changed.events[0].period.map(|p| p + 1);
     let first = changed.events[0].day;
-    let played: Vec<Played> = play_all(&[train.clone(), changed])
+    let played: Vec<Played> = play_all(&[train.clone(), changed], threads(), play)
         .into_iter()
         .map(|r| r.expect("a play"))
         .collect();
@@ -480,4 +480,76 @@ fn routine_reader_refuses_the_sample_with_cr_lf_at_the_end_of_line_1() {
         read_sample(&changed),
         Err("line 1 of the sample is no train".to_owned())
     );
+}
+
+fn marked_trains() -> Vec<Train> {
+    (1..=u32::try_from(TRAINS).expect("a count"))
+        .map(|n| Train {
+            days: vec![n],
+            events: Vec::new(),
+        })
+        .collect()
+}
+
+fn marked(train: &Train, stream: Stream) -> Played {
+    Played {
+        runs: train.days[0],
+        summaries: u32::from(stream == Stream::Replay),
+        ..Played::default()
+    }
+}
+
+fn place_holds_its_own(train: &Train, stream: Stream, result: &Result<Played, String>) -> bool {
+    result.as_ref() == Ok(&marked(train, stream))
+}
+
+#[test]
+fn routine_a_failed_play_names_its_own_train_at_an_even_and_an_odd_place() {
+    let trains = marked_trains();
+    for (train_number, broken_stream) in [(3, Stream::Summaries), (8, Stream::Replay)] {
+        for threads in [1, 4] {
+            let refusal = report_with(&trains, threads, |train, stream| {
+                if train.days[0] == train_number && stream == broken_stream {
+                    Err("broken".to_owned())
+                } else {
+                    Ok(marked(train, stream))
+                }
+            })
+            .expect_err("a refusal");
+            assert_eq!(refusal.cause, Cause::Store);
+            assert_eq!(refusal.detail, format!("train {train_number}: broken"));
+        }
+    }
+}
+
+#[test]
+fn routine_a_play_that_panics_names_its_own_train_and_every_other_place_keeps_its_result() {
+    let trains = marked_trains();
+    let panicking = |train: &Train, stream: Stream| {
+        if train.days[0] == 120 && stream == Stream::Replay {
+            panic!("a play that panics");
+        }
+        Ok(marked(train, stream))
+    };
+    for threads in [1, 4] {
+        let refusal = report_with(&trains, threads, panicking).expect_err("a refusal");
+        assert_eq!(refusal.cause, Cause::Store);
+        assert_eq!(refusal.detail, "train 120: the play panicked");
+        let results = play_all(&trains, threads, panicking);
+        assert_eq!(results.len(), 2 * TRAINS);
+        let places: Vec<(&Train, Stream)> = trains
+            .iter()
+            .flat_map(|t| Stream::BOTH.map(|s| (t, s)))
+            .collect();
+        for (at, ((train, stream), result)) in places.iter().zip(&results).enumerate() {
+            if at == 2 * 119 + 1 {
+                assert_eq!(result, &Err("the play panicked".to_owned()));
+            } else {
+                assert!(
+                    place_holds_its_own(train, *stream, result),
+                    "place {at} with {threads} threads: {result:?}"
+                );
+            }
+        }
+    }
 }

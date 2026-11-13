@@ -352,18 +352,27 @@ pub fn play(train: &Train, stream: Stream) -> Result<Played, String> {
     Ok(played)
 }
 
+/// The threads that play the trains: the machine's parallelism, at most four.
+pub fn threads() -> usize {
+    std::thread::available_parallelism().map_or(1, |n| n.get().min(4))
+}
+
 /// Every play of the trains, each train in both streams in the order of `Stream::BOTH`, in the order of the trains,
-/// spread over at most four threads.
-pub fn play_all(trains: &[Train]) -> Vec<Result<Played, String>> {
+/// spread over `threads` threads, each play made by `play_one`. A play that panics gives the error "the play
+/// panicked" at its own place, and the thread goes on with the next play, so every place holds its own result; what
+/// the panic hook writes to standard error stays beside the command's one line.
+pub fn play_all<F>(trains: &[Train], threads: usize, play_one: F) -> Vec<Result<Played, String>>
+where
+    F: Fn(&Train, Stream) -> Result<Played, String> + Sync,
+{
     let plays: Vec<(&Train, Stream)> = trains
         .iter()
         .flat_map(|t| Stream::BOTH.map(|s| (t, s)))
         .collect();
-    let threads = std::thread::available_parallelism().map_or(1, |n| n.get().min(4));
     let next = AtomicUsize::new(0);
     let mut out: Vec<Option<Result<Played, String>>> = vec![None; plays.len()];
     let done: Vec<Vec<(usize, Result<Played, String>)>> = std::thread::scope(|scope| {
-        let workers: Vec<_> = (0..threads)
+        let workers: Vec<_> = (0..threads.max(1))
             .map(|_| {
                 scope.spawn(|| {
                     let mut mine = Vec::new();
@@ -372,17 +381,18 @@ pub fn play_all(trains: &[Train]) -> Vec<Result<Played, String>> {
                         let Some((train, stream)) = plays.get(at) else {
                             return mine;
                         };
-                        mine.push((at, play(train, *stream)));
+                        let one = || play_one(train, *stream);
+                        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(one)) {
+                            Ok(result) => mine.push((at, result)),
+                            Err(_) => mine.push((at, Err("the play panicked".to_owned()))),
+                        }
                     }
                 })
             })
             .collect();
         workers
             .into_iter()
-            .map(|w| {
-                w.join()
-                    .unwrap_or_else(|_| vec![(0, Err("a play thread panicked".to_owned()))])
-            })
+            .map(|w| w.join().unwrap_or_default())
             .collect()
     });
     for (at, result) in done.into_iter().flatten() {
@@ -396,13 +406,22 @@ pub fn play_all(trains: &[Train]) -> Vec<Result<Played, String>> {
 /// Plays every train in both streams and gives the line of L10.4: `same` counts the plays in which every day
 /// gives the trial's figures, and the result is ok when it is twice the number of trains, which must be `TRAINS`.
 pub fn report(trains: &[Train]) -> Result<Report, Refusal> {
+    report_with(trains, threads(), play)
+}
+
+/// `report` with the thread count and the function that plays one train in one stream given: the command passes
+/// `threads()` and `play`.
+pub fn report_with<F>(trains: &[Train], threads: usize, play_one: F) -> Result<Report, Refusal>
+where
+    F: Fn(&Train, Stream) -> Result<Played, String> + Sync,
+{
     if trains.len() != TRAINS {
         return Err(Refusal::new(
             Cause::Case,
             format!("the sample holds {} trains, not {TRAINS}", trains.len()),
         ));
     }
-    let played = play_all(trains)
+    let played = play_all(trains, threads, play_one)
         .into_iter()
         .enumerate()
         .map(|(at, result)| {
