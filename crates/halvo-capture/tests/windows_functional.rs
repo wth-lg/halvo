@@ -3031,6 +3031,136 @@ fn x14_foreground_app_of_a_hosted_app() {
     });
 }
 
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x2_window_title_events_for_other_windows_and_controls() {
+    with_deadline("x2", Duration::from_secs(90), || {
+        env_report("x2");
+        let (sink, events) = capture(8192);
+        let mut title = WindowTitleSource::new();
+        let start = title.begin(SourceContext::new(sink.clone()));
+        let mut child = spawn_child("scope", 0);
+        let mut seen = Vec::new();
+        let exit = loop {
+            seen.extend(events.drain_for(Duration::from_millis(100)));
+            if let Some(status) = child.try_wait() {
+                break status;
+            }
+        };
+        seen.extend(events.drain_for(Duration::from_secs(1)));
+        let _ = title.shutdown();
+        child.print_output();
+        summarize("x2", "scope", &seen);
+        let with_size = |len: u64| {
+            seen.iter()
+                .filter(|e| {
+                    e.modality == Modality::WindowTitle
+                        && is_child_app(&e.foreground_app)
+                        && e.segment_ref.byte_len == len
+                })
+                .count()
+        };
+        say(
+            "x2",
+            format!(
+                "title_start={} child_exit_ok={} events_for_foreground_window_title={} \
+                 events_for_child_control_text={}",
+                show(&start),
+                exit.success(),
+                with_size(30),
+                with_size(40),
+            ),
+        );
+        assert!(start.is_ok(), "the window-title source must start");
+        assert!(exit.success(), "the child process must finish");
+        assert!(
+            with_size(30) >= 1,
+            "INCONCLUSIVE: no event for the foreground window's own title, so the other counts say nothing"
+        );
+        let evidence: String = format!(
+            "TF x2 events_for_child_control_text={} events_for_background_window_title={} \
+            events_for_never_shown_window_title={}",
+            with_size(40),
+            with_size(50),
+            with_size(60),
+        );
+        println!("{evidence}");
+        assert!(
+            with_size(40) == 0 && with_size(50) == 0 && with_size(60) == 0,
+            "{evidence}"
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn title_event_on_a_switch_to_a_window_with_a_fixed_title() {
+    with_deadline("fixed-title", Duration::from_secs(90), || {
+        env_report("fixed-title");
+        let (sink, events) = capture(8192);
+        let mut title = WindowTitleSource::new();
+        let start = title.begin(SourceContext::new(sink.clone()));
+        let mut child = spawn_child("cycle", 4);
+        let child_pid = child.id();
+        let fixed_len = FIXED_TITLE.len() as i32;
+        let mut seen = Vec::new();
+        let mut fixed_window_was_foreground = false;
+        let exit = loop {
+            seen.extend(events.drain_for(Duration::from_millis(100)));
+            let hwnd = foreground_window();
+            fixed_window_was_foreground |=
+                window_pid(hwnd) == child_pid && title_len(hwnd) == fixed_len;
+            if let Some(status) = child.try_wait() {
+                break status;
+            }
+        };
+        seen.extend(events.drain_for(Duration::from_secs(1)));
+        let _ = title.shutdown();
+        child.print_output();
+        summarize("fixed-title", "cycle", &seen);
+        let titles_of = |wanted: &dyn Fn(u64) -> bool| {
+            seen.iter()
+                .filter(|e| {
+                    e.modality == Modality::WindowTitle
+                        && is_child_app(&e.foreground_app)
+                        && wanted(e.segment_ref.byte_len)
+                })
+                .count()
+        };
+        let scripted = titles_of(&|len| CHILD_TITLE_LENGTHS.contains(&len));
+        let fixed = titles_of(&|len| len == FIXED_TITLE.len() as u64);
+        say(
+            "fixed-title",
+            format!(
+                "title_start={} child_exit_ok={} fixed_title_bytes={fixed_len} \
+                 fixed_title_window_was_foreground={fixed_window_was_foreground} \
+                 title_events_with_a_scripted_title_size={scripted}",
+                show(&start),
+                exit.success(),
+            ),
+        );
+        assert!(start.is_ok(), "the window-title source must start");
+        assert!(exit.success(), "the child process must finish");
+        assert!(
+            fixed_window_was_foreground,
+            "INCONCLUSIVE: the window with the fixed title never came to the front"
+        );
+        assert!(
+            scripted >= 1,
+            "INCONCLUSIVE: no title event for the child's title changes"
+        );
+        let evidence: String = format!("TF fixed-title title_events_for_the_fixed_title={fixed}");
+        println!("{evidence}");
+        assert!(fixed >= 1, "{evidence}");
+    });
+}
+
+fn title_len(hwnd: HWND) -> i32 {
+    // SAFETY: GetWindowTextLengthW reads the length of a window's text; a
+    // handle that is no longer a window gives 0.
+    unsafe { windows::Win32::UI::WindowsAndMessaging::GetWindowTextLengthW(hwnd) }
+}
+
 macro_rules! defect {
     ($id:literal, $wanted:expr, $evidence:expr) => {{
         let evidence: String = $evidence;
@@ -3046,13 +3176,7 @@ mod known_defect {
 
     use halvo_capture::windows::apps::wait_for_change;
     use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, SetFocus, VK_A};
-    use windows::Win32::UI::WindowsAndMessaging::{GetWindowTextLengthW, ES_PASSWORD};
-
-    fn title_len(hwnd: HWND) -> i32 {
-        // SAFETY: GetWindowTextLengthW reads the length of a window's text; a
-        // handle that is no longer a window gives 0.
-        unsafe { GetWindowTextLengthW(hwnd) }
-    }
+    use windows::Win32::UI::WindowsAndMessaging::ES_PASSWORD;
 
     fn focus(hwnd: HWND) -> bool {
         // SAFETY: SetFocus takes a window handle of this thread by value.
@@ -3186,131 +3310,6 @@ mod known_defect {
                 "RR-windows-01",
                 typed == 0,
                 format!("TF x1 keystroke_events_while_typing_into_password_field={typed}")
-            );
-        });
-    }
-
-    #[test]
-    #[ignore = "known defect: needs an interactive Windows desktop"]
-    fn x2_window_title_events_for_other_windows_and_controls() {
-        with_deadline("x2", Duration::from_secs(90), || {
-            env_report("x2");
-            let (sink, events) = capture(8192);
-            let mut title = WindowTitleSource::new();
-            let start = title.begin(SourceContext::new(sink.clone()));
-            let mut child = spawn_child("scope", 0);
-            let mut seen = Vec::new();
-            let exit = loop {
-                seen.extend(events.drain_for(Duration::from_millis(100)));
-                if let Some(status) = child.try_wait() {
-                    break status;
-                }
-            };
-            seen.extend(events.drain_for(Duration::from_secs(1)));
-            let _ = title.shutdown();
-            child.print_output();
-            summarize("x2", "scope", &seen);
-            let with_size = |len: u64| {
-                seen.iter()
-                    .filter(|e| {
-                        e.modality == Modality::WindowTitle
-                            && is_child_app(&e.foreground_app)
-                            && e.segment_ref.byte_len == len
-                    })
-                    .count()
-            };
-            say(
-                "x2",
-                format!(
-                    "title_start={} child_exit_ok={} events_for_foreground_window_title={} \
-                     events_for_child_control_text={}",
-                    show(&start),
-                    exit.success(),
-                    with_size(30),
-                    with_size(40),
-                ),
-            );
-            assert!(start.is_ok(), "the window-title source must start");
-            assert!(exit.success(), "the child process must finish");
-            assert!(
-                with_size(30) >= 1,
-                "INCONCLUSIVE: no event for the foreground window's own title, so the other counts say nothing"
-            );
-            defect!(
-                "RR-windows-08",
-                with_size(40) == 0 && with_size(50) == 0 && with_size(60) == 0,
-                format!(
-                    "TF x2 events_for_child_control_text={} events_for_background_window_title={} \
-                     events_for_never_shown_window_title={}",
-                    with_size(40),
-                    with_size(50),
-                    with_size(60),
-                )
-            );
-        });
-    }
-
-    #[test]
-    #[ignore = "known defect: needs an interactive Windows desktop"]
-    fn title_event_on_a_switch_to_a_window_with_a_fixed_title() {
-        with_deadline("fixed-title", Duration::from_secs(90), || {
-            env_report("fixed-title");
-            let (sink, events) = capture(8192);
-            let mut title = WindowTitleSource::new();
-            let start = title.begin(SourceContext::new(sink.clone()));
-            let mut child = spawn_child("cycle", 4);
-            let child_pid = child.id();
-            let fixed_len = FIXED_TITLE.len() as i32;
-            let mut seen = Vec::new();
-            let mut fixed_window_was_foreground = false;
-            let exit = loop {
-                seen.extend(events.drain_for(Duration::from_millis(100)));
-                let hwnd = foreground_window();
-                fixed_window_was_foreground |=
-                    window_pid(hwnd) == child_pid && title_len(hwnd) == fixed_len;
-                if let Some(status) = child.try_wait() {
-                    break status;
-                }
-            };
-            seen.extend(events.drain_for(Duration::from_secs(1)));
-            let _ = title.shutdown();
-            child.print_output();
-            summarize("fixed-title", "cycle", &seen);
-            let titles_of = |wanted: &dyn Fn(u64) -> bool| {
-                seen.iter()
-                    .filter(|e| {
-                        e.modality == Modality::WindowTitle
-                            && is_child_app(&e.foreground_app)
-                            && wanted(e.segment_ref.byte_len)
-                    })
-                    .count()
-            };
-            let scripted = titles_of(&|len| CHILD_TITLE_LENGTHS.contains(&len));
-            let fixed = titles_of(&|len| len == FIXED_TITLE.len() as u64);
-            say(
-                "fixed-title",
-                format!(
-                    "title_start={} child_exit_ok={} fixed_title_bytes={fixed_len} \
-                     fixed_title_window_was_foreground={fixed_window_was_foreground} \
-                     title_events_with_a_scripted_title_size={scripted}",
-                    show(&start),
-                    exit.success(),
-                ),
-            );
-            assert!(start.is_ok(), "the window-title source must start");
-            assert!(exit.success(), "the child process must finish");
-            assert!(
-                fixed_window_was_foreground,
-                "INCONCLUSIVE: the window with the fixed title never came to the front"
-            );
-            assert!(
-                scripted >= 1,
-                "INCONCLUSIVE: no title event for the child's title changes"
-            );
-            defect!(
-                "RR-windows-08",
-                fixed >= 1,
-                format!("TF fixed-title title_events_for_the_fixed_title={fixed}")
             );
         });
     }

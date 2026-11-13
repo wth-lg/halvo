@@ -8,15 +8,20 @@ use crate::source::{
 use super::{Lifecycle, Packet, Producer, PumpReady};
 
 #[cfg(target_os = "windows")]
-use super::foreground::{foreground_app_for, set_win_event_hook, HookInstaller};
+use super::foreground::{resolve_front, set_win_event_hook, HookInstaller};
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::HWND;
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Accessibility::{UnhookWinEvent, HWINEVENTHOOK};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetWindowTextLengthW, GetWindowTextW, EVENT_OBJECT_NAMECHANGE, OBJID_WINDOW,
+    GetForegroundWindow, GetWindowTextW, CHILDID_SELF, EVENT_OBJECT_NAMECHANGE,
+    EVENT_SYSTEM_FOREGROUND, OBJID_WINDOW,
 };
+
+/// The most UTF-16 units that one title read asks for: the byte cap of a
+/// title, which no title of more units can stay under.
+pub(crate) const TITLE_READ_UNITS: usize = crate::floor::text::TEXT_MAX_BYTES;
 
 pub(crate) fn title_packet(title: &str, exe_path: Option<String>, tick: u32) -> Option<Packet> {
     if title.trim().is_empty() {
@@ -34,31 +39,58 @@ pub(crate) fn title_packet(title: &str, exe_path: Option<String>, tick: u32) -> 
 /// event's window, its object and child ids, and the foreground window.
 #[cfg(target_os = "windows")]
 pub(crate) fn keeps_title_event(window: HWND, object: i32, child: i32, front: HWND) -> bool {
-    let _ = (window, child, front);
-    object == OBJID_WINDOW.0
+    !front.0.is_null()
+        && window == front
+        && object == OBJID_WINDOW.0
+        && child == CHILDID_SELF as i32
 }
 
+/// The title of `hwnd`, read into a buffer of [`TITLE_READ_UNITS`] units and
+/// the terminating NUL, then cut on a character boundary to at most the byte
+/// cap of a title. An unpaired surrogate reads as U+FFFD.
 #[cfg(target_os = "windows")]
 pub(crate) fn read_window_title(hwnd: HWND) -> String {
-    // SAFETY: the buffer holds the title's length plus the terminating NUL
-    // that GetWindowTextW writes, and lives across the call; a handle that is
-    // no longer a window gives a length of 0.
-    unsafe {
-        if hwnd.0.is_null() {
-            return String::new();
+    if hwnd.0.is_null() {
+        return String::new();
+    }
+    let mut buf = [0u16; TITLE_READ_UNITS + 1];
+    // SAFETY: `buf` is a live buffer whose length the call takes from the
+    // slice; a handle that is no longer a window gives 0.
+    let written = unsafe { GetWindowTextW(hwnd, &mut buf) };
+    let written = usize::try_from(written).unwrap_or(0).min(TITLE_READ_UNITS);
+    let mut title = String::from_utf16_lossy(&buf[..written]);
+    let mut end = title.len().min(crate::floor::text::TEXT_MAX_BYTES);
+    while !title.is_char_boundary(end) {
+        end -= 1;
+    }
+    title.truncate(end);
+    title
+}
+
+/// The last title that the source emitted: its window and a digest of its
+/// text, so that a repeat is dropped without the text being kept.
+#[derive(Debug, Default)]
+pub(crate) struct LastTitle(Option<(usize, u64)>);
+
+impl LastTitle {
+    /// Whether `title` of `window` differs from the last one emitted; when it
+    /// does, it becomes the last one.
+    pub(crate) fn is_new(&mut self, window: usize, title: &str) -> bool {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        title.hash(&mut hasher);
+        let seen = Some((window, hasher.finish()));
+        if self.0 == seen {
+            return false;
         }
-        let len = GetWindowTextLengthW(hwnd);
-        if len <= 0 {
-            return String::new();
-        }
-        let mut buf = vec![0u16; len as usize + 1];
-        let written = GetWindowTextW(hwnd, &mut buf);
-        String::from_utf16_lossy(&buf[..written as usize])
+        self.0 = seen;
+        true
     }
 }
 
 struct TitleState {
     producer: Producer,
+    last: LastTitle,
 }
 
 /// Window-title capture source. `begin` installs the name-change hook on its
@@ -108,19 +140,43 @@ unsafe extern "system" fn title_proc(
     _event: u32,
     hwnd: HWND,
     id_object: i32,
+    id_child: i32,
+    _thread: u32,
+    time: u32,
+) {
+    // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
+    let front = unsafe { GetForegroundWindow() };
+    if keeps_title_event(hwnd, id_object, id_child, front) {
+        emit_front_title(front, time);
+    }
+}
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn front_proc(
+    _hook: HWINEVENTHOOK,
+    _event: u32,
+    _hwnd: HWND,
+    _id_object: i32,
     _id_child: i32,
     _thread: u32,
     time: u32,
 ) {
     // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
-    let front = unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
-    if !keeps_title_event(hwnd, id_object, _id_child, front) {
+    emit_front_title(unsafe { GetForegroundWindow() }, time);
+}
+
+#[cfg(target_os = "windows")]
+fn emit_front_title(front: HWND, time: u32) {
+    if front.0.is_null() {
         return;
     }
-    let title = read_window_title(hwnd);
-    let app = foreground_app_for(hwnd);
+    let title = read_window_title(front);
     TITLE_CTX.with(|cell| {
-        if let Some(state) = cell.borrow().as_ref() {
+        if let Some(state) = cell.borrow_mut().as_mut() {
+            if title.trim().is_empty() || !state.last.is_new(front.0 as usize, &title) {
+                return;
+            }
+            let app = resolve_front(front).and_then(|front| front.path);
             if let Some(packet) = title_packet(&title, app, time) {
                 state.producer.push(packet);
             }
@@ -133,7 +189,10 @@ impl CaptureSource for WindowTitleSource {
         let installer = self.installer;
         self.life
             .begin(&ctx, "halvo-window-title-forward", move |producer| {
-                let state = TitleState { producer };
+                let state = TitleState {
+                    producer,
+                    last: LastTitle::default(),
+                };
                 super::spawn_pump("halvo-window-title".to_string(), move |ready, signal| {
                     run_title_hook(state, installer, ready, &signal)
                 })
@@ -164,11 +223,25 @@ fn run_title_hook(
         ready.report(Err(error));
         return;
     }
+    let front_hook = installer(EVENT_SYSTEM_FOREGROUND, Some(front_proc));
+    if front_hook.is_invalid() {
+        let error = super::last_os_error("SetWinEventHook");
+        // SAFETY: `hook` is the valid handle that this thread installed above.
+        unsafe {
+            let _ = UnhookWinEvent(hook);
+        }
+        TITLE_CTX.with(|cell| *cell.borrow_mut() = None);
+        ready.report(Err(error));
+        return;
+    }
     super::ensure_message_queue();
     ready.report(Ok(()));
+    // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
+    emit_front_title(unsafe { GetForegroundWindow() }, super::now_tick());
     super::pump_messages(signal);
-    // SAFETY: `hook` is the valid handle that this thread installed above.
+    // SAFETY: both hooks are valid handles that this thread installed above.
     unsafe {
+        let _ = UnhookWinEvent(front_hook);
         let _ = UnhookWinEvent(hook);
     }
     TITLE_CTX.with(|cell| *cell.borrow_mut() = None);
@@ -261,6 +334,16 @@ mod tests {
                 let _ = windows::Win32::UI::WindowsAndMessaging::DestroyWindow(self.0);
             }
         }
+    }
+
+    #[test]
+    fn a_repeat_of_the_last_title_of_a_window_is_dropped() {
+        let mut last = LastTitle::default();
+        assert!(last.is_new(1, "Inbox"));
+        assert!(!last.is_new(1, "Inbox"));
+        assert!(last.is_new(2, "Inbox"));
+        assert!(last.is_new(2, "Inbox (1)"));
+        assert!(last.is_new(1, "Inbox"));
     }
 
     #[test]
