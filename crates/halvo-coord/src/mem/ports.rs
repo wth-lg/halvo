@@ -1,3 +1,4 @@
+use crate::items::drive::log_bytes;
 use crate::ports::{Analysis, Clock, Owner, Page, PortError, Reaped, Rng, Runs, Tray};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answer, ApprovalId, BindResult, Body, Category, ConfigView,
@@ -8,6 +9,7 @@ use crate::types::{
 use std::cell::{Cell, RefCell};
 
 const HISTORY_MAX: usize = 64;
+const DAY_MS: i64 = 86_400_000;
 
 fn refusal(name: &str) -> PortError {
     PortError::Refused(Name::parse(name).expect("an error name of I0.6's form"))
@@ -150,7 +152,10 @@ pub struct Tried {
 }
 
 /// Every port in memory, one value for `Coordinator<P>` and the `drive` functions (I5.10). The
-/// clock gives what the test set; the random bytes count up from 1; the owner lists what the
+/// clock gives the instant that the test set and the day of an instant in its zone, a whole
+/// number of days east of UTC that `new` and `set_clock` choose so that the day of `now` is
+/// `today`, until `set_zone` sets another; with `step_reads` each read of `now` moves it on.
+/// The random bytes count up from 1; the owner lists what the
 /// test put into `workflows` and `agents` and answers each body as A-A7.2 says; `Runs` mints
 /// approval ids from a counter of its own, starts no process, and `reap` answers the marks
 /// that the test left with `leave_marks`; a method that the test named in `refuse` answers
@@ -168,8 +173,9 @@ pub struct Tried {
 ///
 /// The owner keeps the refusals that the real one gives (I7.2, A-A7.2), each as
 /// `PortError::Refused` with the error name, and a refusal stores nothing, records no call and
-/// changes no state of the port. `log` refuses a body of more than `request_records` records
-/// with `malformed`, and then, record by record, a workflow that is not in `workflows` with
+/// changes no state of the port. `log` refuses a body of more than `request_records` records,
+/// or whose text (`items::drive::log_text`) has more than `request_bytes` bytes, with
+/// `malformed`, and then, record by record, a workflow that is not in `workflows` with
 /// `no_workflow`, an agent that is not the workflow's with `binding`, and a `seq` that is not
 /// the last stored `seq` of its agent plus 1, the records before it in the same body counted,
 /// with `seq`. An agent is the workflow's when the workflow of `workflows` names it, when an
@@ -205,7 +211,8 @@ pub struct Ports<C> {
     /// The runs that `Owner::agent_history` gives, each with its agent, newest first.
     pub histories: RefCell<Vec<(AgentId, RunHistory)>>,
     now: Cell<u64>,
-    today: Cell<u32>,
+    zone: Cell<i64>,
+    step: Cell<u64>,
     bytes: Cell<u128>,
     approvals: Cell<u128>,
     bound_slots: RefCell<Vec<Bound>>,
@@ -234,7 +241,8 @@ impl<C> Ports<C> {
             tried: RefCell::new(Vec::new()),
             histories: RefCell::new(Vec::new()),
             now: Cell::new(now),
-            today: Cell::new(today),
+            zone: Cell::new(zone_of(now, today)),
+            step: Cell::new(0),
             bytes: Cell::new(0),
             approvals: Cell::new(0),
             bound_slots: RefCell::new(Vec::new()),
@@ -386,10 +394,26 @@ impl<C> Ports<C> {
         self.ended.borrow_mut().clear();
     }
 
-    /// Sets the clock.
+    /// Sets the clock to `now` in the zone in which the day of `now` is `today`.
     pub fn set_clock(&self, now: u64, today: u32) {
         self.now.set(now);
-        self.today.set(today);
+        self.zone.set(zone_of(now, today));
+    }
+
+    /// Moves the clock to `now` and keeps its zone, so that its day follows the instant.
+    pub fn set_now(&self, now: u64) {
+        self.now.set(now);
+    }
+
+    /// Sets the clock's zone, in milliseconds east of UTC, and keeps its instant.
+    pub fn set_zone(&self, zone_ms: i64) {
+        self.zone.set(zone_ms);
+    }
+
+    /// Makes each later read of `now` move the clock on by `ms` after it answers, as a clock
+    /// that runs between two reads; 0 stops it.
+    pub fn step_reads(&self, ms: u64) {
+        self.step.set(ms);
     }
 
     /// Makes `method` answer `error` until `clear_refusals`.
@@ -475,7 +499,9 @@ impl<C> Ports<C> {
     }
 
     fn log_refusal(&self, events: &[Event]) -> Option<&'static str> {
-        if events.len() > self.limits.request_records as usize {
+        if events.len() > self.limits.request_records as usize
+            || log_bytes(events) > self.limits.request_bytes as usize
+        {
             return Some("malformed");
         }
         let stored = self.events.borrow();
@@ -840,12 +866,24 @@ impl<C> Analysis for Ports<C> {
 
 impl<C> Clock for Ports<C> {
     fn now(&self) -> Result<u64, PortError> {
-        Ok(self.now.get())
+        let now = self.now.get();
+        self.now.set(now.saturating_add(self.step.get()));
+        Ok(now)
     }
 
-    fn today(&self) -> Result<u32, PortError> {
-        Ok(self.today.get())
+    fn day(&self, at: u64) -> Result<u32, PortError> {
+        i64::try_from(at)
+            .ok()
+            .and_then(|at| at.checked_add(self.zone.get()))
+            .and_then(|local| u32::try_from(local.div_euclid(DAY_MS)).ok())
+            .ok_or(PortError::NoService)
     }
+}
+
+/// The zone, a whole number of days east of UTC, in which the day of `now` is `today`.
+fn zone_of(now: u64, today: u32) -> i64 {
+    let now = i64::try_from(now).unwrap_or(i64::MAX);
+    (i64::from(today) - now.div_euclid(DAY_MS)).saturating_mul(DAY_MS)
 }
 
 impl<C> Rng for Ports<C> {

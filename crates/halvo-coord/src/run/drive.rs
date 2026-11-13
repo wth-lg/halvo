@@ -279,6 +279,10 @@ impl<P: Clock> Clock for Watch<'_, P> {
     fn today(&self) -> Result<u32, PortError> {
         self.ports.today()
     }
+
+    fn day(&self, at: u64) -> Result<u32, PortError> {
+        self.ports.day(at)
+    }
 }
 
 impl<P: Rng> Rng for Watch<'_, P> {

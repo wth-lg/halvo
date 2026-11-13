@@ -112,12 +112,59 @@ pub trait Analysis {
     fn defer(&self, until: u64) -> Result<(), PortError>;
 }
 
-/// The clock.
+/// The clock. It gives the day of an instant, so that a day and an instant are never handed
+/// over as a pair that can disagree (I7.1; the agent-setup run's CP-122 (a)).
 pub trait Clock {
     /// Milliseconds since 1970-01-01T00:00:00Z.
     fn now(&self) -> Result<u64, PortError>;
-    /// The local calendar day as days since 1970-01-01.
-    fn today(&self) -> Result<u32, PortError>;
+    /// The local calendar day of the instant `at`, in milliseconds as `now` gives them, as days
+    /// since 1970-01-01 (W-C2.5).
+    fn day(&self, at: u64) -> Result<u32, PortError>;
+    /// The local calendar day as days since 1970-01-01: the day of one read of `now`.
+    fn today(&self) -> Result<u32, PortError> {
+        let at = self.now()?;
+        self.day(at)
+    }
+}
+
+/// The instant of a row and its day from one read of the clock: `Clock::now` once, and
+/// `Clock::day` of that instant (I7.1). Only `Stamp::read` makes one, so a row's `day` is the
+/// local day of its `at`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Stamp {
+    now: u64,
+    day: u32,
+}
+
+impl Stamp {
+    /// The last instant, in milliseconds, whose nanoseconds a row's `at` holds.
+    pub const LAST: u64 = i64::MAX as u64 / 1_000_000;
+
+    /// Reads the clock once and gives the day of that instant; an instant after `Stamp::LAST`,
+    /// which no `at` can hold, is the clock's failure `no_service`.
+    pub fn read<P: Clock + ?Sized>(clock: &P) -> Result<Stamp, PortError> {
+        let now = clock.now()?;
+        if now > Stamp::LAST {
+            return Err(PortError::NoService);
+        }
+        let day = clock.day(now)?;
+        Ok(Stamp { now, day })
+    }
+
+    /// The instant in milliseconds, as `Clock::now` gave it.
+    pub fn now(self) -> u64 {
+        self.now
+    }
+
+    /// The local calendar day of the instant.
+    pub fn day(self) -> u32 {
+        self.day
+    }
+
+    /// The instant as a row's `at`: nanoseconds, `now` times 1,000,000.
+    pub fn at(self) -> i64 {
+        i64::try_from(self.now).map_or(i64::MAX, |n| n.saturating_mul(1_000_000))
+    }
 }
 
 /// The source of random bytes.

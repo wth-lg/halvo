@@ -217,6 +217,10 @@ impl Clock for Lossy<'_> {
     fn today(&self) -> Result<u32, PortError> {
         self.inner.today()
     }
+
+    fn day(&self, at: u64) -> Result<u32, PortError> {
+        self.inner.day(at)
+    }
 }
 
 fn ledger() -> Ledger {
@@ -1284,4 +1288,44 @@ fn the_page_fixtures_hold_the_parameters_of_the_one_table() {
         }
     }
     assert!(agents > 10, "agents read: {agents}");
+}
+
+/// The end of the local day `TODAY` in the zone of `ports`.
+const MIDNIGHT: u64 = NOW + 12 * 3_600_000;
+
+/// The row of a setup item closed by the answer move or by a tick, with the clock from 8 ms
+/// before local midnight to 3 ms after it, moving on 1 ms at each read, carries the local day
+/// of its `at` (I7.1).
+#[test]
+fn the_row_of_a_setup_item_carries_the_day_of_its_at_across_midnight() {
+    let f = facts(Category::SpreadsheetFill, "file", WorkflowState::Approved);
+    let mut days = Vec::new();
+    for owed in [false, true] {
+        for start in MIDNIGHT - 8..MIDNIGHT + 4 {
+            let inner = ports(&f);
+            let p = Lossy::new(&inner);
+            let (mut s, mut l) = (spreadsheet(), ledger());
+            for mv in three_answers() {
+                answer_setup(&p, &mut l, &LIMITS, &mut s, &f, mv).unwrap();
+            }
+            p.lose.set(owed);
+            inner.set_now(start);
+            inner.step_reads(1);
+            let mut done = answer_setup(&p, &mut l, &LIMITS, &mut s, &f, LAST).unwrap();
+            if owed {
+                p.lose.set(false);
+                inner.set_now(start);
+                done = tick_setup(&p, &mut l, &LIMITS, &mut s, &f).unwrap();
+            }
+            assert!(matches!(done, SetupDone::Closed { .. }), "{done:?}");
+            let events = inner.events.borrow();
+            assert_eq!(events.len(), 1);
+            for e in events.iter() {
+                let at = u64::try_from(e.at / 1_000_000).unwrap();
+                assert_eq!(inner.day(at), Ok(e.day), "owed {owed}, from {start}");
+                days.push(e.day);
+            }
+        }
+    }
+    assert!(days.contains(&TODAY) && days.contains(&(TODAY + 1)));
 }

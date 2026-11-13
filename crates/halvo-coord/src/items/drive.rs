@@ -7,14 +7,16 @@ use super::{compose_bind, compose_confirm, confirm_step, handback_kind, handback
 use super::{setup_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
 use super::{Setup, SetupBody, SetupInput, SetupMove, SetupState};
 use crate::guard::Table;
-use crate::ports::{Clock, Owner, PortError, Rng, Runs};
+use crate::ports::{Clock, Owner, PortError, Rng, Runs, Stamp};
 use crate::schedule::wants_active;
 use crate::types::{
     hex, AgentId, AgentState, Answered, BindAnswer, BindAsk, BindResult, Body, Cause, CheckAnswer,
-    Choice, ConfigView, ConfirmAsk, DoneAnswer, Event, Facts, HandbackAsk, HandbackResult, Item,
-    ItemId, LapseCause, Lapsed, Limits, LinkAnswer, OtherLapse, OwnItem, OwnItemKind, Presenter,
-    Raised, RunId, RunItem, RunItemKind, SetupAnswer, SignInAnswer, What, WorkflowId,
+    Choice, Cleared, ConfigView, ConfirmAsk, DecisionEntry, DoneAnswer, Event, Facts, HandbackAsk,
+    HandbackResult, Item, ItemId, ItemKind, LapseCause, Lapsed, Limits, LinkAnswer, OtherLapse,
+    OwnItem, OwnItemKind, Presenter, Raised, RunId, RunItem, RunItemKind, SetupAnswer,
+    SignInAnswer, What, WorkflowId,
 };
+use serde::Serialize;
 use std::num::NonZeroU32;
 
 const HISTORY_PAGE: usize = 64;
@@ -123,8 +125,7 @@ impl Ledger {
         &self.waiting
     }
 
-    fn number(&self, whats: Vec<What>, now: u64, today: u32) -> Vec<Event> {
-        let at = i64::try_from(now).map_or(i64::MAX, |n| n.saturating_mul(1_000_000));
+    fn number(&self, whats: Vec<What>, stamp: Stamp) -> Vec<Event> {
         let first = self.last.saturating_add(self.waiting.len() as u32);
         (0..)
             .zip(whats)
@@ -132,8 +133,8 @@ impl Ledger {
                 workflow: self.workflow.clone(),
                 agent: self.agent.clone(),
                 seq: NonZeroU32::MIN.saturating_add(first.saturating_add(i)),
-                day: today,
-                at,
+                day: stamp.day(),
+                at: stamp.at(),
                 what,
             })
             .collect()
@@ -206,16 +207,183 @@ fn closes(rows: &[Event], item: &ItemId) -> bool {
     })
 }
 
-/// Sends the waiting events in order, at most `request_records` in one body, and takes each
-/// acknowledged body off the list. A refusal `seq` reads the owner's events once and sends
-/// again (I7.2); any other failure leaves the rest waiting.
+/// The compact text of a `coord_log` body of `events` for `workflow` and `agent` (I7.2): `op`
+/// first, then `workflow`, `agent` and `records`, each record with the eighteen keys of I7.1 in
+/// their order and null for a key that its event does not set, as halvo-schema's
+/// `CoordLog::to_json` writes it.
+pub fn log_text(workflow: &WorkflowId, agent: &AgentId, events: &[Event]) -> String {
+    let body = LogBody {
+        op: "coord_log",
+        workflow: workflow.as_str(),
+        agent: agent.as_str(),
+        records: events.iter().map(Record::of).collect(),
+    };
+    serde_json::to_string(&body).unwrap_or_default()
+}
+
+/// The bytes of `log_text` for the workflow and the agent of the first of `events`, which a body
+/// holds with every record (I7.2); 0 for none.
+pub fn log_bytes(events: &[Event]) -> usize {
+    events
+        .first()
+        .map_or(0, |e| log_text(&e.workflow, &e.agent, events).len())
+}
+
+/// A `coord_log` body, its keys in the order of I7.2.
+#[derive(Serialize)]
+struct LogBody<'a> {
+    op: &'static str,
+    workflow: &'a str,
+    agent: &'a str,
+    records: Vec<Record<'a>>,
+}
+
+/// A record of I7.1, its eighteen keys in their order, each set by the event or null.
+#[derive(Serialize, Default)]
+struct Record<'a> {
+    v: u8,
+    workflow: &'a str,
+    agent: &'a str,
+    seq: u32,
+    day: u32,
+    at: i64,
+    event: &'static str,
+    run: Option<&'a str>,
+    slot: Option<u32>,
+    item: Option<&'a str>,
+    kind: Option<&'static str>,
+    effect: Option<&'a str>,
+    approval: Option<&'a str>,
+    digest: Option<&'a str>,
+    answer: Option<&'static str>,
+    cause: Option<&'static str>,
+    trigger: Option<&'static str>,
+    origin: Option<&'a str>,
+}
+
+impl<'a> Record<'a> {
+    fn of(e: &'a Event) -> Record<'a> {
+        let base = Record {
+            v: 1,
+            workflow: e.workflow.as_str(),
+            agent: e.agent.as_str(),
+            seq: e.seq.get(),
+            day: e.day,
+            at: e.at,
+            ..Record::default()
+        };
+        match &e.what {
+            What::RunStarted { run, trigger, slot } => Record {
+                event: "run_started",
+                run: Some(run.as_str()),
+                slot: *slot,
+                trigger: Some(trigger.name()),
+                ..base
+            },
+            What::RunEnded { run, cause } => Record {
+                event: "run_ended",
+                run: Some(run.as_str()),
+                cause: Some(cause.name()),
+                ..base
+            },
+            What::ItemRaised { item, raised } => Record {
+                event: "item_raised",
+                item: Some(item.as_str()),
+                kind: Some(raised.kind().name()),
+                run: raised.run().map(RunId::as_str),
+                ..base
+            },
+            What::ItemAnswered {
+                item,
+                answer: Answered::Confirm(entry),
+            } => Record {
+                event: "item_answered",
+                ..Record::entry(item, entry, base)
+            },
+            What::ItemAnswered { item, answer } => Record {
+                event: "item_answered",
+                item: Some(item.as_str()),
+                kind: Some(answer.kind().name()),
+                answer: answer.choice().map(Choice::name),
+                origin: match answer {
+                    Answered::SignIn(SignInAnswer::Second(b)) => Some(b.origin.as_str()),
+                    Answered::LinkAccount(l) => Some(l.origin.as_str()),
+                    _ => None,
+                },
+                ..base
+            },
+            What::ItemLapsed { item, lapsed } => Record {
+                event: "item_lapsed",
+                item: Some(item.as_str()),
+                kind: Some(lapsed.kind().name()),
+                cause: Some(lapsed.cause().name()),
+                ..base
+            },
+            What::ItemReleased { item, entry } => Record {
+                event: "item_released",
+                ..Record::entry(item, entry, base)
+            },
+            What::HoldSet { cause } => Record {
+                event: "hold_set",
+                cause: Some(cause.name()),
+                ..base
+            },
+            What::HoldCleared { cause } => {
+                let (run, answer, cause) = match cause {
+                    Cleared::Person => (None, None, "person"),
+                    Cleared::Failures => (None, None, "failures"),
+                    Cleared::Check { run, answer } => {
+                        (Some(run.as_str()), Some(answer.name()), "check")
+                    }
+                };
+                Record {
+                    event: "hold_cleared",
+                    run,
+                    answer,
+                    cause: Some(cause),
+                    ..base
+                }
+            }
+            What::SlotSkipped { slot } => Record {
+                event: "slot_skipped",
+                slot: *slot,
+                ..base
+            },
+        }
+    }
+
+    fn entry(item: &'a ItemId, entry: &'a DecisionEntry, base: Record<'a>) -> Record<'a> {
+        Record {
+            item: Some(item.as_str()),
+            kind: Some(ItemKind::Confirm.name()),
+            effect: Some(entry.effect.as_str()),
+            approval: Some(entry.approval.as_str()),
+            digest: Some(entry.digest.as_str()),
+            answer: Some(entry.answer.name()),
+            ..base
+        }
+    }
+}
+
+/// How many of the first `events` one body takes: as many as `request_records` and
+/// `request_bytes` allow, and at least one (I7.2; ruling RD-37 (3)).
+fn body_len(events: &[Event], limits: &Limits) -> usize {
+    let records = events.len().min(limits.request_records.max(1) as usize);
+    let mut n = 1;
+    while n < records && log_bytes(&events[..=n]) <= limits.request_bytes as usize {
+        n += 1;
+    }
+    n
+}
+
+/// Sends the waiting events in order, in bodies of at most `request_records` records and
+/// `request_bytes` bytes, a row that alone passes `request_bytes` going as a body of its own, and
+/// takes each acknowledged body off the list. A refusal `seq` reads the owner's events once and
+/// sends again (I7.2); any other failure leaves the rest waiting.
 pub fn flush<P: Owner>(ports: &P, ledger: &mut Ledger, limits: &Limits) -> Result<(), PortError> {
     let mut resynced = false;
     while !ledger.waiting.is_empty() {
-        let n = ledger
-            .waiting
-            .len()
-            .min(limits.request_records.max(1) as usize);
+        let n = body_len(&ledger.waiting, limits);
         match ports.log(&ledger.waiting[..n]) {
             Ok(()) => {
                 ledger.last = ledger.waiting[n - 1].seq.get();
@@ -232,43 +400,41 @@ pub fn flush<P: Owner>(ports: &P, ledger: &mut Ledger, limits: &Limits) -> Resul
     Ok(())
 }
 
-/// Stores the events after the waiting ones, at the clock's time; an event that gets no
-/// acknowledgement waits and goes again with the next write or `flush`.
+/// Stores the events after the waiting ones, at the instant and on the day of one read of the
+/// clock; an event that gets no acknowledgement waits and goes again with the next write or
+/// `flush`.
 pub fn store<P: Owner + Clock>(
     ports: &P,
     ledger: &mut Ledger,
     limits: &Limits,
     whats: Vec<What>,
 ) -> Result<(), PortError> {
-    let (now, today) = (ports.now()?, ports.today()?);
-    store_at(ports, ledger, limits, whats, (now, today))
+    let stamp = Stamp::read(ports)?;
+    store_at(ports, ledger, limits, whats, stamp)
 }
 
-/// Stores the events after the waiting ones at the time and on the day `at`, read before the
-/// move that makes them, so that no failure of the clock after the move can lose them; an event
+/// Stores the events after the waiting ones at the instant and on the day of `at`, read before
+/// the move that makes them, so that no failure of the clock after the move can lose them; an event
 /// that gets no acknowledgement waits and goes again with the next write or `flush`.
 fn store_at<P: Owner>(
     ports: &P,
     ledger: &mut Ledger,
     limits: &Limits,
     whats: Vec<What>,
-    at: (u64, u32),
+    at: Stamp,
 ) -> Result<(), PortError> {
     let whats: Vec<What> = whats
         .into_iter()
         .filter(|w| closed_item(w).is_none_or(|item| ledger.closing(item).is_none()))
         .collect();
-    let events = ledger.number(whats, at.0, at.1);
+    let events = ledger.number(whats, at);
     ledger.waiting.extend(events);
     flush(ports, ledger, limits)
 }
 
-/// The clock's time and day, or the cause of its failure.
-fn clock_at<P: Clock>(ports: &P) -> Result<(u64, u32), Cause> {
-    match (ports.now(), ports.today()) {
-        (Ok(now), Ok(today)) => Ok((now, today)),
-        (Err(e), _) | (_, Err(e)) => Err(cause_of(&e)),
-    }
+/// One read of the clock, or the cause of its failure.
+fn clock_at<P: Clock>(ports: &P) -> Result<Stamp, Cause> {
+    Stamp::read(ports).map_err(|e| cause_of(&e))
 }
 
 /// Stores the events in one body once the waiting ones are stored, and keeps none of them
@@ -278,11 +444,10 @@ fn store_once<P: Owner>(
     ledger: &mut Ledger,
     limits: &Limits,
     whats: Vec<What>,
-    now: u64,
-    today: u32,
+    stamp: Stamp,
 ) -> Result<(), PortError> {
     flush(ports, ledger, limits)?;
-    let mut events = ledger.number(whats.clone(), now, today);
+    let mut events = ledger.number(whats.clone(), stamp);
     let mut resynced = false;
     loop {
         match ports.log(&events) {
@@ -293,7 +458,7 @@ fn store_once<P: Owner>(
             }
             Err(e) if refused_with(&e, "seq") && !resynced => {
                 resync(ports, ledger)?;
-                events = ledger.number(whats.clone(), now, today);
+                events = ledger.number(whats.clone(), stamp);
                 resynced = true;
             }
             Err(e) => return Err(e),
@@ -311,8 +476,7 @@ fn store_answer<P: Owner>(
     ledger: &mut Ledger,
     limits: &Limits,
     row: What,
-    now: u64,
-    today: u32,
+    stamp: Stamp,
 ) -> Result<Option<What>, PortError> {
     flush(ports, ledger, limits)?;
     let item = closed_item(&row).cloned();
@@ -324,7 +488,7 @@ fn store_answer<P: Owner>(
     if let Some(what) = earlier(ledger) {
         return Ok(Some(what));
     }
-    let mut events = ledger.number(vec![row.clone()], now, today);
+    let mut events = ledger.number(vec![row.clone()], stamp);
     let mut resynced = false;
     loop {
         match ports.log(&events) {
@@ -338,7 +502,7 @@ fn store_answer<P: Owner>(
                 if let Some(what) = earlier(ledger) {
                     return Ok(Some(what));
                 }
-                events = ledger.number(vec![row.clone()], now, today);
+                events = ledger.number(vec![row.clone()], stamp);
                 resynced = true;
             }
             Err(e) => return Err(e),
@@ -519,10 +683,7 @@ pub fn answer<P: Owner + Runs + Clock>(
         Some(&held.confirmation),
         ConfirmMove::Answer { answer, from },
     )?;
-    let (now, today) = match (ports.now(), ports.today()) {
-        (Ok(now), Ok(today)) => (now, today),
-        (Err(e), _) | (_, Err(e)) => return Err(cause_of(&e)),
-    };
+    let stamp = clock_at(ports)?;
     held.confirmation = answered.clone();
     let item = held.item.clone();
     let mut recorded: Option<Confirmation> = None;
@@ -537,7 +698,7 @@ pub fn answer<P: Owner + Runs + Clock>(
                 answer: Answered::Confirm(entry.clone()),
             })
             .collect();
-        store_once(ports, ledger, limits, rows, now, today)?;
+        store_once(ports, ledger, limits, rows, stamp)?;
         recorded = Some(next);
         Ok(())
     });
@@ -802,16 +963,13 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
         RunItemKind::Check => Answered::Check(CheckAnswer::parse(choice.name())?),
         RunItemKind::Confirm => return Err(Cause::Malformed),
     };
-    let (now, today) = match (ports.now(), ports.today()) {
-        (Ok(now), Ok(today)) => (now, today),
-        (Err(e), _) | (_, Err(e)) => return Err(cause_of(&e)),
-    };
+    let stamp = clock_at(ports)?;
     let row = What::ItemAnswered {
         item: item.clone(),
         answer: answer.clone(),
     };
     let earlier =
-        store_answer(ports, ledger, limits, row.clone(), now, today).map_err(|e| cause_of(&e))?;
+        store_answer(ports, ledger, limits, row.clone(), stamp).map_err(|e| cause_of(&e))?;
     let (result, decided) = match earlier {
         None => (result, false),
         Some(What::ItemAnswered { answer: stored, .. }) if stored == answer => (result, false),
@@ -823,7 +981,7 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
                 }),
             ..
         }) => {
-            store_once(ports, ledger, limits, vec![row], now, today).map_err(|e| cause_of(&e))?;
+            store_once(ports, ledger, limits, vec![row], stamp).map_err(|e| cause_of(&e))?;
             (result, false)
         }
         Some(What::ItemAnswered { answer: stored, .. }) => {
@@ -967,7 +1125,7 @@ pub fn answer_bind<P: Owner + Runs + Clock>(
         BindState::Recorded(stored) if stored == result => {}
         BindState::Recorded(BindResult::Decline) => return Err(Cause::State),
         _ => {
-            let (now, today) = clock_at(ports)?;
+            let stamp = clock_at(ports)?;
             let row = What::ItemAnswered {
                 item: held.item.clone(),
                 answer: Answered::SignIn(SignInAnswer::Second(BindAnswer {
@@ -975,7 +1133,7 @@ pub fn answer_bind<P: Owner + Runs + Clock>(
                     origin: held.ask.origin.clone(),
                 })),
             };
-            if let Err(e) = store_once(ports, ledger, limits, vec![row], now, today) {
+            if let Err(e) = store_once(ports, ledger, limits, vec![row], stamp) {
                 held.state = BindState::Open;
                 return Err(cause_of(&e));
             }
@@ -1097,13 +1255,7 @@ fn same_agent<C>(setup: &Setup, facts: &Facts<C>, ledger: &Ledger) -> Result<(),
 /// acknowledgement with the choice `choose` and holds no value (I7.1, rulings IG-30, IG-35,
 /// RD-23 (b)), at the time `at` that the clock gave before the move; a row that gets no
 /// acknowledgement waits in the ledger and goes with the next write.
-fn closed_row<P: Owner>(
-    ports: &P,
-    ledger: &mut Ledger,
-    limits: &Limits,
-    setup: &Setup,
-    at: (u64, u32),
-) {
+fn closed_row<P: Owner>(ports: &P, ledger: &mut Ledger, limits: &Limits, setup: &Setup, at: Stamp) {
     let row = What::ItemAnswered {
         item: setup.item().clone(),
         answer: Answered::Setup(SetupAnswer::Choose),
@@ -1145,7 +1297,7 @@ fn send_owed<P: Owner, C: ConfigView + Clone>(
     limits: &Limits,
     setup: &mut Setup,
     facts: &Facts<C>,
-    at: (u64, u32),
+    at: Stamp,
 ) -> Result<SetupDone, Cause> {
     let SetupState::Owed(body) = setup.state().clone() else {
         return Ok(SetupDone::Open);

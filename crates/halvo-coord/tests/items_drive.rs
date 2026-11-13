@@ -3,17 +3,21 @@ mod support;
 
 use halvo_coord::guard::{guard_step, EffectRecord, EffectState, Gives, Refusal, Table};
 use halvo_coord::items::drive::{
-    answer, answer_handback, due, flush, issue, lapse, on_screen, store, tick, Held, Ledger,
+    answer, answer_bind, answer_handback, due, flush, issue, lapse, log_bytes, log_text, on_screen,
+    raise_bind, store, tick, BindState, Held, Ledger,
 };
 use halvo_coord::items::{ConfirmAnswer, ConfirmMove, ConfirmState};
 use halvo_coord::mem::{Call, Config, Method, Ports};
 use halvo_coord::ports::{Clock, Owner, PortError, Rng, Runs};
 use halvo_coord::types::{
-    Agent, AgentId, Answer, Answered, BindResult, Body, Category, Cause, Choice, Class, ConfirmAsk,
-    Decision, DecisionEntry, DoneAnswer, EffectAnswer, Event, FullWorkflow, HandbackAsk,
-    HandbackReason, HandbackResult, LapseCause, Lapsed, Limits, LinkAnswer, Name, Origin,
-    Presenter, Raised, Reply, RunId, RunSpec, What, Workflow, WorkflowState, WorkflowTrigger,
+    Agent, AgentId, Answer, Answered, BindAnswer, BindAsk, BindResult, Body, Category, Cause,
+    CheckAnswer, Choice, Class, Cleared, ConfirmAsk, Decision, DecisionEntry, DoneAnswer,
+    EffectAnswer, Event, FullWorkflow, HandbackAsk, HandbackReason, HandbackResult, HoldSetCause,
+    LapseCause, Lapsed, Limits, LinkAnswer, Name, Origin, OtherLapse, Presenter, Raised,
+    ReadyAnswer, Reply, RunEnd, RunId, RunSpec, SetupAnswer, SignInAnswer, Trigger, What, Workflow,
+    WorkflowState, WorkflowTrigger,
 };
+use halvo_schema::coordinator::body::CoordLog;
 use std::cell::{Cell, RefCell};
 use support::{agent_id, ask, ask_of, asked, field, run_id, workflow_id};
 
@@ -376,6 +380,10 @@ impl Clock for Faulty<'_> {
     }
     fn today(&self) -> Result<u32, PortError> {
         self.inner.today()
+    }
+
+    fn day(&self, at: u64) -> Result<u32, PortError> {
+        self.inner.day(at)
     }
 }
 
@@ -1260,4 +1268,638 @@ fn an_item_shows_no_line_for_a_later_items_release() {
     .unwrap();
     assert!(t.newest_allows(&run_id(1), &support::effect_id(1)));
     assert!(changed_lines(&page(&a)).is_empty());
+}
+
+/// The end of the local day `TODAY` in the zone of `ports()`.
+const MIDNIGHT: u64 = NOW + 12 * 3_600_000;
+
+/// For each start from 8 ms before local midnight to 3 ms after it: fresh ports, `before` at
+/// `NOW`, then the clock at the start, moving on 1 ms at each read of `now`, and `make`. Every
+/// row that the owner stored carries the local day of its `at` (I7.1), and rows of both days
+/// were stored.
+fn across_midnight<S>(before: &dyn Fn(&Ports<Config>) -> S, make: &dyn Fn(&Ports<Config>, S)) {
+    let mut days = Vec::new();
+    for start in MIDNIGHT - 8..MIDNIGHT + 4 {
+        let p = ports();
+        assert_eq!(p.day(MIDNIGHT - 1), Ok(TODAY));
+        assert_eq!(p.day(MIDNIGHT), Ok(TODAY + 1));
+        let state = before(&p);
+        p.set_now(start);
+        p.step_reads(1);
+        make(&p, state);
+        let events = p.events.borrow();
+        assert!(!events.is_empty(), "no row from {start}");
+        for e in events.iter() {
+            let at = u64::try_from(e.at / 1_000_000).unwrap();
+            assert_eq!(p.day(at), Ok(e.day), "{:?} from {start}", e.what);
+            days.push(e.day);
+        }
+    }
+    assert!(days.contains(&TODAY) && days.contains(&(TODAY + 1)));
+}
+
+#[test]
+fn a_row_of_store_carries_the_day_of_its_at_across_midnight() {
+    across_midnight(&|_| ledger(), &|p, mut l| {
+        store(p, &mut l, &LIMITS, vec![What::SlotSkipped { slot: None }]).unwrap();
+    });
+}
+
+#[test]
+fn the_rows_of_a_confirmation_answer_carry_the_day_of_their_at_across_midnight() {
+    across_midnight(
+        &|p| {
+            let (mut l, mut t) = (ledger(), Table::new());
+            let held = armed(p, &|n| p.set_clock(n, TODAY), &mut l, &mut t, &ask(PAGE));
+            (l, t, held)
+        },
+        &|p, (mut l, mut t, mut held)| {
+            let answered = ConfirmAnswer::Allow;
+            answer(
+                p,
+                &mut l,
+                &mut t,
+                &mut held,
+                answered,
+                Presenter::Page,
+                &LIMITS,
+            )
+            .unwrap();
+            assert_eq!(released(p).len(), ask(PAGE).effects().len());
+        },
+    );
+}
+
+#[test]
+fn a_handback_answer_row_carries_the_day_of_its_at_across_midnight() {
+    across_midnight(&|_| ledger(), &|p, mut l| {
+        let ask = handback(HandbackReason::SignIn, None);
+        let item = support::item_id(1);
+        answer_handback(p, &mut l, &LIMITS, &item, &ask, Choice::Done).unwrap();
+    });
+}
+
+#[test]
+fn a_second_step_answer_row_carries_the_day_of_its_at_across_midnight() {
+    let bind = BindAsk {
+        run: run_id(1),
+        agent: agent_id(1),
+        origin: Origin::parse("https://pay.site1.example:8443").unwrap(),
+    };
+    across_midnight(
+        &|p| {
+            let mut l = ledger();
+            let held = raise_bind(p, &mut l, &Table::new(), &LIMITS, &bind).unwrap();
+            (l, held)
+        },
+        &|p, (mut l, mut held)| {
+            let t = Table::new();
+            answer_bind(p, &mut l, &t, &LIMITS, &mut held, Choice::Allow).unwrap();
+            assert_eq!(held.state(), &BindState::Closed);
+        },
+    );
+}
+
+/// An origin of the longest form that `Origin::parse` takes: a host of 253 bytes and a port of
+/// five digits, 267 bytes in all.
+fn longest_origin() -> Origin {
+    let host = format!(
+        "{}.{}.{}.{}",
+        "a".repeat(63),
+        "b".repeat(63),
+        "c".repeat(63),
+        "d".repeat(61)
+    );
+    assert_eq!(host.len(), 253);
+    Origin::parse(&format!("https://{host}:65535")).unwrap()
+}
+
+fn long_link(n: u32) -> What {
+    What::ItemAnswered {
+        item: support::item_id(n),
+        answer: Answered::LinkAccount(LinkAnswer {
+            answer: DoneAnswer::Done,
+            origin: longest_origin(),
+        }),
+    }
+}
+
+fn logged_bodies(p: &Ports<Config>) -> Vec<Vec<Event>> {
+    p.calls
+        .borrow()
+        .iter()
+        .filter_map(|c| match &c.call {
+            Call::Log(rows) => Some(rows.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn eight_rows_with_long_origins_are_cut_into_bodies_under_request_bytes() {
+    let p = ports();
+    let mut l = ledger();
+    p.refuse(Method::Log, PortError::NoService);
+    for n in 1..=8 {
+        assert!(store(&p, &mut l, &LIMITS, vec![long_link(n)]).is_err());
+    }
+    assert_eq!(l.waiting().len(), 8);
+    let bytes = LIMITS.request_bytes as usize;
+    assert!(
+        log_bytes(l.waiting()) > bytes,
+        "eight such rows break the bound"
+    );
+    p.clear_refusals();
+    flush(&p, &mut l, &LIMITS).unwrap();
+    assert!(l.waiting().is_empty());
+    assert_eq!(l.last(), 8);
+    let bodies = logged_bodies(&p);
+    assert!(bodies.len() >= 2, "{} bodies", bodies.len());
+    let seqs: Vec<u32> = bodies.iter().flatten().map(|e| e.seq.get()).collect();
+    assert_eq!(seqs, (1..=8).collect::<Vec<u32>>());
+    let stored: Vec<u32> = p.events.borrow().iter().map(|e| e.seq.get()).collect();
+    assert_eq!(stored, seqs);
+    for (i, body) in bodies.iter().enumerate() {
+        assert!(body.len() <= LIMITS.request_records as usize);
+        assert!(
+            log_bytes(body) <= bytes,
+            "body {i}: {} bytes",
+            log_bytes(body)
+        );
+        if let Some(next) = bodies.get(i + 1) {
+            let mut more = body.clone();
+            more.push(next[0].clone());
+            assert!(log_bytes(&more) > bytes, "body {i} could take one more row");
+        }
+    }
+}
+
+#[test]
+fn a_body_is_cut_at_request_records_and_at_request_bytes_whichever_comes_first() {
+    let limits = Limits {
+        request_records: 3,
+        ..LIMITS
+    };
+    let p = Ports::with_limits(NOW, TODAY, limits);
+    p.workflows.borrow_mut().extend(ports().workflows.take());
+    let mut l = ledger();
+    p.refuse(Method::Log, PortError::NoService);
+    for _ in 0..7 {
+        let _ = store(&p, &mut l, &limits, vec![What::SlotSkipped { slot: None }]);
+    }
+    p.clear_refusals();
+    flush(&p, &mut l, &limits).unwrap();
+    let sizes: Vec<usize> = logged_bodies(&p).iter().map(Vec::len).collect();
+    assert_eq!(sizes, [3, 3, 1]);
+    let p = ports();
+    let mut l = ledger();
+    p.refuse(Method::Log, PortError::NoService);
+    let tight = Limits {
+        request_bytes: u32::try_from(log_bytes(&[row(1, long_link(1))])).unwrap(),
+        ..LIMITS
+    };
+    for n in 1..=3 {
+        let _ = store(&p, &mut l, &tight, vec![long_link(n)]);
+    }
+    p.clear_refusals();
+    flush(&p, &mut l, &tight).unwrap();
+    let sizes: Vec<usize> = logged_bodies(&p).iter().map(Vec::len).collect();
+    assert_eq!(
+        sizes,
+        [1, 1, 1],
+        "one row per body under a bound that one row fills"
+    );
+}
+
+#[test]
+fn the_memory_owner_refuses_a_body_over_request_bytes_and_stores_none_of_it() {
+    let p = ports();
+    let rows: Vec<Event> = (1..=8).map(|n| row(n, long_link(n))).collect();
+    assert!(log_bytes(&rows) > LIMITS.request_bytes as usize);
+    assert_eq!(
+        p.log(&rows),
+        Err(PortError::Refused(Name::parse("malformed").unwrap()))
+    );
+    assert!(p.events.borrow().is_empty());
+    let fit = (1..=rows.len())
+        .take_while(|&k| log_bytes(&rows[..k]) <= LIMITS.request_bytes as usize)
+        .last()
+        .unwrap();
+    assert!(fit < 8);
+    assert_eq!(p.log(&rows[..fit]), Ok(()));
+    assert_eq!(p.events.borrow().len(), fit);
+}
+
+/// The rows of one confirmation go in one body (I4.5): `request_records` such rows, with the
+/// largest `seq`, `day` and `at`, stay under `request_bytes`.
+#[test]
+fn request_records_rows_of_a_confirmation_fit_one_body() {
+    let rows: Vec<Event> = (0..LIMITS.request_records)
+        .map(|n| Event {
+            seq: std::num::NonZeroU32::MAX,
+            day: u32::MAX,
+            at: i64::MAX,
+            ..row(
+                1,
+                What::ItemAnswered {
+                    item: support::item_id(1),
+                    answer: Answered::Confirm(DecisionEntry {
+                        approval: support::approval(n),
+                        effect: support::effect_id(n),
+                        digest: support::digest(n),
+                        answer: EffectAnswer::RejectOnce,
+                    }),
+                },
+            )
+        })
+        .collect();
+    let bytes = log_bytes(&rows);
+    assert!(bytes <= LIMITS.request_bytes as usize, "{bytes} bytes");
+}
+
+fn row(seq: u32, what: What) -> Event {
+    Event {
+        workflow: workflow_id(1),
+        agent: agent_id(1),
+        seq: std::num::NonZeroU32::new(seq).unwrap(),
+        day: TODAY,
+        at: i64::try_from(NOW).unwrap() * 1_000_000,
+        what,
+    }
+}
+
+/// One event of every form of I7.1 that the coordinator writes, with the longest origin.
+fn every_form() -> Vec<What> {
+    let run = run_id(1);
+    let entry = |answer| DecisionEntry {
+        approval: support::approval(1),
+        effect: support::effect_id(1),
+        digest: support::digest(1),
+        answer,
+    };
+    let item = support::item_id;
+    vec![
+        What::RunStarted {
+            run: run.clone(),
+            trigger: Trigger::Schedule,
+            slot: Some(TODAY),
+        },
+        What::RunStarted {
+            run: run.clone(),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+        What::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Completed,
+        },
+        What::ItemRaised {
+            item: item(1),
+            raised: Raised::Confirm(run.clone()),
+        },
+        What::ItemRaised {
+            item: item(2),
+            raised: Raised::Check(None),
+        },
+        What::ItemRaised {
+            item: item(3),
+            raised: Raised::Ready,
+        },
+        What::ItemAnswered {
+            item: item(1),
+            answer: Answered::Confirm(entry(EffectAnswer::AllowOnce)),
+        },
+        What::ItemAnswered {
+            item: item(4),
+            answer: Answered::SignIn(SignInAnswer::Second(BindAnswer {
+                answer: BindResult::Allow,
+                origin: longest_origin(),
+            })),
+        },
+        What::ItemAnswered {
+            item: item(5),
+            answer: Answered::SignIn(SignInAnswer::First(DoneAnswer::Done)),
+        },
+        long_link(6),
+        What::ItemAnswered {
+            item: item(2),
+            answer: Answered::Check(CheckAnswer::WentThrough),
+        },
+        What::ItemAnswered {
+            item: item(7),
+            answer: Answered::Setup(SetupAnswer::Choose),
+        },
+        What::ItemAnswered {
+            item: item(3),
+            answer: Answered::Ready(ReadyAnswer::Start),
+        },
+        What::ItemAnswered {
+            item: item(8),
+            answer: Answered::Stuck(DoneAnswer::Decline),
+        },
+        What::ItemAnswered {
+            item: item(9),
+            answer: Answered::Show(DoneAnswer::Done),
+        },
+        What::ItemLapsed {
+            item: item(10),
+            lapsed: Lapsed::Confirm(LapseCause::Digest),
+        },
+        What::ItemLapsed {
+            item: item(11),
+            lapsed: Lapsed::Ready(OtherLapse::WaitLimit),
+        },
+        What::ItemReleased {
+            item: item(1),
+            entry: entry(EffectAnswer::RejectOnce),
+        },
+        What::HoldSet {
+            cause: HoldSetCause::Failures,
+        },
+        What::HoldCleared {
+            cause: Cleared::Person,
+        },
+        What::HoldCleared {
+            cause: Cleared::Failures,
+        },
+        What::HoldCleared {
+            cause: Cleared::Check {
+                run,
+                answer: CheckAnswer::TryAgain,
+            },
+        },
+        What::SlotSkipped { slot: Some(TODAY) },
+        What::SlotSkipped { slot: None },
+    ]
+}
+
+#[test]
+fn log_text_is_the_text_that_halvo_schema_reads_and_writes_for_every_form() {
+    let rows: Vec<Event> = every_form()
+        .into_iter()
+        .zip(1..)
+        .map(|(what, seq)| row(seq, what))
+        .collect();
+    let mut bodies: Vec<Vec<Event>> = rows.iter().map(|e| vec![e.clone()]).collect();
+    bodies.extend(rows.chunks(4).map(<[Event]>::to_vec));
+    for body in &bodies {
+        let text = log_text(&workflow_id(1), &agent_id(1), body);
+        assert_eq!(log_bytes(body), text.len());
+        let read = CoordLog::parse(text.as_bytes()).unwrap_or_else(|r| panic!("{r:?}: {text}"));
+        assert_eq!(read.to_json().unwrap(), text);
+        assert_eq!(read.records.len(), body.len());
+    }
+    let long = row(1, long_link(1));
+    let text = log_text(&workflow_id(1), &agent_id(1), std::slice::from_ref(&long));
+    assert!(text.contains(longest_origin().as_str()));
+}
+
+/// The longest record of every form, with the largest `seq`, `day`, `at` and `slot`, fits a body
+/// alone with room to spare, so that a body of one record is never refused for its bytes.
+#[test]
+fn the_longest_record_of_every_form_fits_a_body_alone() {
+    let longest = every_form()
+        .into_iter()
+        .map(|what| {
+            let what = match what {
+                What::RunStarted { run, trigger, .. } => What::RunStarted {
+                    run,
+                    trigger,
+                    slot: Some(u32::MAX),
+                },
+                What::SlotSkipped { .. } => What::SlotSkipped {
+                    slot: Some(u32::MAX),
+                },
+                other => other,
+            };
+            let e = Event {
+                seq: std::num::NonZeroU32::MAX,
+                day: u32::MAX,
+                at: i64::MAX,
+                ..row(1, what)
+            };
+            log_bytes(&[e])
+        })
+        .max()
+        .unwrap();
+    assert!(
+        longest <= LIMITS.request_bytes as usize / 4,
+        "{longest} bytes"
+    );
+}
+
+/// The arm that ruling RD-64 keeps for its class D (2.1), pinned since RD-62 (b): a body that
+/// the owner refuses with `store` stays whole and first in the ledger with every row behind it,
+/// nothing behind it is sent in that flush, and the next flush sends the same body first again.
+#[test]
+fn a_body_refused_with_store_stays_whole_and_first_with_nothing_behind_it_sent() {
+    let p = ports();
+    let mut l = ledger();
+    p.refuse(Method::Log, PortError::NoService);
+    for n in 1..=10 {
+        let _ = store(&p, &mut l, &LIMITS, vec![long_link(n)]);
+    }
+    let waiting: Vec<Event> = l.waiting().to_vec();
+    assert_eq!(waiting.len(), 10);
+    p.clear_refusals();
+    let refusal = PortError::Refused(Name::parse("store").unwrap());
+    p.refuse(Method::Log, refusal.clone());
+    let tried_before = p.tried.borrow().len();
+    assert_eq!(flush(&p, &mut l, &LIMITS), Err(refusal));
+    assert_eq!(l.waiting(), &waiting[..], "the rows stay, in order");
+    assert_eq!(l.last(), 0);
+    let tried: Vec<Vec<Event>> = p.tried.borrow()[tried_before..]
+        .iter()
+        .filter_map(|t| match &t.call {
+            Call::Log(rows) => Some(rows.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(tried.len(), 1, "one body tried");
+    assert_eq!(tried[0][..], waiting[..tried[0].len()], "the first body");
+    assert!(p.events.borrow().is_empty());
+    p.clear_refusals();
+    flush(&p, &mut l, &LIMITS).unwrap();
+    assert_eq!(logged_bodies(&p)[0], tried[0], "the same body goes first");
+    assert_eq!(p.events.borrow().len(), 10);
+}
+
+/// The memory owner takes a body of exactly `request_bytes` bytes and refuses one of a byte more
+/// with `malformed`, storing nothing (I7.2).
+#[test]
+fn the_memory_owner_takes_a_body_of_exactly_request_bytes_and_refuses_one_byte_more() {
+    let rows: Vec<Event> = (1..=3).map(|n| row(n, long_link(n))).collect();
+    let exact = u32::try_from(log_bytes(&rows)).unwrap();
+    for (bound, taken) in [(exact, true), (exact - 1, false)] {
+        let limits = Limits {
+            request_bytes: bound,
+            ..LIMITS
+        };
+        let p = Ports::<Config>::with_limits(NOW, TODAY, limits);
+        p.workflows.borrow_mut().extend(ports().workflows.take());
+        let answer = p.log(&rows);
+        if taken {
+            assert_eq!(answer, Ok(()), "{bound} bytes");
+            assert_eq!(p.events.borrow().len(), 3);
+        } else {
+            let malformed = PortError::Refused(Name::parse("malformed").unwrap());
+            assert_eq!(answer, Err(malformed), "{bound} bytes");
+            assert!(p.events.borrow().is_empty());
+        }
+    }
+}
+
+/// The flush puts into one body every row that fits up to the last byte of `request_bytes`.
+#[test]
+fn the_flush_fills_a_body_up_to_exactly_request_bytes() {
+    let rows: Vec<What> = (1..=5).map(long_link).collect();
+    let numbered: Vec<Event> = (1..=3).map(|n| row(n, long_link(n))).collect();
+    let limits = Limits {
+        request_bytes: u32::try_from(log_bytes(&numbered)).unwrap(),
+        ..LIMITS
+    };
+    let p = ports();
+    let mut l = ledger();
+    p.refuse(Method::Log, PortError::NoService);
+    for what in rows {
+        let _ = store(&p, &mut l, &limits, vec![what]);
+    }
+    p.clear_refusals();
+    flush(&p, &mut l, &limits).unwrap();
+    let sizes: Vec<usize> = logged_bodies(&p).iter().map(Vec::len).collect();
+    assert_eq!(sizes, [3, 2]);
+}
+
+/// A body holds at least one row: under a bound that one row alone breaks, the flush still sends
+/// the rows one to a body and never an empty body.
+#[test]
+fn a_body_holds_one_row_even_under_a_bound_that_one_row_breaks() {
+    let tight = Limits {
+        request_bytes: 100,
+        ..LIMITS
+    };
+    assert!(log_bytes(&[row(1, long_link(1))]) > 100);
+    let p = ports();
+    let mut l = ledger();
+    p.refuse(Method::Log, PortError::NoService);
+    for n in 1..=2 {
+        let _ = store(&p, &mut l, &tight, vec![long_link(n)]);
+    }
+    p.clear_refusals();
+    flush(&p, &mut l, &tight).unwrap();
+    let sizes: Vec<usize> = logged_bodies(&p).iter().map(Vec::len).collect();
+    assert_eq!(sizes, [1, 1]);
+}
+
+const GOLDEN_REQUESTS: &str = include_str!("../../halvo-schema/tests/golden/r4/requests.jsonl");
+
+/// `log_text` of the three events of halvo-schema's golden `coord_log` request is that request's
+/// body, byte for byte.
+#[test]
+fn log_text_writes_the_body_of_halvo_schemas_golden_coord_log_request() {
+    let id = |text: &str| text.to_owned();
+    let workflow =
+        halvo_coord::types::WorkflowId::parse(&id("0f1e2d3c4b5a69788796a5b4c3d2e1f0")).unwrap();
+    let agent = AgentId::parse(&id("1a2b3c4d5e6f708192a3b4c5d6e7f809")).unwrap();
+    let run = RunId::parse(&id("9f8e7d6c5b4a39281706f5e4d3c2b1a0")).unwrap();
+    let item = halvo_coord::types::ItemId::parse(&id("7e6d5c4b3a2918070f1e2d3c4b5a6971")).unwrap();
+    let entry = DecisionEntry {
+        approval: halvo_coord::types::ApprovalId::parse(&id("6d5c4b3a29180f7e6d5c4b3a29180f7e"))
+            .unwrap(),
+        effect: halvo_coord::types::EffectId::parse(&id("5c4b3a29180f7e6d5c4b3a29180f7e6d"))
+            .unwrap(),
+        digest: halvo_coord::types::Digest::parse(&"ab".repeat(32)).unwrap(),
+        answer: EffectAnswer::AllowOnce,
+    };
+    let at = |s: i64| 1_794_339_000_000_000_000 + s * 1_000_000_000;
+    let event = |seq: u32, at: i64, what: What| Event {
+        workflow: workflow.clone(),
+        agent: agent.clone(),
+        seq: std::num::NonZeroU32::new(seq).unwrap(),
+        day: 20_767,
+        at,
+        what,
+    };
+    let events = [
+        event(
+            1,
+            at(60),
+            What::RunStarted {
+                run: run.clone(),
+                trigger: Trigger::Schedule,
+                slot: Some(20_767),
+            },
+        ),
+        event(
+            2,
+            at(120),
+            What::ItemRaised {
+                item: item.clone(),
+                raised: Raised::Confirm(run.clone()),
+            },
+        ),
+        event(
+            3,
+            at(180),
+            What::ItemAnswered {
+                item,
+                answer: Answered::Confirm(entry),
+            },
+        ),
+    ];
+    let text = log_text(&workflow, &agent, &events);
+    let line = GOLDEN_REQUESTS
+        .lines()
+        .find(|l| l.contains("\"op\":\"coord_log\""))
+        .unwrap();
+    assert!(line.contains(&format!("\"body\":{text}}}")), "{text}");
+}
+
+/// A clock past the largest instant that a row's `at` holds stores no row: `store` answers the
+/// clock's failure and nothing waits (review case review_day_1).
+#[test]
+fn store_at_an_instant_past_the_largest_at_stores_nothing() {
+    let p = ports();
+    p.set_now(i64::MAX as u64 / 1_000_000 + 1);
+    let mut l = ledger();
+    let stored = store(&p, &mut l, &LIMITS, vec![What::SlotSkipped { slot: None }]);
+    assert_eq!(stored, Err(PortError::NoService));
+    assert!(l.waiting().is_empty());
+    assert!(p.events.borrow().is_empty());
+}
+
+/// A clock whose `now` answers and whose `day` fails (a zone that puts the local instant before
+/// 1970) stamps no row: `store` answers the failure, stores nothing and leaves nothing waiting
+/// (I7.1, I5.10; ruling RD-69 E2).
+#[test]
+fn a_clock_whose_day_fails_stamps_no_row() {
+    let p = ports();
+    let mut l = ledger();
+    p.set_zone(-(NOW as i64) - 86_400_000);
+    assert!(p.now().is_ok());
+    assert!(p.day(NOW).is_err());
+    let stored = store(&p, &mut l, &LIMITS, vec![What::SlotSkipped { slot: None }]);
+    assert_eq!(stored, Err(PortError::NoService));
+    assert!(p.events.borrow().is_empty());
+    assert!(l.waiting().is_empty());
+}
+
+/// The measured text of a body with a `slot_skipped` row whose slot is set, against the text
+/// written out here: the slot is the number of its day, not null (I7.1; ruling RD-69 E3).
+#[test]
+fn log_text_writes_the_slot_of_a_slot_skipped_row() {
+    let e = row(1, What::SlotSkipped { slot: Some(TODAY) });
+    let text = log_text(&workflow_id(1), &agent_id(1), std::slice::from_ref(&e));
+    let ids = r#""workflow":"00000000000000000000000000007701","agent":"00000000000000000000000000006101""#;
+    let written = format!(
+        concat!(
+            r#"{{"op":"coord_log",{ids},"records":[{{"v":1,{ids},"seq":1,"day":20760,"#,
+            r#""at":1793793600000000000,"event":"slot_skipped","run":null,"slot":20760,"#,
+            r#""item":null,"kind":null,"effect":null,"approval":null,"digest":null,"#,
+            r#""answer":null,"cause":null,"trigger":null,"origin":null}}]}}"#
+        ),
+        ids = ids
+    );
+    assert_eq!(text, written);
+    assert_eq!(log_bytes(std::slice::from_ref(&e)), written.len());
 }
