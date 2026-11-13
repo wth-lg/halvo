@@ -156,6 +156,37 @@ pub fn entries(state: &Value) -> u64 {
     .sum()
 }
 
+/// The counts of the state object that a run line prints beside its lists (A10.6): the task's site's
+/// sign-ins, its failed sign-ins where the object has that count, and the state-changing requests.
+pub fn site_counts(state: &Value, task: &str) -> String {
+    let site = match task {
+        "bill" => "utility",
+        "order" => "shop",
+        _ => {
+            return format!(
+                "state_changing={}",
+                count_of(&state["requests"]["state_changing"])
+            )
+        }
+    };
+    let mut out = format!("signins={}", count_of(&state[site]["signins"]));
+    if !state[site]["failed_signins"].is_null() {
+        out.push_str(&format!(
+            " failed_signins={}",
+            count_of(&state[site]["failed_signins"])
+        ));
+    }
+    out.push_str(&format!(
+        " state_changing={}",
+        count_of(&state["requests"]["state_changing"])
+    ));
+    out
+}
+
+fn count_of(v: &Value) -> String {
+    v.as_u64().map_or("-".to_string(), |n| n.to_string())
+}
+
 /// The list of the state object that a task must leave equal to the seed's `end` (A1).
 pub fn task_list<'a>(state: &'a Value, task: &str) -> &'a Value {
     match task {
@@ -169,6 +200,25 @@ pub fn task_list<'a>(state: &'a Value, task: &str) -> &'a Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_run_line_counts_the_sign_ins_and_the_state_changing_requests() {
+        let s = serde_json::json!({
+            "utility": {"signins": 1, "failed_signins": 2},
+            "shop": {"signins": 3},
+            "requests": {"state_changing": 4}
+        });
+        assert_eq!(
+            site_counts(&s, "bill"),
+            "signins=1 failed_signins=2 state_changing=4"
+        );
+        assert_eq!(site_counts(&s, "order"), "signins=3 state_changing=4");
+        assert_eq!(site_counts(&s, "reply"), "state_changing=4");
+        assert_eq!(
+            site_counts(&serde_json::json!({}), "bill"),
+            "signins=- state_changing=-"
+        );
+    }
 
     #[test]
     fn the_entries_of_the_four_lists_are_counted() {

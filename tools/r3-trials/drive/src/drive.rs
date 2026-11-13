@@ -717,9 +717,10 @@ fn finish_run(
     let list_ok = fixture::task_list(&state, &ctx.task) == ctx.end_list();
     let entries = fixture::entries(&state);
     ctx.trace(&format!(
-        "run kind={} i={i} steps_ok={pass_steps} list_ok={list_ok} entries={entries} allowed={}",
+        "run kind={} i={i} steps_ok={pass_steps} list_ok={list_ok} entries={entries} allowed={} {}",
         kind.as_str(),
-        tally.allowed
+        tally.allowed,
+        fixture::site_counts(&state, &ctx.task)
     ));
     let ms = began.elapsed().saturating_sub(tally.lock_wait).as_millis();
     Ok(run_of(kind, i, pass_steps, list_ok, entries, tally, ms))
