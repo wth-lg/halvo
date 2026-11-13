@@ -456,11 +456,21 @@ impl PumpHandle {
             .as_ref()
             .is_none_or(std::thread::JoinHandle::is_finished)
     }
+
+    fn let_go(&mut self) {
+        self.signal.set();
+        post_quit_to(self.id);
+        self.join = None;
+    }
 }
 
 impl Drop for PumpHandle {
     fn drop(&mut self) {
-        let _ = self.stop(INPUT_STOP_DEADLINE);
+        if self.stop_requested {
+            self.let_go();
+        } else {
+            let _ = self.stop(INPUT_STOP_DEADLINE);
+        }
     }
 }
 
@@ -535,7 +545,9 @@ impl Lifecycle {
 
 impl Drop for Lifecycle {
     fn drop(&mut self) {
-        let _ = self.shutdown();
+        if self.timed_out.is_none() {
+            let _ = self.shutdown();
+        }
     }
 }
 

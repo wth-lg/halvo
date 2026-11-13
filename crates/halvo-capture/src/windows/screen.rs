@@ -391,6 +391,10 @@ impl<S: Session> ScreenLife<S> {
     }
 
     fn on_drop(&mut self, deadline: Duration) {
+        if self.timed_out.is_some() && self.stopping.is_some() {
+            self.stopping = None;
+            return;
+        }
         let _ = self.shutdown(deadline);
     }
 
