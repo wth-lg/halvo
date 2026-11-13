@@ -4,7 +4,9 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use chromiumoxide::cdp::browser_protocol::page::FrameId;
-use r3_web::cdp::{Executor, Fault as WebFault, Locator as WebLocator, SnapshotLine, StartOptions};
+use r3_web::cdp::{
+    Channel, Executor, Fault as WebFault, Locator as WebLocator, SnapshotLine, StartOptions,
+};
 use r3_web::{extract_amount, FIRST_FLAGS, RESOLVER_RULE};
 use serde_json::Value;
 
@@ -126,7 +128,10 @@ impl Ctx {
             profile: self.run_dir.join(format!("p-{}-{i}", kind.as_str())),
             headless: true,
             flags,
-            debug_port: None,
+            channel: Channel::Port,
+            relay: None,
+            local_state: None,
+            program: None,
         }
     }
 }
@@ -1627,6 +1632,8 @@ mod tests {
             method: method.into(),
             origin: "http://pay.agent.test:18471".into(),
             path: "/charge".into(),
+            frame: String::new(),
+            resource: "Document".into(),
             let_through,
             outcome: if let_through {
                 r3_web::cdp::Outcome::Continued
