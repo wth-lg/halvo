@@ -104,7 +104,7 @@ fn store_rows_are_visited_in_byte_order() {
 fn store_open_expires_bounded_rows_by_day() {
     let day = 20_000;
     let mut store = store_with(&[1]);
-    let rows = vec![
+    let rows = [
         record("learn_run", &wf(1), Some(day)),
         record("learn_edit", &wf(1), None),
         record("agent_log", &wf(1), Some(day)),

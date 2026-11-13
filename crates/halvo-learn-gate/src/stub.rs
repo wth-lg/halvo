@@ -198,16 +198,47 @@ pub struct Play<'c> {
 }
 
 impl<'c> Play<'c> {
-    pub fn new(case: &'c Case, arm: Arm, workflow: u32) -> Play<'c> {
+    /// A play of the case under the workflow, agent and runs numbered `workflow`, on the given store.
+    pub fn new(case: &'c Case, arm: Arm, workflow: u32, store: MemoryStore) -> Play<'c> {
         Play {
             case,
             arm,
-            host: GateHost::new(MemoryStore::new(), case.occurrences[0].day),
+            host: GateHost::new(store, case.occurrences[0].day),
             handlers: LearnHandlers::new(),
             after_compile: None,
             workflow: id('3', workflow),
             agent: id('4', workflow),
             runs: 0,
+        }
+        .numbered_from(workflow)
+    }
+
+    fn numbered_from(mut self, workflow: u32) -> Play<'c> {
+        self.runs = workflow.saturating_sub(1).saturating_mul(1_000);
+        self
+    }
+
+    pub fn workflow(&self) -> &str {
+        &self.workflow
+    }
+
+    /// The `load_steps` reply that a new replay run of the agent gets, as the steps that it serves; the run is
+    /// left open.
+    pub fn served_now(&mut self) -> Result<Vec<ExecutableStep>, String> {
+        let (workflow, agent) = (self.workflow.clone(), self.agent.clone());
+        let run = self.next_run();
+        self.coordinator(json!({"op": "start_run", "workflow": workflow, "agent": agent, "run": run, "mode": "replay"}))?;
+        let RunnerReply::Load(load) =
+            self.runner(json!({"op": "load", "agent": agent, "run": run}))?
+        else {
+            return Err("load: another reply".into());
+        };
+        let number = load.playbook.ok_or("load: no playbook")?.number.get();
+        match self.runner(
+            json!({"op": "load_steps", "agent": agent, "run": run, "number": number, "from": 1}),
+        )? {
+            RunnerReply::Steps(steps) => Ok(steps.steps),
+            _ => Err("load_steps: another reply".into()),
         }
     }
 
@@ -415,7 +446,13 @@ impl<'c> Play<'c> {
 /// Plays every occurrence of a case in an arm on a store of its own, with every occurrence read as `restart`
 /// `yes` when `restart_all` holds (L10.2, L10.4).
 pub fn play_case(case: &Case, arm: Arm, restart_all: bool) -> Result<Tally, String> {
-    let mut play = Play::new(case, arm, 1);
+    let mut play = Play::new(case, arm, 1, MemoryStore::new());
+    play_all(&mut play, restart_all)
+}
+
+/// Plays every occurrence of the play's case, compiling before the first.
+pub fn play_all(play: &mut Play<'_>, restart_all: bool) -> Result<Tally, String> {
+    let case = play.case;
     let mut tally = Tally::default();
     tally.counts.occurrences = u32::try_from(case.occurrences.len()).unwrap_or(u32::MAX);
     tally.counts.drifts = drifts(case);
