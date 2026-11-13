@@ -334,14 +334,16 @@ signal_case() {
     n=$((n + 1))
   done
   stub=$(cat "$work/sig.pid" 2>/dev/null)
+  started=$(date +%s)
   kill -TERM "$script" 2>/dev/null
   wait "$script"
   scode=$?
+  took=$(($(date +%s) - started))
   alive=no
   [ -n "$stub" ] && kill -0 "$stub" 2>/dev/null && alive=yes
   left=$(find "$work/sig-tmp" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')
-  got=exit-$scode-alive-$alive-left-$left
-  if [ -n "$stub" ] && [ "$scode" = 143 ] && [ "$alive" = no ] && [ "$left" = 0 ]; then
+  got=exit-$scode-alive-$alive-left-$left-seconds-$took
+  if [ -n "$stub" ] && [ "$scode" = 143 ] && [ "$alive" = no ] && [ "$left" = 0 ] && [ "$took" -lt 20 ]; then
     got=caught
   fi
   case_line a-term-ends-the-node-child-and-removes-the-temporary-directory caught "$got"
