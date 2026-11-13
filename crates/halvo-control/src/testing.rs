@@ -1100,9 +1100,11 @@ mod tests {
         ];
         let mut walked = 0usize;
         let mut marked = 0usize;
+        let mut marked_from_an_unmarked_start = 0usize;
         for platform in [Platform::Macos, Platform::Windows] {
             let enabled = sample_status(platform).fields().enabled_sources.clone();
             for start in walk_starts(platform) {
+                let start_carries_a_mark = start.fields().sources.iter().any(|l| l.unstopped);
                 for n in 0..steps.len().pow(4) {
                     let mut daemon = ScriptedDaemon::new(start.clone());
                     let mut taken = Vec::new();
@@ -1121,6 +1123,9 @@ mod tests {
                                 let f = daemon.status().fields();
                                 if f.sources.iter().any(|l| l.unstopped) {
                                     marked += 1;
+                                    if !start_carries_a_mark {
+                                        marked_from_an_unmarked_start += 1;
+                                    }
                                     assert!(
                                         !matches!(
                                             f.capture,
@@ -1139,7 +1144,13 @@ mod tests {
             }
         }
         assert!(walked > 0 && marked > 0, "walked {walked}, marked {marked}");
-        println!("statuses read: {walked}, of them beside a mark: {marked}");
+        assert!(
+            marked_from_an_unmarked_start > 0,
+            "no status beside a mark from a start that carried none: walked {walked}, marked {marked}"
+        );
+        println!(
+            "statuses read: {walked}, of them beside a mark: {marked}, from a start with no mark: {marked_from_an_unmarked_start}"
+        );
     }
 
     #[test]
