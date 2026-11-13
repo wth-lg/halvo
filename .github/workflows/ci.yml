@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the windows job alone (no macos job in this copy)
 
 on:
   push:
@@ -12,110 +14,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
   windows:
     runs-on: windows-2025
-    timeout-minutes: 60
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -140,21 +41,46 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-windows-functional
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 12-test 50-windows-functional
+      - name: win-3 W3-7 round A, the twins and the plain tests in a loop (scratch, never merged)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 60
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e +o pipefail
+          set -u
+          export CARGO_INCREMENTAL=1
+          log="$RUNNER_TEMP/w37.log"
+          git checkout --quiet --detach "$GITHUB_SHA"
+          for t in windows::input::tests::a_click_of_the_same_tick_from_the_pointer_pump_leaves_a_password_key_withheld windows::input::tests::a_key_that_a_held_pump_takes_late_is_not_recorded_and_moves_no_count; do
+            timeout 300 cargo test --locked -p halvo-capture --lib -- --ignored --exact "$t" --nocapture --test-threads=1 >"$log" 2>&1
+            echo "W37 twin test=$t exit=$?"
+            tr -d '\r' <"$log" | grep -E 'TF |panicked|^test result' | head -n 40
+          done
+          cargo test --locked -p halvo-capture --lib --no-run --message-format json >"$RUNNER_TEMP/build.json" 2>"$log"
+          exe=$(tr -d '\r' <"$RUNNER_TEMP/build.json" | sed -n 's/.*"name":"halvo_capture".*"test":true.*"executable":"\([^"]*\)".*/\1/p' | head -n 1)
+          echo "W37 loop lib_test_executable_found=$([ -n "$exe" ] && echo 1 || echo 0)"
+          tally="$RUNNER_TEMP/tally.txt"
+          : >"$tally"
+          expected=$("$exe" secure_input::windows::tests:: windows::input::tests::five_keys_of_a_password_field_handled_300_ms_late_move_no_number windows::input::tests::late_keys_of_a_password_field_stay_withheld_after_a_move_to_a_plain_field windows::input::tests::late_keys_stay_withheld_when_the_password_mark_comes_after_their_input_time windows::input::tests::five_late_keys_of_a_plain_field_are_withheld_and_set_the_late_value_alone windows::input::tests::a_password_typed_during_two_seconds_of_lag_moves_no_number windows::input::tests::decided_keys_go_out_in_input_order_and_a_key_undecided_at_the_stop_is_withheld_uncounted windows::input::tests::a_raw_mouse_message_that_is_no_button_down_does_not_latch windows::input::tests::a_raw_button_down_latches_the_gate windows::input::tests::the_keyboard_takes_the_mouse_back_when_the_pointer_source_stops windows::input::tests::a_gate_with_a_reader_of_the_seam_and_one_without_give_the_same_verdicts windows::input::tests::the_seam_keeps_at_most_its_bound_and_the_test_build_holds_its_marker --list 2>/dev/null | tr -d '\r' | grep -c ': test$')
+          echo "W37 loop tests_matched_by_the_filters=$expected"
+          whole=0
+          for run in $(seq 1 200); do
+            "$exe" secure_input::windows::tests:: windows::input::tests::five_keys_of_a_password_field_handled_300_ms_late_move_no_number windows::input::tests::late_keys_of_a_password_field_stay_withheld_after_a_move_to_a_plain_field windows::input::tests::late_keys_stay_withheld_when_the_password_mark_comes_after_their_input_time windows::input::tests::five_late_keys_of_a_plain_field_are_withheld_and_set_the_late_value_alone windows::input::tests::a_password_typed_during_two_seconds_of_lag_moves_no_number windows::input::tests::decided_keys_go_out_in_input_order_and_a_key_undecided_at_the_stop_is_withheld_uncounted windows::input::tests::a_raw_mouse_message_that_is_no_button_down_does_not_latch windows::input::tests::a_raw_button_down_latches_the_gate windows::input::tests::the_keyboard_takes_the_mouse_back_when_the_pointer_source_stops windows::input::tests::a_gate_with_a_reader_of_the_seam_and_one_without_give_the_same_verdicts windows::input::tests::the_seam_keeps_at_most_its_bound_and_the_test_build_holds_its_marker --test-threads=1 >"$log" 2>&1
+            code=$?
+            body=$(tr -d '\r' <"$log")
+            if [ "$code" -eq 0 ] && printf '%s\n' "$body" | grep -q "^test result: ok. $expected passed; 0 failed"; then whole=$((whole + 1)); fi
+            printf '%s\n' "$body" | sed -n 's/^test \(.*\) \.\.\. \(ok\|FAILED\)$/\1 \2/p' >>"$tally"
+          done
+          echo "W37 loop runs=200 runs_whose_result_line_holds_all_$expected=$whole"
+          sort "$tally" | uniq -c | while read -r n name verdict; do echo "W37 loop test=$name verdict=$verdict runs=$n"; done
+          echo "W37 loop end"
+          git status --porcelain
+          exit 0
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
