@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -129,7 +130,63 @@ async function readAttemptLine(record) {
   return { good: true, problems: got === record.expect.line ? [] : [`the line is "${got}", expected "${record.expect.line}"`] };
 }
 
-const READINGS = { judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway, attempts: readAttempts, line: readLine, "attempt-line": readAttemptLine, "sends-again": readSendsAgain, "lost-attempt": readLostAttempt };
+async function loadCheck() {
+  if (!readFileSync(CHECK, "utf8").includes("export function lineOf(")) return null;
+  return import(pathToFileURL(CHECK).href);
+}
+
+async function readExitCode(record) {
+  const check = await loadCheck();
+  if (typeof check?.exitCodeOf !== "function") return { good: true, problems: ["stress/check.mjs exports no exitCodeOf"] };
+  const problems = record.cases.filter((each) => check.exitCodeOf(each.line) !== each.code).map((each) => `the line "${each.line.slice(0, 40)}" gives exit ${check.exitCodeOf(each.line)}, expected ${each.code}`);
+  return { good: true, problems };
+}
+
+async function readMainGuard(record) {
+  const check = await loadCheck();
+  if (typeof check?.isMainScript !== "function") return { good: true, problems: ["stress/check.mjs exports no isMainScript"] };
+  const paths = { check: CHECK, records: fileURLToPath(import.meta.url), none: undefined };
+  const problems = record.cases
+    .filter((each) => check.isMainScript(paths[each.argv1], pathToFileURL(CHECK).href) !== each.main)
+    .map((each) => `started as ${each.argv1}, main runs is ${!each.main}, expected ${each.main}`);
+  return { good: true, problems };
+}
+
+function readScriptRun(record) {
+  const env = record.root ? { ...process.env, HALVO_ROOT: join(HERE, record.root) } : process.env;
+  const run = spawnSync(process.execPath, [CHECK, ...record.args], { encoding: "utf8", timeout: 30_000, env });
+  const problems = [];
+  if (run.status !== record.expect.status) problems.push(`node stress/check.mjs ${record.args.join(" ")} exited ${run.status}, expected ${record.expect.status}`);
+  if (!`${run.stdout}${run.stderr}`.includes(record.expect.text)) problems.push(`its output lacks "${record.expect.text}"`);
+  return { good: true, problems };
+}
+
+function readServerOptions(record) {
+  if (typeof driver.serverOptionsOf !== "function") return { good: true, problems: ["stress/driver.mjs exports no serverOptionsOf"] };
+  const got = driver.serverOptionsOf({ ...config, killRuns: 1 }, record.cell, "counts-open-holds", "run", { port: 1, inspectorPort: 2, mockPort: 3 });
+  return { good: true, problems: got.holdLifeMs === record.expect.holdLifeMs ? [] : [`the server starts with a hold life of ${got.holdLifeMs}, expected ${record.expect.holdLifeMs}`] };
+}
+
+function readGatewayDefault(record) {
+  const problems = [];
+  for (const each of record.cases) {
+    const input = judgeInput({ top: { cell: each.cell } });
+    const withoutGateway = Object.fromEntries(Object.entries(input).filter(([name]) => name !== "gateway"));
+    const byDefault = rule.judge(withoutGateway).facts.slowBoundMs;
+    const asTheDriverRecords = rule.judge({ ...input, gateway: rule.gatewayOf({ ...config, killRuns: 1 }, each.cell) }).facts.slowBoundMs;
+    if (byDefault !== each.slowBoundMs || asTheDriverRecords !== each.slowBoundMs) {
+      problems.push(`${each.cell.name}: the default gives ${byDefault}, the driver's record ${asTheDriverRecords}, expected ${each.slowBoundMs}`);
+    }
+  }
+  return { good: true, problems };
+}
+
+const READINGS = {
+  "exit-code": readExitCode,
+  "main-guard": readMainGuard,
+  "server-options": readServerOptions,
+  "script-run": readScriptRun,
+  "gateway-default": readGatewayDefault, judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway, attempts: readAttempts, line: readLine, "attempt-line": readAttemptLine, "sends-again": readSendsAgain, "lost-attempt": readLostAttempt };
 
 const files = readdirSync(RECORDS)
   .filter((name) => name.endsWith(".json"))

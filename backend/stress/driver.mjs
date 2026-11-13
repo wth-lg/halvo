@@ -531,6 +531,15 @@ async function crossTheBoundary(traffic, mockPort, wave, boundaryAt, holdLifeMs)
   await call(mockPort, "POST", `/release?wave=${wave}`).catch(() => undefined);
 }
 
+/** The options with which the driver starts a cell's server: its ports, its state and log under the run's directory, and the hold life of the cell's gateway. */
+export const serverOptionsOf = (cfg, cell, variant, dir, ports) => ({
+  ...ports,
+  stateDir: join(dir, "state"),
+  logFile: join(dir, "server.log"),
+  holdLifeMs: gatewayOf(cfg, cell).holdLifeMs,
+  variant,
+});
+
 export async function runOnce(ctx, cell, variant, runNo, withKill, attempt) {
   const cfg = ctx.cfg;
   const who = variant === "counts-open-holds" ? "ledger" : "control";
@@ -552,15 +561,7 @@ export async function runOnce(ctx, cell, variant, runNo, withKill, attempt) {
   let kill = null;
   const gateway = gatewayOf(cfg, cell);
   try {
-    const options = {
-      port: await freePort(),
-      inspectorPort: await freePort(),
-      stateDir: join(dir, "state"),
-      logFile: join(dir, "server.log"),
-      mockPort: mock.port,
-      holdLifeMs: gateway.holdLifeMs,
-      variant,
-    };
+    const options = serverOptionsOf(cfg, cell, variant, dir, { port: await freePort(), inspectorPort: await freePort(), mockPort: mock.port });
     server = await startServer(ctx, options);
     const startMs = server.readyMs;
     const setAt = Date.now();

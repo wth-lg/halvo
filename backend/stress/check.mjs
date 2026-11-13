@@ -17,6 +17,14 @@ const USAGE = [
   "Exit codes: 0 PASS, 1 FAIL, 64 bad usage.",
 ].join("\n");
 
+/** The exit code of check 50 for its result line: 0 for a PASS line, 1 for any other. */
+export const exitCodeOf = (line) => (line.startsWith("PASS ") ? 0 : 1);
+
+/** True when the module at moduleUrl is the script that node was started with, the path argv1. */
+export function isMainScript(argv1, moduleUrl) {
+  return argv1 !== undefined && realpathSync(argv1) === realpathSync(fileURLToPath(moduleUrl));
+}
+
 const attemptsOf = (run) => [{ key: run.key, ...run.facts }, ...run.discarded];
 
 /** Check 50's result line (contracts.md, contract 9.6) for the selected cells and the runs that the driver returned, and the count of requests lost in transport after their last resend. */
@@ -78,12 +86,13 @@ export function lineOf({ selected, runs, halted, attempts }) {
       failure = `${uncrossed.length} attempt(s) of a rollover cell lacked the crossing, which the driver builds before any kill (ruling B-15), first ${uncrossed[0].key}`;
     } else if (failedToRun) failure = `${failedToRun.key} failed to run in ${attempts} attempts: ${failedToRun.error.split("\n")[0].slice(0, 200)}`;
     else if (neverCounted && attemptsOf(neverCounted).some((attempt) => attempt.slow === true)) {
-      const bounds = [...new Set(slowAttempts.map((attempt) => attempt.slowBoundMs))].join(" and ");
-      const median = nearestRank(
-        slowAttempts.flatMap((attempt) => attempt.burstWaits ?? []),
-        0.5,
-      );
-      failure = `${slowAttempts.length} attempt(s) did not count because their first burst was slow (ruling B-33): the median wait of those bursts was ${median} ms, over the bound of ${bounds} ms; ${neverCounted.key} did not count in ${attempts} attempts`;
+      const waitsByBound = new Map();
+      for (const attempt of slowAttempts) waitsByBound.set(attempt.slowBoundMs, [...(waitsByBound.get(attempt.slowBoundMs) ?? []), ...(attempt.burstWaits ?? [])]);
+      const medians = [...waitsByBound]
+        .sort(([a], [b]) => a - b)
+        .map(([bound, waits]) => `${nearestRank(waits, 0.5)} ms, over the bound of ${bound} ms`)
+        .join(", and ");
+      failure = `${slowAttempts.length} attempt(s) did not count because their first burst was slow (ruling B-33): the median wait of those bursts was ${medians}; ${neverCounted.key} did not count in ${attempts} attempts`;
     } else if (neverCounted) {
       const facts = neverCounted.facts ?? {};
       failure = `${neverCounted.key} did not count in ${attempts} attempts (admitted ${facts.admitted ?? "unmeasured"}, holds open at the kill ${facts.openAtKill ?? "unmeasured"}, a stream in flight at the kill ${facts.streamAtKill ?? "unmeasured"}, voided ${facts.voided ?? "unmeasured"})`;
@@ -134,7 +143,7 @@ async function main() {
 
   const finish = (line) => {
     console.log(line);
-    process.exit(line.startsWith("PASS ") ? 0 : 1);
+    process.exit(exitCodeOf(line));
   };
 
   const prices = JSON.parse(readFileSync(join(ROOT, "test-kit/prices/v1.json"), "utf8"));
@@ -188,4 +197,4 @@ async function main() {
   finish(line);
 }
 
-if (process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) await main();
+if (isMainScript(process.argv[1], import.meta.url)) await main();

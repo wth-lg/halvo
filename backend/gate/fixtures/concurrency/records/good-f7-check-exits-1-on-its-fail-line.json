@@ -1,0 +1,12 @@
+{
+  "kind": "script-run",
+  "ruling": "P7-69 F7 (the verifier's C15)",
+  "about": "node stress/check.mjs with HALVO_ROOT at a root whose price is not the one of stress/config.mjs prints its FAIL line and exits 1 before it starts anything: no stack is needed",
+  "source": "by hand",
+  "root": "root-with-another-price",
+  "args": [],
+  "expect": {
+    "status": 1,
+    "text": "FAIL concurrency: runs=unmeasured; first failure: the price of stress/config.mjs is not the low_cost_hosted rates"
+  }
+}
