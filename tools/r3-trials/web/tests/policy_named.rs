@@ -78,6 +78,12 @@ fn the_controls_of_the_third_form_read_not_named() {
             with_rows("Remot eDebuggingAllow e\ndtrue Platform Device Mandator\nyOK"),
             "0",
         ),
+        // a value of the same length as the one written: only its own letters tell it apart
+        (
+            "another_value_of_the_same_length",
+            with_rows("Remot eDebuggingAllow e\ndFALSE Platform Device Mandator\nyOK"),
+            "0",
+        ),
         (
             "value_not_the_end_of_its_word",
             with_rows("Remot eDebuggingAllow e\ndfalsely Platform Device Mandator\nyOK"),
