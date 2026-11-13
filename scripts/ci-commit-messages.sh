@@ -385,7 +385,7 @@ self_test() {
   push_to_branch tag-named-origin-main-on-a-clean-commit 0 'commits checked 2,' "$no_commit" "$clean_branch"
 
   runner branch-that-moved-the-exempt-commit "$main" "$branch_that_moved_the_exempt_commit" "$branch_that_moved_the_exempt_commit:refs/heads/feature"
-  pull_request branch-that-moved-the-exempt-commit 1 'this branch moved the exempt commit or changed the predicate' "$branch_that_moved_the_exempt_commit" 'Fix the gate' 'A plain description.'
+  pull_request branch-that-moved-the-exempt-commit 1 'commits checked 2, with an attribution line 1' "$branch_that_moved_the_exempt_commit" 'Fix the gate' 'A plain description.'
 
   start_at "$main"
   awk '{ print } $0 == "check_stored_message() {" { print "  exit 0" }' "$root/$CHECK" >"$dev/$CHECK"
