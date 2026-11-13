@@ -113,7 +113,7 @@ fn on_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
             show_main_window(app);
         }
         OPEN_ID => show_main_window(app),
-        QUIT_ID => app.exit(0),
+        QUIT_ID => app.exit(crate::launch::Exit::Quit.code()),
         _ => {}
     }
 }

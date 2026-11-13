@@ -15,6 +15,24 @@ pub enum Launch {
 
 pub const MAX_WITHIN_S: u64 = 3600;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Exit {
+    Quit,
+    Usage,
+    PageLoaded,
+    PageNotLoaded,
+}
+
+impl Exit {
+    pub const fn code(self) -> i32 {
+        match self {
+            Exit::Quit | Exit::PageLoaded => 0,
+            Exit::PageNotLoaded => 1,
+            Exit::Usage => 64,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Usage {
     NotUnicode,
@@ -110,6 +128,14 @@ mod tests {
     fn not_unicode() -> OsString {
         use std::os::windows::ffi::OsStringExt;
         OsString::from_wide(&[0xd800, u16::from(b'x')])
+    }
+
+    #[test]
+    fn each_exit_has_its_code() {
+        assert_eq!(Exit::Quit.code(), 0);
+        assert_eq!(Exit::PageLoaded.code(), 0);
+        assert_eq!(Exit::PageNotLoaded.code(), 1);
+        assert_eq!(Exit::Usage.code(), 64);
     }
 
     #[test]

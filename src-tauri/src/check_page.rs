@@ -8,6 +8,7 @@ use tauri::{AppHandle, Manager, Runtime, Wry};
 
 use crate::app::{self, PageLoads};
 use crate::commands::names;
+use crate::launch::Exit;
 use crate::unwired_store;
 
 const PROBE: &str = "(function () { var ok = /^[A-Za-z0-9_:|.+-]+$/; var r = (window.Halvo && Halvo.ipc && Halvo.ipc.replied) ? Halvo.ipc.replied() : []; var v = (document.getElementById('version') || {}).textContent || ''; return 'version=' + (ok.test(v) ? v : '-') + ' replied=' + r.filter(function (n) { return ok.test(n); }).join(','); })()";
@@ -49,7 +50,7 @@ pub fn run(config_dir: PathBuf, within: Duration) -> i32 {
             reads().len(),
             within.as_secs()
         );
-        std::process::exit(1);
+        std::process::exit(Exit::PageNotLoaded.code());
     });
     let parts = app::Parts {
         config_dir: Some(config_dir.clone()),
@@ -68,7 +69,7 @@ pub fn run(config_dir: PathBuf, within: Duration) -> i32 {
         Ok(app) => app,
         Err(e) => {
             eprintln!("halvo: --check-page: the app did not start: {e}");
-            return 1;
+            return Exit::PageNotLoaded.code();
         }
     };
     #[cfg(target_os = "macos")]
@@ -106,7 +107,7 @@ fn watch<R: Runtime>(app: AppHandle<R>, started: Instant) {
                 "halvo: --check-page: done in {} ms",
                 started.elapsed().as_millis()
             );
-            app.exit(0);
+            app.exit(Exit::PageLoaded.code());
             return;
         }
     }

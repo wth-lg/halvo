@@ -28,7 +28,7 @@ fn main() {
         }
         Err(usage) => {
             eprintln!("halvo: {usage}\n{}", launch::USAGE);
-            std::process::exit(64);
+            std::process::exit(launch::Exit::Usage.code());
         }
     }
 }
