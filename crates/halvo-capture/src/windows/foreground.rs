@@ -326,8 +326,9 @@ fn child_pids(hwnd: HWND) -> Vec<u32> {
     }
 
     let mut found: Vec<u32> = Vec::new();
-    // SAFETY: the callback has the WNDENUMPROC signature and reads `found`
-    // only while this call runs.
+    // SAFETY: the callback has the WNDENUMPROC signature and writes `found`
+    // through a pointer made from an exclusive borrow, only while this
+    // enumeration runs on this thread; nothing else touches `found` meanwhile.
     unsafe {
         let _ = EnumChildWindows(
             Some(hwnd),

@@ -67,18 +67,38 @@ pub(crate) fn read_window_title(hwnd: HWND) -> String {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct LastTitle(Option<(usize, u64)>);
+pub(crate) struct LastTitle {
+    emitted: Option<Seen>,
+}
 
-impl LastTitle {
-    pub(crate) fn is_new(&mut self, window: usize, title: &str) -> bool {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Seen {
+    window: usize,
+    digest: TitleDigest,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TitleDigest(u64);
+
+impl TitleDigest {
+    fn of(title: &str) -> TitleDigest {
         use std::hash::{Hash, Hasher};
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         title.hash(&mut hasher);
-        let seen = Some((window, hasher.finish()));
-        if self.0 == seen {
+        TitleDigest(hasher.finish())
+    }
+}
+
+impl LastTitle {
+    pub(crate) fn is_new(&mut self, window: usize, title: &str) -> bool {
+        let seen = Some(Seen {
+            window,
+            digest: TitleDigest::of(title),
+        });
+        if self.emitted == seen {
             return false;
         }
-        self.0 = seen;
+        self.emitted = seen;
         true
     }
 
