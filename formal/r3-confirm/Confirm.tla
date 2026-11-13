@@ -19,7 +19,8 @@ Members(q) == {q[i] : i \in DOMAIN q}
 ApprovalClasses == {"purchase", "payment", "sign"}
 Barred == {"purchase", "payment", "sign", "credential"}
 NoEffect == {"read", "prepare", "credential"}
-Finals == {"refused", "rejected", "committed", "unknown"}
+Finals == {"refused", "rejected", "committed", "unknown", "not_made"}
+Answers == {"made", "not_replaced", "401", "429", "other"}
 Limit == 2
 CapsSpace == [untrusted : Members(YesNo), private : Members(YesNo), external : Members(YesNo)]
 
@@ -146,7 +147,8 @@ Init ==
   /\ alive = "yes"
   /\ given = [a \in Approvals |-> [eff |-> "none", dig |-> "none", ans |-> "none"]]
   /\ wire = [e \in Effects |-> <<>>]
-  /\ seen = [e \in Effects |-> [cls |-> "none", decs |-> {}, approved |-> <<>>, rel |-> <<>>, left |-> {}, com |-> {}]]
+  /\ seen = [e \in Effects |-> [cls |-> "none", decs |-> {}, approved |-> <<>>, rel |-> <<>>, left |-> {}, com |-> {},
+                                  gone |-> [why |-> "none", alive |-> "none"]]]
 
 Parse ==
   /\ cfg.st = "raw"
@@ -263,22 +265,45 @@ Send(e) ==
   /\ mem[e] = "begun"
   /\ Len(wire[e]) < 2
   /\ wire' = [wire EXCEPT ![e] = Append(@, [dig |-> val[e], row |-> eff[e].st, after |-> seen[e].rel,
-                                           shown |-> LastShown(seen[e]), reply |-> "no", alive |-> alive])]
+                                           shown |-> LastShown(seen[e]), reply |-> "no", ans |-> "none",
+                                           alive |-> alive])]
   /\ mem' = [mem EXCEPT ![e] = "sent"]
   /\ UNCHANGED <<cfg, eff, val, alive, given, seen>>
 
-Reply(e) ==
+Reply(e, a) ==
   /\ alive = "yes"
   /\ mem[e] = "sent"
   /\ Len(wire[e]) > 0
-  /\ wire' = [wire EXCEPT ![e][Len(wire[e])].reply = "yes"]
-  /\ mem' = [mem EXCEPT ![e] = "replied"]
+  /\ wire' = [wire EXCEPT ![e][Len(wire[e])].reply = "yes", ![e][Len(wire[e])].ans = a]
+  /\ mem' = [mem EXCEPT ![e] = IF a = "made" THEN "replied" ELSE "answered"]
   /\ UNCHANGED <<cfg, eff, val, alive, given, seen>>
 
 Commit(e) ==
   /\ alive = "yes"
   /\ mem[e] = "replied"
   /\ Plain(e, Bare("commit"))
+  /\ mem' = [mem EXCEPT ![e] = "idle"]
+  /\ UNCHANGED <<cfg, val, alive, given, wire>>
+
+Answered(e) == IF Len(wire[e]) = 0 THEN "none" ELSE wire[e][Len(wire[e])].ans
+
+Said(w) ==
+  CASE w = "not_sent" -> "none"
+    [] w = "not_replaced" -> "not_replaced"
+    [] w = "unauthorized" -> "401"
+    [] w = "throttled" -> "429"
+
+Known(e, w) ==
+  \/ mem[e] = "begun" /\ w \in {"not_sent", "not_replaced"}
+  \/ mem[e] = "answered" /\ Answered(e) = Said(w)
+
+NotMade(e, w) ==
+  /\ alive = "yes"
+  /\ Known(e, w)
+  /\ LET r == Step(Row(e), Gone(w))
+     IN /\ r.answer = "ok"
+        /\ eff' = [eff EXCEPT ![e].st = r.st]
+  /\ seen' = [seen EXCEPT ![e] = [Noted(@, eff[e], eff'[e], "none", wire[e]) EXCEPT !.gone = [why |-> w, alive |-> alive]]]
   /\ mem' = [mem EXCEPT ![e] = "idle"]
   /\ UNCHANGED <<cfg, val, alive, given, wire>>
 
@@ -303,9 +328,10 @@ Next ==
        \/ End(e)
        \/ Begin(e)
        \/ Send(e)
-       \/ Reply(e)
+       \/ \E a \in Answers : Reply(e, a)
        \/ Commit(e)
        \/ Lose(e)
+       \/ \E w \in Members(Causes) : NotMade(e, w)
 
 Symmetric == Permutations(Effects) \cup Permutations(Approvals) \cup Permutations(Digests)
 
@@ -362,9 +388,19 @@ P10 ==
          /\ w.dig = w.after[Len(w.after)].dig
          /\ "confirm" \in seen[e].decs => w.dig = w.shown
 
+Unmade(e) ==
+  LET g == seen[e].gone
+      c == eff[e].cls
+  IN /\ g.alive = "yes"
+     /\ \/ g.why = "not_sent" /\ c # "local_edit" /\ wire[e] = <<>>
+        \/ g.why = "not_replaced" /\ c = "local_edit" /\ (wire[e] = <<>> \/ Answered(e) = "not_replaced")
+        \/ g.why = "unauthorized" /\ c \in {"send", "delete"} /\ Answered(e) = "401"
+        \/ g.why = "throttled" /\ c \in {"send", "delete"} /\ Answered(e) = "429"
+
 P11 ==
   \A e \in Effects :
-    Len(seen[e].rel) > 0 => eff[e].st \in {"releasing", "committed", "unknown"}
+    /\ Len(seen[e].rel) > 0 => eff[e].st \in {"releasing", "committed", "unknown", "not_made"}
+    /\ eff[e].st = "not_made" => Unmade(e)
 
 Yn(v) == IF v = "yes" THEN "y" ELSE "n"
 

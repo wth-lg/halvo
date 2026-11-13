@@ -65,17 +65,17 @@ java -XX:+UseParallelGC -Xmx2g -Djava.io.tmpdir="$scratch" -cp "$JAR" tlc2.TLC -
 
 The first two commands are what the check runs, and both are needed: neither alone shows
 every invariant failing on its break. Each ends with status 0 and prints `Model checking
-completed. No error has been found.`; the first prints `933498 distinct states found`, the
-second `64669 distinct states found`. The third is the control copy. It ends with status 12
+completed. No error has been found.`; the first prints `1732182 distinct states found`, the
+second `70129 distinct states found`. The third is the control copy. It ends with status 12
 and prints `Error: Invariant P1 is violated.` with a behaviour of four states. A check that
 passes proves nothing until the control copy fails. The option `-deadlock` turns off TLC's
 search for states with no next state: an effect has final states.
 
-`Full.cfg` is run by hand, with the same command and `-workers 4`. It prints `3570126
-states generated, 1500352 distinct states found`. On 2026-11-11 it took 128 seconds with
-four workers on a 16-core machine whose load average was 200. After the round of CP-35, on
-2026-11-12, it printed the same counts and took 306 seconds with four workers through the
-machine's timed-run helper, at a 1-minute load average of 85 before and 94 after. Run it
+`Full.cfg` is run by hand, with the same command and `-workers 4`. It prints `8436493
+states generated, 3937389 distinct states found`. After U1.8 (a), on 2026-11-13, it took
+1,014 seconds with four workers through the machine's timed-run helper, at a 1-minute load
+average of 144 before and 212 after; before that change it reached 1,500,352 distinct states
+in 306 seconds on 2026-11-12, at a load of 85 before and 94 after. Run it
 after every change of `Confirm.tla`, and run every wrong design of the table that belongs to
 the model with it.
 
@@ -113,7 +113,7 @@ alone. Its PASS is a statement about the commit:
   after a redirect, expands no brackets or braces in the address, and ends within 60 s with
   every try: two tries of at most 25 s each and a pause of 5 s.
 - It runs TLC with three workers on `Confirm.cfg` and `Rebinds.cfg`, and requires no
-  invariant violated and the distinct states 933,498 and 64,669, the counts of the section
+  invariant violated and the distinct states 1,732,182 and 70,129, the counts of the section
   "What the check reaches". A change of the model that makes the system reach less, or more,
   fails the check until the counts in the check and in that section are written again.
 - It exports the two files again with the seed and the count of `Export.cfg` and compares
@@ -146,8 +146,8 @@ formal subject commit=<commit> files=formal/r3-confirm,scripts/r3/ci.d/30-r3-for
 formal configs files=5 same=5
 formal java major=<n>
 formal jar source=fetch bytes=2274532 same=yes
-formal states=998167 invariants=11 violated=0
-formal reach confirm+rebinds=933498+64669 same=yes
+formal states=1802311 invariants=11 violated=0
+formal reach confirm+rebinds=1732182+70129 same=yes
 formal export status=0
 formal table rows=3840 same=yes
 formal traces count=400 same=yes
@@ -369,30 +369,31 @@ variables:
 |---|---|---|
 | `cfg` | The configuration: autonomy, `allow`, `caps`, and whether the parser's guard let it through. | The start state chooses any of 3 x 1,024 x 8 raw configurations, with every set of the ten classes as `allow`. `Parse` lets one through when `allow` holds only `send`, `delete` and `submit`. |
 | `eff` | The rows of each effect, as far as a move reads them: the state, class and digest of the last row, the approval that it holds, the count of its `rebind` rows, and every approval that a row of the effect ever held. | The moves of the runner and of the handler, each through `Step`. |
-| `mem` | What the living runner knows of its request: nothing, `begun` (the `begin` is stored and the request is paused), `sent`, `replied`. | `Begin`, `Send`, `Reply`, `Commit`. `RunEnds` empties it. |
+| `mem` | What the living runner knows of its request: nothing, `begun` (the `begin` is stored and the request is paused), `sent`, `replied` (the reply says that the effect was made), `answered` (a reply came that says something else). | `Begin`, `Send`, `Reply`, `Commit`, `NotMade`. `RunEnds` empties it. |
 | `alive` | Whether the run goes on. | `RunEnds`. |
 | `val` | The digest of the bound values of each effect as they are on the page, in the call or in the file. | The environment: `Propose` and `Change`. |
 | `given` | The entries of the supervisor's decisions: the effect that was shown, the digest that was shown, and the answer `allow` or `reject`. | The environment: `Give`. |
-| `wire` | The requests that left: the digest that each carried, the state of the row when it left, whether the run went on when it left, the arrivals in `releasing` that were stored before, the digest that the person was shown last, and whether the reply came. | The environment: `Send` and `Reply`. |
-| `seen` | What was observed of each effect: its class, each decision that `Decide` gave for it, each arrival of its row in `approved` in order (the entry that the move offered, its answer, the effect that it was given for, the digest that was shown, the digest of the row), each arrival in `releasing` with the state before and the row's digest, each final state that a move left, and for each arrival in `committed` whether the request had left and the reply had come. | Every move that changes a row, from the row before and the row after the move. |
+| `wire` | The requests that left: the digest that each carried, the state of the row when it left, whether the run went on when it left, the arrivals in `releasing` that were stored before, the digest that the person was shown last, whether the reply came, and its answer: `made`, `not_replaced` (the executor did not make the `replace` and the workbook is unchanged), `401`, `429` or `other`. | The environment: `Send` and `Reply`. |
+| `seen` | What was observed of each effect: its class, each decision that `Decide` gave for it, each arrival of its row in `approved` in order (the entry that the move offered, its answer, the effect that it was given for, the digest that was shown, the digest of the row), each arrival in `releasing` with the state before and the row's digest, each final state that a move left, for each arrival in `committed` whether the request had left and the reply had come, and for an arrival in `not_made` the cause of the row and whether the run went on when it was stored. | Every move that changes a row, from the row before and the row after the move. |
 
 No invariant reads the answer of `Step` or a claim of a move about itself. Each reads the
 histories `seen` and `wire`, which the moves write from `given`, `val` and the rows. P5 and
-P7 also read the configuration, and P11 the stored row.
+P7 also read the configuration, and P11 the stored row, with the cause that a `not_made` row
+holds.
 
 | | The sentence of A5.3 | What the invariant reads |
 |---|---|---|
 | P1 | An effect of the class `purchase`, `payment` or `sign` reaches `releasing` only from `approved`. | Each arrival of such an effect's row in `releasing` came from `approved`, and each request of it left after such an arrival was stored. |
 | P2 | An effect reaches `approved` only with an approval that was given for that effect, with the answer `allow_once`, and whose digest equals the digest of the effect's row, which is what the runner sent. | Each arrival of a row in `approved` came with an entry of the supervisor that was given for this effect, whose answer is `allow`, and whose shown digest is the digest of the row. |
 | P3 | An approval moves an effect to `approved` at most once. | Over all effects, the arrivals in `approved` with one entry are at most one. |
-| P4 | No move leaves `refused`, `rejected`, `committed` or `unknown`, no effect is in `releasing` twice, and at most one request leaves per effect, where a repeat that is answered as the first while its row is the last is no move. | No row left a final state; no row arrived in `releasing` twice; no effect's request left twice. The model has no repeat. |
+| P4 | No move leaves `refused`, `rejected`, `committed`, `unknown` or `not_made`, no effect is in `releasing` twice, and at most one request leaves per effect, where a repeat that is answered as the first while its row is the last is no move. | No row left a final state; no row arrived in `releasing` twice; no effect's request left twice. The model has no repeat. |
 | P5 | Under the autonomy `observe` no effect reaches `releasing`. | Under `observe` no row arrived in `releasing` and no request left. |
 | P6 | An effect whose decision is `handback` or `refuse` never reaches `releasing`. | The same, for an effect for which `Decide` ever gave one of the two. |
 | P7 | `allow` never holds a money class, `sign` or `credential`, in any reachable configuration. | A configuration that the guard let through, or under which an effect exists, has none of `purchase`, `payment`, `sign`, `credential` in `allow`. |
 | P8 | An effect for which `decide` gave `confirm` reaches `releasing` only from `approved`, and its request leaves only after that. | As P1, for every effect for which `Decide` gave `confirm`. |
 | P9 | An effect reaches `committed` only after its request left and the reply to that request came. | At each arrival of a row in `committed`, the wire held a request of the effect with its reply. |
 | P10 | Every request that leaves carries the digest of its effect's row at `begin`, and for an effect for which `decide` gave `confirm` that is the digest that the person was shown for the approval that moved it to `approved` last. | Each request left while its row was `releasing` and while the run went on, after a stored `begin`, with the digest that the row had at that `begin`; for an effect for which `Decide` gave `confirm` it is also the shown digest of the last arrival in `approved`. |
-| P11 | An effect whose row once was `releasing` is `releasing`, `committed` or `unknown`, and in no other state. | An effect with an arrival in `releasing` has a row in one of the three states. It reads the rows and not the wire, so it also covers an end of the run between the stored `begin` and the send. |
+| P11 | An effect whose row once was `releasing` is `releasing`, `committed`, `unknown` or `not_made`, and in no other state, and it reaches `not_made` only by a move of the runner and never by a move of the run's end. | An effect with an arrival in `releasing` has a row in one of the four states. It reads the rows and not the wire for that, so it also covers an end of the run between the stored `begin` and the send. A row in `not_made` was stored by the runner's `NotMade` while the run went on, and its cause is true: it fits the class (the row of `class` in the step relation), `not_sent` and a `not_replaced` that the runner withheld have no request on the wire, and a `not_replaced` that the executor answered, `unauthorized` and `throttled` have a request whose reply answered `not_replaced`, `401` and `429`. |
 
 The moves of the system, and what each takes from the contract:
 
@@ -414,7 +415,16 @@ The moves of the system, and what each takes from the contract:
 - `Begin` (runner) passes the digest of the values as they are, read again, and the row is
   `releasing`. `Send` (runner) then lets the request leave, once, and the wire notes whether
   the run went on when it left. `Reply` (environment) is
-  the reply to it. `Commit` (runner) stores the end after the reply.
+  the reply to it, with any of the five answers for any class. `Commit` (runner) stores the
+  end after a reply that says that the effect was made.
+- `NotMade` (runner) stores `not_made` with a cause, while the run goes on, when the runner
+  knows that the effect was not made: the request is still paused after `begin` (`not_sent`,
+  or `not_replaced` for a `replace` that the runner withheld), or the reply answered
+  `not_replaced`, `401` or `429` (`not_replaced`, `unauthorized`, `throttled`). It tries each
+  cause, and `Step` refuses the one that cannot be true for the class. A reply with the
+  answer `other` leaves the effect `releasing`, and the run's end makes it `unknown` (A11.2:
+  every other answered status stays `unknown`). A reply that the runner could have read but
+  had not read when the run ended makes it `unknown` too: a runner that is gone says nothing.
 - `Reject` is the runner's. `End` may come at any time, from the runner or from the handler
   of the run's end.
 - `RunEnds` is the end of the run, at most once, in any state. It stands for the runner's
@@ -423,11 +433,14 @@ The moves of the system, and what each takes from the contract:
   does not tell the two apart: after either, no move of the runner comes, none of the
   environment, and no request leaves.
 - `Lose` is the move of the handler of the run's end and comes only after `RunEnds`. So no
-  request leaves after its row became `unknown`.
+  request leaves after its row became `unknown`. Neither `Lose` nor `End` makes `not_made`:
+  `Step` gives `lose` the state `unknown` and refuses `end` for a `releasing` row.
 
-Four rules of the step relation are held by the traces alone, because the system never
+Five rules of the step relation are held by the traces alone, because the system never
 makes the move that would break them:
 
+- a `not_made` for an effect that is not `releasing`: the runner knows of a paused request
+  or of a reply only while the effect is `releasing`;
 - a `rebind` with another class than the effect's: the system passes the effect's own
   class;
 - a `rebind` at the limit: the system's `Rebind` stops at `MaxRebinds`, which is at most
@@ -443,15 +456,17 @@ The check runs two configurations of one model text, and a person runs a third:
 
 | File | Effects | Rebinds for each effect | Distinct states | Depth |
 |---|---|---|---|---|
-| `Confirm.cfg` | 2 | 1 | 933,498 | 21 |
-| `Rebinds.cfg` | 1 | 2 | 64,669 | 16 |
-| `Full.cfg` | 2 | 2 | 1,500,352 | 25 |
+| `Confirm.cfg` | 2 | 1 | 1,732,182 | 21 |
+| `Rebinds.cfg` | 1 | 2 | 70,129 | 16 |
+| `Full.cfg` | 2 | 2 | 3,937,389 | 25 |
 
 Each has two approvals and two digests, and the line `SYMMETRY` counts states that differ
 only in the names of the effects, the approvals and the digests once. On 2026-11-11, on a
 16-core machine whose load average was between 129 and 207, `Confirm.cfg` took 204 seconds
 with one worker and 54 seconds with four, and `Rebinds.cfg` 13 seconds with one worker and
-5 with four.
+5 with four. Those runs were of the model before U1.8 (a), with 637,933 and 61,728 distinct
+states; the move `not_made` and the five answers of a reply made the system larger, and the
+line `seconds 30-r3-formal` of each CI job gives the time of the check.
 
 What the split into the first two loses against the third: the runs in which one effect is
 rebound twice while a second effect exists. A wrong design that needs two rebinds (an
@@ -550,6 +565,11 @@ the 134 sets of values and with the derived moves that the section "The traces" 
   one effect beside a second effect, outside `Full.cfg`.
 - That anything ever happens. Every invariant says what never happens; none says that an
   effect reaches an end.
+- What a service or the executor answers. The answers of a reply are free values of the
+  environment, for every class. Whether a send that the service answered with 401 or 429
+  left a message in the mailbox is a fact of the service, which the first run against it
+  records (the coordinator's ruling CP-135 (4)); the model takes A11.2's word that it did
+  not.
 - A page that sends other values than it shows. P10 holds for the values that the runner
   reads again; the model's `val` is those values.
 - Windows, beyond the export and the runs of the check. The check runs TLC and the export
