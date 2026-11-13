@@ -590,7 +590,37 @@ fn leaf_of_a_file_that_differs_stands_after_the_failure() {
         .err()
         .and_then(|payload| payload.downcast::<String>().ok())
         .expect("a failure with a message");
-    let out = PathBuf::from(message.rsplit("which stands at ").next().unwrap());
+    let out = kept_path(&message).unwrap_or_else(|| panic!("no kept leaf in: {message}"));
     let _held = Leaf(out.parent().unwrap().to_path_buf());
     assert!(out.is_file(), "{message}");
+}
+
+fn kept_path(message: &str) -> Option<PathBuf> {
+    let (_, shown) = message.split_once("which stands at ")?;
+    let out = PathBuf::from(shown);
+    let leaf = out.parent()?;
+    let named = leaf.file_name()?.to_str()?.starts_with("r4-golden-");
+    (named && leaf.parent()? == Path::new(env!("CARGO_TARGET_TMPDIR"))).then_some(out)
+}
+
+#[test]
+fn leaf_kept_path_reads_only_a_leaf_of_the_comparison() {
+    let tmp = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let leaf = tmp.join("r4-golden-x-1-2-0");
+    let shown = |path: &Path| {
+        format!(
+            "x differs from what the writers write, which stands at {}",
+            path.display()
+        )
+    };
+    assert_eq!(kept_path(&shown(&leaf.join("x"))), Some(leaf.join("x")));
+    let refused = format!("{}: File exists (os error 17)", leaf.display());
+    assert_eq!(kept_path(&refused), None);
+    assert_eq!(kept_path(&shown(&tmp.join("x"))), None);
+    assert_eq!(
+        kept_path(&shown(&tmp.join("r4-export-names-1-2-0").join("x"))),
+        None
+    );
+    let nested = leaf.join("r4-golden-y-1-2-0").join("x");
+    assert_eq!(kept_path(&shown(&nested)), None);
 }
