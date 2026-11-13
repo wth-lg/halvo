@@ -535,3 +535,50 @@ fn the_set_up_counts_the_page_loads_of_the_window_main_from_zero() {
     let test = test_app(scratch_dir("page-loads"));
     assert_eq!(test.app.state::<app::PageLoads>().count(), 0);
 }
+
+const ENGINE_URL_FORMS: &str = include_str!("engine-url-forms.txt");
+
+#[test]
+fn the_navigation_rule_refuses_every_engine_string_that_does_not_parse_and_every_other_origin() {
+    let forms: Vec<&str> = ENGINE_URL_FORMS.lines().filter(|l| !l.is_empty()).collect();
+    assert_eq!(forms.len(), 1336, "the committed list of engine forms");
+    let mut unparsed = 0;
+    for form in &forms {
+        match tauri::Url::parse(form) {
+            Err(_) => {
+                unparsed += 1;
+                assert!(
+                    !app::may_navigate(form),
+                    "the rule allows the unparsed string {form}"
+                );
+            }
+            Ok(url) => {
+                assert!(
+                    !app::is_app_url(&url),
+                    "the rule allows the outside form {form}"
+                );
+                assert!(
+                    !app::may_navigate(form),
+                    "the rule allows the outside form {form}"
+                );
+            }
+        }
+    }
+    assert_eq!(
+        unparsed, 70,
+        "forms of the list that the URL reader refuses"
+    );
+    assert!(tauri::Url::parse("http://xn--zz.localhost:1/").is_err());
+    assert!(!app::may_navigate("http://xn--zz.localhost:1/"));
+    assert!(app::may_navigate(&format!("{APP_URL}/index.html")));
+    assert!(app::may_navigate(&format!("{APP_URL}/")));
+    for outside in [
+        "https://example.com/",
+        "http://localhost:1420/",
+        "http://127.0.0.1:1/leak?d=x",
+        "about:blank",
+        "data:text/html,x",
+    ] {
+        assert!(!app::may_navigate(outside), "the rule allows {outside}");
+    }
+}

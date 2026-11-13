@@ -94,8 +94,21 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
         })
 }
 
-/// Whether `url` is of the app's own origin, the only place the window may
-/// navigate to: `tauri://localhost` on macOS, `http://tauri.localhost` on Windows.
+/// The navigation rule of the window main: whether it may navigate to
+/// `address`, the string as the engine reports it. A string that the URL reader
+/// refuses is refused, and a parsed address is allowed only when `is_app_url`
+/// allows it. Tauri's builder hands the rule a parsed address, and the app
+/// gives the rule that address's string. The rule refuses every address outside
+/// the app's own origin that the runtime puts to it. An address that the
+/// runtime's own reader refuses is allowed by the runtime without the rule
+/// (tauri-runtime-wry 2.12.3); it is reached only by script in the page, and it
+/// stays open until a unit closes it at the engine.
+pub fn may_navigate(address: &str) -> bool {
+    Url::parse(address).is_ok_and(|url| is_app_url(&url))
+}
+
+/// The parsed arm of `may_navigate`: whether `url` is of the app's own
+/// origin, `tauri://localhost` on macOS and `http://tauri.localhost` on Windows.
 pub fn is_app_url(url: &Url) -> bool {
     let (scheme, host) = if cfg!(windows) {
         ("http", "tauri.localhost")
@@ -119,7 +132,7 @@ fn main_window<R: Runtime>(
         .cloned()
         .ok_or_else(|| tauri::Error::WindowNotFound)?;
     let builder = WebviewWindowBuilder::from_config(app, &config)?
-        .on_navigation(is_app_url)
+        .on_navigation(|url| may_navigate(url.as_str()))
         .visible(visible);
     #[cfg(windows)]
     let builder = match data_dir {
