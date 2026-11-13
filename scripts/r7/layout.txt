@@ -88,3 +88,4 @@ P5	backend/src/metering/stripe-meter.ts
 P5	backend/test/metering/**
 F.1	backend/.shellcheckrc
 F.1	formal/r7-ledger/.gitattributes
+F.4	backend/gate/fixtures/license-lists/**
