@@ -62,7 +62,7 @@ esac
 
 # shellcheck disable=SC2329
 st_top() {
-  trap '' INT TERM
+  trap '' INT TERM HUP
   if [ -n "$st_worker" ]; then
     kill -s "$3" "$st_worker" 2>/dev/null
     wait "$st_worker"
@@ -70,10 +70,11 @@ st_top() {
   exit "$2"
 }
 
-if [ "$mode" = self-test ] && [ "${RUN_CI_D_WORKER:-}" != "$PPID" ]; then
+if [ -n "$job" ] && [ "$mode" != list ] && [ "${RUN_CI_D_WORKER:-}" != "$PPID" ]; then
   st_worker=
   trap 'st_top INT 130 USR1' INT
   trap 'st_top TERM 143 TERM' TERM
+  trap 'st_top HUP 129 HUP' HUP
   RUN_CI_D_WORKER=$$ sh "$0" "$job" "$@" &
   st_worker=$!
   wait "$st_worker"
@@ -259,30 +260,6 @@ judge() {
   esac
 }
 
-run_script() {
-  out=$tmp/$script_name.out
-  code_file=$tmp/$script_name.code
-  artifacts=$repo/target/ci-artifacts/$script_name
-  mkdir -p "$artifacts" || {
-    record FAIL "FAIL $script_name (its artifacts directory cannot be made)"
-    return
-  }
-  started=$(date +%s)
-  (
-    CI_D_REPO=$repo
-    CI_D_JOB=$job
-    CI_D_ARTIFACTS=$artifacts
-    export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS
-    sh "$script_file" </dev/null
-    printf '%s\n' "$?" >"$code_file"
-  ) | tee "$out"
-  ended=$(date +%s)
-  printf 'seconds %s %s\n' "$script_name" "$((ended - started))"
-  code=$(cat "$code_file" 2>/dev/null)
-  last=$(tail -n 1 "$out")
-  judge
-  tree_check "$script_name"
-}
 
 tree_state() {
   tree_head=$(git rev-parse -q --verify HEAD 2>/dev/null) || tree_head=none
@@ -374,44 +351,71 @@ st_own() {
 st_queue() {
   st_q_file=$script_file
   st_q_name=$script_name
-  st_q_solo=$(sed -n '1,10s/^# self-test: alone$/alone/p' "$st_q_file")
-  case $st_alone in
-    *" $st_q_name "*) st_q_solo=alone ;;
-  esac
-  if [ -n "$st_q_solo" ]; then
-    st_wait_below 1
+  st_q_solo=
+  if [ "$mode" = self-test ]; then
+    st_q_tag=self-test:$st_q_name
+    st_q_solo=$(sed -n '1,10s/^# self-test: alone$/alone/p' "$st_q_file")
+    case $st_alone in
+      *" $st_q_name "*) st_q_solo=alone ;;
+    esac
+    if [ -n "$st_q_solo" ]; then
+      st_wait_below 1
+    else
+      st_wait_below "$st_jobs"
+    fi
   else
-    st_wait_below "$st_jobs"
+    st_q_tag=$st_q_name
   fi
   st_q_artifacts=$repo/target/ci-artifacts/$st_q_name
   mkdir -p "$st_q_artifacts" || {
     note "FAIL $st_q_name (its artifacts directory cannot be made)"
     return
   }
-  st_d=$tmp/self-test.$st_q_name
+  st_d=$tmp/$mode.$st_q_name
   mkdir -p "$st_d/tmp" || {
-    note "FAIL self-test:$st_q_name (its temporary directory cannot be made)"
+    note "FAIL $st_q_tag (its temporary directory cannot be made)"
     return
   }
-  (
-    CI_D_REPO=$repo
-    CI_D_JOB=$job
-    CI_D_ARTIFACTS=$st_q_artifacts
-    TMPDIR=$st_d/tmp
-    export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR
-    st_t0=$(date +%s)
-    {
-      perl -e "$st_perl" sh "$st_q_file" --self-test </dev/null 2>"$st_d/err" &
-      printf '%s\n' "$!" >"$st_d/pid"
-      wait "$!"
-      printf '%s\n' "$?" >"$st_d/status"
-    } | cat >"$st_d/out"
-    st_t1=$(date +%s)
-    st_c=none
-    [ ! -s "$st_d/status" ] || read -r st_c <"$st_d/status"
-    printf '%s %s\n' "$st_c" "$((st_t1 - st_t0))" >"$st_d/code"
-    : >"$st_d/done"
-  ) </dev/null >/dev/null 2>&1 &
+  if [ "$mode" = self-test ]; then
+    (
+      CI_D_REPO=$repo
+      CI_D_JOB=$job
+      CI_D_ARTIFACTS=$st_q_artifacts
+      TMPDIR=$st_d/tmp
+      export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR
+      st_t0=$(date +%s)
+      {
+        perl -e "$st_perl" sh "$st_q_file" --self-test </dev/null 2>"$st_d/err" &
+        printf '%s\n' "$!" >"$st_d/pid"
+        wait "$!"
+        printf '%s\n' "$?" >"$st_d/status"
+      } | cat >"$st_d/out"
+      st_t1=$(date +%s)
+      st_c=none
+      [ ! -s "$st_d/status" ] || read -r st_c <"$st_d/status"
+      printf '%s %s\n' "$st_c" "$((st_t1 - st_t0))" >"$st_d/code"
+      : >"$st_d/done"
+    ) </dev/null >/dev/null 2>&1 &
+  else
+    (
+      CI_D_REPO=$repo
+      CI_D_JOB=$job
+      CI_D_ARTIFACTS=$st_q_artifacts
+      export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS
+      st_t0=$(date +%s)
+      {
+        perl -e "$st_perl" sh "$st_q_file" </dev/null &
+        printf '%s\n' "$!" >"$st_d/pid"
+        wait "$!"
+        printf '%s\n' "$?" >"$st_d/status"
+      } | tee "$st_d/out"
+      st_t1=$(date +%s)
+      st_c=none
+      [ ! -s "$st_d/status" ] || read -r st_c <"$st_d/status"
+      printf '%s %s\n' "$st_c" "$((st_t1 - st_t0))" >"$st_d/code"
+      : >"$st_d/done"
+    ) </dev/null &
+  fi
   st_track script "$!" "$st_d" "$st_q_name"
   [ -z "$st_q_solo" ] || st_wait_below 1
 }
@@ -423,7 +427,7 @@ st_group() {
 
 # shellcheck disable=SC2329
 st_interrupt() {
-  trap '' INT TERM
+  trap '' INT TERM HUP USR1
   [ -z "$st_sleep" ] || kill -s TERM "$st_sleep" 2>/dev/null
   st_groups=
   for st_i in $st_running; do
@@ -452,7 +456,7 @@ st_interrupt() {
   for st_g in $st_groups; do
     st_group KILL "$st_g"
   done
-  printf 'FAIL run-ci-d (the step was interrupted by %s; every self-test that it started is ended)\n' "$1"
+  printf 'FAIL run-ci-d (the step was interrupted by %s; every %s that it started is ended)\n' "$1" "$st_what"
   exit "$2"
 }
 
@@ -460,16 +464,28 @@ st_stop() {
   eval "st_d=\$st_dir_$1 st_p=\$st_pid_$1 st_state_$1=timeout"
   st_sp=
   [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"
-  kill -TERM "${st_sp:-$st_p}" 2>/dev/null
+  if [ -n "$st_sp" ]; then
+    st_group TERM "$st_sp"
+  else
+    kill -TERM "$st_p" 2>/dev/null
+  fi
   st_grace=0
-  while [ ! -e "$st_d/done" ] && kill -0 "$st_p" 2>/dev/null && [ "$st_grace" -lt 50 ]; do
+  while [ "$st_grace" -lt 50 ]; do
+    if [ -n "$st_sp" ]; then
+      st_group 0 "$st_sp" || break
+    elif [ -e "$st_d/done" ] || ! kill -0 "$st_p" 2>/dev/null; then
+      break
+    fi
     sleep 0.1
     st_grace=$((st_grace + 1))
   done
-  if [ ! -e "$st_d/done" ]; then
-    [ -z "$st_sp" ] || kill -KILL "$st_sp" 2>/dev/null
-    kill -KILL "$st_p" 2>/dev/null
-  fi
+  [ -z "$st_sp" ] || st_group KILL "$st_sp"
+  st_grace=0
+  while [ ! -e "$st_d/done" ] && kill -0 "$st_p" 2>/dev/null && [ "$st_grace" -lt 20 ]; do
+    sleep 0.1
+    st_grace=$((st_grace + 1))
+  done
+  [ -e "$st_d/done" ] || kill -KILL "$st_p" 2>/dev/null
   wait "$st_p" 2>/dev/null
 }
 
@@ -502,12 +518,16 @@ st_poll() {
 
 st_print() {
   eval "st_d=\$st_dir_$1 st_k=\$st_kind_$1 st_x=\$st_state_$1 st_t=\$st_since_$1 script_name=\$st_name_$1"
-  [ ! -e "$st_d/out" ] || cat "$st_d/out"
-  st_e=0
-  [ ! -e "$st_d/err" ] || st_e=$(wc -c <"$st_d/err")
-  st_e=${st_e##* }
-  [ "$st_e" -eq 0 ] || head -c "$st_e" "$st_d/err" >&2
-  eval "st_errsize_$1=\$st_e"
+  st_tag=$script_name
+  if [ "$mode" = self-test ]; then
+    st_tag=self-test:$script_name
+    [ ! -e "$st_d/out" ] || cat "$st_d/out"
+    st_e=0
+    [ ! -e "$st_d/err" ] || st_e=$(wc -c <"$st_d/err")
+    st_e=${st_e##* }
+    [ "$st_e" -eq 0 ] || head -c "$st_e" "$st_d/err" >&2
+    eval "st_errsize_$1=\$st_e"
+  fi
   if [ "$st_k" = own ]; then
     st_vs=
     st_vl=
@@ -530,10 +550,11 @@ st_print() {
   last=
   [ ! -e "$st_d/out" ] || last=$(tail -n 1 "$st_d/out")
   case $st_x:$code in
-    timeout:*) record FAIL "FAIL self-test:$script_name (time limit $st_limit s)" ;;
-    lost:* | *:none) record FAIL "FAIL self-test:$script_name (it ended without an exit status)" ;;
+    timeout:*) record FAIL "FAIL $st_tag (time limit $st_limit s)" ;;
+    lost:* | *:none) record FAIL "FAIL $st_tag (it ended without an exit status)" ;;
     *) judge ;;
   esac
+  [ "$mode" = self-test ] || tree_check "$script_name"
 }
 
 st_flush() {
@@ -622,7 +643,7 @@ own_run() {
     [ -z "$case_locale" ] || { LC_ALL=$case_locale; export LC_ALL; }
     [ -z "$case_jobs" ] || { CI_D_SELF_TEST_JOBS=$case_jobs; export CI_D_SELF_TEST_JOBS; }
     [ -z "$case_limit" ] || { CI_D_SCRIPT_LIMIT_S=$case_limit; export CI_D_SCRIPT_LIMIT_S; }
-    [ -z "$case_no_perl" ] || { PATH=$tmp/no-perl:$PATH; export PATH; }
+    [ -z "$case_path" ] || { PATH=$case_path:$PATH; export PATH; }
     CARGO_HOME=$tmp/cargo-home
     TMPDIR=${case_tmpdir:-$tmp}
     export CARGO_HOME TMPDIR
@@ -652,7 +673,7 @@ own_run() {
   : >"$tmp/nested.pid"
   [ -z "$case_max_s" ] || case_t1=$(date +%s)
   left=0
-  if [ -n "$case_signal" ] && [ -f "$fixture/pids" ]; then
+  if [ -f "$fixture/pids" ]; then
     n=0
     while :; do
       left=0
@@ -712,7 +733,7 @@ own_judge() {
   case_then=
   case_max_s=
   case_nested=
-  case_no_perl=
+  case_path=
   case_signal=
   case_wait=
   case_absent=
@@ -740,7 +761,7 @@ own_self_test() {
   case_then=
   case_max_s=
   case_nested=
-  case_no_perl=
+  case_path=
   case_signal=
   case_wait=
   case_absent=
@@ -748,9 +769,14 @@ own_self_test() {
   perl_bin=$(command -v perl) || perl_bin=perl
   case_perl="setpgrp(0, 0); \$SIG{QUIT} = 'DEFAULT'; \$SIG{INT} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;"
   mkdir -p "$tmp/no-perl" && printf '#!/bin/sh\nexit 1\n' >"$tmp/no-perl/perl" && chmod +x "$tmp/no-perl/perl"
+  real_date=$(command -v date) || real_date='date'
+  mkdir -p "$tmp/late-date" &&
+    printf '#!/bin/sh\nif [ "$1" = +%%s ] && [ -r late ]; then\n  read -r late <late\n  now=$(%s +%%s) || exit 1\n  echo "$((now + late))"\nelse\n  exec %s "$@"\nfi\n' "$real_date" "$real_date" >"$tmp/late-date/date" &&
+    chmod +x "$tmp/late-date/date"
   usage_line='usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]'
   name_refusal='the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -'
   guard_line='FAIL run-ci-d (Cargo.lock or package-lock.json differs from HEAD; a script builds with --locked and changes no tracked file)'
+  perl_line='FAIL run-ci-d (perl does not run; the driver starts each script through perl, for INT and QUIT at their defaults and a process group of its own)'
 
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b"
   own_case all-pass 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
@@ -909,6 +935,29 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" 'here=$(pwd); [ "$CI_D_REPO" = "$here" ] && [ "$CI_D_JOB" = macos ] && [ "$CI_D_ARTIFACTS" = "$here/target/ci-artifacts/10-a" ] && [ -d "$CI_D_ARTIFACTS" ] && [ "$LC_ALL" = C ] && [ "${PATH%%:*}" = "$CARGO_HOME/bin" ] || { printf "FAIL 10-a (environment)\n"; exit 1; }; printf "PASS 10-a\n"'
   case_locale=en_US.UTF-8
   own_case environment 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$good" 'trap "" TERM; sleep 60 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"' &&
+    add_script r1 20-b.sh "$good" "$pass_b"
+  case_limit=5
+  case_max_s=15
+  case_first='FAIL 10-a (time limit 5 s)'
+  case_then='PASS 20-b'
+  own_case script-that-ignores-term-past-its-limit 1 'FAIL 10-a (time limit 5 s)' macos
+  case_limit=2s
+  own_case limit-not-a-number-in-the-step-ci.d 1 'FAIL run-ci-d (CI_D_SCRIPT_LIMIT_S=2s is not a whole number from 1 to 999999999)' macos
+  new_repo && add_script r1 10-a.sh "$good" '[ $# -eq 0 ] || exit 3; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"' &&
+    printf '1200\n' >"$fixture/offset"
+  case_path=$tmp/late-date
+  case_max_s=15
+  own_case default-limit-reached-at-1200-s 1 'FAIL 10-a (time limit 1200 s)' macos
+  new_repo && add_script r1 10-a.sh "$good" '[ $# -eq 0 ] || exit 3; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 1; printf "PASS 10-a\n"' &&
+    printf '1180\n' >"$fixture/offset"
+  case_path=$tmp/late-date
+  own_case default-limit-not-reached-at-1181-s 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; cp "$CI_D_REPO/offset" "$CI_D_REPO/late"; sleep 30 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"' &&
+    printf '1200\n' >"$fixture/offset"
+  case_path=$tmp/late-date
+  case_max_s=15
+  own_case default-limit-of-a-self-test-reached-at-1200-s 1 'FAIL self-test:10-a (time limit 1200 s)' macos --self-test 10-a
 
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
   own_case bare-self-test-runs-the-own-cases 0 'PASS self-test:run-ci-d (a nested run stops after its first case)' macos --self-test
@@ -978,7 +1027,7 @@ own_self_test() {
   case_first="ended by TERM${nl}seconds 10-a "
   case_then='FAIL self-test:10-a (time limit 2 s)'
   own_case self-test-past-its-limit 1 'FAIL self-test:10-a (time limit 2 s)' macos --self-test 10-a 20-b
-  new_repo && add_script r1 10-a.sh "$good" "$prelude; printf '%s\\n' \"\$\$\" >\"\$CI_D_REPO/pid.10-a\"; trap '' TERM; sleep 60; $passes" &&
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; printf '%s\\n' \"\$\$\" >\"\$CI_D_REPO/pid.10-a\"; trap '' TERM; sleep 60 & printf '%s\\n' \"\$!\" >>\"\$CI_D_REPO/pids\"; wait; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; $passes" &&
     add_script r1 30-c.sh "$good$nl# self-test: alone" "$prelude; read -r p <\"\$CI_D_REPO/pid.10-a\"; n=0; while kill -0 \"\$p\" 2>/dev/null; do [ \"\$n\" -lt 50 ] || { printf \"FAIL self-test:%s (the self-test past its limit still runs)\\n\" \"\$me\"; exit 1; }; sleep 0.1; n=\$((n + 1)); done; $passes"
   case_jobs=2
@@ -1039,8 +1088,10 @@ own_self_test() {
         new_repo && add_script r1 10-a.sh "$good" "$prelude_any; [ \"\${1:-}\" != --self-test ] || meet || $ran_alone; $sends" &&
           add_script r1 20-b.sh "$good" "$meets"
       fi
-      own_run macos 10-a
-      foreground=$(printf '%s\n' "$got_out" | grep -E '^(PASS|FAIL) 10-a( |$)' | tail -n 1)
+      got_out=$(cd "$fixture" && "$perl_bin" -e "$case_perl" sh scripts/r1/ci.d/10-a.sh </dev/null 2>&1)
+      got_exit=$?
+      foreground="FAIL 10-a (exit $got_exit)"
+      [ "$got_exit" -ne 0 ] || foreground=$(printf '%s\n' "$got_out" | tail -n 1)
       after=no
       ! printf '%s\n' "$got_out" | grep -qxF -e 'line after the kill' || after=yes
       case_jobs=2
@@ -1063,9 +1114,21 @@ own_self_test() {
     done
   done
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes"
-  case_no_perl=yes
-  own_case perl-does-not-run 1 'FAIL run-ci-d (perl does not run; the step ci.d self-test starts each self-test through perl, for INT and QUIT at their defaults and a process group of its own)' macos --self-test 10-a
-  for signal in INT:130 TERM:143; do
+  case_path=$tmp/no-perl
+  own_case perl-does-not-run 1 "$perl_line" macos --self-test 10-a
+  case_path=$tmp/no-perl
+  own_case perl-does-not-run-in-the-step-ci.d 1 "$perl_line" macos 10-a
+  for signal in INT:130 TERM:143 HUP:129; do
+    new_repo && add_script r1 10-a.sh "$good" "sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.10-a\"; wait; printf 'PASS 10-a\\n'" &&
+      add_script r1 20-b.sh "$good" "$pass_b"
+    case_signal=${signal%:*}
+    case_wait=started.10-a
+    case_max_s=30
+    case_signal_min=2
+    case_absent='PASS 20-b'
+    own_case "step-ci.d-interrupted-by-${signal%:*}" "${signal#*:}" "FAIL run-ci-d (the step was interrupted by ${signal%:*}; every script that it started is ended)" macos
+  done
+  for signal in INT:130 TERM:143 HUP:129; do
     new_repo && add_script r1 10-a.sh "$good" "$prelude; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.\$me\"; wait; $passes" &&
       add_script r1 20-b.sh "$good" "$prelude; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.\$me\"; wait; $passes"
     case_jobs=2
@@ -1120,16 +1183,21 @@ if [ "$mode" = self-test ]; then
       exit 1
     }
   fi
-  whole_number "$st_limit" || {
-    printf 'FAIL run-ci-d (CI_D_SCRIPT_LIMIT_S=%s is not a whole number from 1 to 999999999)\n' "$st_limit"
-    exit 1
-  }
-  perl -e "$st_perl" sh -c 'exit 0' </dev/null >/dev/null 2>&1 || {
-    printf 'FAIL run-ci-d (perl does not run; the step ci.d self-test starts each self-test through perl, for INT and QUIT at their defaults and a process group of its own)\n'
-    exit 1
-  }
-  trap 'st_interrupt INT 130' USR1
-  trap 'st_interrupt TERM 143' TERM
+fi
+whole_number "$st_limit" || {
+  printf 'FAIL run-ci-d (CI_D_SCRIPT_LIMIT_S=%s is not a whole number from 1 to 999999999)\n' "$st_limit"
+  exit 1
+}
+perl -e "$st_perl" sh -c 'exit 0' </dev/null >/dev/null 2>&1 || {
+  printf 'FAIL run-ci-d (perl does not run; the driver starts each script through perl, for INT and QUIT at their defaults and a process group of its own)\n'
+  exit 1
+}
+st_what=script
+trap 'st_interrupt INT 130' USR1
+trap 'st_interrupt TERM 143' TERM
+trap 'st_interrupt HUP 129' HUP
+if [ "$mode" = self-test ]; then
+  st_what='self-test'
   if [ -e "$st_list" ]; then
     while IFS= read -r st_line || [ -n "$st_line" ]; do
       st_first_word "$st_line"
@@ -1165,11 +1233,8 @@ for file in "$root"/*/ci.d/* "$root"/*/ci.d/.*; do
   fi
   ran="$ran$script_name "
   selected=$((selected + 1))
-  if [ "$mode" = self-test ]; then
-    st_queue
-  else
-    run_script
-  fi
+  st_queue
+  [ "$mode" = self-test ] || st_wait_below 1
 done
 
 if [ "$mode" = self-test ]; then
