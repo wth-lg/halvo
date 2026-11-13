@@ -168,7 +168,10 @@ fn a_press_on_the_rejecting_control_sends_no_allow_once() {
     assert_eq!(rig.shown.recv_timeout(WAIT), Ok(1));
     rig.clock(Limits::PRODUCT.arm_ms);
     rig.press.send(ConfirmAnswer::Reject).unwrap();
-    assert!(rig.thread_ended(), "the thread ends after the counted answer");
+    assert!(
+        rig.thread_ended(),
+        "the thread ends after the counted answer"
+    );
     assert_eq!(rig.sent(EffectAnswer::AllowOnce), 0);
     assert_eq!(rig.sent(EffectAnswer::RejectOnce), 1);
     assert!(rig.hub.coordinator().snapshot().items.is_empty());
@@ -180,7 +183,11 @@ fn an_early_allow_is_refused_shown_once_more_and_only_the_press_of_the_second_sh
     assert_eq!(rig.present(), Reply::Ok);
     assert_eq!(rig.shown.recv_timeout(WAIT), Ok(1));
     rig.press.send(ConfirmAnswer::Allow).unwrap();
-    assert_eq!(rig.shown.recv_timeout(WAIT), Ok(2), "early: shown once more");
+    assert_eq!(
+        rig.shown.recv_timeout(WAIT),
+        Ok(2),
+        "early: shown once more"
+    );
     rig.clock(Limits::PRODUCT.arm_ms);
     assert_eq!(
         rig.sent(EffectAnswer::AllowOnce),
@@ -188,7 +195,10 @@ fn an_early_allow_is_refused_shown_once_more_and_only_the_press_of_the_second_sh
         "the early allow is not handed in again after the tick"
     );
     rig.press.send(ConfirmAnswer::Allow).unwrap();
-    assert!(rig.thread_ended(), "the thread ends after the counted answer");
+    assert!(
+        rig.thread_ended(),
+        "the thread ends after the counted answer"
+    );
     assert_eq!(rig.sent(EffectAnswer::AllowOnce), 1);
     assert_eq!(rig.shows(), 2);
 }
@@ -229,8 +239,14 @@ fn a_press_on_allow_after_a_lapse_at_the_wait_limit_sends_no_allow_once() {
     rig.clock(Limits::PRODUCT.wait_limit_s * 1000);
     assert!(rig.hub.coordinator().snapshot().items.is_empty(), "lapsed");
     rig.press.send(ConfirmAnswer::Allow).unwrap();
-    assert!(rig.thread_ended(), "a refused answer that is not early ends the thread");
-    assert!(rig.shown.recv_timeout(QUIET).is_err(), "no show after the lapse");
+    assert!(
+        rig.thread_ended(),
+        "a refused answer that is not early ends the thread"
+    );
+    assert!(
+        rig.shown.recv_timeout(QUIET).is_err(),
+        "no show after the lapse"
+    );
     assert_eq!(rig.sent(EffectAnswer::AllowOnce), 0);
 }
 
@@ -249,7 +265,13 @@ fn a_press_on_allow_after_the_quit_sends_no_allow_once() {
     quit.recv_timeout(WAIT)
         .expect("the quit returned while the dialog was open");
     rig.press.send(ConfirmAnswer::Allow).unwrap();
-    assert!(rig.thread_ended(), "a refused answer that is not early ends the thread");
-    assert!(rig.shown.recv_timeout(QUIET).is_err(), "no show after the quit");
+    assert!(
+        rig.thread_ended(),
+        "a refused answer that is not early ends the thread"
+    );
+    assert!(
+        rig.shown.recv_timeout(QUIET).is_err(),
+        "no show after the quit"
+    );
     assert_eq!(rig.sent(EffectAnswer::AllowOnce), 0);
 }
