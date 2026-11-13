@@ -849,6 +849,44 @@ mod login_item_tests {
 
     #[cfg(target_os = "macos")]
     #[test]
+    fn an_entry_put_in_place_of_the_login_item_after_the_look_is_not_taken_and_never_waited_on() {
+        use crate::instance_lock::planted;
+
+        for kind in [
+            "a FIFO",
+            "a link to the file that was looked at",
+            "another regular file",
+        ] {
+            let base = tempfile::Builder::new().prefix("li").tempdir().unwrap();
+            let path = base.path().join("p");
+            std::fs::write(&path, b"x").unwrap();
+            let seen = std::fs::symlink_metadata(&path).unwrap();
+            let moved = base.path().join("m");
+            std::fs::rename(&path, &moved).unwrap();
+            match kind {
+                "a FIFO" => planted::mkfifo(&path),
+                "a link to the file that was looked at" => {
+                    std::os::unix::fs::symlink(&moved, &path).unwrap()
+                }
+                _ => std::fs::write(&path, b"x").unwrap(),
+            }
+            let answer = planted::answer_within(&path, &path, move |path| {
+                open_the_entry_that_was_read(path, &seen)
+                    .map(|file| file.is_some())
+                    .map_err(|e| e.kind())
+            });
+            assert_eq!(
+                answer,
+                Some(Ok(false)),
+                "{kind} in place of the file after the look: the open takes no other entry than \
+                 the one that was looked at and returns at once; the bound is {:?}",
+                planted::BOUND
+            );
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
     fn the_two_opens_of_an_install_are_an_error_at_once_on_a_planted_entry() {
         use crate::instance_lock::planted;
 
