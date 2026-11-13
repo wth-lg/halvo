@@ -798,6 +798,27 @@ fn an_open_refuses_an_entry_whose_workflow_key_names_another_id_than_a_stored_ro
             fault: StoredFault::WorkflowKey,
         })
     );
+    let scratch = Scratch::new("pair-no-id-under-key");
+    let (first, _) = two_workflows(&scratch, &clock);
+    let records: Records = Rc::new(RefCell::new(vec![TypedRecord {
+        kind: "test_pair",
+        json: format!(r#"{{"v":1,"workflow":"{first}","target":null}}"#),
+    }]));
+    let mut store =
+        open_entries(&scratch, with_step(&clock, &records, vec![]), &[&PAIR_A]).unwrap();
+    store
+        .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(200))
+        .unwrap();
+    drop(store);
+    assert_eq!(kind_rows(&scratch, "test_pair").len(), 1);
+    assert_eq!(
+        open_entries(&scratch, base(&clock, Grouping { min: 1 }), &[&PAIR_B]).map(drop),
+        Err(OpenError::Stored {
+            kind: "test_pair",
+            fault: StoredFault::WorkflowKey,
+        }),
+        "the record holds no id under the key of the entry"
+    );
     for (entry, name) in [(&PAIR_A, "pair-same-id-a"), (&PAIR_B, "pair-same-id-b")] {
         let scratch = Scratch::new(name);
         let (first, _) = two_workflows(&scratch, &clock);
