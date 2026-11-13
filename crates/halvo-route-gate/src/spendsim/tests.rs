@@ -1062,3 +1062,105 @@ fn cap_lowered_lowers_the_cap_at_10000_micro_units_and_not_at_9999() {
     assert_eq!((first[2].spent, first[5].spent), (9_999, 10_000));
     assert_eq!(outcome.steps[first.len()].cap_minor, Some(1));
 }
+
+fn request_of(amount: Micro) -> Request {
+    Request {
+        tier: Tier::LowCostHosted,
+        body_bytes: 1,
+        max_output_tokens: 1,
+        amount,
+    }
+}
+
+fn held_unread(account: &Account, hold: &Hold, mv: Move) -> Result<(Account, Hold), SpendCause> {
+    let without = Account {
+        held: 0,
+        ..*account
+    };
+    step::step(&without, hold, mv).map(|(next, hold)| {
+        (
+            Account {
+                held: next.held + account.held,
+                ..next
+            },
+            hold,
+        )
+    })
+}
+
+fn reserve_beside_an_open_hold(machine: Machine) -> (Result<(), SpendCause>, Outcome) {
+    let mut sim = Sim::new(1, Prices::release(), Some(2000), machine);
+    sim.start("near_cap");
+    let mut fake = sim.account(Some(1));
+    let mut open = sim.slot();
+    assert_eq!(sim.reserve(&mut fake, &mut open, request_of(6_000)), Ok(()));
+    let mut other = sim.slot();
+    let answer = sim.reserve(&mut fake, &mut other, request_of(6_000));
+    sim.outcome.cases.push(("near_cap", sim.counts));
+    (answer, sim.outcome)
+}
+
+#[test]
+fn a_reserve_beside_an_open_hold_answers_over_cap() {
+    let (answer, outcome) = reserve_beside_an_open_hold(step::step);
+    assert_eq!(answer, Err(SpendCause::OverCap));
+    let counts = counts_of(&outcome, "near_cap");
+    assert_eq!((counts.refused_over_cap, counts.above_cap), (1, 0));
+    assert!(outcome.passed());
+    let (answer, outcome) = reserve_beside_an_open_hold(held_unread);
+    assert_eq!(answer, Ok(()));
+    assert_eq!(counts_of(&outcome, "near_cap").above_cap, 1);
+    assert!(!outcome.passed());
+}
+
+#[test]
+fn a_hold_that_expires_beside_an_open_one_leaves_the_open_amount_held() {
+    let mut sim = Sim::new(1, Prices::release(), Some(2000), step::step);
+    sim.start("error_burst");
+    let mut fake = sim.account(Some(1));
+    let mut cut = sim.slot();
+    let mut open = sim.slot();
+    assert_eq!(sim.reserve(&mut fake, &mut cut, request_of(4_000)), Ok(()));
+    assert_eq!(sim.reserve(&mut fake, &mut open, request_of(3_000)), Ok(()));
+    assert_eq!(sim.act(&mut fake, &mut cut, Move::Dispatch, None), Ok(()));
+    assert_eq!(sim.act(&mut fake, &mut cut, Move::Expire, None), Ok(()));
+    assert_eq!((fake.account.spent, fake.account.held), (4_000, 3_000));
+    let mut late = sim.slot();
+    assert_eq!(
+        sim.reserve(&mut fake, &mut late, request_of(5_000)),
+        Err(SpendCause::OverCap)
+    );
+    assert_eq!((sim.counts.expired, sim.counts.above_cap), (1, 0));
+}
+
+fn room_without_the_holds(room: &Room, estimate: Micro, running: &[Micro]) -> Fit {
+    fits(&Room { held: 0, ..*room }, estimate, running)
+}
+
+fn admission_beside_an_open_hold(fit: FitRule) -> (bool, Outcome) {
+    let mut sim = Sim::new(1, Prices::release(), Some(2000), step::step);
+    sim.fit = fit;
+    sim.start("fan_out");
+    let mut fake = sim.account(Some(1));
+    let mut open = sim.slot();
+    assert_eq!(sim.reserve(&mut fake, &mut open, request_of(6_000)), Ok(()));
+    let room = Room::of(&fake.account, 0).expect("a cap");
+    assert_eq!((room.cap_minor, room.spent, room.held), (1, 0, 6_000));
+    let task = Task::new(vec![request_of(5_000)], false);
+    let mut running = Vec::new();
+    let admitted = sim.admit(&room, &task, &mut running);
+    sim.outcome.cases.push(("fan_out", sim.counts));
+    (admitted, sim.outcome)
+}
+
+#[test]
+fn the_room_of_an_account_with_an_open_hold_refuses_what_fits_only_without_it() {
+    let (admitted, outcome) = admission_beside_an_open_hold(fits);
+    assert!(!admitted);
+    assert!(outcome.admit_sum_ok && outcome.passed());
+    assert_eq!(counts_of(&outcome, "fan_out").admitted, 0);
+    let (admitted, outcome) = admission_beside_an_open_hold(room_without_the_holds);
+    assert!(admitted);
+    assert!(!outcome.admit_sum_ok);
+    assert!(!outcome.passed());
+}
