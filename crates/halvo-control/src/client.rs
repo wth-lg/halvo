@@ -1207,6 +1207,63 @@ mod tests {
         assert_eq!(capture(&resumed), crate::proto::Capture::Running);
     }
 
+    fn no_source_can_run(f: &mut crate::proto::StatusFields) {
+        for line in &mut f.sources {
+            if line.state != crate::proto::SourceState::Off {
+                line.state = crate::proto::SourceState::Failed {
+                    reason: crate::proto::Reason::Permission,
+                    error: None,
+                };
+            }
+        }
+    }
+
+    #[test]
+    fn a_resume_of_a_faulted_capture_keeps_the_reason_that_stood() {
+        let (client, _) = client(scripted(|f| {
+            no_source_can_run(f);
+            f.capture = crate::proto::Capture::Faulted;
+            f.capture_reason = Some(crate::proto::CaptureReason::Permission);
+        }));
+        let resumed = client.resume().unwrap();
+        assert_eq!(capture(&resumed), crate::proto::Capture::Faulted);
+        assert_eq!(
+            resumed.fields().capture_reason,
+            Some(crate::proto::CaptureReason::Permission)
+        );
+    }
+
+    #[test]
+    fn a_claim_that_finds_no_source_able_to_run_and_no_reason_reads_faulted_no_source() {
+        let (client, _) = client(scripted(|f| {
+            lapsed(f);
+            no_source_can_run(f);
+        }));
+        let claimed = client.status_claiming_the_indicator().unwrap();
+        assert_eq!(capture(&claimed), crate::proto::Capture::Faulted);
+        assert_eq!(
+            claimed.fields().capture_reason,
+            Some(crate::proto::CaptureReason::NoSource)
+        );
+    }
+
+    #[test]
+    fn with_every_source_off_a_claim_and_a_resume_read_running_as_built() {
+        let (client, _) = client(scripted(|f| {
+            f.enabled_sources.clear();
+            for line in &mut f.sources {
+                line.state = crate::proto::SourceState::Off;
+            }
+            f.lease = crate::proto::Lease::Lapsed;
+            f.capture = crate::proto::Capture::NoIndicator;
+        }));
+        let claimed = client.status_claiming_the_indicator().unwrap();
+        assert_eq!(capture(&claimed), crate::proto::Capture::Running);
+        assert_eq!(claimed.fields().capture_reason, None);
+        let resumed = client.resume().unwrap();
+        assert_eq!(capture(&resumed), crate::proto::Capture::Running);
+    }
+
     #[test]
     fn in_the_scripted_daemon_a_claim_on_a_paused_status_with_a_lapsed_lease_renews_the_lease() {
         let (client, _) = client(scripted(|f| {

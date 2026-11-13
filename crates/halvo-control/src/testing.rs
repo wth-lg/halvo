@@ -857,3 +857,30 @@ impl Drop for ScriptedUnixServer {
         let _ = std::fs::remove_file(&self.socket);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// No request of the double reaches its `internal` answer: every arm changes a status that
+    /// the type took into one that it takes. So the test makes the change step refuse a change
+    /// that breaks the sum of the dropped counts, then sends a request.
+    #[test]
+    fn a_change_that_does_not_hold_together_keeps_the_status_answers_internal_and_the_next_request()
+    {
+        let before = sample_status(Platform::Macos);
+        let mut daemon = ScriptedDaemon::new(before.clone());
+        daemon.edit(|f| f.dropped_frames += 1);
+        assert_eq!(daemon.status(), &before);
+        let refused = daemon.handle(Request::Status { indicator: false });
+        assert!(
+            matches!(&refused, Reply::Error(e) if e.code == ErrorCode::Internal),
+            "{refused:?}"
+        );
+        assert_eq!(daemon.status(), &before);
+        assert_eq!(
+            daemon.handle(Request::Status { indicator: false }),
+            Reply::Status(before)
+        );
+    }
+}
