@@ -469,13 +469,7 @@ st_interrupt() {
 }
 
 st_end_group() {
-  st_grace=0
-  while st_group 0 "$1" && [ "$st_grace" -lt "$(($2 + 60))" ]; do
-    [ "$st_grace" -ne "$2" ] || st_group TERM "$1"
-    [ "$st_grace" -ne "$(($2 + 50))" ] || st_group KILL "$1"
-    sleep 0.1
-    st_grace=$((st_grace + 1))
-  done
+  perl -e "my (\$g, \$p) = @ARGV; for (my \$t = 0; kill(0, -\$g) && \$t < \$p + 60; \$t++) { kill('TERM', -\$g) if \$t == \$p; kill('KILL', -\$g) if \$t == \$p + 50; select(undef, undef, undef, 0.1); }" "$1" "$2" 2>/dev/null
 }
 
 st_leave() {
@@ -583,7 +577,7 @@ st_print() {
 
 st_clear() {
   [ -e "$1" ] || [ -L "$1" ] || return 0
-  chmod -R u+w "$1" 2>/dev/null
+  chmod -R u+rwx "$1" 2>/dev/null
   rm -rf "$1" 2>/dev/null
   [ ! -e "$1" ] && [ ! -L "$1" ]
 }
@@ -828,6 +822,10 @@ own_self_test() {
     mkdir -p "$tmp/no-$tool" && printf '#!/bin/sh\nexit 1\n' >"$tmp/no-$tool/$tool" && chmod +x "$tmp/no-$tool/$tool"
   done
   real_date=$(command -v date) || real_date='date'
+  real_sleep=$(command -v sleep) || real_sleep='sleep'
+  mkdir -p "$tmp/slow-sleep" &&
+    printf '#!/bin/sh\nif [ "$1" = 0.1 ]; then exec %s 0.4; fi\nexec %s "$@"\n' "$real_sleep" "$real_sleep" >"$tmp/slow-sleep/sleep" &&
+    chmod +x "$tmp/slow-sleep/sleep"
   mkdir -p "$tmp/late-date" &&
     printf '#!/bin/sh\nif [ "$1" = +%%s ] && [ -r late ]; then\n  read -r late <late\n  now=$(%s +%%s) || exit 1\n  echo "$((now + late))"\nelse\n  exec %s "$@"\nfi\n' "$real_date" "$real_date" >"$tmp/late-date/date" &&
     chmod +x "$tmp/late-date/date"
@@ -1019,7 +1017,7 @@ own_self_test() {
   own_case environment 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
   leaves='[ -d "$TMPDIR" ] && [ -z "$(ls -A "$TMPDIR")" ] || { printf "FAIL %s (its TMPDIR is no empty directory)\n" "$me"; exit 1; }; printf "%s\n" "$TMPDIR" >>"$CI_D_REPO/tmpdirs"; mkdir "$TMPDIR/left" && : >"$TMPDIR/left/file"'
   new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; printf 'PASS 10-a\\n'" &&
-    add_script r1 20-b.sh "$good" "me=20-b; $leaves; chmod 555 \"\$TMPDIR/left\"; printf 'FAIL 20-b (planned)\\n'; exit 1"
+    add_script r1 20-b.sh "$good" "me=20-b; $leaves; chmod 0 \"\$TMPDIR/left\"; printf 'FAIL 20-b (planned)\\n'; exit 1"
   case_gone=2
   own_case tmpdir-of-each-script-removed-whatever-its-status 1 'FAIL 20-b (planned)' macos
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b"
@@ -1043,6 +1041,7 @@ own_self_test() {
   case_made=child-got-term
   case_limit=5
   case_max_s=15
+  case_path=$tmp/slow-sleep
   case_first='FAIL 10-a (time limit 5 s)'
   case_then='PASS 20-b'
   own_case script-that-ignores-term-past-its-limit 1 'FAIL 10-a (time limit 5 s)' macos
