@@ -200,6 +200,7 @@ fn agent_run(outcome: Outcome, mode: Mode, unknown: u32) -> AgentRun {
         organized: None,
         other_task: None,
         held_earlier: None,
+        earlier_page: None,
     }
 }
 
@@ -232,6 +233,7 @@ fn runs() -> Vec<AgentRun> {
     replied.held_recipient = Some(1);
     replied.other_task = Some(0);
     replied.held_earlier = Some(3);
+    replied.earlier_page = Some(1);
     vec![
         replay,
         agent_run(Outcome::Failed, Mode::Compile, 1),

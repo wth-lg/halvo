@@ -33,6 +33,10 @@ macro_rules! run_list {
             organized: Option<u32> = "organized" => opt(from_json),
             other_task: Option<u32> = "other_task" => opt(from_json),
             held_earlier: Option<u32> = "held_earlier" => opt(from_json),
+            /// The entries, on the pages that the list call read, that the call left out because an earlier page of
+            /// the same call had given their id. They stand in this count alone and outside the sum of the items that
+            /// were left out, and no value of it says that a list was read whole.
+            earlier_page: Option<u32> = "earlier_page" => opt(from_json),
         }
     };
 }
@@ -40,7 +44,7 @@ macro_rules! run_list {
 pub(in crate::executable) use run_list;
 
 macro_rules! agent_run {
-    ([] $( $field:ident : $ty:ty = $key:literal => $read:expr ),* $(,)?) => {
+    ([] $( $(#[$doc:meta])* $field:ident : $ty:ty = $key:literal => $read:expr ),* $(,)?) => {
         /// The keys of the run's list of `agent_run`, in their order after `model`: each a count or null, but `cut`
         /// and `more_pages`, each `yes`, `no` or null.
         pub const RUN_LIST_KEYS: &[&str] = &[$($key),*];
@@ -72,7 +76,7 @@ macro_rules! agent_run {
                 pub tokens_out: u32 = "tokens_out" => from_json,
                 pub wall_s: u32 = "wall_s" => from_json,
                 pub model: Option<Name> = "model" => opt(from_json),
-                $( pub $field: $ty = $key => $read, )*
+                $( $(#[$doc])* pub $field: $ty = $key => $read, )*
             }
             rules(r) {
                 let fail = |key, rule| Err(Refusal::malformed("AgentRun", rule).at(key));

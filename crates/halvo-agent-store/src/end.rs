@@ -75,6 +75,7 @@ pub(crate) fn end_run(
             organized: None,
             other_task: None,
             held_earlier: None,
+            earlier_page: None,
         };
         let mut records = vec![record(rows::AGENT_RUN, run.to_json())?];
         records.extend(moves(&*host, &b.run, now)?);

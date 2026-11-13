@@ -257,6 +257,7 @@ pub fn run_record(r: u32, mode: Option<&str>, outcome: &str) -> Value {
         "organized": null,
         "other_task": null,
         "held_earlier": null,
+        "earlier_page": null,
     })
 }
 

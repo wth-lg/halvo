@@ -1045,6 +1045,45 @@ fn largest_row(message: &str) -> String {
     )
 }
 
+fn page_of_25_blocked_with_ids_of(len: usize) -> String {
+    let names: Vec<String> = (0..25)
+        .map(|i| format!("{i:02}{}", "m".repeat(len - 2)))
+        .collect();
+    let rows: Vec<String> = names
+        .iter()
+        .map(|m| {
+            largest_row(m).replacen(
+                &format!(r#""draft":"{}""#, "d".repeat(1024)),
+                &format!(r#""draft":"{}""#, "d".repeat(len)),
+                1,
+            )
+        })
+        .collect();
+    let listed: Vec<&str> = names.iter().map(String::as_str).collect();
+    replies_text(&rows, &listed, &[])
+}
+
+#[test]
+fn a_page_of_25_rows_with_their_25_ids_blocked_fits_with_ids_of_775_bytes_and_not_with_776() {
+    let fits = page_of_25_blocked_with_ids_of(775);
+    assert_eq!(fits.len(), 65_397);
+    let read = LoadRepliesReply::parse(fits.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(read.replies.len(), 25);
+    assert_eq!(read.blocked.len(), 25);
+    assert!(read.replies.iter().all(
+        |r| r.message.as_str().len() == 775 && r.draft.as_ref().unwrap().as_str().len() == 775
+    ));
+    assert_eq!(read.to_json().unwrap(), fits);
+    let over = page_of_25_blocked_with_ids_of(776);
+    assert_eq!(over.len(), 65_472);
+    length(
+        LoadRepliesReply::parse(over.as_bytes()),
+        "LoadRepliesReply",
+        "reply_bytes",
+    );
+    length(value_of(&over).to_json(), "LoadRepliesReply", "json_length");
+}
+
 #[test]
 fn twenty_five_rows_at_their_largest_fit_a_frame_and_with_25_bare_ids_beside_them_do_not() {
     let names: Vec<String> = (0..25)
@@ -1098,7 +1137,7 @@ fn list_keys() -> Vec<(&'static str, Form)> {
 }
 
 #[test]
-fn the_keys_of_the_run_s_list_are_the_eleven_of_a7_4_in_their_order_and_two_are_yes_or_no() {
+fn the_keys_of_the_run_s_list_are_the_twelve_of_a7_4_in_their_order_and_two_are_yes_or_no() {
     assert_eq!(
         RUN_LIST_KEYS,
         [
@@ -1113,6 +1152,7 @@ fn the_keys_of_the_run_s_list_are_the_eleven_of_a7_4_in_their_order_and_two_are_
             "organized",
             "other_task",
             "held_earlier",
+            "earlier_page",
         ]
     );
     let yes_no: Vec<&str> = list_keys()
@@ -1259,7 +1299,7 @@ fn a_run_row_with_every_key_at_its_largest_is_measured_in_bytes() {
     );
     let read = AgentRun::parse(largest.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(read.to_json().unwrap(), largest);
-    assert_eq!(largest.len(), 745);
+    assert_eq!(largest.len(), 771);
 }
 
 const SEND_BOUND: &str = r#"{"class":"send","fields":[{"name":"to","from":"extract","origin":null,"value":["a@mail.test"]},{"name":"subject","from":"extract","origin":null,"value":["Re: rent"]},{"name":"body","from":"model","origin":null,"value":["Thanks, noted."]}]}"#;
