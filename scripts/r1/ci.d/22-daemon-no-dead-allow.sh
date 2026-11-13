@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every file under crates/halvo-capture/src/daemon/ but the data file mutants.rows, whatever its name and through a link, and crates/halvo-capture/src/bin/halvo-capture.rs hold no allow or expect of dead_code, of an unused lint or of warnings; no mod line under a cfg that names test, but the one platform condition of daemon/mod.rs, names a file that is not test support (*_tests.rs, *_props.rs, model_*.rs, scripted.rs; an inline mod tests is no file), also written r#name; no cfg under src/daemon/ joins test with a platform but that one condition; an attribute is read whole over its lines; and src/daemon/ holds a file to read.
+# rule: Every file under crates/halvo-capture/src/daemon/ but the data file mutants.rows, whatever its name and through a link, and crates/halvo-capture/src/bin/halvo-capture.rs hold no allow or expect of dead_code, of an unused lint or of warnings; no mod line under a cfg that names test, but the one platform condition of daemon/mod.rs, names a file that is not test support (*_tests.rs, *_props.rs, model_*.rs, scripted.rs; an inline mod tests is no file), also written r#name; no cfg under src/daemon/ joins test with a platform but that one condition; an attribute is read whole over its lines; every file under src/daemon/ but the data file is named by exactly one plain mod line in the file where the compiler looks for it (daemon/mod.rs by lib.rs), and the token mod stands in no macro definition and no arguments of a macro call under src/daemon/ or in the bin file; a cfg_attr that names test counts as a cfg that names test; a listing that fails fails the check with its path; and src/daemon/ holds a file to read.
 set -u
 name=22-daemon-no-dead-allow
 
@@ -34,7 +34,7 @@ scan() {
         cause(file, "-", "an allow or an expect of dead_code, of an unused lint or of warnings")
     }
     function attribute(text, at) {
-      if (text !~ /cfg[[:space:]]*\(/) return
+      if (text !~ /cfg(_attr)?[[:space:]]*\(/) return
       tested = (text ~ /[^A-Za-z0-9_]test[^A-Za-z0-9_]/)
       platform = (text ~ /(target_os|target_family|target_arch|target_env|target_vendor|[^A-Za-z0-9_]windows[^A-Za-z0-9_]|[^A-Za-z0-9_]unix[^A-Za-z0-9_])/)
       if (tested && platform) {
@@ -95,6 +95,87 @@ scan() {
   ' "$@"
 }
 
+# Reads the daemon's files ($2...) and the bin file, and fails when the token
+# mod stands in a macro definition or in the arguments of a macro call, or when
+# a file under the daemon's directory ($1) is named by no plain mod line or by
+# more than one. $lib_names_daemon says whether lib.rs names the daemon.
+names() {
+  awk -v daemon="$1/" -v lib_names_daemon="$lib_names_daemon" '
+    function rel(path) {
+      sub(/^.*\/crates\/halvo-capture\//, "crates/halvo-capture/", path)
+      return path
+    }
+    function fail(text) {
+      print text
+      failed = 1
+      exit 1
+    }
+    function macro_holds_mod(text,    rest, off, i, c, depth, instr, esc, span, n) {
+      rest = text
+      off = 0
+      n = length(text)
+      while (match(rest, /[A-Za-z_][A-Za-z0-9_]*[ \t\n]*![ \t\n]*([A-Za-z_][A-Za-z0-9_]*[ \t\n]*)?[({[]/)) {
+        depth = 1
+        instr = 0
+        esc = 0
+        span = ""
+        for (i = off + RSTART + RLENGTH; i <= n && depth > 0; i++) {
+          c = substr(text, i, 1)
+          if (instr) {
+            if (esc) esc = 0
+            else if (c == "\\") esc = 1
+            else if (c == "\"") instr = 0
+            continue
+          }
+          if (c == "\"") { instr = 1; span = span " "; continue }
+          if (c == "(" || c == "[" || c == "{") depth++
+          else if (c == ")" || c == "]" || c == "}") depth--
+          span = span c
+        }
+        if (span ~ /(^|[^A-Za-z0-9_])mod([^A-Za-z0-9_]|$)/) return 1
+        off = off + RSTART + RLENGTH - 1
+        rest = substr(text, off + 1)
+      }
+      return 0
+    }
+    function finish(    dir) {
+      if (file == "") return
+      if (macro_holds_mod(body)) fail(rel(file) ": the token mod stands in a macro definition or in the arguments of a macro call")
+    }
+    FNR == 1 {
+      finish()
+      file = FILENAME
+      body = ""
+      if (index(file, daemon) == 1) daemon_files[file] = 1
+    }
+    { body = body "\n" $0 }
+    index(FILENAME, daemon) == 1 {
+      line = $0
+      while (line ~ /^[[:space:]]*#!?\[[^]]*\][[:space:]]*/) sub(/^[[:space:]]*#!?\[[^]]*\][[:space:]]*/, "", line)
+      if (line ~ /^(pub(\([^)]*\))?[[:space:]]+)?mod[[:space:]]+(r#)?[A-Za-z0-9_]+[[:space:]]*;/) {
+        name = line
+        sub(/^(pub(\([^)]*\))?[[:space:]]+)?mod[[:space:]]+(r#)?/, "", name)
+        sub(/[[:space:]]*;.*$/, "", name)
+        dir = FILENAME
+        if (dir ~ /\/mod\.rs$/) sub(/\/mod\.rs$/, "", dir)
+        else sub(/\.[^.\/]*$/, "", dir)
+        named[dir "/" name ".rs"]++
+        named[dir "/" name "/mod.rs"]++
+      }
+    }
+    END {
+      if (failed) exit 1
+      finish()
+      for (f in daemon_files) {
+        if (f == daemon "mod.rs") count = (lib_names_daemon == "yes") ? 1 : 0
+        else count = named[f] + 0
+        if (count == 0) fail(rel(f) ": no plain mod line names this file")
+        if (count > 1) fail(rel(f) ": " count " plain mod lines name this file")
+      }
+    }
+  ' "$@"
+}
+
 classify() {
   root=$1
   daemon=$root/crates/halvo-capture/src/daemon
@@ -135,6 +216,16 @@ $files
 EOF
   if [ -f "$bin" ]; then
     set -- "$@" "$bin"
+  fi
+  lib_names_daemon=no
+  if grep -q -E '^[[:space:]]*(pub[[:space:]]+)?mod[[:space:]]+daemon[[:space:]]*;' "$root/crates/halvo-capture/src/lib.rs" 2>/dev/null; then
+    lib_names_daemon=yes
+  fi
+  found=$(names "$daemon" "$@")
+  status=$?
+  if [ "$status" != 0 ]; then
+    printf '%s' "${found:-awk exited $status}"
+    return 1
   fi
   found=$(scan "$daemon" "$@")
   status=$?
@@ -183,6 +274,11 @@ fixture() {
   printf '%s\n' 'expiry-never-runs	maintenance.rs	s/a/b/	test x	required	B14-05' \
     >"$tree/crates/halvo-capture/src/daemon/mutants.rows" || exit 2
   printf 'fn main() {}\n' >"$tree/crates/halvo-capture/src/bin/halvo-capture.rs" || exit 2
+  printf '%s\n' 'pub mod daemon;' >"$tree/crates/halvo-capture/src/lib.rs" || exit 2
+}
+
+state_file() {
+  printf '%s\n' 'pub fn helper() {}' >"$work/$1/crates/halvo-capture/src/daemon/state.rs" || exit 2
 }
 
 case_of() {
@@ -284,6 +380,53 @@ self_test() {
   add_line platform-alone daemon/owner.rs '#[cfg(target_os = "macos")]'
   add_line platform-alone daemon/owner.rs 'fn free() {}'
   case_of platform-alone PASS
+  fixture macro-declares-a-module
+  add_line macro-declares-a-module daemon/mod.rs 'macro_rules! test_only {'
+  add_line macro-declares-a-module daemon/mod.rs '    ($name:ident) => {'
+  add_line macro-declares-a-module daemon/mod.rs '        #[cfg(test)]'
+  add_line macro-declares-a-module daemon/mod.rs '        mod $name;'
+  add_line macro-declares-a-module daemon/mod.rs '    };'
+  add_line macro-declares-a-module daemon/mod.rs '}'
+  add_line macro-declares-a-module daemon/mod.rs 'test_only!(state);'
+  state_file macro-declares-a-module
+  case_of macro-declares-a-module FAIL
+  fixture macro-gates-a-module
+  add_line macro-gates-a-module daemon/mod.rs 'macro_rules! gate {'
+  add_line macro-gates-a-module daemon/mod.rs '    ($($item:item)*) => { $( #[cfg(test)] $item )* };'
+  add_line macro-gates-a-module daemon/mod.rs '}'
+  add_line macro-gates-a-module daemon/mod.rs 'gate! { mod state; }'
+  state_file macro-gates-a-module
+  case_of macro-gates-a-module FAIL
+  fixture outside-macro-with-the-name
+  add_line outside-macro-with-the-name lib.rs 'macro_rules! test_only { ($name:ident) => { #[cfg(test)] mod $name; }; }'
+  add_line outside-macro-with-the-name daemon/mod.rs 'test_only!(state);'
+  state_file outside-macro-with-the-name
+  case_of outside-macro-with-the-name FAIL
+  fixture outside-macro-gates-a-module
+  add_line outside-macro-gates-a-module lib.rs 'macro_rules! gate { ($($item:item)*) => { $( #[cfg(test)] $item )* }; }'
+  add_line outside-macro-gates-a-module daemon/mod.rs 'gate! { mod state; }'
+  state_file outside-macro-gates-a-module
+  case_of outside-macro-gates-a-module FAIL
+  fixture outside-macro-with-no-argument
+  add_line outside-macro-with-no-argument lib.rs 'macro_rules! declare_state { () => { #[cfg(test)] mod state; }; }'
+  add_line outside-macro-with-no-argument daemon/mod.rs 'declare_state!();'
+  state_file outside-macro-with-no-argument
+  case_of outside-macro-with-no-argument FAIL
+  fixture cfg-attr-test
+  add_line cfg-attr-test daemon/mod.rs '#[cfg_attr(not(test), cfg(any()))]'
+  add_line cfg-attr-test daemon/mod.rs 'mod state;'
+  state_file cfg-attr-test
+  case_of cfg-attr-test FAIL
+  fixture file-no-mod-line-names
+  printf '%s\n' 'pub fn orphan() {}' >"$work/file-no-mod-line-names/crates/halvo-capture/src/daemon/orphan.rs" || exit 2
+  case_of file-no-mod-line-names FAIL
+  fixture file-named-twice
+  add_line file-named-twice daemon/mod.rs 'pub mod owner;'
+  case_of file-named-twice FAIL
+  fixture product-module-named
+  add_line product-module-named daemon/mod.rs 'mod state;'
+  state_file product-module-named
+  case_of product-module-named PASS
   fixture upper-suffix
   printf '%s\n' '#![allow(dead_code)]' 'fn reach() {}' >"$work/upper-suffix/crates/halvo-capture/src/daemon/evil.RS" || exit 2
   case_of upper-suffix FAIL
@@ -294,6 +437,8 @@ self_test() {
   mkdir -p "$work/linked/outside" || exit 2
   printf '%s\n' '#![allow(dead_code)]' >"$work/linked/outside/linked.txt" || exit 2
   ln -s ../../../../outside/linked.txt "$work/linked/crates/halvo-capture/src/daemon/linked_tests.rs" || exit 2
+  add_line linked daemon/mod.rs '#[cfg(test)]'
+  add_line linked daemon/mod.rs 'mod linked_tests;'
   if [ -L "$work/linked/crates/halvo-capture/src/daemon/linked_tests.rs" ]; then made='link'; else made='copy'; fi
   printf 'case %s/linked: ln -s made a %s\n' "$name" "$made"
   case_of linked FAIL
