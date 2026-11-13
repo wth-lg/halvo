@@ -398,6 +398,129 @@ mod tests {
         }
     }
 
+    #[derive(Debug, Clone, PartialEq)]
+    enum Event {
+        Timeout(Duration),
+        Write(usize),
+        End,
+        Read,
+    }
+
+    #[derive(Clone)]
+    struct Trickle {
+        events: std::sync::Arc<std::sync::Mutex<Vec<Event>>>,
+        pause: Duration,
+    }
+
+    impl Trickle {
+        fn new(pause: Duration) -> Self {
+            Self {
+                events: std::sync::Arc::default(),
+                pause,
+            }
+        }
+
+        fn events(&self) -> Vec<Event> {
+            self.events.lock().unwrap().clone()
+        }
+
+        fn push(&self, event: Event) {
+            self.events.lock().unwrap().push(event);
+        }
+    }
+
+    impl Read for Trickle {
+        fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+            self.push(Event::Read);
+            Ok(0)
+        }
+    }
+
+    impl Write for Trickle {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            std::thread::sleep(self.pause);
+            let n = buf.len().min(1);
+            self.push(Event::Write(n));
+            Ok(n)
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl Transport for Trickle {
+        fn set_timeout(&mut self, timeout: Duration) -> std::io::Result<()> {
+            self.push(Event::Timeout(timeout));
+            Ok(())
+        }
+
+        fn end_request(&mut self) -> std::io::Result<()> {
+            self.push(Event::End);
+            Ok(())
+        }
+    }
+
+    impl Connector for Trickle {
+        type Transport = Trickle;
+
+        fn endpoint(&self) -> String {
+            "trickle".into()
+        }
+
+        fn connect(&self, _: Duration) -> Result<Trickle, ClientError> {
+            Ok(self.clone())
+        }
+    }
+
+    #[test]
+    fn each_write_call_and_the_end_of_the_request_get_the_time_that_is_left() {
+        let trickle = Trickle::new(Duration::ZERO);
+        let client = Client::new(trickle.clone());
+        let _ = client.send(&Request::Pause);
+        let events = trickle.events();
+        let writes = events
+            .iter()
+            .filter(|e| matches!(e, Event::Write(_)))
+            .count();
+        assert_eq!(writes, encode_request(&Request::Pause).len() + 4);
+        let mut last = Duration::MAX;
+        for (at, event) in events.iter().enumerate() {
+            if matches!(event, Event::Write(_) | Event::End | Event::Read) {
+                let Some(Event::Timeout(given)) = at.checked_sub(1).map(|i| events[i].clone())
+                else {
+                    panic!("no timeout before event {at}: {event:?} in {events:?}");
+                };
+                assert!(given <= last, "{given:?} after {last:?}");
+                assert!(given <= Deadlines::V1.pause);
+                last = given;
+            }
+        }
+    }
+
+    #[test]
+    fn a_deadline_that_passes_between_two_writes_ends_the_request_and_reads_no_reply() {
+        let trickle = Trickle::new(Duration::from_millis(5));
+        let mut deadlines = Deadlines::V1;
+        deadlines.pause = Duration::from_millis(60);
+        let client = Client::with_deadlines(trickle.clone(), deadlines);
+        match client.send(&Request::Pause) {
+            Err(ClientError::Deadline { seconds }) => assert_eq!(seconds, 0),
+            other => panic!("{other:?}"),
+        }
+        let events = trickle.events();
+        assert!(!events.contains(&Event::Read), "{events:?}");
+        assert!(!events.contains(&Event::End), "{events:?}");
+        let writes = events
+            .iter()
+            .filter(|e| matches!(e, Event::Write(_)))
+            .count();
+        assert!(
+            writes < encode_request(&Request::Pause).len() + 4,
+            "{writes}"
+        );
+    }
+
     #[test]
     fn the_plain_read_sends_no_claim_and_the_claim_method_sends_one() {
         let (client, connector) = client(ScriptedDaemon::new(sample_status(Platform::Macos)));
