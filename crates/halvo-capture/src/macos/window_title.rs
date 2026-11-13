@@ -1,5 +1,3 @@
-//! Focused-window title via the Accessibility API (`AXUIElement`).
-
 use std::ffi::c_void;
 use std::time::Duration;
 
@@ -24,12 +22,8 @@ const AX_ERROR_SUCCESS: i32 = 0;
 const AX_ERROR_NO_VALUE: i32 = -25212;
 const AX_ERROR_ATTRIBUTE_UNSUPPORTED: i32 = -25205;
 
-/// The most UTF-16 units of a title that one read copies out of the string
-/// that the window's app returns.
 pub const TITLE_READ_CAP_UNITS: usize = 1024;
 
-/// The longest that one Accessibility call waits for the app that owns the
-/// window: one poll interval of the foreground source.
 pub const TITLE_READ_DEADLINE: Duration = Duration::from_millis(400);
 
 /// The UTF-8 length of the bounded read of a title, with each unpaired
@@ -48,22 +42,15 @@ impl TitleLength {
     }
 }
 
-/// Why a title read gave no answer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TitleError {
-    /// The process holds no Accessibility grant.
     NotTrusted,
-    /// An Accessibility call answered with this error code.
     Accessibility { code: i32 },
-    /// The focused-window attribute held a value that is not an element.
     NotAnElement,
-    /// The title attribute held a value that is not a string.
     NotAString,
-    /// The reader panicked; the panic's text is not kept.
     ReaderPanicked,
 }
 
-/// Whether Halvo has the Accessibility grant needed to read window titles.
 pub fn accessibility_trusted() -> bool {
     // SAFETY: parameterless predicate with no side effects; the header
     // declares it as returning Boolean, an unsigned char.
@@ -97,8 +84,7 @@ fn copy_attribute(element: &CFType, attribute: &str) -> Result<Option<CFType>, T
     let key = CFString::new(attribute);
     let mut value: CFTypeRef = std::ptr::null();
     // SAFETY: `element` is a live AXUIElement, checked by its type id above;
-    // `key` outlives the call; on success `value` receives a +1 reference,
-    // taken over by the wrap below.
+    // `key` outlives the call.
     let code = unsafe {
         AXUIElementCopyAttributeValue(
             element.as_CFTypeRef(),
@@ -108,8 +94,7 @@ fn copy_attribute(element: &CFType, attribute: &str) -> Result<Option<CFType>, T
     };
     match code {
         AX_ERROR_SUCCESS if !value.is_null() => {
-            // SAFETY: AX copy APIs follow the Create rule; wrap the +1 reference
-            // as an owned CFType whose Drop releases it.
+            // SAFETY: AX copy APIs follow the Create rule.
             Ok(Some(unsafe { CFType::wrap_under_create_rule(value) }))
         }
         AX_ERROR_SUCCESS | AX_ERROR_NO_VALUE | AX_ERROR_ATTRIBUTE_UNSUPPORTED => Ok(None),
@@ -123,8 +108,7 @@ fn ax_element_type() -> CFTypeID {
 }
 
 fn set_deadline(element: &CFType) {
-    // SAFETY: `element` is a live AXUIElement for the call; the call only
-    // stores the timeout on it.
+    // SAFETY: `element` is a live AXUIElement for the call.
     unsafe {
         AXUIElementSetMessagingTimeout(element.as_CFTypeRef(), TITLE_READ_DEADLINE.as_secs_f32())
     };
@@ -157,7 +141,7 @@ pub fn focused_window_title(pid: libc::pid_t) -> Result<Option<TitleLength>, Tit
     if app_ref.is_null() {
         return Err(TitleError::NotAnElement);
     }
-    // SAFETY: the Create rule gives a +1 reference; own it so Drop releases it.
+    // SAFETY: the Create rule gives a +1 reference.
     let app = unsafe { CFType::wrap_under_create_rule(app_ref) };
     set_deadline(&app);
     let Some(window) = copy_attribute(&app, "AXFocusedWindow")? else {

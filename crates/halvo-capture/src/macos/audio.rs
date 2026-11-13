@@ -1,11 +1,7 @@
-//! System-audio capture source.
-
 use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, SourceState, Started,
 };
 
-/// The system-audio source. It never captures in R1: `begin` answers
-/// [`Started::Off`] and keeps nothing of the context.
 pub struct SystemAudioSource {
     begun: bool,
 }

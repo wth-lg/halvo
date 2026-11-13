@@ -1,4 +1,3 @@
-//! macOS secure-input guard.
 #![deny(clippy::undocumented_unsafe_blocks)]
 
 use crate::macos::secure_input_byte::secure_input_on;
@@ -10,19 +9,16 @@ extern "C" {
     fn DisableSecureEventInput() -> i32;
 }
 
-/// Whether the OS is currently withholding keystrokes from event taps.
 pub fn secure_input_active() -> bool {
     // SAFETY: a parameterless C predicate with no side effects. CarbonEventsCore.h
     // marks it "Not thread safe" (line 3056 of the SDK on this Mac), so no other
     // thread may call it or the hold and release below at the same time. In the
     // product the input source's tap thread is the one thread that calls the
-    // three: it reads this on every event and takes and gives back the hold of
-    // its plan. Tests read it from their own threads, as the hold tests below do.
+    // three.
+    //  Tests read it from their own threads, as the hold tests below do.
     secure_input_on(unsafe { IsSecureEventInputEnabled() })
 }
 
-/// A live hold on secure input, the same state a focused password field asserts.
-/// The hold lasts until this value drops, which releases it.
 #[must_use = "dropping the hold releases secure input immediately"]
 pub struct SecureInputHold {
     #[cfg(test)]
@@ -35,8 +31,6 @@ pub struct SecureInputHold {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SecureInputRefused(pub i32);
 
-/// Hold secure input until the returned [`SecureInputHold`] drops, or the
-/// status with which the system refused the hold.
 pub fn hold_secure_input() -> Result<SecureInputHold, SecureInputRefused> {
     hold_with(enable_secure_event_input, disable_secure_event_input)
 }
@@ -180,7 +174,7 @@ pub(crate) mod test_support {
             // does not allow; tests alone call the three from several threads.
             let system = unsafe { EnableSecureEventInput() };
             if system == 0 {
-                // SAFETY: as above; it balances the hold that the line above took.
+                // SAFETY: as above.
                 unsafe { DisableSecureEventInput() };
                 panic!(
                     "{test}: {maker} reported the status {} although the system accepts a hold",

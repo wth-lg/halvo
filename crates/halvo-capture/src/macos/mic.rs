@@ -1,11 +1,7 @@
-//! Microphone capture source.
-
 use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, SourceState, Started,
 };
 
-/// The microphone source. It never captures in R1: `begin` answers
-/// [`Started::Off`] and keeps nothing of the context.
 pub struct MicrophoneSource {
     begun: bool,
 }

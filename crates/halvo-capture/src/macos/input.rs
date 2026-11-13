@@ -1,5 +1,3 @@
-//! Keystroke and pointer capture via one listen-only `CGEventTap`.
-
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
 use std::sync::mpsc::channel;
@@ -37,7 +35,6 @@ extern "C" {
     fn CGPreflightListenEventAccess() -> bool;
 }
 
-/// The longest that [`InputSource`]'s `shutdown` waits for its tap thread.
 pub const INPUT_STOP_DEADLINE: Duration = Duration::from_secs(1);
 
 const RUN_SLICE: Duration = Duration::from_millis(100);
@@ -91,9 +88,7 @@ impl Drop for PortClearedOnDrop {
     }
 }
 
-/// The input source's figures for the life of the process. The caller makes one
-/// handle and gives a clone of it to each input source that it builds, so that a
-/// total survives a new source; `health` copies it into the counters value.
+/// The input source's figures.
 #[derive(Clone, Default)]
 pub struct InputCounters(Arc<InputFigures>);
 
@@ -132,7 +127,6 @@ impl InputCounters {
         self.0.suppressed_keys.load(Ordering::Relaxed)
     }
 
-    /// Every figure of the handle, as the source's health read gives it.
     pub fn figures(&self) -> SourceCounters {
         let f = &self.0;
         let read = |counter: &AtomicU64| counter.load(Ordering::Relaxed);
@@ -271,10 +265,8 @@ trait TapMaker {
     where
         F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static;
 
-    /// Whether the system says that this process may not listen to input.
     fn listen_denied() -> bool;
 
-    /// Add the tap to the run loop of the calling thread and turn it on.
     fn enable(tap: Self::Tap, port: TapPort) -> Result<Self::Enabled, CaptureError>;
 }
 
@@ -307,7 +299,7 @@ impl TapMaker for SystemTapMaker {
 
         let run_loop = CFRunLoop::get_current();
         // SAFETY: `kCFRunLoopCommonModes` is a constant CFString that
-        // CoreFoundation exports and never writes; reading it has no effect.
+        // CoreFoundation exports and never writes.
         run_loop.add_source(&source, unsafe { kCFRunLoopCommonModes });
         tap.enable();
         Ok((port, source, tap))
@@ -465,7 +457,7 @@ fn timer_at(
 
 fn add_to_this_run_loop(timer: &CFRunLoopTimer) {
     // SAFETY: `kCFRunLoopCommonModes` is a constant CFString that
-    // CoreFoundation exports and never writes; reading it has no effect.
+    // CoreFoundation exports and never writes.
     CFRunLoop::get_current().add_timer(timer, unsafe { kCFRunLoopCommonModes });
 }
 
@@ -619,7 +611,6 @@ impl TapThread {
     }
 }
 
-/// The keystroke + pointer source.
 pub struct InputSource {
     foreground: ForegroundReader,
     counters: InputCounters,
@@ -1151,7 +1142,7 @@ mod tests {
                         std::ptr::null_mut(),
                     );
                     // SAFETY: `kCFRunLoopCommonModes` is a constant CFString that
-                    // CoreFoundation exports and never writes; reading it has no effect.
+                    // CoreFoundation exports and never writes.
                     CFRunLoop::get_current().add_timer(&timer, unsafe { kCFRunLoopCommonModes });
                     Ok((timer, alive_tx))
                 },

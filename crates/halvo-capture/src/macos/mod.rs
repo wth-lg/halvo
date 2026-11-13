@@ -1,4 +1,3 @@
-//! macOS capture backend.
 #![deny(clippy::undocumented_unsafe_blocks)]
 
 pub mod apps;
@@ -22,7 +21,6 @@ use crate::source::{
 };
 use foreground::FOREGROUND_POLL;
 
-/// The bounded sink capacity.
 pub const SINK_CAPACITY: usize = 2048;
 
 pub(crate) fn source_failure(error: CaptureError) -> SourceState {

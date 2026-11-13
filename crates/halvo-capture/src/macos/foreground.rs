@@ -1,5 +1,3 @@
-//! Foreground-app capture via `NSWorkspace`, which also drives window titles.
-
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
@@ -21,17 +19,12 @@ use crate::source::{
     SourceCounters, SourceHealth, SourceState, Started, StopCause,
 };
 
-/// How often the foreground poller samples `NSWorkspace.frontmostApplication`.
 pub const FOREGROUND_POLL: Duration = Duration::from_millis(400);
 
-/// The longest that [`ForegroundSource`]'s `shutdown` waits for its poll thread.
 pub const FOREGROUND_STOP_DEADLINE: Duration = Duration::from_secs(1);
 
-/// How long the poller asks again for the title of an app in front whose last
-/// answer was "no focused window": five poll intervals.
 pub const TITLE_RETRY_WINDOW: Duration = Duration::from_millis(2000);
 
-/// The most bytes of an app identity, cut at a character boundary.
 pub const IDENTITY_CAP_BYTES: usize = 1024;
 
 /// A text of at most [`IDENTITY_CAP_BYTES`] bytes that is not empty.
@@ -76,8 +69,6 @@ impl AppIdentity {
         }
     }
 
-    /// The text that an event carries for the identity: empty for
-    /// [`AppIdentity::Unknown`].
     pub fn text(&self) -> &str {
         match self {
             Self::BundleId(text) | Self::ExecutablePath(text) => text.as_str(),
@@ -86,19 +77,17 @@ impl AppIdentity {
     }
 }
 
-/// The app in front and its process id.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Foreground {
     pub identity: AppIdentity,
     pub pid: libc::pid_t,
 }
 
-/// The write side of the app in front. The process has one: the main-run-loop
-/// helper makes it. Dropping it clears the value.
+/// The write side of the app in front.
+///  Dropping it clears the value.
 #[derive(Debug)]
 pub struct ForegroundWriter(Arc<Mutex<Option<Foreground>>>);
 
-/// A read side of the app in front, one per source that stamps events with it.
 #[derive(Debug, Clone)]
 pub struct ForegroundReader(Arc<Mutex<Option<Foreground>>>);
 
@@ -149,9 +138,6 @@ impl ForegroundReader {
     }
 }
 
-/// Store placement for an event whose payload bytes are not persisted in this
-/// phase: the nil segment id and key id 0, carrying the payload's measured size
-/// where the source knows it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Unpersisted {
     pub byte_len: u64,
@@ -462,8 +448,6 @@ impl Running {
     }
 }
 
-/// The foreground-app source; it also emits one window-title event for each
-/// change of the app in front.
 pub struct ForegroundSource {
     interval: Duration,
     turns: RunLoopTurns,
@@ -475,8 +459,6 @@ pub struct ForegroundSource {
 }
 
 impl ForegroundSource {
-    /// `turns` comes from the main-run-loop helper alone, so the source cannot be
-    /// built by code that does not turn the main run loop.
     pub fn new(interval: Duration, foreground: ForegroundWriter, turns: RunLoopTurns) -> Self {
         Self::with_readers(
             interval,

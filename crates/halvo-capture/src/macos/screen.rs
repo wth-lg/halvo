@@ -1,5 +1,3 @@
-//! Screen capture via ScreenCaptureKit.
-
 use std::marker::PhantomData;
 use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
 use std::sync::{Mutex, PoisonError};
@@ -27,13 +25,10 @@ use crate::source::{
     StopCause,
 };
 
-/// A cap on the screen stream's frame rate. No value of this type allows more
-/// than [`FrameRateCap::MAX_PER_SECOND`] frames a second.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FrameRateCap(i32);
 
 impl FrameRateCap {
-    /// The most frames a second that a cap allows.
     pub const MAX_PER_SECOND: i32 = 2;
 
     const fn per_second(self) -> i32 {
@@ -41,7 +36,6 @@ impl FrameRateCap {
     }
 }
 
-/// The cap on the screen stream's frame rate.
 pub const SCREEN_FRAME_CAP: FrameRateCap = FrameRateCap(FrameRateCap::MAX_PER_SECOND);
 
 const STREAM_QUEUE_DEPTH: NSInteger = 8;
@@ -101,8 +95,6 @@ impl ScreenOutput {
     }
 }
 
-/// Self-exclusion is enforced in each screen stream's content filter, built by
-/// [`filter_excluding_self`]. The macOS secure-input guard delegates here.
 pub fn self_exclusion_enforced_in_filter() -> Result<(), SecureInputError> {
     Ok(())
 }
@@ -168,19 +160,14 @@ fn stream_configuration(
     config
 }
 
-/// The longest that [`ScreenSource`]'s `shutdown` waits for the stream's stop
-/// completion; it stays inside [`SCREEN_STOP_DEADLINE`].
 pub const SCREEN_STOP_WAIT: Duration = Duration::from_secs(5);
 
-/// The deadline of the screen source's `shutdown`.
 pub const SCREEN_STOP_DEADLINE: Duration = Duration::from_secs(6);
 
 const SCREEN_START_WAIT: Duration = Duration::from_secs(5);
 
 const SHAREABLE_CONTENT_WAIT: Duration = Duration::from_secs(10);
 
-/// The stop of a running stream: the reply carries `None` when the stop
-/// completed without error, or the code of the error it reported.
 trait StopStream {
     fn ask_stop(&self, reply: Sender<Option<i64>>);
 }
@@ -195,8 +182,7 @@ impl StopStream for Retained<SCStream> {
             let _ = reply.send(code);
         });
         // SAFETY: the stream is live, and the handler has the completion
-        // signature `void (^)(NSError *)`; it only reads the error's code and
-        // sends it on a channel.
+        // signature `void (^)(NSError *)`.
         unsafe { self.stopCaptureWithCompletionHandler(Some(&handler)) };
     }
 }
@@ -207,9 +193,6 @@ type Opened = (
     DispatchRetained<DispatchQueue>,
 );
 
-/// The screen capture source. Created, started and stopped on one thread: the
-/// type is not `Send`.
-///
 /// ```
 /// fn on_one_thread<T>() {}
 /// on_one_thread::<halvo_capture::macos::screen::ScreenSource>();
@@ -390,8 +373,7 @@ fn open_stream(
         let _ = stx.send(code);
     });
     // SAFETY: `stream` is live, and the handler has the completion signature
-    // `void (^)(NSError *)`; it only reads the error's code and sends it on a
-    // channel.
+    // `void (^)(NSError *)`.
     unsafe { stream.startCaptureWithCompletionHandler(Some(&handler)) };
     match srx.recv_timeout(SCREEN_START_WAIT) {
         Ok(None) => Ok((Box::new(stream), output, queue)),

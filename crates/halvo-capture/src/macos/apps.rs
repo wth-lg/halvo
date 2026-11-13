@@ -1,13 +1,8 @@
-//! Installed-application inventory.
-
 use std::path::{Path, PathBuf};
 
-/// One installed application.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledApp {
-    /// The bundle display name (the `.app` directory name without its suffix).
     pub name: String,
-    /// The absolute path to the `.app` bundle.
     pub path: PathBuf,
     /// The `CFBundleIdentifier` if it could be read from an XML `Info.plist`.
     pub bundle_id: Option<String>,
@@ -35,8 +30,6 @@ fn xml_bundle_id(app_path: &Path) -> Option<String> {
     }
 }
 
-/// List the `.app` bundles directly inside `dir`. A directory that does not exist
-/// contributes nothing.
 pub fn scan_dir(dir: &Path) -> Vec<InstalledApp> {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
