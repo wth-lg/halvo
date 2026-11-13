@@ -166,6 +166,16 @@ EOF
   printf '%s\n' "$wanted" | read_bound "$package" >>"$artifacts/bound.txt"
 }
 
+sum_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{ print $1 }'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 | awk '{ print $1 }'
+  else
+    return 1
+  fi
+}
+
 sim_holds() {
   awk -v cases="$sim_cases" -v want="$want_last" '
     { sub(/\r$/, ""); line[NR] = $0 }
@@ -202,11 +212,11 @@ measure() {
     printf 'tree changed=before\n' >>"$artifacts/tree.txt"
     finish tests
   fi
-  committed=$scratch/committed.jsonl
-  if git -c core.autocrlf=false cat-file blob "HEAD:$sequences" >"$committed" 2>"$artifacts/committed.err"; then
-    have=yes
-  else
-    have=no
+  committed_sum=
+  committed_lines=0
+  if git -c core.autocrlf=false cat-file -e "HEAD:$sequences" 2>"$artifacts/committed.err"; then
+    committed_sum=$(git -c core.autocrlf=false cat-file blob "HEAD:$sequences" | sum_of) || committed_sum=
+    committed_lines=$(git -c core.autocrlf=false cat-file blob "HEAD:$sequences" | grep -c '') || committed_lines=0
   fi
 
   cargo test --locked -p halvo-route -p halvo-route-gate >"$artifacts/cargo-test.txt" 2>&1 </dev/null
@@ -235,15 +245,12 @@ measure() {
     cause=${cause:-sim}
   fi
 
-  lines=0
   same=no
-  if [ "$have" = yes ]; then
-    lines=$(grep -c '' "$committed") || lines=0
-    if [ -f "$fresh" ] && cmp -s "$fresh" "$committed"; then
-      same=yes
-    fi
+  if [ -n "$committed_sum" ] && [ -f "$fresh" ]; then
+    fresh_sum=$(sum_of <"$fresh") || fresh_sum=
+    [ "$fresh_sum" != "$committed_sum" ] || same=yes
   fi
-  printf 'sequences lines=%s same=%s\n' "$lines" "$same"
+  printf 'sequences lines=%s same=%s\n' "$committed_lines" "$same"
   [ "$same" = yes ] || cause=${cause:-sequences}
 
   [ -z "$cause" ] || finish "$cause"
@@ -327,6 +334,11 @@ case $* in
       flags) printf 'h docs/r6/gateway/sequences.jsonl\n' >>"$STUB_TREE/flags" ;;
       head) printf '# branch.oid fedcba9876543210fedcba9876543210fedcba98\n! target/\n' >"$STUB_TREE/status" ;;
       blob) cp "$STUB_CHANGED" "$STUB_COMMITTED" ;;
+      copy)
+        for copy in "${TMPDIR:-/tmp}"/50-r6-spend.*/*; do
+          [ ! -f "$copy" ] || cp "$STUB_CHANGED" "$copy"
+        done
+        ;;
     esac
     exit "$STUB_TEST_EXIT"
     ;;
@@ -375,6 +387,9 @@ case $* in
     ;;
   'ls-files -v')
     cat "$STUB_TREE/flags"
+    ;;
+  '-c core.autocrlf=false cat-file -e HEAD:docs/r6/gateway/sequences.jsonl')
+    [ -f "$STUB_COMMITTED" ] || exit 128
     ;;
   '-c core.autocrlf=false cat-file blob HEAD:docs/r6/gateway/sequences.jsonl')
     [ -f "$STUB_COMMITTED" ] || exit 128
@@ -530,7 +545,7 @@ tests required=3 ok=1' "FAIL $name (tests)"
 
 self_test() {
   enter_repo
-  work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
+  work=$(mktemp -d "${TMPDIR:-/tmp}/$name-self-test.XXXXXX") || exit 2
   mkdir -p "$work/bin" "$work/repo" "$work/artifacts" "$work/tree" "$work/stub" || exit 2
   git -c core.autocrlf=false cat-file blob "HEAD:$sequences" >"$work/committed.jsonl" || exit 2
   [ -s "$work/committed.jsonl" ] || exit 2
@@ -610,6 +625,9 @@ PASS $name"
   check tests-set-an-index-flag FAIL "FAIL $name (tests)"
   STUB_CHANGE='head'
   check tests-move-head FAIL "FAIL $name (tests)"
+  STUB_FRESH=$work/one-answer.jsonl
+  STUB_CHANGE=copy
+  check tests-rewrite-the-checks-own-copy FAIL "sequences lines=$committed_lines same=no" "FAIL $name (sequences)"
   cp "$work/committed.jsonl" "$work/blob.jsonl" || exit 2
   STUB_COMMITTED=$work/blob.jsonl
   STUB_CHANGE=blob
