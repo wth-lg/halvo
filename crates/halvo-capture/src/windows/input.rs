@@ -1108,7 +1108,7 @@ mod tests {
             let gate = clear_gate();
             assert!(!latch_on_button_down(
                 &gate,
-                &mouse_record(flags as u16, 40),
+                &mouse_record(flags as u16, 0x155),
                 1_000
             ));
             let key = gate.hold(1_010, false);
