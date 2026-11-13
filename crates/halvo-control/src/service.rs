@@ -182,14 +182,54 @@ pub fn login_item_state(
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(LoginItemState::Absent),
         Err(e) => return Err(e),
     };
-    if !is_the_plist_of(&meta, user::EffectiveUser::current()) {
+    let owner = user::EffectiveUser::current();
+    if !is_the_plist_of(&meta, owner) {
         return Ok(LoginItemState::Stale);
     }
-    if std::fs::read(&path)? == spec.plist().as_bytes() {
+    let Some(mut file) = open_the_entry_that_was_read(&path, &meta)? else {
+        return Ok(LoginItemState::Stale);
+    };
+    if !is_the_plist_of(&file.metadata()?, owner) {
+        return Ok(LoginItemState::Stale);
+    }
+    let mut bytes = Vec::new();
+    std::io::Read::read_to_end(&mut file, &mut bytes)?;
+    if bytes == spec.plist().as_bytes() {
         Ok(LoginItemState::Current)
     } else {
         Ok(LoginItemState::Stale)
     }
+}
+
+/// Opens `path` without following a link and without waiting (`O_NOFOLLOW`, `O_NONBLOCK`), and
+/// gives the handle only when it is the entry that `seen` describes; `None` when another entry
+/// stands there now, such as a FIFO, a socket or a link put in its place after the look.
+#[cfg(target_os = "macos")]
+fn open_the_entry_that_was_read(
+    path: &std::path::Path,
+    seen: &std::fs::Metadata,
+) -> std::io::Result<Option<std::fs::File>> {
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+
+    let file = match std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+        .open(path)
+    {
+        Ok(file) => file,
+        Err(e)
+            if e.kind() == std::io::ErrorKind::NotFound
+                || matches!(
+                    e.raw_os_error(),
+                    Some(libc::ELOOP | libc::ENXIO | libc::EOPNOTSUPP)
+                ) =>
+        {
+            return Ok(None)
+        }
+        Err(e) => return Err(e),
+    };
+    let now = file.metadata()?;
+    Ok((now.dev() == seen.dev() && now.ino() == seen.ino()).then_some(file))
 }
 
 #[cfg(target_os = "macos")]
@@ -315,7 +355,11 @@ fn replace_with_temp(
     file.write_all(bytes)?;
     file.sync_all()?;
     std::fs::rename(temp, path)?;
-    std::fs::File::open(dir)?.sync_all()
+    std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NONBLOCK)
+        .open(dir)?
+        .sync_all()
 }
 
 /// What a remove of the login item did: its file's outcome, and the error of the sweep of
@@ -773,6 +817,34 @@ mod login_item_tests {
 
     fn mode(path: &Path) -> u32 {
         std::fs::metadata(path).unwrap().mode() & 0o7777
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_fifo_or_a_socket_at_the_login_item_path_reads_stale_at_once() {
+        use crate::instance_lock::planted;
+
+        for kind in ["a FIFO", "a socket"] {
+            let home = tempfile::Builder::new().prefix("li").tempdir().unwrap();
+            let dir = agents(home.path());
+            std::fs::create_dir_all(dir.path()).unwrap();
+            let spec = login_item();
+            let path = login_item_path(&spec, &dir);
+            let _listener = if kind == "a FIFO" {
+                planted::mkfifo(&path);
+                None
+            } else {
+                Some(std::os::unix::net::UnixListener::bind(&path).unwrap())
+            };
+            let answer = planted::answer_within(&path, &path, move |_| {
+                login_item_state(&spec, &dir).map_err(|e| e.kind())
+            });
+            assert_eq!(
+                answer,
+                Some(Ok(LoginItemState::Stale)),
+                "{kind} at the login item's path"
+            );
+        }
     }
 
     #[test]

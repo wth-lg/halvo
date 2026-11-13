@@ -68,7 +68,10 @@ descriptor or a handle from a reply.
   channel. ctl then prints "the data directory is in use and no connection could be made at
   <socket path>; capture may be running" with exit 1 while the lock is held, and never
   "capture service not running" then. The ways left are a signal to the daemon and the
-  app's end of a child that does not answer.
+  app's end of a child that does not answer. An entry planted at the data directory's
+  path that is no directory (a FIFO, a file, a socket or a link to one) makes the read and
+  the take of the lock an error at once, which ctl prints with exit 1 and never as not
+  running.
 - Run the offline delete, `halvo-capture --delete-all`.
 - Answer as a false server on the socket path before the daemon binds it. The app's
   guard against that is the pid of the child it started; `ctl` has none. Exit 0 of

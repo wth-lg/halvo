@@ -41,9 +41,15 @@ fn flock(file: &std::fs::File, operation: libc::c_int) -> std::io::Result<bool> 
     }
 }
 
-/// Opens the directory; std opens every descriptor with close-on-exec.
+/// Opens the directory with `O_DIRECTORY` and `O_NONBLOCK`, so that anything at `dir` that is
+/// no directory (a FIFO, a file, a socket, a link to one of them) is an error at once and the
+/// open never waits; std adds close-on-exec.
 fn open(dir: &Path) -> std::io::Result<std::fs::File> {
-    std::fs::File::open(dir)
+    use std::os::unix::fs::OpenOptionsExt;
+    std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NONBLOCK)
+        .open(dir)
 }
 
 impl InstanceLock {
