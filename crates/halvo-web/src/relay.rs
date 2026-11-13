@@ -1,5 +1,5 @@
 use std::collections::{BTreeSet, HashMap};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -31,7 +31,10 @@ pub type HostPort = (String, u16);
 /// tunnel; a tunnel to a host and port outside the list is refused at the SOCKS5 request, before
 /// any byte leaves and before any lookup, and the refusal is recorded by host and port. A listed
 /// host is then looked up by `Names`: `Names::Fixture` takes a name under `.test` alone, to
-/// 127.0.0.1, and `Names::System` asks the system. A peer that is not at 127.0.0.1, or not one
+/// 127.0.0.1, and `Names::System` asks the system and refuses the tunnel whole, with the SOCKS5
+/// reply 2 and a record of its own by host, port and class, when one address of the answer is of
+/// a refused class (`class_of`, CP-176 A3), unless the entry is a bound loopback literal
+/// (`Entry::BoundLoopback`). A peer that is not at 127.0.0.1, or not one
 /// process of the browser's tree (`peer::check_peer`), is refused unread and recorded apart. The
 /// bytes of a tunnel pass both ways unread. A host that leaves the list has its open tunnels
 /// closed. When the process ends, the system closes the relay's sockets with it.
@@ -53,7 +56,11 @@ struct Shared {
     listener: Mutex<Option<ListenerRaw>>,
     list: Mutex<List>,
     names: Names,
+    /// The entries that `Entry::BoundLoopback` marked.
+    bound: Mutex<BTreeSet<HostPort>>,
     refusals: Mutex<Vec<HostPort>>,
+    /// The tunnels refused for the class of their answer, by host, port and class (CP-176 A3 (d)).
+    class_refusals: Mutex<Vec<(HostPort, Class)>>,
     open: Mutex<HashMap<u64, Open>>,
     closed: Mutex<Vec<HostPort>>,
     next: AtomicU64,
@@ -216,7 +223,9 @@ pub enum Names {
     #[default]
     System,
     /// The fixture's names of the probe and the tests: a name under `.test` goes to 127.0.0.1 and
-    /// every other name nowhere.
+    /// every other name nowhere. It is outside the class rule of CP-176 A3 by its construction: it
+    /// asks the system nothing and reaches no address but 127.0.0.1. Only the probe, the tests and
+    /// the gate's stand-in start a relay with it; nothing in the crate enforces that yet.
     Fixture,
 }
 
@@ -243,13 +252,148 @@ impl Default for List {
     }
 }
 
-async fn look_up(names: Names, host: &str, port: u16) -> Option<SocketAddr> {
+/// How the caller adds an entry to the list (CP-176 A3 (c)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Entry {
+    /// An entry whose answer the class rule reads.
+    Listed,
+    /// An entry that the caller marks as bound by the person's own word (A6.6): when its host is
+    /// an IPv4 literal of 127.0.0.0/8 it is dialled as listed, with no lookup and no class rule.
+    /// On any other host the mark is not kept and the entry is `Listed`.
+    BoundLoopback,
+}
+
+/// The classes of address that the relay never dials under `Names::System` (CP-176 A3 (b)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Class {
+    /// 127.0.0.0/8, ::1.
+    Loopback,
+    /// 169.254.0.0/16, fe80::/10.
+    LinkLocal,
+    /// 0.0.0.0/8, ::.
+    Unspecified,
+    /// 224.0.0.0/4, ff00::/8 and the broadcast 255.255.255.255.
+    Multicast,
+    /// 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10 and fc00::/7: refused until the
+    /// owner answers whether an agent may work on a site inside the person's own network
+    /// (CP-176 A3 (f)); a class of its own so that the answer changes one arm.
+    Private,
+}
+
+impl Class {
+    pub fn name(self) -> &'static str {
+        match self {
+            Class::Loopback => "loopback",
+            Class::LinkLocal => "link_local",
+            Class::Unspecified => "unspecified",
+            Class::Multicast => "multicast",
+            Class::Private => "private",
+        }
+    }
+}
+
+/// The IPv4 address inside an IPv6 one, mapped (`::ffff:a.b.c.d`) or compatible
+/// (`::a.b.c.d`, other than `::` and `::1`), which the class rule reads as IPv4.
+fn inner_v4(a: Ipv6Addr) -> Option<Ipv4Addr> {
+    if let Some(v4) = a.to_ipv4_mapped() {
+        return Some(v4);
+    }
+    let s = a.segments();
+    (s[..6] == [0; 6] && !a.is_unspecified() && a != Ipv6Addr::LOCALHOST)
+        .then(|| Ipv4Addr::new((s[6] >> 8) as u8, s[6] as u8, (s[7] >> 8) as u8, s[7] as u8))
+}
+
+/// The refused class of `ip`, read in its plain form, an IPv4 address inside an IPv6 one taken out
+/// and read as IPv4; `None` for an address that the relay may dial. 198.18.0.0/15 is not refused.
+pub fn class_of(ip: IpAddr) -> Option<Class> {
+    let ip = match ip {
+        IpAddr::V6(v6) => inner_v4(v6).map_or(IpAddr::V6(v6), IpAddr::V4),
+        v4 => v4,
+    };
+    match ip {
+        IpAddr::V4(a) => {
+            let [o0, o1, _, _] = a.octets();
+            if o0 == 127 {
+                Some(Class::Loopback)
+            } else if o0 == 169 && o1 == 254 {
+                Some(Class::LinkLocal)
+            } else if o0 == 0 {
+                Some(Class::Unspecified)
+            } else if (224..=239).contains(&o0) || a == Ipv4Addr::BROADCAST {
+                Some(Class::Multicast)
+            } else if o0 == 10
+                || (o0 == 172 && (16..=31).contains(&o1))
+                || (o0 == 192 && o1 == 168)
+                || (o0 == 100 && (64..=127).contains(&o1))
+            {
+                Some(Class::Private)
+            } else {
+                None
+            }
+        }
+        IpAddr::V6(a) => {
+            let s0 = a.segments()[0];
+            if a == Ipv6Addr::LOCALHOST {
+                Some(Class::Loopback)
+            } else if a.is_unspecified() {
+                Some(Class::Unspecified)
+            } else if s0 & 0xffc0 == 0xfe80 {
+                Some(Class::LinkLocal)
+            } else if s0 & 0xff00 == 0xff00 {
+                Some(Class::Multicast)
+            } else if s0 & 0xfe00 == 0xfc00 {
+                Some(Class::Private)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+/// What the lookup of a listed host gives the tunnel.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Dial {
+    To(SocketAddr),
+    Unknown,
+    Refused(Class),
+}
+
+/// The address that a tunnel dials of the answer `addrs` (CP-176 A3 (a)): refused whole when one
+/// of its addresses is of a refused class; otherwise the first, the very address that was read.
+fn answer(addrs: &[SocketAddr]) -> Dial {
+    if let Some(c) = addrs.iter().find_map(|a| class_of(a.ip())) {
+        return Dial::Refused(c);
+    }
+    addrs.first().map_or(Dial::Unknown, |a| Dial::To(*a))
+}
+
+/// The host of an entry that `Entry::BoundLoopback` may mark: an IPv4 literal of 127.0.0.0/8.
+fn bound_loopback(host: &str) -> Option<Ipv4Addr> {
+    host.parse::<Ipv4Addr>().ok().filter(|a| a.is_loopback())
+}
+
+/// Looks up a listed host. `Names::Fixture` sends a name under `.test` to 127.0.0.1 and is outside
+/// the class rule by its construction: it never asks the system and never reaches another
+/// address. `Names::System` dials a `bound` loopback literal as listed and reads the class of
+/// every other answer (`answer`), at every tunnel and in every state of the list.
+async fn look_up(names: Names, host: &str, port: u16, bound: bool) -> Dial {
     match names {
-        Names::Fixture => host
-            .to_ascii_lowercase()
-            .ends_with(".test")
-            .then_some(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port)),
-        Names::System => tokio::net::lookup_host((host, port)).await.ok()?.next(),
+        Names::Fixture => {
+            if host.to_ascii_lowercase().ends_with(".test") {
+                Dial::To(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port))
+            } else {
+                Dial::Unknown
+            }
+        }
+        Names::System => {
+            if let Some(a) = bound.then(|| bound_loopback(host)).flatten() {
+                return Dial::To(SocketAddr::new(IpAddr::V4(a), port));
+            }
+            match tokio::net::lookup_host((host, port)).await {
+                Ok(addrs) => answer(&addrs.collect::<Vec<_>>()),
+                Err(_) => Dial::Unknown,
+            }
+        }
     }
 }
 
@@ -450,21 +594,40 @@ impl RelayHandle {
     }
 
     /// Sets the list to exactly `list`. Every open tunnel to a host and port that the new list
-    /// does not hold is closed.
+    /// does not hold is closed. The marks of `Entry::BoundLoopback` are cleared: a list given whole
+    /// carries no mark.
     pub fn set_list(&self, list: List) {
         if let Ok(mut l) = self.shared.list.lock() {
             *l = list.clone();
+            if let Ok(mut b) = self.shared.bound.lock() {
+                b.clear();
+            }
         }
         self.close_outside(&list);
     }
 
-    /// Adds one host and port to the list; a list of every host stays one.
-    pub fn allow(&self, host: &str, port: u16) {
+    /// Adds one host and port to the list, marked as `entry` says; a list of every host stays one.
+    pub fn allow(&self, host: &str, port: u16, entry: Entry) {
         if let Ok(mut l) = self.shared.list.lock() {
             if let List::Hosts(set) = &mut *l {
                 set.insert(key(host, port));
             }
+            if entry == Entry::BoundLoopback && bound_loopback(host).is_some() {
+                if let Ok(mut b) = self.shared.bound.lock() {
+                    b.insert(key(host, port));
+                }
+            }
         }
+    }
+
+    /// The tunnels refused for the class of their answer under `Names::System`, in order, by host,
+    /// port and class, never with the address (CP-176 A3 (d)); apart from `refusals`.
+    pub fn class_refusals(&self) -> Vec<(HostPort, Class)> {
+        self.shared
+            .class_refusals
+            .lock()
+            .map(|r| r.clone())
+            .unwrap_or_default()
     }
 
     /// Takes one host and port out of the list and closes its open tunnels; a list of every host
@@ -477,6 +640,9 @@ impl RelayHandle {
                 }
                 if let List::Hosts(set) = &mut *l {
                     set.remove(&key(host, port));
+                }
+                if let Ok(mut b) = self.shared.bound.lock() {
+                    b.remove(&key(host, port));
                 }
                 l.clone()
             }
@@ -659,9 +825,18 @@ async fn tunnel(mut socket: TcpStream, shared: Arc<Shared>) -> std::io::Result<(
         refuse(&mut socket, &shared, hp, 2).await;
         return Ok(());
     }
-    let Some(address) = look_up(shared.names, &host, port).await else {
-        socket.write_all(&[5, 4, 0, 1, 0, 0, 0, 0, 0, 0]).await?;
-        return Ok(());
+    let bound = shared.bound.lock().is_ok_and(|b| b.contains(&hp));
+    let address = match look_up(shared.names, &host, port, bound).await {
+        Dial::To(a) => a,
+        Dial::Unknown => {
+            socket.write_all(&[5, 4, 0, 1, 0, 0, 0, 0, 0, 0]).await?;
+            return Ok(());
+        }
+        Dial::Refused(class) => {
+            keep(&shared.class_refusals, (hp, class), &shared.unkept);
+            socket.write_all(&[5, 2, 0, 1, 0, 0, 0, 0, 0, 0]).await?;
+            return Ok(());
+        }
     };
     let mut upstream = match TcpStream::connect(address).await {
         Ok(s) => s,
@@ -730,6 +905,122 @@ mod tests {
 
     fn hosts(entries: Vec<(&str, u16)>) -> List {
         List::Hosts(entries.into_iter().map(|(h, p)| key(h, p)).collect())
+    }
+
+    /// CP-176 A3 (b): each line of the closed list of refused classes, with the addresses at its
+    /// edges and the ones just outside them.
+    #[test]
+    fn a3_each_class_of_the_closed_list_and_its_edges() {
+        use Class::*;
+        let cases: &[(&str, Option<Class>)] = &[
+            ("127.0.0.1", Some(Loopback)),
+            ("127.255.255.255", Some(Loopback)),
+            ("::1", Some(Loopback)),
+            ("169.254.0.1", Some(LinkLocal)),
+            ("169.255.0.1", None),
+            ("fe80::1", Some(LinkLocal)),
+            ("febf::1", Some(LinkLocal)),
+            ("fec0::1", None),
+            ("0.0.0.0", Some(Unspecified)),
+            ("0.255.255.255", Some(Unspecified)),
+            ("::", Some(Unspecified)),
+            ("224.0.0.1", Some(Multicast)),
+            ("239.255.255.255", Some(Multicast)),
+            ("240.0.0.1", None),
+            ("255.255.255.255", Some(Multicast)),
+            ("ff02::1", Some(Multicast)),
+            ("10.0.0.1", Some(Private)),
+            ("172.15.255.255", None),
+            ("172.16.0.0", Some(Private)),
+            ("172.31.255.255", Some(Private)),
+            ("172.32.0.0", None),
+            ("192.168.1.1", Some(Private)),
+            ("192.169.0.1", None),
+            ("100.63.255.255", None),
+            ("100.64.0.0", Some(Private)),
+            ("100.127.255.255", Some(Private)),
+            ("100.128.0.0", None),
+            ("fc00::1", Some(Private)),
+            ("fdff::1", Some(Private)),
+            ("fe00::1", None),
+            ("198.18.0.1", None),
+            ("198.19.255.255", None),
+            ("8.8.8.8", None),
+            ("2001:db8::1", None),
+            ("::ffff:127.0.0.1", Some(Loopback)),
+            ("::ffff:10.0.0.1", Some(Private)),
+            ("::ffff:8.8.8.8", None),
+            ("::127.0.0.1", Some(Loopback)),
+        ];
+        for (text, want) in cases {
+            let ip: IpAddr = text.parse().unwrap();
+            assert_eq!(class_of(ip), *want, "{text}");
+        }
+    }
+
+    /// CP-176 A3 (a): one address of a refused class refuses the answer whole; otherwise the
+    /// first address is dialled.
+    #[test]
+    fn a3_an_answer_with_one_loopback_address_is_refused_whole() {
+        let public = SocketAddr::from(([192, 0, 2, 1], 80));
+        let other = SocketAddr::from(([192, 0, 2, 2], 80));
+        let lo = SocketAddr::from(([127, 0, 0, 1], 80));
+        assert_eq!(answer(&[public, lo]), Dial::Refused(Class::Loopback));
+        assert_eq!(answer(&[lo, public]), Dial::Refused(Class::Loopback));
+        assert_eq!(answer(&[public, other]), Dial::To(public));
+        assert_eq!(answer(&[]), Dial::Unknown);
+    }
+
+    /// CP-176 A3 (e): under `Names::System` a listed `localhost` and the literals 127.0.0.1, ::1
+    /// and ::ffff:127.0.0.1, listed without the mark, are refused with the reply 2 and recorded by
+    /// host, port and class apart from the list's refusals, also with a list of every host; the
+    /// test's own listener on 127.0.0.1 gets no connection.
+    #[tokio::test]
+    async fn a3_a_loopback_answer_is_refused_with_reply_2_and_recorded_apart() {
+        let (echo, accepted) = echo_server().await;
+        let relay = Relay::start(Names::System).await.unwrap();
+        let h = relay.handle();
+        h.trust(Some(me()));
+        let hosts_tried = ["localhost", "127.0.0.1", "::1", "::ffff:127.0.0.1"];
+        for host in hosts_tried {
+            h.allow(host, echo, Entry::Listed);
+            let (_, code) = connect_via(relay.port, host, echo).await;
+            assert_eq!(code, 2, "{host}");
+        }
+        h.set_list(List::Every);
+        let (_, code) = connect_via(relay.port, "localhost", echo).await;
+        assert_eq!(code, 2, "localhost with a list of every host");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(
+            accepted.load(Ordering::SeqCst),
+            0,
+            "the listener got a connection"
+        );
+        let got = h.class_refusals();
+        assert_eq!(got.len(), 5, "{got:?}");
+        for (host, ((h_, p), class)) in hosts_tried.iter().chain(["localhost"].iter()).zip(&got) {
+            assert_eq!((h_.as_str(), *p, *class), (*host, echo, Class::Loopback));
+        }
+        assert!(h.refusals().is_empty(), "{:?}", h.refusals());
+    }
+
+    /// CP-176 A3 (c): an entry marked bound whose host is an IPv4 literal of 127.0.0.0/8 is
+    /// dialled as listed; the mark on a name is not kept, and that name is refused by its class.
+    #[tokio::test]
+    async fn a3_a_bound_loopback_literal_is_dialled() {
+        let (echo, accepted) = echo_server().await;
+        let relay = Relay::start(Names::System).await.unwrap();
+        let h = relay.handle();
+        h.trust(Some(me()));
+        h.allow("127.0.0.1", echo, Entry::BoundLoopback);
+        let (_c, code) = connect_via(relay.port, "127.0.0.1", echo).await;
+        assert_eq!(code, 0);
+        h.allow("localhost", echo, Entry::BoundLoopback);
+        let (_, code) = connect_via(relay.port, "localhost", echo).await;
+        assert_eq!(code, 2);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(accepted.load(Ordering::SeqCst), 1);
+        assert_eq!(h.class_refusals().len(), 1);
     }
 
     /// CP-176 A4 (b): `start_guard` starts no guard for an executor with no creation time; with
@@ -944,7 +1235,7 @@ mod tests {
         assert!(relay.handle().refusals().is_empty());
         assert_eq!(accepted.load(Ordering::SeqCst), 0);
         relay.handle().trust(Some(me()));
-        relay.handle().allow("utility.a.test", echo);
+        relay.handle().allow("utility.a.test", echo, Entry::Listed);
         let (_c, code) = connect_via(relay.port, "utility.a.test", echo).await;
         assert_eq!(code, 0);
         assert_eq!(relay.handle().foreign_count(), 2);
@@ -1274,7 +1565,7 @@ mod tests {
         assert_eq!(code, 2);
         assert_eq!(h.refusals(), vec![("echo.agent.test".to_string(), echo)]);
         assert_eq!(accepted.load(Ordering::SeqCst), 0);
-        h.allow("ECHO.agent.test", echo);
+        h.allow("ECHO.agent.test", echo, Entry::Listed);
         let (mut c, code) = connect_via(relay.port, "echo.agent.test", echo).await;
         assert_eq!(code, 0);
         c.write_all(b"hello").await.unwrap();
@@ -1283,7 +1574,7 @@ mod tests {
         assert_eq!(&back, b"hello");
         assert_eq!(relay.tunnels(), 1);
         h.set_list(List::Every);
-        h.allow("x.agent.test", 1);
+        h.allow("x.agent.test", 1, Entry::Listed);
         assert_eq!(h.list(), List::Every);
         let (_, code) = connect_via(relay.port, "example.com", 80).await;
         assert_eq!(code, 4);
@@ -1393,7 +1684,7 @@ mod review_tunnel_race {
         let mut escaped = 0;
         let mut kept = Vec::new();
         for _ in 0..30 {
-            h.allow(host, echo_port);
+            h.allow(host, echo_port, Entry::Listed);
             let before = h.tunnels();
             let watcher = {
                 let h = h.clone();
@@ -1490,7 +1781,7 @@ mod review_peer_address {
                 .find(|q| q.pid == sleeper.pid())
                 .unwrap();
             relay.handle().trust(Some(root));
-            relay.handle().allow("utility.a.test", 9);
+            relay.handle().allow("utility.a.test", 9, Entry::Listed);
             let before = relay.handle().foreign_count();
             // B: this process, outside the trusted tree, connects from <other>:P.
             let made = {

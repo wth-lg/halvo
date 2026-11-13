@@ -551,8 +551,8 @@ async fn probe(args: Args) -> usize {
         }
     };
     let handle = relay.handle();
-    handle.allow(UTILITY, args.port);
-    handle.allow(PAY, args.port);
+    handle.allow(UTILITY, args.port, halvo_web::relay::Entry::Listed);
+    handle.allow(PAY, args.port, halvo_web::relay::Entry::Listed);
     let mut ok = 0;
     for name in STEPS {
         let result = one(&args.browser, args.headless, &handle, &ctx, name).await;

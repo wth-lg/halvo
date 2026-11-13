@@ -152,7 +152,9 @@ async fn crash_reading_at(
     let relay = Relay::start_at(Names::Fixture, relay_port)
         .await
         .map_err(|_| "relay".to_string())?;
-    relay.handle().allow("utility.agent.test", port);
+    relay
+        .handle()
+        .allow("utility.agent.test", port, halvo_web::relay::Entry::Listed);
     let opts = options_with(browser, profile, &relay, means).ok_or("guard")?;
     let mut ex = Executor::start(&opts)
         .await
@@ -274,7 +276,9 @@ async fn checks_row(argv: &[String]) -> (usize, usize) {
     let Ok(relay) = Relay::start(Names::Fixture).await else {
         return (0, 1);
     };
-    relay.handle().allow("utility.agent.test", port);
+    relay
+        .handle()
+        .allow("utility.agent.test", port, halvo_web::relay::Entry::Listed);
     let profile = dir.join("p");
     let Some(opts) = options(&browser, profile.clone(), &relay) else {
         return (0, 1);
@@ -429,8 +433,12 @@ async fn block_frame_post(argv: &[String]) -> (usize, usize) {
     let Ok(relay) = Relay::start(Names::Fixture).await else {
         return (0, 1);
     };
-    relay.handle().allow("utility.agent.test", port);
-    relay.handle().allow("pay.agent.test", port);
+    relay
+        .handle()
+        .allow("utility.agent.test", port, halvo_web::relay::Entry::Listed);
+    relay
+        .handle()
+        .allow("pay.agent.test", port, halvo_web::relay::Entry::Listed);
     let Some(opts) = options(&browser, dir.join("p"), &relay) else {
         return (0, 1);
     };
@@ -894,7 +902,11 @@ async fn relay_foreign(argv: &[String]) -> (usize, usize) {
     };
     let echo_port = echo.local_addr().map(|a| a.port()).unwrap_or(0);
     echo.set_nonblocking(true).ok();
-    relay.handle().allow("utility.agent.test", echo_port);
+    relay.handle().allow(
+        "utility.agent.test",
+        echo_port,
+        halvo_web::relay::Entry::Listed,
+    );
     let Some(opts) = options(Path::new(&browser), dir.join("p"), &relay) else {
         return (0, 1);
     };
