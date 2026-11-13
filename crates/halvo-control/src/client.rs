@@ -484,6 +484,7 @@ mod tests {
     enum Event {
         Timeout(Duration),
         Write(usize),
+        Flush,
         End,
         Read,
     }
@@ -527,6 +528,7 @@ mod tests {
         }
 
         fn flush(&mut self) -> std::io::Result<()> {
+            self.push(Event::Flush);
             Ok(())
         }
     }
@@ -568,7 +570,10 @@ mod tests {
         assert_eq!(writes, encode_request(&Request::Pause).len() + 4);
         let mut last = Duration::MAX;
         for (at, event) in events.iter().enumerate() {
-            if matches!(event, Event::Write(_) | Event::End | Event::Read) {
+            if matches!(
+                event,
+                Event::Write(_) | Event::Flush | Event::End | Event::Read
+            ) {
                 let Some(Event::Timeout(given)) = at.checked_sub(1).map(|i| events[i].clone())
                 else {
                     panic!("no timeout before event {at}: {event:?} in {events:?}");
