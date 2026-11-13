@@ -51,17 +51,31 @@ fn forms(marker: &str) -> [Vec<u8>; 3] {
     ]
 }
 
-/// The files of the store under `scratch`, of the database, its write-ahead log and its shared-memory file, whose
-/// bytes hold `marker` in one of its forms.
-fn holding(scratch: &Scratch, marker: &str) -> Vec<&'static str> {
+/// The names of the entries of `derived/` under `scratch` whose bytes hold `marker` in one of its forms, in the order
+/// of their names. It lists the directory and reads every entry of it, the database, its write-ahead log, its
+/// shared-memory file and any file that a later store makes there, with no list of names of its own; an empty file
+/// holds nothing and is not read. An entry that is no regular file, or that cannot be read, fails the test with its
+/// name. Its limit: a marker that crosses the end of a page is not found whole, which is why every test first asserts
+/// that each of its markers is found while its row is stored.
+fn holding(scratch: &Scratch, marker: &str) -> Vec<String> {
     let dir = scratch.path().join("derived");
+    let mut entries: Vec<std::fs::DirEntry> = std::fs::read_dir(&dir)
+        .unwrap_or_else(|e| panic!("derived/ cannot be listed: {e}"))
+        .map(|entry| entry.unwrap_or_else(|e| panic!("an entry of derived/ cannot be read: {e}")))
+        .collect();
+    entries.sort_by_key(|entry| entry.file_name());
     let mut found = Vec::new();
-    for name in ["derived.db", "derived.db-wal", "derived.db-shm"] {
-        let bytes = match std::fs::read(dir.join(name)) {
-            Ok(bytes) => bytes,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(e) => panic!("{name} cannot be read: {e}"),
-        };
+    for entry in entries {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let metadata = entry
+            .metadata()
+            .unwrap_or_else(|e| panic!("{name} cannot be read: {e}"));
+        assert!(metadata.is_file(), "{name} is no regular file");
+        if metadata.len() == 0 {
+            continue;
+        }
+        let bytes =
+            std::fs::read(entry.path()).unwrap_or_else(|e| panic!("{name} cannot be read: {e}"));
         let held = forms(marker)
             .iter()
             .any(|form| bytes.windows(form.len()).any(|w| w == form.as_slice()));
@@ -88,12 +102,14 @@ const SCRUB_DELETE: &str = "qzscrubd5503";
 const SCRUB_OWN: &str = "qzscrubo5504";
 const SCRUB_BELOW: &str = "qzscrubb5505";
 
-/// privacy_scrub: in the keyless test build, which keeps every setting of the product and leaves the key out, a
-/// marker that the test planted in a row that an expiry, a purge, a purge below the first live ordinal or the delete
-/// of a workflow removes is in no byte of
-/// the database, its write-ahead log or its shared-memory file after them, while every marker stood in those files
-/// before them. The rows are an evidence row past its expiry, an evidence row whose segment is purged, the evidence of
-/// a deleted workflow's summaries and a row of a kind of origin own that names it.
+/// privacy_scrub: in the keyless test build, which keeps every setting of the product and leaves the key out, the test
+/// plants a marker in each of five rows: an evidence row past its expiry, an evidence row whose segment is purged, the
+/// evidence of a deleted workflow's two summaries, a row of a kind of origin own that names that workflow, and an
+/// evidence row below the first live ordinal. Every marker is found in the files while its row is stored. Right after
+/// each of the four removals (the expiry, the purge, the delete of the workflow, the purge below the first live
+/// ordinal), before the next one runs, the marker of each row that the removal took is in no entry of `derived/`, and
+/// every marker whose row is still stored is still found there; after the last removal and after the store is closed
+/// no marker is in any entry.
 #[test]
 fn privacy_scrub() {
     let scratch = Scratch::new("privacy-scrub");
@@ -150,13 +166,32 @@ fn privacy_scrub() {
             "the search finds {marker} while its row is stored"
         );
     }
+    let after = |removal: &str, gone: &[&str]| {
+        for marker in markers {
+            let found = holding(&scratch, marker);
+            if gone.contains(&marker) {
+                assert_eq!(
+                    found,
+                    Vec::<&str>::new(),
+                    "right after {removal}, the entries that hold {marker}, whose row is removed"
+                );
+            } else {
+                assert!(
+                    !found.is_empty(),
+                    "right after {removal}, the search finds {marker}, whose row is stored"
+                );
+            }
+        }
+    };
     clock.set_day(DAY + 2);
     assert_eq!(store.expire().unwrap(), 1, "the expiry removes one row");
+    after("the expiry", &[SCRUB_EXPIRY]);
     assert_eq!(
         store.purge(&[ord(2)]).unwrap(),
         1,
         "the purge removes one row"
     );
+    after("the purge", &[SCRUB_EXPIRY, SCRUB_PURGE]);
     store
         .decide(&InterfaceDecision::delete(
             &InterfaceRole::claim(),
@@ -164,18 +199,16 @@ fn privacy_scrub() {
             workflow,
         ))
         .unwrap();
+    after(
+        "the delete of the workflow",
+        &[SCRUB_EXPIRY, SCRUB_PURGE, SCRUB_DELETE, SCRUB_OWN],
+    );
     assert_eq!(
         store.purge_below(ord(6)).unwrap(),
         1,
         "the purge below the first live ordinal removes one row"
     );
-    for marker in markers {
-        assert_eq!(
-            holding(&scratch, marker),
-            Vec::<&str>::new(),
-            "after the expiry, the purges and the delete, the files that hold {marker}"
-        );
-    }
+    after("the purge below the first live ordinal", &markers);
     drop(store);
     for marker in markers {
         assert_eq!(
@@ -308,14 +341,18 @@ fn window_case(keyed: bool) {
         3,
         "the expiry, with no request, removes the three evidence rows"
     );
-    assert_eq!(store.purge(&[ord(101), ord(102), ord(103)]).unwrap(), 0);
     for marker in [MARKER_A, MARKER_B] {
         assert_eq!(
             holding(&scratch, marker),
             Vec::<&str>::new(),
-            "after the window, the files that hold {marker}"
+            "right after the expiry, the entries that hold {marker}"
         );
     }
+    assert_eq!(
+        store.purge(&[ord(101), ord(102), ord(103)]).unwrap(),
+        0,
+        "the purge of the window's ordinals after the expiry removes nothing"
+    );
     let workflow = listed(&store)[0].workflow.id().as_str().to_owned();
     store.purge(&[ord(200)]).unwrap();
     *trace.borrow_mut() = Some((workflow.clone(), 200));
@@ -964,7 +1001,7 @@ const CIPHER_MARKER: &str = "qzcipher77001";
 
 /// The files of a store, keyed or keyless, in which a search finds the marker that the test planted as a routine's
 /// title token and in its titles, searched while the store is open and again after it is closed.
-fn planted(scratch: &Scratch, keyed: bool) -> Vec<&'static str> {
+fn planted(scratch: &Scratch, keyed: bool) -> Vec<String> {
     let clock = TestClock::at_day(DAY);
     let host = Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 2 }));
     let mut store = open_store(scratch, keyed, &registry(), host);
@@ -1249,4 +1286,43 @@ fn a_support_row_goes_with_its_summary_whatever_its_own_day() {
         (0, 0),
         "(summaries, support rows) after the expiry at the summary's bound"
     );
+}
+
+const STORED_MARKER: &str = "qzstored60601";
+
+/// A keyless store under `scratch` with one committed episode whose observed title holds `marker`, and no checkpoint
+/// after its commit.
+fn one_stored(scratch: &Scratch, marker: &str) -> Store {
+    let host = Host::new(Box::new(TestClock::at_day(DAY)), Box::new(NoProposals));
+    let mut store = keyless(scratch, &registry(), host);
+    let episode = titled(1, DAY, "com.example.browser", &format!("Pay {marker}"));
+    let outcome = store
+        .commit_batch(&store_id(1), &[episode], position(1, 0), &mut Seq(100))
+        .unwrap();
+    assert_eq!(outcome.evidence, 1);
+    store
+}
+
+/// The control of the search in the database file: a marker whose row is stored is found in `derived.db` after a
+/// truncating checkpoint, and the search names that entry alone.
+#[test]
+fn the_search_finds_a_stored_marker_in_the_database_file_after_a_checkpoint() {
+    let scratch = Scratch::new("search-db");
+    let mut store = one_stored(&scratch, STORED_MARKER);
+    assert_eq!(
+        store.expire().unwrap(),
+        0,
+        "an expiry that removes nothing and runs the truncating checkpoint"
+    );
+    assert_eq!(holding(&scratch, STORED_MARKER), vec!["derived.db"]);
+}
+
+/// The control of the search in the write-ahead log: a marker whose row is stored and not yet checkpointed is found
+/// in `derived.db-wal`, and the search names that entry alone, while the store is open.
+#[test]
+fn the_search_finds_a_stored_marker_in_the_log_before_a_checkpoint() {
+    let scratch = Scratch::new("search-wal");
+    let store = one_stored(&scratch, STORED_MARKER);
+    assert_eq!(holding(&scratch, STORED_MARKER), vec!["derived.db-wal"]);
+    drop(store);
 }

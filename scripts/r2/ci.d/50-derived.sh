@@ -156,6 +156,8 @@ esac
 #= tests/cases.rs a_routine_on_days_1_31_and_61_yields_its_proposal_on_day_61_across_the_window
 #= tests/privacy.rs with_the_clock_set_back_a_day_a_workflow_takes_its_proposal_without_the_summary_ahead_until_that_day
 #= tests/privacy.rs a_support_row_goes_with_its_summary_whatever_its_own_day
+#= tests/privacy.rs the_search_finds_a_stored_marker_in_the_database_file_after_a_checkpoint
+#= tests/privacy.rs the_search_finds_a_stored_marker_in_the_log_before_a_checkpoint
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
