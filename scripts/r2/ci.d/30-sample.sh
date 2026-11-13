@@ -66,7 +66,7 @@ record() {
 }
 
 sample() {
-  cargo run --locked -q -p halvo-sample -- "$@"
+  "$bin" "$@"
 }
 
 sha() {
@@ -115,6 +115,8 @@ measure() {
   g=$head/golden
   cargo build --locked -q -p halvo-sample
   record cargo-build "$?"
+  bin=$CI_D_REPO/target/debug/halvo-sample
+  [ -f "$bin.exe" ] && bin=$bin.exe
   sample build --seed 1 --out "$work/golden" "$g/script.jsonl" "$g/marked.jsonl" >"$CI_D_ARTIFACTS/golden-build.txt"
   record golden-build "$?"
   mkdir "$work/committed" || fail "mkdir failed"
@@ -130,7 +132,7 @@ measure() {
     side=${pair#*:}
     seed=$(sed -n 's/^seed = //p' "$head/dev/$side/manifest.toml") || fail "the seed of $tier cannot be read"
     for n in 1 2; do
-      sample build --tier "$tier" --seed "$seed" --out "$work/$tier-$n" "$head/scripts/$side"/*.jsonl >"$CI_D_ARTIFACTS/$tier-build-$n.txt"
+      (cd "$head/scripts/$side" && sample build --tier "$tier" --seed "$seed" --out "$work/$tier-$n" ./*.jsonl) >"$CI_D_ARTIFACTS/$tier-build-$n.txt"
       record "$tier-build-$n" "$?"
       line=$(sed -n 's/^manifest //p' "$CI_D_ARTIFACTS/$tier-build-$n.txt") || fail "the output of build cannot be read"
       record "$tier-manifest-$n" "$line"
