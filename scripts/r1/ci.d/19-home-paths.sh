@@ -1,8 +1,9 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or in the head commit when the default branch holds it or the checkout does not, and in the tag of a run that a pushed tag started, and the list holds no entry that allows nothing in HEAD (sh scripts/check-home-paths.sh --stale); it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
+# rule: scripts/check-home-paths.sh passes its self-test and finds no added line with a home path that scripts/home-path-allow.txt does not allow, and no message with a home path, in the commits of the head that the default branch does not hold, or in the head commit when the default branch holds it or the checkout does not, and in the tag of a run that a pushed tag started (when the checkout's ref names a commit, the tag that origin holds, fetched under refs/ci-d/19-home-paths/tag-of-the-run and that ref deleted again, and FAIL when origin cannot be asked), and the list holds no entry that allows nothing in HEAD (sh scripts/check-home-paths.sh --stale); it does not refuse an entry of the list for the account that runs it, as the pre-push hook does, because the account of a hosted runner is no person's.
 set -u
 name=19-home-paths
+own_tag_ref=refs/ci-d/19-home-paths/tag-of-the-run
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -13,6 +14,47 @@ make_scratch() {
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail 'mktemp failed'
   trap 'rm -rf "$scratch"' EXIT
   trap 'exit 2' INT TERM HUP
+}
+
+drop_own_tag_ref() {
+  git update-ref -d "$own_tag_ref" 2>/dev/null
+  return 0
+}
+
+tag_from_the_remote() {
+  local_commit=$(git rev-parse -q --verify "$GITHUB_REF^{commit}" 2>/dev/null) || local_commit=
+  if ! git ls-remote origin "$GITHUB_REF" >"$scratch/ls-remote" 2>"$scratch/ls-remote-error" </dev/null; then
+    cause="git ls-remote could not ask origin for $GITHUB_REF"
+    return 1
+  fi
+  remote_object=$(awk -F '\t' -v ref="$GITHUB_REF" '$2 == ref { print $1 }' "$scratch/ls-remote") || remote_object=
+  if [ -z "$remote_object" ]; then
+    cause="origin holds no $GITHUB_REF"
+    return 1
+  fi
+  if [ "$remote_object" = "$local_commit" ]; then
+    tag=remote-holds-a-commit
+    return 0
+  fi
+  trap 'drop_own_tag_ref; exit 2' INT TERM HUP
+  fetch_done=0
+  git -c maintenance.auto=false -c gc.auto=0 fetch -q --no-tags --no-write-fetch-head origin "+$GITHUB_REF:$own_tag_ref" >"$scratch/fetch" 2>&1 </dev/null && fetch_done=1
+  type=$(git cat-file -t "$own_tag_ref" 2>/dev/null) || type=
+  case $fetch_done:$type in
+    1:tag)
+      tip=$own_tag_ref
+      tag=fetched-and-read
+      ;;
+    1:commit)
+      drop_own_tag_ref
+      tag=remote-holds-a-commit
+      ;;
+    *)
+      drop_own_tag_ref
+      cause="git fetch could not fetch $GITHUB_REF from origin as a tag or a commit"
+      return 1
+      ;;
+  esac
 }
 
 has_commit() {
@@ -31,8 +73,9 @@ scan_head() {
       if [ "$type" = tag ]; then
         tip=$GITHUB_REF
         tag='read'
-      else
-        tag=ref-without-a-tag-object
+      elif ! tag_from_the_remote; then
+        printf 'range=none tag=remote-could-not-be-asked commits=unread lines=unread exit=none\n'
+        fail "on a run that $GITHUB_REF started, the checkout's ref names a commit and $cause, so the tag's message was not read; run the job again, or fetch the tag whole (git fetch origin +$GITHUB_REF:$GITHUB_REF) and run the check"
       fi
       ;;
   esac
@@ -48,6 +91,7 @@ scan_head() {
   fi
   sh scripts/check-home-paths.sh "$range" >"$scratch/out" 2>"$scratch/err" </dev/null
   code=$?
+  [ "$tip" != "$own_tag_ref" ] || drop_own_tag_ref
   counts=$(sed -n 's/.*commits read \([0-9]*\), lines with a home path \([0-9]*\)\.$/commits=\1 lines=\2/p' "$scratch/out" "$scratch/err") || counts=
   printf 'range=%s tag=%s %s exit=%s\n' "$kind" "$tag" "${counts:-commits=unread lines=unread}" "$code"
   sh scripts/check-home-paths.sh --stale >"$scratch/stale" 2>&1 </dev/null
@@ -118,6 +162,29 @@ expect() {
     wrong="$wrong $case_name"
   elif [ "$want" = FAIL ]; then
     rejected=$((rejected + 1))
+  fi
+}
+
+clone_with_the_tag_as_its_commit() {
+  git clone -q --no-local "$scratch/$1" "$scratch/$2" || exit 2
+  git -C "$scratch/$2" update-ref refs/tags/v1 'refs/tags/v1^{commit}' || exit 2
+}
+
+state_of_the_clone() {
+  git -C "$scratch/$1" for-each-ref || exit 2
+  git -C "$scratch/$1" config --list --local || exit 2
+  git -C "$scratch/$1" status --porcelain || exit 2
+}
+
+expect_the_clone_unchanged() {
+  state_of_the_clone "$2" >"$scratch/$2.before"
+  expect "$@"
+  state_of_the_clone "$2" >"$scratch/$2.after"
+  if cmp -s "$scratch/$2.before" "$scratch/$2.after"; then
+    printf 'case %s/%s-leaves-the-clone-as-it-was want=same got=same\n' "$name" "$2"
+  else
+    printf 'case %s/%s-leaves-the-clone-as-it-was want=same got=changed\n' "$name" "$2"
+    wrong="$wrong $2-leaves-the-clone-as-it-was"
   fi
 }
 
@@ -194,14 +261,27 @@ self_test() {
   expect FAIL home-path-in-the-message-of-the-pushed-tag ' tag=read '
   git clone -q --no-local "$scratch/home-path-in-the-message-of-the-pushed-tag" "$scratch/tag-fetched-whole" || exit 2
   expect FAIL tag-fetched-whole ' tag=read '
-  git clone -q --no-local "$scratch/home-path-in-the-message-of-the-pushed-tag" "$scratch/tag-fetched-as-its-commit" || exit 2
-  git -C "$scratch/tag-fetched-as-its-commit" update-ref refs/tags/v1 'refs/tags/v1^{commit}' || exit 2
-  expect PASS tag-fetched-as-its-commit ' tag=ref-without-a-tag-object '
+  clone_with_the_tag_as_its_commit home-path-in-the-message-of-the-pushed-tag tag-fetched-as-its-commit
+  expect_the_clone_unchanged FAIL tag-fetched-as-its-commit ' tag=fetched-and-read '
+  clone_with_the_tag_as_its_commit home-path-in-the-message-of-the-pushed-tag remote-of-the-tag-gone
+  git -C "$scratch/remote-of-the-tag-gone" remote set-url origin "$scratch/no-such-remote" || exit 2
+  expect_the_clone_unchanged FAIL remote-of-the-tag-gone 'could not ask origin for refs/tags/v1, so the tag'"'"'s message was not read; run the job again, or fetch the tag whole'
   fixture plain-message-of-the-pushed-tag
   add_commit plain-message-of-the-pushed-tag 'more plain text' 'second'
   in_fixture plain-message-of-the-pushed-tag tag -a -m 'built in /Users/<name>' v1 || exit 2
   expect PASS plain-message-of-the-pushed-tag ' tag=read '
+  clone_with_the_tag_as_its_commit plain-message-of-the-pushed-tag plain-tag-fetched-as-its-commit
+  expect_the_clone_unchanged PASS plain-tag-fetched-as-its-commit ' tag=fetched-and-read '
+  fixture lightweight-tag-at-the-remote
+  add_commit lightweight-tag-at-the-remote "see /$u/zoe/x" 'second'
+  add_commit lightweight-tag-at-the-remote 'plain again' 'third'
+  in_fixture lightweight-tag-at-the-remote tag v1 || exit 2
+  git clone -q --no-local "$scratch/lightweight-tag-at-the-remote" "$scratch/lightweight-tag-in-the-checkout" || exit 2
+  expect_the_clone_unchanged PASS lightweight-tag-in-the-checkout ' tag=remote-holds-a-commit '
   unset GITHUB_REF
+  clone_with_the_tag_as_its_commit plain-message-of-the-pushed-tag run-that-no-tag-started
+  git -C "$scratch/run-that-no-tag-started" remote set-url origin "$scratch/no-such-remote" || exit 2
+  expect_the_clone_unchanged PASS run-that-no-tag-started ' tag=not-a-tag-run '
 
   fixture stale-entry-in-the-list
   printf 'gone.txt\t/%s/zoe\tmade up, for a file that is gone\n' "$u" >>"$scratch/stale-entry-in-the-list/scripts/home-path-allow.txt"

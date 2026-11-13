@@ -170,6 +170,13 @@ does not hold already, or in the range mode of each annotated tag that a
 revision names (<base>..<tag>), and of each tag that such a tag names in
 turn. A line of a message with a home path counts as a line with a home
 path, and the list does not apply to a message: write a placeholder there.
+On a run that a pushed tag started, 19-home-paths reads the tag that the
+checkout names. When the checkout wrote the tag's ref as its commit, it asks
+origin for that one ref with git ls-remote, fetches a tag object under
+refs/ci-d/19-home-paths/tag-of-the-run, a ref that nothing else writes, has
+this script read it, and deletes that ref again. It passes, with the case
+named, when origin too holds the tag as a commit, and it fails when origin
+cannot be asked. A run that no tag started asks nobody.
 
 Both checks of the hook take the commits of a push and of a range from one
 function, in scripts/commit-range.sh beside this script, so they read the
