@@ -24,10 +24,16 @@ scan_head() {
   cd "$repo" || fail "cannot enter $repo"
   [ -f scripts/check-home-paths.sh ] || fail 'scripts/check-home-paths.sh is missing'
   tip=HEAD
+  tag=not-a-tag-run
   case ${GITHUB_REF:-} in
     refs/tags/?*)
       type=$(git cat-file -t "$GITHUB_REF" 2>/dev/null) || type=
-      [ "$type" != tag ] || tip=$GITHUB_REF
+      if [ "$type" = tag ]; then
+        tip=$GITHUB_REF
+        tag='read'
+      else
+        tag=ref-without-a-tag-object
+      fi
       ;;
   esac
   if has_commit refs/remotes/origin/main && ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
@@ -43,7 +49,6 @@ scan_head() {
   sh scripts/check-home-paths.sh "$range" >"$scratch/out" 2>"$scratch/err" </dev/null
   code=$?
   counts=$(sed -n 's/.*commits read \([0-9]*\), lines with a home path \([0-9]*\)\.$/commits=\1 lines=\2/p' "$scratch/out" "$scratch/err") || counts=
-  if [ "$tip" = HEAD ]; then tag=no; else tag=yes; fi
   printf 'range=%s tag=%s %s exit=%s\n' "$kind" "$tag" "${counts:-commits=unread lines=unread}" "$code"
   sh scripts/check-home-paths.sh --stale >"$scratch/stale" 2>&1 </dev/null
   stale_code=$?
@@ -107,6 +112,7 @@ expect() {
     "1:FAIL $name ("*")") got=FAIL ;;
     *) got=exit-$code ;;
   esac
+  if [ -n "${3:-}" ] && ! grep -qF -- "$3" "$scratch/$case_name.out"; then got=$got-without-$3; fi
   printf 'case %s/%s want=%s got=%s\n' "$name" "$case_name" "$want" "$got"
   if [ "$got" != "$want" ]; then
     wrong="$wrong $case_name"
@@ -139,7 +145,7 @@ self_test() {
 
   fixture clean-head
   add_commit clean-head 'more plain text' 'second'
-  expect PASS clean-head
+  expect PASS clean-head ' tag=not-a-tag-run '
 
   fixture home-path-in-the-head-commit
   add_commit home-path-in-the-head-commit "see /$u/zoe/x" 'second'
@@ -185,11 +191,16 @@ self_test() {
   in_fixture home-path-in-the-message-of-the-pushed-tag tag -a -m "built in /$u/zoe" v1 || exit 2
   GITHUB_REF=refs/tags/v1
   export GITHUB_REF
-  expect FAIL home-path-in-the-message-of-the-pushed-tag
+  expect FAIL home-path-in-the-message-of-the-pushed-tag ' tag=read '
+  git clone -q --no-local "$scratch/home-path-in-the-message-of-the-pushed-tag" "$scratch/tag-fetched-whole" || exit 2
+  expect FAIL tag-fetched-whole ' tag=read '
+  git clone -q --no-local "$scratch/home-path-in-the-message-of-the-pushed-tag" "$scratch/tag-fetched-as-its-commit" || exit 2
+  git -C "$scratch/tag-fetched-as-its-commit" update-ref refs/tags/v1 'refs/tags/v1^{commit}' || exit 2
+  expect PASS tag-fetched-as-its-commit ' tag=ref-without-a-tag-object '
   fixture plain-message-of-the-pushed-tag
   add_commit plain-message-of-the-pushed-tag 'more plain text' 'second'
   in_fixture plain-message-of-the-pushed-tag tag -a -m 'built in /Users/<name>' v1 || exit 2
-  expect PASS plain-message-of-the-pushed-tag
+  expect PASS plain-message-of-the-pushed-tag ' tag=read '
   unset GITHUB_REF
 
   fixture stale-entry-in-the-list
