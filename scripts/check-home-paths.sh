@@ -901,7 +901,7 @@ check_stale() {
   {
     printf '\001commit %s\n' "$head"
     while IFS= read -r listed; do
-      object=$(awk -F "$TAB" -v f="$listed" '$2 == f { split($1, m, " "); print m[3]; exit }' "$work/tree") || die 'awk could not read the tree'
+      object=$(LISTED=$listed awk -F "$TAB" '$2 == ENVIRON["LISTED"] { split($1, m, " "); print m[3]; exit }' "$work/tree") || die 'awk could not read the tree'
       if [ -z "$object" ]; then
         printf '%s\n' "$listed" >>"$work/gone"
       else
@@ -1521,6 +1521,23 @@ self_test_commits() {
   sed -e '3,4d' "$case_repo/$LIST_IN_THE_REPOSITORY" >"$work/list-live"
   case_scan live-entries-pass-the-stale-check 0 'entries read 3, stale 0.' --allow "$work/list-live" --stale
   case_scan stale-check-of-a-malformed-list 2 'cannot use the list' --allow "$work/list-bad" --stale
+  case $(uname -s) in
+    MINGW* | MSYS* | CYGWIN*) printf 'case %s/stale-check-of-a-file-listed-by-its-quoted-name not run: this system has no such file name\n' "$NAME" ;;
+    *)
+      expand_fixture 'see /{U}/una' >"$case_repo/a${tab}b.txt"
+      commit_case 'a file whose name holds a tab' >/dev/null || die 'commit failed'
+      expand_fixture "\"a\\tb.txt\"${tab}/{U}/una${tab}made up" >"$work/list-quoted-name"
+      case_scan stale-check-of-a-file-listed-by-its-quoted-name 0 'entries read 1, stale 0.' --allow "$work/list-quoted-name" --stale
+      ;;
+  esac
+
+  new_case_repo list-of-the-newest-commit
+  mkdir -p "$case_repo/scripts" || die 'mkdir failed'
+  expand_fixture 'see /{U}/xia' >"$case_repo/x.txt"
+  commit_case 'a line' >/dev/null || die 'commit failed'
+  expand_fixture "x.txt${tab}/{U}/xia${tab}made up" >"$case_repo/$LIST_IN_THE_REPOSITORY"
+  newest_of_range=$(commit_case 'its entry, in a later commit') || die 'commit failed'
+  case_scan range-reads-the-list-of-its-newest-commit 0 'commits read 2, lines with a home path 0.' "$newest_of_range"
 
   new_case_repo messages
   printf 'plain\n' >"$case_repo/m.txt"
@@ -1725,6 +1742,9 @@ self_test_hook() {
   push_case two-refs-one-with-a-home-path refused 'bad.txt:1' proof clean2 bad
   push_case force-push-over-main refused 'bad.txt:1' proof +bad:refs/heads/main
   push_case delete-a-branch pushed '' proof :refs/heads/clean
+  in_repo push -q --no-verify proof trunk:refs/heads/to-delete >/dev/null 2>&1 || die 'the push without the hook failed'
+  in_repo checkout -q bad || die 'git checkout failed'
+  push_case delete-a-branch-while-head-holds-a-home-path pushed 'the push to proof adds no line' proof :refs/heads/to-delete
 
   in_repo push -q --no-verify proof bad:refs/heads/old-bad >/dev/null 2>&1 || die 'the push without the hook failed'
   in_repo checkout -q -b over-old-bad bad || die 'git checkout failed'
