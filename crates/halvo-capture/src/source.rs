@@ -159,6 +159,8 @@ impl SourceContext {
         Self::with_floor(sink, FloorHandle::default())
     }
 
+    /// A context whose sources decide with `floor`: the daemon's exclusion
+    /// root, lineage probe and switches.
     pub fn with_floor(sink: SinkHandle, floor: FloorHandle) -> Self {
         Self { sink, floor }
     }
@@ -302,6 +304,9 @@ pub struct HeldSamples {
 /// emits_through(&handle);
 /// ```
 pub trait EventSink: sealed::Sealed {
+    /// The old emit. It takes any `CaptureStreamEvent`, with no keep verdict,
+    /// no clearance and no text filter point, and stays the remaining route of
+    /// a capture event to a stored record until core-3 removes it.
     fn emit(&self, event: CaptureStreamEvent) -> Result<EmitOutcome, SinkError>;
 }
 

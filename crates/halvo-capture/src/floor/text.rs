@@ -32,7 +32,9 @@ impl TextField {
 
 /// The text filter point of the record encoder (contracts.md C13.6): every
 /// captured string passes through it once, and the encoder writes what it
-/// returns and no other text.
+/// returns and no other text. It has one implementor, under daemon/, and what
+/// that implementor returns is what bounds stored text; the cap of
+/// [`CapturedText::enter`] bounds memory in the queue alone.
 pub trait TextFilterPoint {
     /// The stored text that the point returns.
     type Stored: AsRef<str>;
@@ -100,8 +102,10 @@ pub(super) fn write_through<P: TextFilterPoint>(
     stored != &*text.bytes
 }
 
-/// Appends `text` to `out` as a JSON string with the escapes of serde_json,
-/// writing into `out` alone so that no other buffer holds a copy.
+/// Appends `text` to `out` as a JSON string with the escapes of serde_json. It
+/// writes into `out` alone and makes no copy of its own; it does not wipe the
+/// point's `Stored` value, and a buffer that grows past its capacity leaves its
+/// old bytes in freed memory.
 pub(super) fn push_json_string(out: &mut String, text: &str) {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     out.push('"');

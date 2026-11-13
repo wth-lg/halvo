@@ -83,7 +83,8 @@ pub const LATE_KEY_MAX: Duration = Duration::from_millis(250);
 /// The witness that a keystroke may be recorded: the probe read inactive for
 /// it and it was not late. It holds the age that [`check`] judged, which the
 /// keystroke constructor stamps with, so a key is built with no other age. It
-/// is not `Clone`, and only this module makes one.
+/// is not `Clone`. Its maker is private to this module, which Rust opens to
+/// this module and its child modules, the two probe files among them.
 #[derive(Debug)]
 pub struct KeystrokeClearance {
     age: Option<Duration>,

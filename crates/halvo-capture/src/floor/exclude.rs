@@ -132,7 +132,9 @@ pub enum DropReason {
 
 /// The keep verdict for one event of kind `K`: the one input of a floor
 /// constructor of that kind that only the decision makes. It carries the
-/// subject that it was given for and is not `Clone`.
+/// subject that it was given for and is not `Clone`. It holds for the instant
+/// of the decision: a held verdict outlives a change of the reading or of the
+/// rules, so the caller decides right before each build.
 pub struct Keep<K> {
     subject: Subject,
     site_read: bool,
@@ -234,7 +236,10 @@ impl FloorHandle {
     /// The decision for one event of kind `K` about `subject`. `window` counts
     /// for a window_title event only. `probe` is read for a window_title or a
     /// screen_frame event only: an active reading drops it, and an unknown
-    /// reading keeps it (contracts.md C13.8).
+    /// reading keeps it (contracts.md C13.8). The verdict holds for the instant
+    /// of this call: the caller decides, and checks a key's clearance, right
+    /// before each build, because a held verdict or clearance outlives a change
+    /// of the reading.
     pub fn decide<K: Recorded>(
         &self,
         subject: Subject,
