@@ -95,8 +95,13 @@ fn config(n: usize) -> Config {
 /// The ports of a world of `agents` manual agents, each with one run that completed two days
 /// before the clock's day.
 pub fn world(agents: usize, limits: Limits) -> Shared {
+    world_ending(&vec![RunEnd::Completed; agents], limits)
+}
+
+/// The same with the end of each agent's one run given.
+pub fn world_ending(ends: &[RunEnd], limits: Limits) -> Shared {
     let ports: Ports<Config> = Ports::with_limits(T0, DAY, limits);
-    for n in 0..agents {
+    for (n, end) in ends.iter().copied().enumerate() {
         let run = RunId::parse(&format!("{:032x}", 0x0100 + n)).unwrap();
         let event = |seq: u32, what: What| Event {
             workflow: flow(n),
@@ -119,7 +124,7 @@ pub fn world(agents: usize, limits: Limits) -> Shared {
                 2,
                 What::RunEnded {
                     run: run.clone(),
-                    cause: RunEnd::Completed,
+                    cause: end,
                 },
             ),
         ]);
@@ -146,7 +151,7 @@ pub fn world(agents: usize, limits: Limits) -> Shared {
             last: Some(PastRun {
                 run,
                 day: DAY - 2,
-                outcome: Outcome::Completed,
+                outcome: Outcome::parse(end.name()).unwrap_or(Outcome::Completed),
                 unknown: 0,
             }),
             unknown: Vec::new(),

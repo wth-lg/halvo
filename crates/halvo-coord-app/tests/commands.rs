@@ -397,3 +397,81 @@ fn agents_snapshot_and_agents_next_are_never_refused_and_answer_the_whole_state(
         );
     }
 }
+
+#[test]
+fn the_card_is_the_coordinators_card_byte_for_byte() {
+    let hub = hub(2);
+    let (_app, main, _other) = app(hub.clone());
+    for n in 0..2 {
+        let card = hub.coordinator().card(&agent(n)).unwrap();
+        assert_eq!(
+            invoke(&main, "agents_card", json!({"agent": agent(n).to_string()})),
+            Ok(serde_json::to_string(&card).unwrap())
+        );
+    }
+}
+
+#[test]
+fn a_name_outside_the_list_answers_malformed_in_the_core() {
+    let hub = hub(1);
+    for name in ["agents_ping", "agents_delete", "", "AGENTS_SNAPSHOT"] {
+        assert_eq!(
+            Core::call(&*hub, name, Some(&json!({}))),
+            Reply::Error(Cause::Malformed),
+            "{name:?}"
+        );
+    }
+}
+
+#[test]
+fn every_name_of_the_list_with_arguments_that_fit_is_answered_other_than_malformed() {
+    let hub = hub(1);
+    let (tx, rx) = std::sync::mpsc::channel();
+    let core = hub.clone();
+    std::thread::spawn(move || {
+        let mut out = Vec::new();
+        for command in LIST.iter() {
+            let choice = command
+                .args
+                .iter()
+                .find(|a| a.name == "choice")
+                .and_then(|a| a.values)
+                .and_then(|v| v.first().copied());
+            let mut map = serde_json::Map::new();
+            for arg in command.args {
+                if arg.when.is_some_and(|c| choice != Some(c.name())) {
+                    continue;
+                }
+                let value = match arg.kind {
+                    halvo_coord::types::ArgType::Count => json!(0),
+                    halvo_coord::types::ArgType::Id if arg.name == "agent" => {
+                        json!(agent(0).to_string())
+                    }
+                    halvo_coord::types::ArgType::Id => json!(format!("{:032x}", 0x77)),
+                    halvo_coord::types::ArgType::Text => json!("x"),
+                    halvo_coord::types::ArgType::Name => {
+                        json!(arg.values.and_then(|v| v.first().copied()).unwrap_or("x"))
+                    }
+                };
+                map.insert(arg.name.to_string(), value);
+            }
+            let args = Value::Object(map);
+            let reply = Core::call(&*core, command.name, Some(&args));
+            out.push((command.name, reply));
+        }
+        let _ = tx.send(out);
+    });
+    let out = rx
+        .recv_timeout(std::time::Duration::from_secs(20))
+        .expect("the calls answered inside 20 s");
+    assert_eq!(out.len(), LIST.len());
+    let malformed: Vec<&str> = out
+        .iter()
+        .filter(|(_, reply)| *reply == Reply::Error(Cause::Malformed))
+        .map(|(name, _)| *name)
+        .collect();
+    assert!(
+        malformed.is_empty(),
+        "a name of LIST with arguments that fit falls to malformed: {malformed:?}"
+    );
+}
