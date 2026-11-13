@@ -31,7 +31,8 @@ const VIEW_CASES = [
   ['names-attach-shadow', 'names', (t) => t + '\ndocument.body.attachShadow({ mode: "closed" });\n'],
   ['template-string', 'template', (t) => t + '\nvar r4x = `a`;\n'],
   ['syntax-error', 'syntax', (t) => t + '\nvar = ;\n'],
-  ['syntax-after-2022', 'syntax', (t) => t + '\nvar r4x = [1].at(-1) ?? 0; using r4y = null;\n'],
+  ['syntax-after-2022', 'syntax', (t) => t + '\nvar r4x = /[a]/v;\n'],
+  ['names-escaped-global-call', 'names', (t) => t + '\n\\u0073etTimeout(function () {}, 1);\n'],
   ['syntax-module-grammar', 'syntax', (t) => t + "\nimport x from './x.js';\n"],
 ];
 
@@ -47,6 +48,7 @@ const FILE_CASES = [
   ['a-view-no-run-loads', 'unrun', (d) => writeFileSync(join(d, VIEWS_DIR, 'third.js'), '(function () {})();\n')],
   ['a-state-without-structure-file', 'structure', (d) => cpSync(join(d, FIXTURES_DIR, 'state-ten.json'), join(d, FIXTURES_DIR, 'state-ten_again.json'))],
   ['a-structure-file-without-state', 'structure', (d) => writeFileSync(join(d, SNAPSHOTS_DIR, 'gone.txt'), '- {"role":"main"}\n')],
+  ['a-structure-file-removed', 'structure', (d) => renameSync(join(d, SNAPSHOTS_DIR, 'ten.txt'), join(d, 'ten.txt'))],
   ['a-structure-file-of-another-name', 'structure', (d) => renameSync(join(d, SNAPSHOTS_DIR, 'ten.txt'), join(d, SNAPSHOTS_DIR, 'ten.text'))],
   ['a-view-file-in-a-subdirectory', 'unrun', (d) => {
     mkdirSync(join(d, VIEWS_DIR, 'parts'), { recursive: true });
@@ -109,6 +111,13 @@ const PAGE_CASES = [
         "    var fresh = el('div', 'r4a-say', null);\n    fresh.setAttribute('role', 'status');\n    status.parentNode.replaceChild(fresh, status);\n    status = fresh;\n    seq = reply.seq;\n",
       ),
     want: (r) => r.region.misses.includes('agents:rebuilt'),
+  },
+  {
+    name: 'a-status-region-that-is-hidden',
+    checks: [],
+    region: true,
+    plant: css('.r4a-say{display:none}'),
+    want: (r) => r.region.misses.includes('agents:hidden'),
   },
   {
     name: 'no-status-region',
@@ -242,8 +251,15 @@ export function fileCases({ repo, acorn: acornDir, work, report }) {
   const fx = join(repo, FIXTURES_DIR);
   const states = statesOf(fx);
   const runs = plan(fx, states);
-  const firsts = states.filter((s) => pageConfirmFirst(JSON.parse(readFileSync(join(fx, 'state-' + s + '.json'), 'utf8')).snapshot));
-  report('plan-both-views-where-a-page-confirmation-is-first', 'pass', firsts.length > 0 && runs.every((r) => (r.views.length === 2) === firsts.includes(r.state)) ? 'pass' : 'fail');
+  const firstItem = (s) => (JSON.parse(readFileSync(join(fx, 'state-' + s + '.json'), 'utf8')).snapshot.items || [])[0] || {};
+  const firsts = states.filter((s) => firstItem(s).kind === 'confirm' && firstItem(s).presenter === 'page');
+  const otherConfirms = states.filter((s) => firstItem(s).kind === 'confirm' && firstItem(s).presenter !== 'page');
+  report(
+    'plan-both-views-where-a-page-confirmation-is-first',
+    'pass',
+    firsts.length > 0 && otherConfirms.length > 0 && runs.every((r) => (r.views.length === 2) === firsts.includes(r.state) && r.label === (r.views.length === 2 ? 'both' : 'agents')) ? 'pass' : 'fail',
+  );
+  report('page-confirm-first-of-a-native-confirmation', 'pass', otherConfirms.every((s) => !pageConfirmFirst(JSON.parse(readFileSync(join(fx, 'state-' + s + '.json'), 'utf8')).snapshot)) ? 'pass' : 'fail');
   const one = { line: {}, names: [], region: { misses: [] } };
   const needs = { parsed: true, states: states.length, code: 0, itemsFailed: 0 };
   const results = states.map((state) => ({ ...one, state }));
