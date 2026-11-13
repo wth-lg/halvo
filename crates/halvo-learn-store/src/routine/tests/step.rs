@@ -303,6 +303,45 @@ fn an_unreadable_row_of_the_family_makes_the_step_return_nothing() {
 }
 
 #[test]
+fn a_summary_of_the_other_source_of_one_domain_moves_the_other_workflow_alone() {
+    let gone = RoutineState {
+        period: Some(30),
+        seen: 3,
+        first: Some(DAY - 180),
+        last: Some(DAY - 120),
+        next: Some(DAY - 90),
+        missed: 0,
+        mark: RuleMark::None,
+        since: None,
+    };
+    let address = with_figures(&fresh(1, DAY - 200), 2, DAY - 1, &gone);
+    let sign_in = fresh_at(2, DAY - 1, domain(HOME, "sign_in"), BROWSER);
+    let mut store = Store::default();
+    store.put_routine(&address);
+    store.put_routine(&sign_in);
+    store
+        .summaries
+        .push(summary(1, BILL, domain(HOME, "sign_in"), BROWSER, DAY - 3));
+    let records = store.step(DAY);
+    let rows: Vec<LearnRoutine> = records
+        .iter()
+        .map(|r| LearnRoutine::parse(r.json.as_bytes()).expect("a learn_routine row"))
+        .collect();
+    let of = |w: u32| {
+        rows.iter()
+            .find(|r| r.workflow.as_str() == wf(w))
+            .expect("a row")
+    };
+    let expected_address = routine_step(Some(&figures(&address)), &[], DAY);
+    let expected_sign_in = routine_step(Some(&figures(&sign_in)), &[DAY - 3], DAY);
+    assert_eq!(of(1), &with_figures(&address, 3, DAY, &expected_address));
+    assert_eq!(of(1).mark, Mark::Stale);
+    assert_eq!(of(1).last.map(|d| d.get()), Some(DAY - 120));
+    assert_eq!(of(2), &with_figures(&sign_in, 2, DAY, &expected_sign_in));
+    assert_eq!(of(2).last.map(|d| d.get()), Some(DAY - 3));
+}
+
+#[test]
 fn a_clock_set_back_gives_the_row_of_routine_step_and_never_the_mark() {
     let back = DAY - 10;
     let prev = settled(5, DAY, 7, DAY - 14, DAY);

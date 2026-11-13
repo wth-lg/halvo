@@ -13,8 +13,21 @@ fn a_summary_counts_when_its_category_and_site_key_equal_the_rows() {
         summary(4, ORDER, domain(HOME, "address_field"), BROWSER, 13),
         summary(5, BILL, Value::Null, BROWSER, 14),
         summary(6, BILL, title(HASH), BROWSER, 15),
+        summary(7, BILL, domain(HOME, "address_field"), MAIL, 16),
     ];
-    assert_eq!(occurrences(&row, &summaries, &[]), vec![10, 11]);
+    assert_eq!(occurrences(&row, &summaries, &[]), vec![10, 16]);
+}
+
+#[test]
+fn a_summary_of_the_other_source_of_the_same_domain_does_not_count() {
+    let address = fresh(1, DAY);
+    let sign_in = fresh_at(2, DAY, domain(HOME, "sign_in"), BROWSER);
+    let summaries = vec![
+        summary(1, BILL, domain(HOME, "address_field"), BROWSER, 20),
+        summary(2, BILL, domain(HOME, "sign_in"), BROWSER, 21),
+    ];
+    assert_eq!(occurrences(&address, &summaries, &[]), vec![20]);
+    assert_eq!(occurrences(&sign_in, &summaries, &[]), vec![21]);
 }
 
 #[test]

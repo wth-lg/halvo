@@ -1,19 +1,11 @@
 use halvo_schema::executable::names::Mode;
 use halvo_schema::learning::record::{LearnRoutine, LearnRun, RunStatus, Verdict};
-use halvo_schema::{SiteValue, Summary};
-
-fn same_site_key(a: &SiteValue, b: &SiteValue) -> bool {
-    match (a, b) {
-        (SiteValue::Domain { key: a, .. }, SiteValue::Domain { key: b, .. }) => a == b,
-        (SiteValue::Title { key: a }, SiteValue::Title { key: b }) => a == b,
-        _ => false,
-    }
-}
+use halvo_schema::Summary;
 
 pub(super) fn users_doing(routine: &LearnRoutine, summary: &Summary) -> bool {
     summary.category == routine.category
         && match (&summary.site, &routine.site) {
-            (Some(a), Some(b)) => same_site_key(a, b),
+            (Some(a), Some(b)) => a == b,
             (None, None) => summary.app == routine.app,
             _ => false,
         }
