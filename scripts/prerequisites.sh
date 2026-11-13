@@ -797,7 +797,7 @@ EOF
 
   expect_platform_refused() {
     expect_nothing_installed
-    [ "$(count "has the sha512 $(sha512_of "$platform_archive_path"), not the one that backend/pnpm-lock.yaml holds for @pnpm/exe.$case_platform@12.14.0; move it away, then run sh scripts/prerequisites.sh again" "$case_dir/output")" = 1 ] || problems="$problems; no line refused the platform package and said what to do"
+    [ "$(count "has the sha512 $(sha512_of "$platform_archive_path"), $1" "$case_dir/output")" = 1 ] || problems="$problems; no line refused the platform package and said what to do"
     [ -f "$platform_archive_path" ] || problems="$problems; the refused platform package was not kept for the person to read"
   }
 
@@ -806,7 +806,7 @@ EOF
   printf 'other bytes\n' >"$platform_asset"
   run_ensure_backend fails
   [ "$(count "curl $platform_url" "$case_dir/calls")" = 1 ] || problems="$problems; the platform package was not downloaded once"
-  expect_platform_refused
+  expect_platform_refused "not the one that backend/pnpm-lock.yaml holds for @pnpm/exe.$case_platform@12.14.0; move it away, then run sh scripts/prerequisites.sh again"
   verdict "$name"
 
   name='a platform package of another version is refused, although the lock holds its bytes under that version'
@@ -814,14 +814,14 @@ EOF
   printf 'the pnpm 12.13.0 binary of a case\n' >"$platform_asset"
   write_lock "@pnpm/exe.$case_platform@12.13.0" "$(integrity_of "$platform_asset")" "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$case_dir/assets/pnpm-12.14.0.tgz")"
   run_ensure_backend fails
-  expect_platform_refused
+  expect_platform_refused "not the one that backend/pnpm-lock.yaml holds for @pnpm/exe.$case_platform@12.14.0; move it away, then run sh scripts/prerequisites.sh again"
   verdict "$name"
 
   name='the value of another platform package in the lock does not admit the package of this platform'
   new_backend_case backend-platform-value-of-another
   write_lock "@pnpm/exe.another-platform@12.14.0" "$(integrity_of "$platform_asset")" "@pnpm/exe.$case_platform@12.14.0" "$(integrity_of "$case_dir/assets/pnpm-12.14.0.tgz")"
   run_ensure_backend fails
-  expect_platform_refused
+  expect_platform_refused "not the one that backend/pnpm-lock.yaml holds for @pnpm/exe.$case_platform@12.14.0; move it away, then run sh scripts/prerequisites.sh again"
   verdict "$name"
 
   name='a platform package already in the downloads directory is checked again, not downloaded again, and refused when its bytes differ'
@@ -830,7 +830,7 @@ EOF
   printf 'bytes written after the download\n' >"$platform_archive_path"
   run_ensure_backend fails
   [ "$(count "curl $platform_url" "$case_dir/calls")" = 0 ] || problems="$problems; the kept platform package was downloaded again"
-  expect_platform_refused
+  expect_platform_refused "not the one that backend/pnpm-lock.yaml holds for @pnpm/exe.$case_platform@12.14.0; move it away, then run sh scripts/prerequisites.sh again"
   verdict "$name"
 
   name='a platform package already in the downloads directory with the bytes of the lock is installed without a download'
@@ -927,7 +927,7 @@ EOF
   cp "$case_dir/assets/pnpm-12.14.0.tgz" "$platform_asset"
   run_ensure_backend fails
   [ "$(count "curl $platform_url" "$case_dir/calls")" = 1 ] || problems="$problems; the platform package was not downloaded once"
-  expect_platform_refused
+  expect_platform_refused "not the one that backend/pnpm-lock.yaml holds for @pnpm/exe.$case_platform@12.14.0; move it away, then run sh scripts/prerequisites.sh again"
   verdict "$name"
 
   name='a pin of another version than 12.14.0 reads the entry of that version and installs its two files'
