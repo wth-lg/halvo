@@ -179,6 +179,13 @@ fn delete_line_misses_a_cascade_that_rewrites_a_row_of_the_other_workflow() {
 #[test]
 fn delete_line_misses_a_cascade_that_takes_nothing_or_names_no_stored_workflow() {
     miss(&mut |_, _| true, "nothing taken");
+    miss(
+        &mut |store, id| {
+            store.delete_workflow(id);
+            false
+        },
+        "the cascade answered that the workflow was not stored",
+    );
     let elsewhere = WorkflowId::parse(&id('3', 9)).expect("an id");
     miss(
         &mut |store, _| store.delete_workflow(&elsewhere),
