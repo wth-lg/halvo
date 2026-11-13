@@ -248,6 +248,9 @@ self_test() {
   check unknown-result FAIL 's/^//' 'gen-dev-other 0'
   check unseen-labels-missing FAIL '/^gen-unseen-labels /d'
   check golden-files-missing FAIL '/^golden-files /d'
+  check golden-build-twice FAIL 's/^//' 'golden-build 0'
+  check golden-files-twice FAIL 's/^//' 'golden-files same'
+  check labels-twice FAIL 's/^//' 'gen-dev-labels 0'
   check golden-files-name-the-first FAIL 's|^golden-files same$|golden-files differ 2 streams/golden/day-003.jsonl|' '' \
     "FAIL $name (golden-files: files that differ from HEAD: 2, the first streams/golden/day-003.jsonl)"
   check dev-files-name-a-file-of-the-body FAIL 's|^gen-dev-files same$|gen-dev-files differ 1 manifest.toml|' '' \
