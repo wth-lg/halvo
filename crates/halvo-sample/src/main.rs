@@ -125,6 +125,24 @@ fn run(args: &[String]) -> Result<(Vec<String>, bool), Refusal> {
             };
             halvo_sample::split::split(&a).map(done)
         }
+        "compose" => {
+            let (f, rest) = parse(args, &["--rates", "--out"], &["--ranges"])?;
+            if f.contains_key("--ranges") {
+                if f.len() != 1 || !rest.is_empty() {
+                    return Err(Refusal::new("usage", "--ranges"));
+                }
+                return Ok(done(halvo_sample::compose::ranges()));
+            }
+            if rest.is_empty() {
+                return Err(Refusal::new("usage", "missing SITE_DATA"));
+            }
+            let a = halvo_sample::compose::ComposeArgs {
+                rates: PathBuf::from(need(&f, "--rates")?),
+                out: PathBuf::from(need(&f, "--out")?),
+                sites: paths(&rest),
+            };
+            halvo_sample::compose::compose(&a).map(done)
+        }
         _ => Err(Refusal::new("usage", USAGE)),
     }
 }
