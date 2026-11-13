@@ -6,11 +6,14 @@
 //! units fill their modules. Exit status by L0.3: 0 done, 1 a check missed, 2 a refusal with one line
 //! `REFUSED <cause>: <detail>` on standard error and nothing on standard output.
 
+mod case;
 mod cli;
 mod delete;
 mod drift;
+mod forms;
 mod link;
 mod model;
+mod page;
 mod privacy;
 mod routine;
 mod soak;
