@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: learn-gate routine prints routine trains=135 plays=270 same=270 result=ok on the memory store, alone on standard output and with exit 0; learn-gate routine --store derived prints routine trains=5 plays=10 same=10 store=derived result=ok, or derived=not-run for the build's own refusal line alone (status 2, nothing on standard output, and the one line REFUSED store: the derived store is not in this build on standard error); before its first cargo command the check fails when a tracked file differs from HEAD (changed or staged, its own file among them) or carries an index flag, and a file that git does not track is allowed; and no cargo command or binary of the check changes the tree.
+# rule: learn-gate routine prints routine trains=135 plays=270 same=270 result=ok on the memory store, alone on standard output and with exit 0; learn-gate routine --store derived prints routine trains=5 plays=10 same=10 store=derived result=ok, or derived=not-run for the build's own refusal line alone (status 2, nothing on standard output, and the one line REFUSED store: the derived store is not in this build on standard error); before its first cargo command the check fails when a tracked file differs from HEAD (changed or staged, its own file among them) or carries an index flag, prints for the changed ones the one line tree changed=before files=<n> with their count and no path, and keeps git's status and index list in tree-before.txt of its artifacts, and a file that git does not track is allowed; and no cargo command or binary of the check changes the tree.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -54,16 +54,15 @@ tree_start() {
     printf 'tree flagged=%s\n' "$flagged"
     finish tree
   fi
-  printf '%s\n%s\n' "$status_before" "$files_before" | awk '
-    {
-      count = split($0, field, " ")
-      if (count && field[1] !~ /^(#|\?|!|H)$/) {
-        printf "tree changed=before %s %s\n", field[1], field[count]
-        bad = 1
-      }
-    }
-    END { exit bad }
-  ' || finish tree
+  changed=$(printf '%s\n%s\n' "$status_before" "$files_before" | awk '
+    { count = split($0, field, " "); if (count && field[1] !~ /^(#|\?|!|H)$/) n++ }
+    END { print n + 0 }
+  ') || finish read
+  if [ "$changed" -gt 0 ]; then
+    printf '%s\n%s\n' "$status_before" "$files_before" >"$art/tree-before.txt" || finish artifacts
+    printf 'tree changed=before files=%s\n' "$changed"
+    finish tree
+  fi
 }
 
 tree_same() {
@@ -248,13 +247,15 @@ esac
 EOF
 }
 
-# tree_case LABEL WANT TEXT LINE_BEFORE CHANGE_AT CHANGE_LINE BUILD CARGO: runs measure, the function that the check
-# runs, in a subshell with the stand-ins for git and for cargo (or no cargo when CARGO is no) and with the stand-in gate
-# where the lookup finds the built binary, and records whether the last line, the text and the calls are the wanted.
+# tree_case LABEL WANT TEXT LINE_BEFORE CHANGE_AT CHANGE_LINE BUILD CARGO [HIDDEN]: runs measure, the function that the
+# check runs, in a subshell with the stand-ins for git and for cargo (or no cargo when CARGO is no) and with the stand-in
+# gate where the lookup finds the built binary, and records whether the last line, the text and the calls are the
+# wanted; with HIDDEN, also that the output does not hold that word and the artifacts' tree-before.txt does.
 tree_case() {
   label=$1
   want=$2
   text=$3
+  hidden=${9:-}
   TREE_DIR=$work/tree-$label
   TREE_CHANGE_AT=$5
   TREE_CHANGE_LINE=$6
@@ -297,8 +298,14 @@ tree_case() {
     *"$text"*) ;;
     *) got=$got-without-the-text ;;
   esac
+  if [ -n "$hidden" ]; then
+    case $out in
+      *"$hidden"*) got=$got-showing-the-name ;;
+    esac
+    grep -q "$hidden" "$TREE_DIR/art/tree-before.txt" 2>/dev/null || got=$got-without-the-artifact
+  fi
   case $label in
-    changed-before | staged-before | sample-before)
+    changed-before | staged-before | sample-before | name-not-shown | heldout-name-not-shown)
       [ ! -e "$TREE_DIR/cargo.calls" ] || got=$got-after-a-cargo-call
       ;;
     build-fails)
@@ -321,11 +328,15 @@ tree_cases() {
   staged="1 M. N... 100644 100644 100644 $oid $oid crates/halvo-learn-gate/src/routine.rs"
   sample="1 .M N... 100644 100644 100644 $oid $oid fixtures/r5/trains/sample.jsonl"
   later="1 .M N... 100644 100644 100644 $oid $oid crates/halvo-learn-gate/src/main.rs"
+  word="1 .M N... 100644 100644 100644 $oid $oid crates/halvo-learn-gate/src/quillwortpenny.rs"
+  heldout="1 M. N... 100644 100644 100644 $oid $oid fixtures/r5/cases/heldout/zephyrcalyx-kite.jsonl"
   tree_passed=0
   tree_rejected=0
-  tree_case changed-before FAIL-tree 'tree changed=before 1 crates/halvo-learn-gate/src/routine.rs' "$changed" "" "" ok yes
-  tree_case staged-before FAIL-tree 'tree changed=before 1 crates/halvo-learn-gate/src/routine.rs' "$staged" "" "" ok yes
-  tree_case sample-before FAIL-tree 'tree changed=before 1 fixtures/r5/trains/sample.jsonl' "$sample" "" "" ok yes
+  tree_case changed-before FAIL-tree 'tree changed=before files=1' "$changed" "" "" ok yes
+  tree_case staged-before FAIL-tree 'tree changed=before files=1' "$staged" "" "" ok yes
+  tree_case sample-before FAIL-tree 'tree changed=before files=1' "$sample" "" "" ok yes
+  tree_case name-not-shown FAIL-tree 'tree changed=before files=1' "$word" "" "" ok yes quillwortpenny
+  tree_case heldout-name-not-shown FAIL-tree 'tree changed=before files=1' "$heldout" "" "" ok yes zephyrcalyx
   tree_case untracked-before PASS "PASS $name" '? notes.txt' "" "" ok yes
   tree_case build-changes FAIL-tree 'tree changed=after-build' "" build "$later" ok yes
   tree_case play-changes FAIL-tree 'tree changed=after-gate' "" gate "$later" ok yes
@@ -372,8 +383,8 @@ self_test() {
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
   fi
-  if [ "$tree_passed" -ne 1 ] || [ "$tree_rejected" -ne 7 ]; then
-    printf 'FAIL self-test:%s (tree cases passed %s, not 1, and rejected %s, not 7)\n' "$name" "$tree_passed" "$tree_rejected"
+  if [ "$tree_passed" -ne 1 ] || [ "$tree_rejected" -ne 9 ]; then
+    printf 'FAIL self-test:%s (tree cases passed %s, not 1, and rejected %s, not 9)\n' "$name" "$tree_passed" "$tree_rejected"
     exit 1
   fi
   if [ "$passed" -ne "$passing_fixtures" ]; then
