@@ -4034,3 +4034,146 @@ fn a_start_that_leaves_the_queue_after_a_lost_switch_off_is_dropped_with_hold_an
         );
     }
 }
+
+/// A run of agent 0 that waits on an item of the handback `reason`, whose first press `first`
+/// the owner stored and acknowledged while `Runs::answer_handback` answered `busy`, so that the
+/// owner holds that row and the run did not take it.
+fn stored_not_taken(reason: HandbackReason, first: Choice) -> (Coordinator<Both>, RunId, ItemId) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, reason)).unwrap();
+    let (item, _) = open_item(&c);
+    c.ports()
+        .ports
+        .refuse(Method::AnswerHandback, PortError::Busy);
+    assert_eq!(c.answer(&item, first, None), Err(Cause::Busy));
+    c.ports().ports.clear_refusals();
+    (c, run, item)
+}
+
+/// A press whose row the owner stores after the move with no acknowledgement and no read of the
+/// move showing it (`Loss::Later`); the row then lands at the owner.
+fn press_landing_later(c: &Coordinator<Both>, item: &ItemId, choice: Choice) {
+    c.ports().loss.set(Some(support::Loss::Later));
+    assert_eq!(c.answer(item, choice, None), Err(Cause::NoService));
+    c.ports().loss.set(None);
+    let lost: Vec<halvo_coord::types::Event> = c.ports().lost.borrow_mut().drain(..).collect();
+    c.ports().ports.events.borrow_mut().extend(lost);
+}
+
+/// RD-61 (h) 4, T-a: on an account link, Done taken by the owner with the port busy, then a
+/// Decline whose row lands with no acknowledgement and no read of its move, then Done: the newest
+/// row is that decline, so the run gets `declined` once and the move answers as for an item that
+/// is no longer open, with the rows done, decline.
+#[test]
+fn rd61_t_a_link_done_then_a_decline_landing_unread_then_done_gives_declined_once() {
+    use halvo_coord::types::HandbackResult;
+    let (c, _run, item) = stored_not_taken(HandbackReason::AccountLink, Choice::Done);
+    let m = mark(&c);
+    press_landing_later(&c, &item, Choice::Decline);
+    assert_eq!(c.answer(&item, Choice::Done, None), Err(Cause::UnknownItem));
+    assert_eq!(handed_back(&c, m), [HandbackResult::Declined]);
+    assert_eq!(step_rows(&c, &item), ["done", "decline"]);
+    assert!(c.snapshot().items.is_empty());
+}
+
+/// RD-61 (h) 4, T-b: the same with Decline as the third press: `declined` once, the rows done,
+/// decline, and no third row.
+#[test]
+fn rd61_t_b_link_done_then_a_decline_landing_unread_then_decline_stores_no_third_row() {
+    use halvo_coord::types::HandbackResult;
+    let (c, _run, item) = stored_not_taken(HandbackReason::AccountLink, Choice::Done);
+    let m = mark(&c);
+    press_landing_later(&c, &item, Choice::Decline);
+    assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()));
+    assert_eq!(handed_back(&c, m), [HandbackResult::Declined]);
+    assert_eq!(step_rows(&c, &item), ["done", "decline"]);
+}
+
+/// RD-61 (h) 4, T-c: the decline never reaches the owner; then Done stores a row of its own,
+/// done, done, and the run gets `done` once.
+#[test]
+fn rd61_t_c_link_done_then_a_decline_that_never_landed_then_done_stores_done_again() {
+    use halvo_coord::types::HandbackResult;
+    let (c, _run, item) = stored_not_taken(HandbackReason::AccountLink, Choice::Done);
+    let m = mark(&c);
+    c.ports().ports.refuse(Method::Log, PortError::NoService);
+    assert_eq!(
+        c.answer(&item, Choice::Decline, None),
+        Err(Cause::NoService)
+    );
+    c.ports().ports.clear_refusals();
+    assert_eq!(c.answer(&item, Choice::Done, None), Ok(()));
+    assert_eq!(handed_back(&c, m), [HandbackResult::Done]);
+    assert_eq!(step_rows(&c, &item), ["done", "done"]);
+}
+
+/// RD-61 (h) 4, T-d, a pin: the rows done, decline known to the ledger, the decline's call having
+/// answered busy, then Done: `declined` once, `unknown_item`, the rows unchanged.
+#[test]
+fn rd61_t_d_pin_link_done_then_a_known_decline_whose_call_was_busy_then_done_gives_declined() {
+    use halvo_coord::types::HandbackResult;
+    let (c, _run, item) = stored_not_taken(HandbackReason::AccountLink, Choice::Done);
+    c.ports()
+        .ports
+        .refuse(Method::AnswerHandback, PortError::Busy);
+    assert_eq!(c.answer(&item, Choice::Decline, None), Err(Cause::Busy));
+    c.ports().ports.clear_refusals();
+    let m = mark(&c);
+    assert_eq!(c.answer(&item, Choice::Done, None), Err(Cause::UnknownItem));
+    assert_eq!(handed_back(&c, m), [HandbackResult::Declined]);
+    assert_eq!(step_rows(&c, &item), ["done", "decline"]);
+}
+
+/// RD-61 (h) 4, T-e: a stored `done` of an account link that the run did not take, followed by
+/// the person's Stop, the wait limit, the runner's end and the quit: no `item_lapsed` for the
+/// item, and the run never gets `done`. Each way in two forms: the row acknowledged with the port
+/// busy, and the row landing after a move that did not read it.
+#[test]
+fn rd61_t_e_a_stored_done_not_taken_gets_no_lapse_and_no_done_at_any_end() {
+    use halvo_coord::types::HandbackResult;
+    let limits = Limits::PRODUCT;
+    for way in ["stop", "wait_limit", "runners_end", "quit"] {
+        for landed in [false, true] {
+            let case = format!("{way} landed={landed}");
+            let (c, run, item) = if landed {
+                let c = coordinator(&[MANUAL], limits);
+                let run = start(&c, 0);
+                c.on_run(&run, handback(&run, 0, HandbackReason::AccountLink))
+                    .unwrap();
+                let (item, _) = open_item(&c);
+                press_landing_later(&c, &item, Choice::Done);
+                (c, run, item)
+            } else {
+                stored_not_taken(HandbackReason::AccountLink, Choice::Done)
+            };
+            let m = mark(&c);
+            match way {
+                "stop" => assert_eq!(c.control(&agent(0), Action::Stop), Ok(()), "{case}"),
+                "wait_limit" => {
+                    c.ports()
+                        .ports
+                        .set_clock(T0 + limits.wait_limit_s * 1000, DAY);
+                    c.tick();
+                }
+                "runners_end" => {
+                    c.ports().ports.end_runner(&run);
+                    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::HandedBack)));
+                }
+                _ => {
+                    c.quit_stop();
+                    c.quit_kill();
+                }
+            }
+            c.ports()
+                .ports
+                .set_clock(T0 + 2 * limits.wait_limit_s * 1000, DAY);
+            c.tick();
+            assert_eq!(step_rows(&c, &item), ["done"], "{case}: no item_lapsed");
+            assert!(
+                !handed_back(&c, m).contains(&HandbackResult::Done),
+                "{case}: the run never gets done"
+            );
+        }
+    }
+}

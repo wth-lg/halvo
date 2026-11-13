@@ -43,6 +43,7 @@ pub struct Ledger {
     last: u32,
     waiting: Vec<Event>,
     closing: Vec<Event>,
+    unsure: Vec<ItemId>,
 }
 
 impl Ledger {
@@ -55,6 +56,7 @@ impl Ledger {
             last,
             waiting: Vec::new(),
             closing: Vec::new(),
+            unsure: Vec::new(),
         }
     }
 
@@ -94,8 +96,9 @@ impl Ledger {
 
     /// The events of a read: the waiting events that the owner stored with no acknowledgement
     /// leave the list, every waiting row that would close an item that the owner's events close
-    /// leaves it, the rows that close an item are kept for `closing`, and the rest is numbered
-    /// after the owner's last.
+    /// leaves it, the rows that close an item are kept for `closing` and end the doubt of a press
+    /// of that item whose row got no acknowledgement, and the rest is numbered after the owner's
+    /// last.
     fn absorb(&mut self, read: Vec<Event>) {
         for e in &read {
             if let Some(k) = self.waiting.iter().position(|w| same_but_seq(w, e)) {
@@ -104,7 +107,9 @@ impl Ledger {
             self.last = self.last.max(e.seq.get());
         }
         for e in read {
-            if closed_item(&e.what).is_some_and(|item| closes(std::slice::from_ref(&e), item)) {
+            if let Some(item) = closed_item(&e.what).filter(|i| closes(std::slice::from_ref(&e), i))
+            {
+                self.unsure.retain(|i| i != item);
                 self.closing.push(e);
             }
         }
@@ -466,28 +471,69 @@ fn store_once<P: Owner>(
     }
 }
 
-/// Stores the answer `row` of an item of a kind other than `confirm` once the waiting rows are
-/// stored, and keeps it not waiting. After a refusal `seq` the read decides (ruling RD-34
-/// (b) (2)): where the owner's events hold a row that closes the item, nothing is logged and
-/// that row is answered, the person's earlier answer whose acknowledgement was lost, or a
-/// lapse; else the row goes once more.
-fn store_answer<P: Owner>(
+/// The press of a choice on an item that a handback raised, its `item_answered` row and the
+/// result that the row gives (ruling RD-61 (c)).
+struct Press<'a> {
+    kind: RunItemKind,
+    item: &'a ItemId,
+    answer: &'a Answered,
+    result: HandbackResult,
+}
+
+/// What a press does, decided by the newest closing row of its item that the ledger holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Decided {
+    /// The row is the press's own: its result goes to the run, and the move answers as for an
+    /// open item.
+    Own(HandbackResult),
+    /// Another answer decides: its result goes to the run, and the move answers `unknown_item`.
+    Other(HandbackResult),
+    /// The item lapsed: nothing goes to the run, and the move answers `unknown_item`.
+    Lapsed,
+    /// The press's own row goes to the owner.
+    Log,
+}
+
+impl Press<'_> {
+    /// The one decision of a press by the newest closing row `newest` (rulings RD-40, RD-61
+    /// (c), (d)): none, or the older `done` that a declining press follows, logs the press's
+    /// row; the press's own answer counts as stored; another answer decides with its own
+    /// result; a lapse, or an answer whose result does not fit the kind, closes the item.
+    fn decide(&self, newest: Option<&What>) -> Decided {
+        match newest {
+            None => Decided::Log,
+            Some(What::ItemAnswered { answer, .. }) if answer == self.answer => {
+                Decided::Own(self.result)
+            }
+            Some(What::ItemAnswered { answer, .. }) if self.declines_after(answer) => Decided::Log,
+            Some(What::ItemAnswered { answer, .. }) => answer
+                .choice()
+                .and_then(|c| handback_result(self.kind, c).ok())
+                .map_or(Decided::Lapsed, Decided::Other),
+            Some(_) => Decided::Lapsed,
+        }
+    }
+
+    /// Whether the press is the declining choice of an account link after its stored `done`
+    /// (ruling RD-46 B4).
+    fn declines_after(&self, stored: &Answered) -> bool {
+        self.kind == RunItemKind::LinkAccount
+            && stored.choice() == Some(Choice::Done)
+            && self.answer.choice() == Some(Choice::Decline)
+    }
+}
+
+/// Logs the row of a press, with the rows that wait sent first (ruling RD-61 (c)): one log, and
+/// after a refusal `seq` one read, after which `Press::decide` decides by the newest closing
+/// row, a `Log` there sending the row once more. At an acknowledgement the row is the item's
+/// newest and the press's own. Any other failure, and a second refusal, is the error.
+fn log_press<P: Owner>(
     ports: &P,
     ledger: &mut Ledger,
-    limits: &Limits,
-    row: What,
+    press: &Press<'_>,
+    row: &What,
     stamp: Stamp,
-) -> Result<Option<What>, PortError> {
-    flush(ports, ledger, limits)?;
-    let item = closed_item(&row).cloned();
-    let earlier = |ledger: &Ledger| {
-        item.as_ref()
-            .and_then(|i| ledger.closing(i))
-            .map(|e| e.what.clone())
-    };
-    if let Some(what) = earlier(ledger) {
-        return Ok(Some(what));
-    }
+) -> Result<Decided, PortError> {
     let mut events = ledger.number(vec![row.clone()], stamp);
     let mut resynced = false;
     loop {
@@ -495,15 +541,15 @@ fn store_answer<P: Owner>(
             Ok(()) => {
                 ledger.last = events.last().map_or(ledger.last, |e| e.seq.get());
                 ledger.kept(&events);
-                return Ok(None);
+                return Ok(Decided::Own(press.result));
             }
             Err(e) if refused_with(&e, "seq") && !resynced => {
                 resync(ports, ledger)?;
-                if let Some(what) = earlier(ledger) {
-                    return Ok(Some(what));
-                }
-                events = ledger.number(vec![row.clone()], stamp);
                 resynced = true;
+                match press.decide(ledger.closing(press.item).map(|e| &e.what)) {
+                    Decided::Log => events = ledger.number(vec![row.clone()], stamp),
+                    decided => return Ok(decided),
+                }
             }
             Err(e) => return Err(e),
         }
@@ -927,19 +973,21 @@ pub fn answer_from_check<P: Runs>(
     }
 }
 
-/// The person's choice on the item that the handback request `ask` raised (I3.1): stores its
-/// `item_answered` row, which for a `link_account` item holds the request's whole origin (I7.1,
-/// ruling IG-14), and only once the owner acknowledged it hands the run its result. A choice that
-/// is not one of the kind's, and a `link_account` request with no origin, are `malformed`; with
-/// no acknowledgement the answer is `no_service` and the run gets nothing; a run that ended
-/// (`ended`) takes nothing back. Where the read after a refusal `seq` shows the item answered
-/// already, by an earlier choice whose acknowledgement was lost, nothing is stored: the same
-/// choice counts as stored and goes on, and another choice leaves the stored answer deciding,
-/// whose result the run gets, and is answered `unknown_item`, as a choice for an item that is
-/// no longer open (ruling RD-34 (b) (2)). The one exception is the declining choice on a
-/// `link_account` item whose stored answer is `done`: its row is stored as a row of its own, and
-/// only once the owner acknowledged it the run gets `declined`, and the move answers as for an
-/// open item (ruling RD-46 (4) B4).
+/// The person's choice on the item that the handback request `ask` raised (I3.1, I4.5). A choice
+/// that is not one of the kind's, and a `link_account` request with no origin, are `malformed`.
+/// The press is decided by `Press::decide` on the newest closing row of the item that the ledger
+/// holds, but after a press whose row got no acknowledgement no result is handed from the kept
+/// rows, and the press logs its own row first (the clause of ruling RD-61 (c)). The row is
+/// stored by one log, and after a refusal `seq` one read decides again: the press's own answer
+/// counts as stored and is not logged again; another answer decides, whose result the run gets,
+/// and the move answers `unknown_item`, as for an item that is no longer open (rulings RD-34
+/// (b) (2), RD-40); a lapse gives `unknown_item` and nothing; where the newest row is the older
+/// `done` that a declining press of an account link follows, the decline goes as a row of its
+/// own (ruling RD-46 B4). A row that for a `link_account` item holds the request's whole origin
+/// (I7.1, ruling IG-14) goes to the run only once it is the newest row by the owner's
+/// acknowledgement or by that read. With no acknowledgement the answer is the store's cause, the
+/// run gets nothing and the item's next press logs its own row first; a run that ended (`ended`)
+/// takes nothing back.
 pub fn answer_handback<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -968,38 +1016,41 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
         item: item.clone(),
         answer: answer.clone(),
     };
-    let earlier =
-        store_answer(ports, ledger, limits, row.clone(), stamp).map_err(|e| cause_of(&e))?;
-    let (result, decided) = match earlier {
-        None => (result, false),
-        Some(What::ItemAnswered { answer: stored, .. }) if stored == answer => (result, false),
-        Some(What::ItemAnswered {
-            answer:
-                Answered::LinkAccount(LinkAnswer {
-                    answer: DoneAnswer::Done,
-                    ..
-                }),
-            ..
-        }) => {
-            store_once(ports, ledger, limits, vec![row], stamp).map_err(|e| cause_of(&e))?;
-            (result, false)
-        }
-        Some(What::ItemAnswered { answer: stored, .. }) => {
-            let choice = stored.choice().ok_or(Cause::Malformed)?;
-            (handback_result(kind, choice)?, true)
-        }
-        Some(_) => return Err(Cause::UnknownItem),
+    let press = Press {
+        kind,
+        item,
+        answer: &answer,
+        result,
     };
-    let handed = match ports.answer_handback(run, result) {
+    flush(ports, ledger, limits).map_err(|e| cause_of(&e))?;
+    let decided = if ledger.unsure.contains(item) {
+        Decided::Log
+    } else {
+        press.decide(ledger.closing(item).map(|e| &e.what))
+    };
+    let decided = match decided {
+        Decided::Log => match log_press(ports, ledger, &press, &row, stamp) {
+            Ok(decided) => decided,
+            Err(e) => {
+                if !ledger.unsure.contains(item) {
+                    ledger.unsure.push(item.clone());
+                }
+                return Err(cause_of(&e));
+            }
+        },
+        other => other,
+    };
+    ledger.unsure.retain(|i| i != item);
+    let hand = |result| match ports.answer_handback(run, result) {
         Ok(()) => Ok(()),
         Err(e) if refused_with(&e, "ended") => Ok(()),
         Err(e) => Err(cause_of(&e)),
     };
-    if decided {
-        handed?;
-        return Err(Cause::UnknownItem);
+    match decided {
+        Decided::Own(result) => hand(result),
+        Decided::Other(result) => hand(result).and(Err(Cause::UnknownItem)),
+        Decided::Lapsed | Decided::Log => Err(Cause::UnknownItem),
     }
-    handed
 }
 
 /// The state of a held second step of a `sign_in` item: open for the person's answer, also after
