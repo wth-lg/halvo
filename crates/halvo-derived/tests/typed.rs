@@ -1301,13 +1301,10 @@ fn keyed_handler(pass: bool, records: &Records, asks: &Asks, seen: &Seen) -> Box
         }
         for (kind, workflow) in asks.borrow().iter() {
             let mut rows = Vec::new();
+            let read: halvo_derived::Rows<'_> = cx.rows();
             match workflow {
-                Some(w) => cx
-                    .rows()
-                    .for_each_under(kind, w, &mut |row| rows.push(row.to_owned())),
-                None => cx
-                    .rows()
-                    .for_each(kind, &mut |row| rows.push(row.to_owned())),
+                Some(w) => read.for_each_under(kind, w, &mut |row| rows.push(row.to_owned())),
+                None => read.for_each(kind, &mut |row| rows.push(row.to_owned())),
             }
             seen.borrow_mut().push(rows);
         }
@@ -1762,5 +1759,61 @@ fn two_requests_of_one_family_never_interleave_at_the_test_host() {
             format!(r#"{{"v":1,"workflow":"{w1}","seq":0}}"#),
             format!(r#"{{"v":1,"workflow":"{w1}","seq":1}}"#),
         ]
+    );
+}
+
+/// C25.5, `Store::handle`: a fault of the store while a handler's keyed read reads a row is answered as the fault of
+/// the request. A row of the first workflow whose stored text the store's own reader cannot take (bytes that are no
+/// UTF-8, written by the test's own connection) makes the keyed read of that workflow and the read of the whole kind
+/// answer the fault, while the keyed read of the second workflow, which reaches no such row, answers as before.
+#[test]
+fn a_fault_of_a_handler_s_keyed_read_is_answered_as_the_fault_of_its_request_and_stays_with_its_workflow(
+) {
+    let scratch = Scratch::new("keyed-fault");
+    let clock = TestClock::at_day(DAY);
+    let (w1, w2) = two_workflows(&scratch, &clock);
+    let records: Records = Rc::new(RefCell::new(vec![note(&w1, DAY, 1), note(&w2, DAY, 2)]));
+    let asks: Asks = Rc::new(RefCell::new(Vec::new()));
+    let seen: Seen = Rc::new(RefCell::new(Vec::new()));
+    let host = || {
+        base(&clock, Grouping { min: 1 }).handler(
+            "test",
+            Takes::Runner,
+            keyed_handler(false, &records, &asks, &seen),
+        )
+    };
+    let mut store = open_entries(&scratch, host(), &[&NOTE]).unwrap();
+    store.handle(&raw_request("runner", "{}")).unwrap();
+    drop(store);
+    let mut bytes = format!(r#"{{"v":1,"workflow":"{w1}","day":{DAY},"n":1,"x":""#).into_bytes();
+    bytes.extend_from_slice(&[0xff, b'"', b'}']);
+    let changed = common::raw(&scratch)
+        .execute(
+            "UPDATE rows SET body = CAST(?1 AS TEXT) WHERE kind = 'test_note' AND workflow = ?2",
+            (bytes, &w1),
+        )
+        .unwrap();
+    assert_eq!(changed, 1);
+    let mut store = open_entries(&scratch, host(), &[&NOTE]).unwrap();
+    let mut answers = Vec::new();
+    for ask in [
+        ("test_note", Some(WorkflowId::parse(&w1).unwrap())),
+        ("test_note", None),
+        ("test_note", Some(WorkflowId::parse(&w2).unwrap())),
+    ] {
+        *asks.borrow_mut() = vec![ask];
+        seen.borrow_mut().clear();
+        let answer = store.handle(&raw_request("runner", "{}"));
+        answers.push((
+            matches!(answer, Err(Error::Fault(halvo_derived::Fault::Row))),
+            seen.borrow().iter().map(Vec::len).sum::<usize>(),
+        ));
+    }
+    drop(store);
+    assert_eq!(
+        answers,
+        vec![(true, 0), (true, 0), (false, 1)],
+        "(the request answered the fault, rows visited) for the keyed read of the first workflow, the read of the \
+         whole kind and the keyed read of the second workflow"
     );
 }
