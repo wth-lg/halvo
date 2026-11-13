@@ -183,7 +183,11 @@ function, in scripts/commit-range.sh beside this script, so they read the
 same commits. In the range mode that is every commit that git rev-list
 <revision>... lists, but the newest exempt commit of
 scripts/check-commit-messages.sh and the commits that it reaches, when the
-clone holds it. The commits of a push are the ones that the hook's check of
+default branch as this clone last fetched it (refs/remotes/origin/HEAD, or
+refs/remotes/origin/main) holds that commit; a commit that the default
+branch does not hold is never exempt, so a later commit cannot name an
+earlier one of its own branch. A clone that knows no default branch leaves
+the exempt commit out whenever it holds it: a named limit. The commits of a push are the ones that the hook's check of
 commit messages reads (sh scripts/check-commit-messages.sh --help, layer 2):
 for each pushed
 ref the commits that are on neither the remote's copy of that ref nor the
@@ -301,7 +305,9 @@ a blank; give each an entry of the third kind. A placeholder that is a word
 file whose name holds a tab, a line break, a quote or a backslash is listed
 by the name that git prints, in quotes and with its escapes ("a\tb.txt").
 The name of the exempt commit is read from the copy of
-scripts/check-commit-messages.sh that runs, not from the pushed commits. The
+scripts/check-commit-messages.sh beside this script, not from the pushed
+commits; it counts only when the default branch holds that commit, or when
+the clone knows no default branch. The
 hook does not run for git push --no-verify, or in a clone where
 sh scripts/prerequisites.sh has not set core.hooksPath. When this script or
 the list is missing beside .githooks, .githooks/pre-push refuses the push
@@ -873,7 +879,7 @@ check_range() {
   exempt_commit
   load_commit_range
   label=$*
-  commit_range "$exempt" "$@" >"$work/commits" 2>"$work/log-error" || {
+  commit_range "$exempt" "$(commit_range_default_ref)" "$@" >"$work/commits" 2>"$work/log-error" || {
     first_error=$(sed -n 1p "$work/log-error") || first_error=
     die "git could not list the commits of $label: $first_error"
   }
@@ -1510,6 +1516,24 @@ self_test_commits() {
 
   same_commits_for_both_checks
 
+  new_case_repo exempt-commit-that-the-default-branch-holds
+  tools_of_the_default_branch=$work/tools-of-the-exempt-case
+  mkdir -p "$tools_of_the_default_branch" || die 'mkdir failed'
+  copy_scanner "$tools_of_the_default_branch"
+  expand_fixture 'see /{U}/ida' >"$case_repo/held.txt"
+  held=$(commit_case 'a line in the exempt commit') || die 'commit failed'
+  printf 'NEWEST_EXEMPT_COMMIT=%s\n' "$held" >"$tools_of_the_default_branch/check-commit-messages.sh"
+  in_case_repo update-ref refs/remotes/origin/main "$held" || die 'git update-ref failed'
+  printf 'plain\n' >"$case_repo/later.txt"
+  commit_case 'a later commit' >/dev/null || die 'commit failed'
+  (cd "$case_repo" && HOME=$work/homes/nobody sh "$tools_of_the_default_branch/check-home-paths.sh" --allow "$work/empty-list" HEAD) >"$work/out-exempt-held" 2>&1
+  code=$?
+  case $(cat "$work/out-exempt-held") in
+    *'commits read 1, lines with a home path 0.'*) got=$code ;;
+    *) got="$code-without-the-text" ;;
+  esac
+  verdict range-leaves-out-an-exempt-commit-that-the-default-branch-holds 0 "$got"
+
   new_case_repo exempt-commit-not-held
   printf 'plain\n' >"$case_repo/a.txt"
   commit_case 'first' >/dev/null || die 'commit failed'
@@ -1517,7 +1541,7 @@ self_test_commits() {
   commit_case 'second' >/dev/null || die 'commit failed'
   case_scan range-read-whole-when-the-clone-lacks-the-exempt-commit 0 'commits read 2, lines with a home path 0.' --allow "$work/empty-list" HEAD
   # shellcheck source=scripts/commit-range.sh
-  printed=$(cd "$case_repo" && . "$self_dir/commit-range.sh" && commit_range '' HEAD) || printed=
+  printed=$(cd "$case_repo" && . "$self_dir/commit-range.sh" && commit_range '' '' HEAD) || printed=
   short_lines=$(printf '%s\n' "$printed" | grep -cvE '^([0-9a-f]{40}|[0-9a-f]{64})$') || short_lines=0
   full_lines=$(printf '%s\n' "$printed" | grep -cE '^([0-9a-f]{40}|[0-9a-f]{64})$') || full_lines=0
   verdict range-function-prints-one-full-id-on-each-line 2-0 "$full_lines-$short_lines"
@@ -1977,8 +2001,11 @@ self_test_hook() {
   expand_fixture '/{H}/lena' >"$repo/later.txt"
   later_commit=$(commit_all 'a later commit') || die 'commit failed'
   printf 'NEWEST_EXEMPT_COMMIT=%s\n' "$exempt_commit" >"$exempt_home/check-commit-messages.sh"
+  default_of_proof=$(in_repo rev-parse refs/remotes/proof/main) || die 'git rev-parse failed'
+  in_repo update-ref refs/remotes/proof/main "$exempt_commit" || die 'git update-ref failed'
   (cd "$repo" && printf 'refs/heads/exempt %s refs/heads/exempt %s\n' "$later_commit" 0000000000000000000000000000000000000000 |
     HOME=$work/homes/nobody sh "$exempt_home/check-home-paths.sh" --allow "$list" --pre-push proof) >"$work/out-exempt" 2>&1
+  in_repo update-ref refs/remotes/proof/main "$default_of_proof" || die 'git update-ref failed'
   case $(cat "$work/out-exempt") in
     *exempt.txt*) got=the-exempt-commit-read ;;
     *'later.txt:1: a home path (linux)'*) got=the-later-commit-alone ;;

@@ -416,7 +416,7 @@ check_range() {
   resolve_default_ref
   exempt_commit=
   [ "$exempt" = 0 ] || exempt_commit=$NEWEST_EXEMPT_COMMIT
-  commits=$(commit_range "$exempt_commit" "$1") || die "git rev-list could not list the commits of '$1'"
+  commits=$(commit_range "$exempt_commit" "$default_ref" "$1") || die "git rev-list could not list the commits of '$1'"
   check_commits "$1" "$commits"
   [ "$any_range_failed" = 0 ]
 }
@@ -917,6 +917,25 @@ self_test_pre_push() {
   status=0
   (cd "$work/clone" && printf 'refs/heads/x %s refs/heads/x %s\n' "${clean%?}" "$no_commit" | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-line-with-an-object-id-of-39-characters.txt" 2>&1 || status=$?
   judge a-line-with-an-object-id-of-39-characters "$status" 2 'cannot read this line'
+
+  exempt_tree=$work/tree-with-an-exempt-commit-named-by-a-later-one
+  mkdir -p "$exempt_tree/.githooks" "$exempt_tree/scripts"
+  cp "$work/tree/.githooks/pre-push" "$exempt_tree/.githooks/pre-push"
+  cp "$work/tree/scripts/check-home-paths.sh" "$work/tree/scripts/commit-range.sh" "$work/tree/scripts/home-path-allow.txt" "$exempt_tree/scripts/"
+  push_with_an_exempt_commit_named_by_a_later_one() {
+    name=$1 earlier=$2 later_tree=$3 want_text=$4
+    sed "s/^NEWEST_EXEMPT_COMMIT=.*/NEWEST_EXEMPT_COMMIT=$earlier/" "$work/tree/scripts/check-commit-messages.sh" >"$exempt_tree/scripts/check-commit-messages.sh"
+    later=$(git -C "$work/clone" commit-tree "$later_tree" -p "$earlier" -m 'Name the commit below as the newest exempt one')
+    status=0
+    git -C "$work/clone" -c core.hooksPath="$exempt_tree/.githooks" push proof "$later:refs/heads/$name" >"$work/out/$name.txt" 2>&1 || status=$?
+    judge "$name" "$status" 1 "$want_text"
+  }
+  earlier_with_a_trailer=$(commit_on_base "Fix the gate three$nl$nl$trailer")
+  push_with_an_exempt_commit_named_by_a_later_one a-later-commit-names-an-earlier-one-with-a-trailer-as-exempt "$earlier_with_a_trailer" "$tree" 'commits checked 2, with an attribution line 1'
+  note_blob=$(printf 'see /%s/zed/notes\n' Users | git -C "$work/clone" hash-object -w --stdin)
+  tree_with_a_note=$({ git -C "$work/clone" ls-tree "$tree"; printf '100644 blob %s\tzed-notes.txt\n' "$note_blob"; } | git -C "$work/clone" mktree)
+  earlier_with_a_home_path=$(git -C "$work/clone" commit-tree "$tree_with_a_note" -p "$base" -m 'Add a note')
+  push_with_an_exempt_commit_named_by_a_later_one a-later-commit-names-an-earlier-one-with-a-home-path-as-exempt "$earlier_with_a_home_path" "$tree_with_a_note" 'commits read 2, lines with a home path 1.'
 
   if [ "$failures" -gt 0 ]; then
     printf 'check-commit-messages: pre-push self-test FAIL: %d of %d pushes behaved otherwise. Outputs are in %s.\n' "$failures" "$pushes" "$work/out"

@@ -24,16 +24,21 @@ commit_range_default_of_remote() {
   fi
 }
 
-# commit_range <exempt commit> <revision>...
+# commit_range <exempt commit> <default ref> <revision>...
 # Prints the commits that git rev-list <revision>... lists, oldest first, one
 # full id on each line. When <exempt commit> is not empty and this clone holds
-# it, that commit and the commits that it reaches are left out.
+# it, that commit and the commits that it reaches are left out if <default ref>
+# holds it, or if <default ref> is empty because the clone knows no default
+# branch; a commit that the default branch does not hold is never exempt.
 # Returns 2 when git cannot list the commits.
 commit_range() {
   commit_range_exempt=$1
-  shift
+  commit_range_default=$2
+  shift 2
   if [ -n "$commit_range_exempt" ] && git cat-file -e "$commit_range_exempt^{commit}" 2>/dev/null; then
-    set -- "$@" "^$commit_range_exempt"
+    if [ -z "$commit_range_default" ] || git merge-base --is-ancestor "$commit_range_exempt" "$commit_range_default" 2>/dev/null; then
+      set -- "$@" "^$commit_range_exempt"
+    fi
   fi
   git rev-list --reverse --end-of-options "$@" -- </dev/null || return 2
 }
@@ -68,9 +73,9 @@ commit_range_is_object_id() {
 
 # commit_range_of_push <exempt commit> <default branch of the remote>
 # Prints the commits that the push of the line read last adds, as commit_range
-# prints them: the commits of the pushed object that are on neither the
-# remote's copy of the ref, when this clone holds that commit, nor <default
-# branch of the remote>. Prints nothing for the deletion of a ref and for a tag
+# prints them with <default branch of the remote> as its default ref: the
+# commits of the pushed object that are on neither the remote's copy of the
+# ref, when this clone holds that commit, nor <default branch of the remote>. Prints nothing for the deletion of a ref and for a tag
 # that names no commit. Returns 3 when git cannot resolve the pushed object,
 # and 2 when git cannot list the commits.
 commit_range_of_push() {
@@ -90,6 +95,7 @@ commit_range_of_push() {
   esac
   if [ -n "$2" ]; then set -- "$@" "^$2"; fi
   commit_range_exempt=$1
+  commit_range_default=$2
   shift 2
-  commit_range "$commit_range_exempt" "$@"
+  commit_range "$commit_range_exempt" "$commit_range_default" "$@"
 }

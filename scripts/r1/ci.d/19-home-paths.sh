@@ -293,6 +293,15 @@ self_test() {
   add_commit listed-line-and-its-entry "see /$u/zoe/x" 'second'
   expect PASS listed-line-and-its-entry
 
+  fixture exempt-commit-named-by-a-later-commit
+  add_commit exempt-commit-named-by-a-later-commit "see /$u/zoe/x" 'second'
+  earlier=$(git -C "$scratch/exempt-commit-named-by-a-later-commit" rev-parse HEAD) || exit 2
+  first=$(git -C "$scratch/exempt-commit-named-by-a-later-commit" rev-parse HEAD^) || exit 2
+  sed "s/^NEWEST_EXEMPT_COMMIT=.*/NEWEST_EXEMPT_COMMIT=$earlier/" "$repo/scripts/check-commit-messages.sh" >"$scratch/exempt-commit-named-by-a-later-commit/scripts/check-commit-messages.sh" || exit 2
+  add_commit exempt-commit-named-by-a-later-commit 'plain again' 'name the commit below as the newest exempt one'
+  git -C "$scratch/exempt-commit-named-by-a-later-commit" update-ref refs/remotes/origin/main "$first" || exit 2
+  expect FAIL exempt-commit-named-by-a-later-commit ' commits=2 lines=1 '
+
   fixture list-malformed-in-the-commit
   printf 'x\tnot a path\treason\n' >>"$scratch/list-malformed-in-the-commit/scripts/home-path-allow.txt"
   add_commit list-malformed-in-the-commit 'more plain text' 'second'
