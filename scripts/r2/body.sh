@@ -83,22 +83,33 @@ r2_body_rename() {
   perl -e 'rename($ARGV[0], $ARGV[1]) or exit 1' "$1" "$2"
 }
 
+# Moves the new body $1 to its place $2. A body in place that does not check same against the committed
+# manifest $3 is moved aside into the call's own reserved directory $4, under a name that no other try uses.
 r2_body_place() {
   r2_tries=0
   while [ "$r2_tries" -lt 3 ]; do
     r2_body_rename "$1" "$2" && return 0
     r2_state=$(r2_body_check "$2" "$3") || r2_state=unread
     [ "$r2_state" = same ] && return 0
-    r2_body_rename "$2" "$2.stale.$$.$r2_tries" || true
+    r2_body_rename "$2" "$4/aside.$r2_tries" || true
     r2_tries=$((r2_tries + 1))
   done
   return 1
 }
 
+# Builds the body into a directory that mktemp reserves for this call alone, places it, and on every way out
+# removes that directory with what stands in it: a body that was not placed and a body that was moved aside.
 r2_body_build() {
   r2_dir=$(r2_body_dir "$1" "$2") || return 1
   mkdir -p "${r2_dir%/*}" || return 1
   r2_slot=$(mktemp -d "$r2_dir.new.XXXXXX") || return 1
+  r2_body_make "$@"
+  r2_made=$?
+  rm -rf -- "$r2_slot" 2>/dev/null || printf 'body %s: its reserved directory cannot be removed\n' "$2"
+  return "$r2_made"
+}
+
+r2_body_make() {
   r2_new=$r2_slot/body
   r2_seed=$(sed -n 's/^seed = //p' "$5") || return 1
   r2_started=$(date +%s)
@@ -116,7 +127,7 @@ r2_body_build() {
     fi
     return 1
   fi
-  r2_body_place "$r2_new" "$r2_dir" "$5" || {
+  r2_body_place "$r2_new" "$r2_dir" "$5" "$r2_slot" || {
     printf 'body %s: the built body cannot be moved into place\n' "$2"
     return 1
   }
