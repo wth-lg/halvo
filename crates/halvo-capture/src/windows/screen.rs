@@ -685,12 +685,26 @@ mod tests {
         };
         assert!(handler.on_closed().is_ok());
         let failed = crate::windows::thread_ended();
+        let failed_with = |reason| SourceState::Failed {
+            reason,
+            error: CaptureError::ThreadEnded,
+        };
         let mut life = ScreenLife::default();
         assert_eq!(life.state(false, false), SourceState::NotReported);
         life.started(fake(false, true, 0));
-        assert_eq!(life.state(closed.load(Ordering::Relaxed), false), failed);
+        assert_eq!(
+            life.state(closed.load(Ordering::Relaxed), false),
+            failed_with(HealthReason::ItemClosed)
+        );
         assert_eq!(life.state(false, false), SourceState::Running);
-        assert_eq!(life.state(false, true), failed);
+        assert_eq!(
+            life.state(false, true),
+            failed_with(HealthReason::WriterGone)
+        );
+        assert_eq!(
+            life.state(true, true),
+            failed_with(HealthReason::WriterGone)
+        );
         assert_eq!(life.shutdown(Duration::from_secs(1)), Ok(()));
         assert_eq!(
             life.state(false, false),

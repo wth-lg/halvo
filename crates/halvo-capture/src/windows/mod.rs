@@ -1068,6 +1068,32 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn a_source_whose_writer_is_gone_reads_failed_with_the_reason_writer_gone() {
+        let (sink, writer) = crate::sink::channel(1);
+        drop(writer);
+        let mut life = Lifecycle::default();
+        let mut producer = None;
+        let started = life.begin(&SourceContext::new(sink), "halvo-test-forward", |made| {
+            producer = Some(made);
+            quiet_pump()
+        });
+        assert_eq!(started, Ok(Started::Running));
+        let producer = producer.expect("the producer");
+        producer.push(pointer("refused"));
+        wait_until("the forwarder did not see the gone writer", || {
+            producer.writer_gone()
+        });
+        assert_eq!(
+            life.health(SourceCounters::default()).state,
+            SourceState::Failed {
+                reason: HealthReason::WriterGone,
+                error: CaptureError::ThreadEnded,
+            }
+        );
+        assert_eq!(life.shutdown(), Ok(()));
+    }
+
+    #[test]
     fn a_closed_hand_off_takes_no_packet_while_its_forwarder_is_parked() {
         let (sink, writer) = crate::sink::channel(1);
         assert!(forward_one(&sink, pointer("filler")).is_ok());

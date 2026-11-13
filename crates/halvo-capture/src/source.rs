@@ -225,7 +225,12 @@ pub enum HealthReason {
     TitleReadErrors,
     StreamBlank,
     StreamSuspended,
+    /// A source thread that ended.
     ThreadEnded,
+    /// The writer of the source's events is gone; a restart cannot help.
+    WriterGone,
+    /// The system closed the source's capture item; a restart can help.
+    ItemClosed,
     Timeout,
     OsError,
     NotImplemented,
