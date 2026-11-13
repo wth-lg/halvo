@@ -319,6 +319,8 @@ fn an_address_of_the_app_host_with_a_password_and_no_user_name_is_refused() {
     );
     let test = Guarded::new("password", app::context());
     let main = test.main();
+    assert!(call(main.as_ref(), "capture_status", app_origin()).is_ok());
+    assert!(call(main.as_ref(), "capture_status", None).is_ok());
     let header = HeaderValue::from_str(&origin).expect("an address that a header can hold");
     for command in unit_commands() {
         assert_eq!(
