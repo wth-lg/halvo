@@ -42,7 +42,12 @@ link come from it. A change elsewhere in the workspace does not need them.
    row, and a shred removes the event rows of its segment.
    On macOS every file in the store directory has mode 0600 and
    every directory in it, the store directory included, has mode 0700,
-   after every operation.
+   after every operation, as long as no other process widens a mode: the
+   store makes each file at 0600 and each directory at 0700, narrows the
+   store directory to 0700 at create and at open, and sets `store.db` to
+   0600 on its own descriptor before the connection opens, so the
+   `store.db-wal` that SQLite makes with the mode of `store.db` is 0600
+   too.
    Harm if broken: data the owner believes destroyed is still recoverable
    from the store by anyone who later obtains the store key. A create that
    takes or destroys the root of another store loses that store. A
@@ -108,7 +113,7 @@ checks call and that no row fails through stands under Not covered.
 | 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` (the `UPDATE` that sets a key to NULL, and the checkpoint after its commit), `destroy_store_key`, `delete_events_and_index` (the `DELETE` of the event rows), `crypto_shred_all` (its branch for a handle that delete-all sealed) | `formal-shredded-key-survives`, `formal-key-row-deleted`, `formal-key-row-deleted-oldest-first`, `formal-checkpoint-removed`, `formal-delete-all-destroys-nothing`, `formal-shred-leaves-the-event-rows`, `formal-second-delete-all-is-refused`, `formal-second-delete-all-finishes-nothing` |
 | 1 | `crates/halvo-capture/src/store/db.rs` | `Db::open_file`, which `Db::open` and `Db::open_existing` call (the `secure_delete` pragma with `require_secure_delete`), `require_write_ahead_log` (the journal mode that it sets and the one that it requires), `Db::checkpoint_truncate`, `EncryptedStore::write_segment_with_expiry` (where it puts the wrapped key), `KeyFile` and `EncryptedStore::write_key_file` (what `store.key` holds), `EncryptedStore::create` (the removal of the database when `Db::open` fails, and the database before the root step), `EncryptedStore::under_a_new_root` (the root step of a create, which calls `create_root`, and where its error goes), `Db::insert_event` (the rollback to its savepoint) | `formal-secure-delete-off`, `formal-journal-mode-not-wal`, `formal-checkpoint-not-verified`, `formal-wrapped-key-in-a-side-file`, `formal-second-wrap-in-another-table`, `formal-raw-store-key-in-key-file`, `formal-failed-create-leaves-the-database`, `formal-create-makes-its-root-first`, `formal-create-takes-an-existing-root`, `formal-refused-create-destroys-the-root`, `formal-create-spares-only-a-root-it-can-read`, `formal-failed-append-leaves-the-event-row` |
 | 1 | `crates/halvo-capture/src/custody/dev_fallback.rs` | the macOS root store: `seal`, which `wrap` calls, and `unwrap` (the `aead_seal` and `aead_open` calls under the root), and `make_root` (the random fill of a new root), which `create_root` and `existing_or_new_root` call | `formal-custody-wrap-under-constant-key`, `formal-custody-root-is-all-zero` |
-| 1 | `crates/halvo-capture/src/store/durable.rs` | `OsFs::create_new` (the mode of a new file), `create_private_dir_all` (the mode of a new directory) | `formal-store-files-take-the-umask`, `formal-store-directories-take-the-umask` |
+| 1 | `crates/halvo-capture/src/store/durable.rs` | `Dir::create_new`, which `OsFs::create_new` calls (the mode of a new file), `create_private_dir_all` and `Dir::create_dir` (the mode of a new directory) | `formal-store-files-take-the-umask`, `formal-store-directories-take-the-umask` |
 | 2 | `crates/halvo-capture/src/store/db.rs` | `Db::open_file` (the `locking_mode = EXCLUSIVE` pragma and `require_exclusive_locking`), `verify_key` (the mapping of `DatabaseBusy` to `Locked`), `EncryptedStore::open_with` (the call of `Db::refuse_a_live_holder` and the place of its answer, before the custody) | `formal-single-writer`, `formal-single-writer-both-locks`, `formal-busy-not-mapped-to-locked`, `formal-held-store-asks-its-custody` |
 
 A change to any function in the table, or to the schema of `segment_keys`,
@@ -926,18 +931,62 @@ it in the plan before weakening an assertion.
   `crates/halvo-sqlcipher/mutants.rows`, whose verdict is a test of that
   crate).
 - Links. No move of check 1 puts a link into the store directory, so it
-  does not read that the sweep, the removal of `store.key`, the open of
-  `writer.lock` and a segment write follow none. The tests of
-  `store::hardening_tests` whose names start with `the_keyless_sweep_`
-  read the sweep, and
-  `delete_all_unlinks_a_store_key_that_is_a_link_and_writes_nothing_through_it`,
-  `create_makes_no_file_through_a_writer_lock_that_is_a_link` and
+  does not read the handle rule. The store takes one handle of its
+  directory at `create` and at `open`, as a directory and without
+  following a link, and names the database under the name of that handle,
+  which holds no link. It opens `segments` relative to that handle, a
+  shard relative to `segments`, and `store.key` or a segment file relative
+  to its directory, each in one step that refuses a link and, for a file,
+  a name that is no regular file; it lists a directory through its handle,
+  and creates, renames and removes a file by name relative to the handle
+  that it walked or checked. The three database opens carry
+  `SQLITE_OPEN_NOFOLLOW` and no `SQLITE_OPEN_URI`. Before a segment write
+  renames its partial file, it reads the shard's name relative to
+  `segments` without following a link and goes on only when it names the
+  same directory; otherwise it answers `Corrupt` and removes the partial
+  file through the shard's handle. The open of `writer.lock`, the removal
+  of `store.key` and the steps of delete-all stay by name under the name of
+  the handle. On Windows a directory of the chain and `store.db`, from its
+  checks until the connection is open, are held by a handle opened with the
+  reparse-point flag and without delete sharing, so no other entry can take
+  their names. The tests of `store::hardening_tests` whose names start with
+  `the_keyless_sweep_` read the sweep, two of them with a shard swapped for
+  a link inside the walk and after it;
   `a_segment_write_puts_no_file_through_a_shard_that_links_out_of_the_store`
-  read the other three. Nor does it read what `open` answers for a
-  `segments` directory or a `store.db` that is a link: `Corrupt`, after the
-  read of the key file and before the holder probe and the custody.
-  `store::hardening_tests::open_refuses_a_store_db_that_is_a_link_before_its_custody_and_writes_nothing_through_it`
-  tests the second, on unix.
+  and the two tests after it read a segment write, with a shard swapped at
+  the create of its partial file;
+  `delete_all_unlinks_a_store_key_that_is_a_link_and_writes_nothing_through_it`
+  and `create_makes_no_file_through_a_writer_lock_that_is_a_link` read the
+  other two; the tests that start with `open_answers_a_store_key_` and
+  `a_segment_read_answers_` read a link and a FIFO at `store.key` and at a
+  segment file, each within 5 s;
+  `open_refuses_a_store_db_that_is_a_link_before_its_custody_and_writes_nothing_through_it`
+  reads a link that is there before the custody call, and
+  `open_refuses_a_link_put_at_store_db_inside_the_custody_call_and_changes_nothing_beside_its_target`
+  one put in place inside it. A move after the store's last look is the
+  other process's own act: the store wrote into no directory that was
+  never its own, and what was moved away is ciphertext whose key a shred
+  or delete-all destroys.
+  Two counted races are ignored in the default run and run by hand when
+  that code changes. Their counts are no measurement of a rate; they come
+  from this Mac at a 1-minute load near 100.
+  - 300 opens while a thread swaps `store.db` between a hard link and a
+    symbolic link to the same file outside the store, and no open leaves a
+    log beside the target:
+    `cargo test -p halvo-capture --lib -- --ignored --exact store::hardening_tests::no_open_goes_through_a_link_that_a_thread_swaps_in_at_store_db --nocapture`.
+    The last run: `opens=300 swaps=117 ok_with_a_log_beside_the_target=0
+    ok_inside=6 refused_as_corrupt=294`. The same test at 09943666, before
+    the handle rule: `ok_with_a_log_beside_the_target=11` of 300.
+  - 3,600 sweeps while a thread swaps a shard for a symbolic link to a
+    directory that holds a file with a segment's name, and no sweep removes
+    that file:
+    `cargo test -p halvo-capture --lib -- --ignored --exact store::hardening_tests::the_keyless_sweep_removes_nothing_outside_while_a_thread_swaps_a_shard_for_a_link --nocapture`,
+    with its control, which swaps in a plain directory:
+    `store::hardening_tests::the_keyless_sweep_race_control_with_a_plain_directory_swapped_in`.
+    The last runs: `sweeps=3600 racer_swaps=355 removed_outside=0`, and the
+    control `sweeps=3600 racer_swaps=591 removed_outside=0`. At 09943666 the
+    race removed the file outside once in 3,600 sweeps, and its control
+    removed it in none.
 - The mode of a directory that exists. Check 1 makes its store in a new
   directory, so a store whose `open` and `create` do not narrow a wider
   directory (`make_private`) passes it.
