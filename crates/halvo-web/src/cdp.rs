@@ -109,7 +109,10 @@ pub struct StartOptions {
 /// Which flags against a crash's dump a start carries (CP-165 (2), CP-167 E2): the product's
 /// (`crate::CRASH_MEANS`, after `crate::PRODUCT_FLAGS`), none of them (the crash row's control), or
 /// the product's and one candidate of the closed list `crate::CRASH_CANDIDATES` (the crash row's
-/// readings). A caller names an entry of a list of the crate and adds no flag of its own.
+/// readings). A caller names an entry of a list of the crate and adds no flag of its own. The two
+/// entries other than `Product` are the crash row's alone; a caller of the product names `Product`.
+/// Both are public in every build, as `relay::Names::Fixture` is, and no caller of the product
+/// exists yet (CP-186 S8, N8).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CrashMeans {
     Product,
@@ -686,7 +689,10 @@ impl Executor {
     }
 
     /// Closes the browser over its channel and waits up to 10 s for its first process to end,
-    /// then ends it with the system's hard kill through the child that the start made.
+    /// then ends it with the system's hard kill through the child that the start made. It first
+    /// fails every request that the rule held. The rule still holds after that, so a
+    /// state-changing request that the page sends before the browser ends is held and never
+    /// answered, and nothing of it leaves (CP-186 N6).
     pub async fn stop(mut self) -> (Vec<u32>, crate::checks::Ended) {
         self.wire.fail_all_held_now();
         let _ = self
