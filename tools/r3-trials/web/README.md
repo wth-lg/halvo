@@ -247,7 +247,8 @@ the listener must see it, or the cell is `notrun ... cause=control`. Then the tr
 browser that is still alive over its debugging address, or, where it has none, ends its root
 process by its recorded creation time, and then ends what the run left with the routine of every
 other way out (`checks::end_runs_own`, below; the killed driver runs no end of its own). The run
-line prints `left_before` and `left_after`, and a run with `left_after` above 0 is a miss. No row walks the tree of such a browser, so no row stops a
+line prints `left_before` and `left_after`, and a run with `left_after` above 0 is a miss (in
+`relay_port_free` `left_before` above 0 is one too, CP-145 (1)). No row walks the tree of such a browser, so no row stops a
 browser on Windows through the snapshot of parents that can take a reused process number. Each
 run removes the profile and the temporary directory that its driver made.
 
@@ -453,7 +454,10 @@ seconds later. The executor therefore starts a guard for each browser: the trial
 (a handle list on Windows) with the relay's listener as its one descriptor beside its standard
 streams. It never accepts; it reads the process table every 20 ms and exits when no process of the
 browser's tree runs, the adopted ones among them and every process that a living member starts
-after the first process has ended. The executor's stop waits for it. A failed accept does not end
+after the first process has ended. A table that could not be read is not an empty one: the guard
+keeps the port and reads again every 2 ms, and when the table stays unread for 300 s it ends with
+exit 3 and the line `guard_end cause=table_unread` (`relay::guard_loop`). The executor's stop waits
+for it. A failed accept does not end
 the relay's accept loop (`ACCEPT_PAUSE`), so the listener stays open while the relay lives.
 
 ### The checks of a session (CP-89 (c))
@@ -472,11 +476,25 @@ I/O while a read of it is pending). Every run of `--round 3` reads them after th
 the row and after the stop, and each cell prints one `check` line with the sum of each rule over its
 runs and the number of runs in which all were 0. For the read after the stop the executor keeps
 copies of its two ends open: on macOS a freed pipe's handle can name a new pipe of another process.
-For each process that a read counts in `port_flag` or `pipe_holder`, the run prints a
-`check_counted` line on standard error (CP-140): the rule, its number, its parent, its program where
-that can be read, and `again`, what a second read of the same process 0.5 s later finds (`yes` it
-still counts, `no` it runs and no longer counts, `gone`). The print changes nothing that the check
-counts; a read that counts nothing does not wait.
+The check reads the process table under the start lock, so that no child of the trial's own
+process is between its fork and its exec during the read. A read whose table could not be read is
+open (`table_unread=1`), never a read that found nothing. Each process that a read counts in
+`port_flag` or `pipe_holder` gets a class by its own state (CP-145 (2)). On macOS it counts at once
+when its arguments were read (with the flag, or while it held an end), when it held one of the
+executor's two ends, ran a program outside the browser's app bundle, or had a parent, by number and
+start time, other than the browser's first process or a process of its tree inside the bundle;
+otherwise the check follows it every 5 ms for at most 30 s until its arguments can be read. It is
+`passing` when it then runs inside the bundle with no flag and holds no end (a failed read of its
+descriptors counts as holding), `open` with `holder_gone` when it ended first, and counts otherwise,
+also when its arguments are still unread at 30 s. On Windows every counted process counts. Each read
+and each cell's `check` line carry `port_flag_passing`, `port_flag_open`, `pipe_holder_passing`,
+`pipe_holder_open` and `table_unread` beside the six rules; a run's read holds when each of the two
+rules counts nothing less its passing and open processes, none is open, the table was read and each
+other rule is 0. Each counted process gets a `check_named` line on standard output: the step, the
+run, the read, the rule, its number and start time, its parent's with `parent=first`, `tree`,
+`executor`, `other` or `unread`, the program's file name with `bundle=in`, `out` or `unread`,
+`args=read` or `unread`, the flag, the ends held, the milliseconds of the follow, what decided and
+the class. The counts themselves do not change.
 
 ### Rows of the third round
 
@@ -491,10 +509,24 @@ counts; a read that counts nothing does not wait.
   start, the fixture had counted no request at that moment, and the agent's first open then reaches
   the fixture.
 - `relay_port_free` (with `--rows driver`): the driver, with the relay in its process and the
-  browser on its pipe, is killed with the system's hard kill while a POST is paused; the trial then
-  reads every 2 ms whether a new socket can bind the relay's port (with `SO_REUSEADDR`) and whether
-  any process of the browser's tree still runs; ok when the browser's tree was gone first and the
-  end of the run's own processes after the watch left none (`left_after=0`).
+  browser on its pipe, is killed with the system's hard kill while a POST is paused. The row asserts
+  A13.7's sentence: the browser is gone before the relay's port is free, and nothing of the run is
+  left; it promises no seconds (CP-145 (1)). From the kill the watch (`r3_web::killwatch`) ends
+  nothing: every 2 ms it reads first whether a process of the run still runs (one of the tree read
+  before the kill, or any process that the run's mark owns, so a member born later counts) and then
+  whether a new socket can bind the relay's port (with `SO_REUSEADDR`); when the port is free and a
+  process ran, it reads the processes once more. At 30 s it prints a `watch_at` line with what still
+  runs (the count, the programs' file names, whether the first process is among them) and watches
+  on; at its cap of 300 s it prints the same and only then does the row end the run's processes.
+  Once the order is shown it reads the port on for `free_ms` until it is free or 30 s have passed.
+  A kill is `ok` when a pass read no process running and then the port still taken, and the row's
+  own end after the watch found and left nothing (`left_before=0`, `left_after=0`); a `miss` with
+  `free_first` (the port free while a process ran), `tree_left` (a process still runs at the cap)
+  or `left_behind` (the tree read gone, and the row's end found or left a process); `open` with
+  `one_pass` when both events were first seen in one pass, or `table_unread` when the table could
+  not be read at the cap. The run line gives `result`, `cause`, `gone_ms`, `free_ms` and
+  `max_gap_ms`. A call with a miss prints its cell line; a call with an open kill and no miss prints
+  `notrun ... cause=watch_open` in place of it.
 - `org_debugging` and `org_proxy` (`--rows org`): the caller sets the organisation's setting before
   the call and takes it away after it: the scratch workflow writes `RemoteDebuggingAllowed` off or
   `ProxyMode` `direct` under `HKLM\SOFTWARE\Policies` on Windows, and on the hosted Mac installs the
@@ -504,10 +536,15 @@ counts; a read that counts nothing does not wait.
   policy back: a headless start with no debugging channel (the policy that closes the pipe would
   stop any other read) prints `chrome://policy/`, else `edge://policy/`, to a PDF, and PDFKit reads
   its text. Whether the text names the policy is decided by `r3_web::policy` (CP-126 E3), which
-  `web-trial --policy-named NAME FILE` gives the jobs: on a policy page (a line that begins with
-  "policy name"), the name as a whole word that begins a row, or the pieces of a broken name, each a
-  whole word, in the page's order and spelling the name and nothing more. A longer name, the name
-  inside another policy's value and the text squashed to letters alone name nothing. Run
+  `web-trial --policy-named NAME FILE [VALUE_READ]` gives the jobs: on a policy page (a line that
+  begins with "policy name"), the name as a whole word that begins a row, or the pieces of a broken
+  name, each a whole word, in the page's order and spelling the name and nothing more, or (CP-145
+  (6)) the name's letters in order from the start of a line with only white space or line breaks
+  between them, ended by the value that the job wrote and read back as the page prints it (`false`
+  for the 0 of `RemoteDebuggingAllowed`, `direct` for `ProxyMode`), standing as the end of its word:
+  pypdf gives Edge's Windows table as `Remot eDebuggingAllow e` and `dfalse Platform ...`. A longer
+  name, the name inside another policy's value, another value and the text squashed to letters
+  alone name nothing. Run
   43347520562's reader tested for the name as a part of the text; the fixed rule gives the same
   answers on that run's saved pages. A hosted Mac cell runs only when the page names the policy
   and shows one more `Platform` source than a read of the page before the write, else the workflow
