@@ -1,6 +1,7 @@
 #[path = "coordinator_support.rs"]
 mod support;
 
+use halvo_coord::items::choices;
 use halvo_coord::mem::{Call, Method};
 use halvo_coord::ports::PortError;
 use halvo_coord::sync::Next;
@@ -2172,9 +2173,18 @@ fn a_lapse_of_an_own_item_whose_answer_was_stored_with_a_lost_acknowledgement_st
     assert_eq!(closing_rows(&c, &item), 1, "{:?}", events(&c));
 }
 
+/// Turned by ruling RD-61 (d) from
+/// `a_second_answer_after_a_lost_acknowledgement_takes_the_stored_answer_which_decides`: the
+/// same press counts the stored `done`, and a press of decline after it stores its own row and
+/// the run gets `declined`, never the stored `done`.
 #[test]
-fn a_second_answer_after_a_lost_acknowledgement_takes_the_stored_answer_which_decides() {
-    for (second, decided) in [(Choice::Done, false), (Choice::Decline, true)] {
+fn a_second_answer_after_a_lost_acknowledgement_counts_the_same_choice_and_stores_a_later_decline()
+{
+    use halvo_coord::types::HandbackResult;
+    for (second, result, rows) in [
+        (Choice::Done, HandbackResult::Done, 1),
+        (Choice::Decline, HandbackResult::Declined, 2),
+    ] {
         let c = coordinator(&[MANUAL], Limits::PRODUCT);
         let run = start(&c, 0);
         c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
@@ -2184,24 +2194,21 @@ fn a_second_answer_after_a_lost_acknowledgement_takes_the_stored_answer_which_de
         assert_eq!(c.answer(&item, Choice::Done, None), Err(Cause::NoService));
         lose_the_acknowledgement(&c);
         let m = mark(&c);
-        let out = c.answer(&item, second, None);
-        if decided {
-            assert_eq!(out, Err(Cause::UnknownItem), "{second:?}");
-        } else {
-            assert_eq!(out, Ok(()), "{second:?}");
-        }
-        assert_eq!(closing_rows(&c, &item), 1, "{second:?}: {:?}", events(&c));
+        assert_eq!(c.answer(&item, second, None), Ok(()), "{second:?}");
+        assert_eq!(
+            closing_rows(&c, &item),
+            rows,
+            "{second:?}: {:?}",
+            events(&c)
+        );
         let handed: Vec<Call> = calls_since(&c, m)
             .into_iter()
             .filter(|call| matches!(call, Call::AnswerHandback(..)))
             .collect();
         assert_eq!(
             handed,
-            [Call::AnswerHandback(
-                run.clone(),
-                halvo_coord::types::HandbackResult::Done
-            )],
-            "{second:?}: the stored answer's result, once"
+            [Call::AnswerHandback(run.clone(), result)],
+            "{second:?}: the press's own result, once"
         );
         let s = c.snapshot();
         assert!(s.items.is_empty(), "{second:?}");
@@ -2344,26 +2351,27 @@ fn a_stored_answer_whose_reply_was_lost_counts_for_the_same_answer_again_in_both
     }
 }
 
+/// Turned by ruling RD-61 (d) from
+/// `a_stored_answer_whose_reply_was_lost_decides_another_choice_in_both_orders`: a press of
+/// decline after a stored `done` that the run did not take stores its own row, and the run gets
+/// `declined` and never `done`.
 #[test]
-fn a_stored_answer_whose_reply_was_lost_decides_another_choice_in_both_orders() {
+fn a_stored_done_whose_reply_was_lost_then_decline_stores_the_decline_and_sends_declined_in_both_orders(
+) {
     use halvo_coord::types::HandbackResult;
     for order in ORDERS {
         let (c, _run, item) = answered_with_a_lost_reply(order);
         let m = mark(&c);
-        assert_eq!(
-            c.answer(&item, Choice::Decline, None),
-            Err(Cause::UnknownItem),
-            "{order:?}"
-        );
+        assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()), "{order:?}");
         assert_eq!(
             closing_rows(&c, &item),
-            1,
-            "{order:?}: one row, the stored done"
+            2,
+            "{order:?}: the stored done and the decline"
         );
         assert_eq!(
             handed_back(&c, m),
-            [HandbackResult::Done],
-            "{order:?}: the stored choice"
+            [HandbackResult::Declined],
+            "{order:?}: the press's own choice"
         );
         assert!(c.snapshot().items.is_empty(), "{order:?}");
     }
@@ -2466,20 +2474,27 @@ fn the_wait_limit_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_
 /// What the lossy sequences found: by the kind of the item, the items that end with more than one
 /// closing row; the confirmations whose `item_answered` rows stand beside their lapse, which I4.5
 /// allows; the second steps, told by their answer row, with two answer rows or with an answer and
-/// a lapse, and the `link_account` items with `done` and then `decline`, which ruling RD-46
-/// allows; the Bind moves made and the second steps that they raised; each `answer_bind` with
-/// `allow` that did its work, and the ones that broke a property of RD-46 (5) T19.
+/// a lapse; the items of a kind whose choices are decline and done with the rows `done` and then
+/// one `decline`, which rulings RD-46 B4 and RD-61 (b) and (d) allow, and the items of a handback
+/// with a second row of the same choice, which the clause of RD-61 (c) allows; the Bind moves made
+/// and the second steps that they raised; each `answer_bind` with `allow` that did its work, and
+/// the ones that broke a property of RD-46 (5) T19; the moves that drew a refused
+/// `Runs::answer_handback`, each handback result that did its work inside a press, and the ones
+/// that broke RD-61 (h) 4.
 #[derive(Debug, Default)]
 struct Lossy {
     twice: Vec<ItemKind>,
     confirm_rows: usize,
     second_twice: usize,
     second_lapsed: usize,
-    link_done_decline: usize,
+    done_decline: usize,
+    same_again: usize,
     bind_moves: usize,
     binds_raised: usize,
     second_steps: usize,
     allows: usize,
+    handbacks_refused: usize,
+    handed: usize,
     broken: Vec<String>,
     c4_seeds: Vec<u64>,
 }
@@ -2490,7 +2505,10 @@ impl Lossy {
         self.confirm_rows += o.confirm_rows;
         self.second_twice += o.second_twice;
         self.second_lapsed += o.second_lapsed;
-        self.link_done_decline += o.link_done_decline;
+        self.done_decline += o.done_decline;
+        self.same_again += o.same_again;
+        self.handbacks_refused += o.handbacks_refused;
+        self.handed += o.handed;
         self.bind_moves += o.bind_moves;
         self.binds_raised += o.binds_raised;
         self.second_steps += o.second_steps;
@@ -2545,6 +2563,71 @@ fn answers_of<'a>(rows: &'a [What], item: &ItemId) -> Vec<&'a halvo_coord::types
         .collect()
 }
 
+/// The result that the run gets for the choice `choice` of an item of the kind `kind` (I3.1).
+fn result_of(kind: ItemKind, choice: Choice) -> Option<halvo_coord::types::HandbackResult> {
+    use halvo_coord::types::HandbackResult;
+    match (kind, choice) {
+        (ItemKind::Check, Choice::TryAgain) | (_, Choice::Done) => Some(HandbackResult::Done),
+        (ItemKind::Check, Choice::WentThrough) | (_, Choice::Decline) => {
+            Some(HandbackResult::Declined)
+        }
+        _ => None,
+    }
+}
+
+/// RD-61 (h) 4 over the `Runs::answer_handback` calls of one move from `from` on that did their
+/// work with `done` or `declined`: each is made inside a press of the handback item `pressed`,
+/// gives the result of the item's newest answer row at the owner at the call, and, for a kind
+/// whose choices are decline and done, gives `done` only inside a press of Done; outside a press
+/// such a result comes only from a run's handback that a stored check answered (moves 2 and 3).
+fn handed_by_the_newest_row(
+    c: &Coordinator<Both>,
+    from: usize,
+    mv: u64,
+    pressed: Option<&(ItemId, Choice, ItemKind)>,
+    case: &str,
+    out: &mut Lossy,
+) {
+    use halvo_coord::types::HandbackResult;
+    let calls = c.ports().handbacks_at.borrow()[from..].to_vec();
+    let all: Vec<What> = c
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .map(|e| e.what.clone())
+        .collect();
+    for (_, result, ok, at) in calls {
+        if !ok || result == HandbackResult::Timeout {
+            continue;
+        }
+        let Some((item, choice, kind)) = pressed else {
+            if !matches!(mv, 2 | 3) {
+                out.broken.push(format!(
+                    "{case}: {result:?} handed outside a press, move {mv}"
+                ));
+            }
+            continue;
+        };
+        out.handed += 1;
+        let newest = answers_of(&all[..at], item)
+            .last()
+            .and_then(|a| a.choice())
+            .and_then(|ch| result_of(*kind, ch));
+        if newest != Some(result) {
+            out.broken.push(format!(
+                "{case}: {result:?} handed with the newest row giving {newest:?}"
+            ));
+        }
+        let decline_done = choices(*kind) == [Choice::Decline, Choice::Done];
+        if decline_done && result == HandbackResult::Done && *choice != Choice::Done {
+            out.broken
+                .push(format!("{case}: done handed in a press of {choice:?}"));
+        }
+    }
+}
+
 /// One sequence of drawn moves over two agents in which each `log` loses its acknowledgement
 /// with chance one in four, in the form `form`; the rows of a `Later` loss land in the owner's
 /// events after the move where their `seq` is still free. A drawn move can bring a run's request
@@ -2554,9 +2637,7 @@ fn answers_of<'a>(rows: &'a [What], item: &ItemId) -> Vec<&'a halvo_coord::types
 /// call, and it came after no Stop or switch-off of its run, no lapse of the item and no Don't
 /// allow on the item answered ok (ruling RD-46 (5) T19).
 fn lossy_sequence(seed: u64, form: support::Loss) -> Lossy {
-    use halvo_coord::types::{
-        Answered, BindResult, DoneAnswer, Event, LinkAnswer, Origin, Raised, SignInAnswer,
-    };
+    use halvo_coord::types::{Answered, BindResult, Event, Origin, Raised, SignInAnswer};
     let limits = Limits {
         max_live_runs: 2,
         ..Limits::PRODUCT
@@ -2636,6 +2717,13 @@ fn lossy_sequence(seed: u64, form: support::Loss) -> Lossy {
         "https://card.site1.example:443",
     ];
     let mut again: Option<ItemId> = None;
+    let mut side = seed.wrapping_mul(0xd1b5_4a32_d192_ed03) | 1;
+    let mut refuse_handback = || {
+        side = side
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (side >> 33).is_multiple_of(4)
+    };
     for _ in 0..18 {
         let lose = draw(4) == 0;
         if lose {
@@ -2646,7 +2734,9 @@ fn lossy_sequence(seed: u64, form: support::Loss) -> Lossy {
         let mv = if retry.is_some() { 5 } else { draw(12) };
         let before = events(&c);
         let from = c.ports().binds_at.borrow().len();
+        let handbacks_from = c.ports().handbacks_at.borrow().len();
         let mut pressed: Option<(ItemId, Choice)> = None;
+        let mut pressed_handback: Option<(ItemId, Choice, ItemKind)> = None;
         match mv {
             0 | 1 => {
                 if c.control(&agent(n), Action::RunNow).is_ok() {
@@ -2693,7 +2783,22 @@ fn lossy_sequence(seed: u64, form: support::Loss) -> Lossy {
                     };
                     let second =
                         choices.contains(&Choice::Allow) && item.kind() == ItemKind::SignIn;
+                    let handback_kind = !second
+                        && !matches!(
+                            item.kind(),
+                            ItemKind::Confirm | ItemKind::Setup | ItemKind::Ready
+                        );
+                    if handback_kind {
+                        pressed_handback = Some((id.clone(), choice, item.kind()));
+                        if refuse_handback() {
+                            out.handbacks_refused += 1;
+                            c.ports()
+                                .ports
+                                .refuse(Method::AnswerHandback, PortError::Busy);
+                        }
+                    }
                     let answered = c.answer(&id, choice, None);
+                    c.ports().ports.clear_refusals();
                     if second {
                         pressed = Some((id.clone(), choice));
                         match answered {
@@ -2760,6 +2865,14 @@ fn lossy_sequence(seed: u64, form: support::Loss) -> Lossy {
             &before,
             &mut out,
         );
+        handed_by_the_newest_row(
+            &c,
+            handbacks_from,
+            mv,
+            pressed_handback.as_ref(),
+            &format!("seed {seed} {form:?}"),
+            &mut out,
+        );
         if show {
             moves.push(format!(
                 "move {mv} agent {n} lose {lose}: {:?}",
@@ -2812,19 +2925,21 @@ fn lossy_sequence(seed: u64, form: support::Loss) -> Lossy {
         let second = answers
             .iter()
             .any(|a| matches!(a, Answered::SignIn(SignInAnswer::Second(_))));
-        let link_done_decline = matches!(
-            &answers[..],
-            [
-                Answered::LinkAccount(LinkAnswer {
-                    answer: DoneAnswer::Done,
-                    ..
-                }),
-                Answered::LinkAccount(LinkAnswer {
-                    answer: DoneAnswer::Decline,
-                    ..
-                }),
-            ]
-        ) && ended == 0;
+        let picks: Vec<Option<Choice>> = answers.iter().map(|a| a.choice()).collect();
+        let decline_done = choices(raised.kind()) == [Choice::Decline, Choice::Done];
+        let done_decline = decline_done
+            && ended == 0
+            && picks.len() > 1
+            && picks.last() == Some(&Some(Choice::Decline))
+            && picks[..picks.len() - 1]
+                .iter()
+                .all(|p| *p == Some(Choice::Done));
+        let same_again = !second
+            && !matches!(raised, Raised::Confirm(_))
+            && raised.run().is_some()
+            && ended == 0
+            && picks.len() > 1
+            && picks.windows(2).all(|w| w[0] == w[1]);
         let confirm = matches!(raised, Raised::Confirm(_));
         let closing = if confirm || second {
             ended
@@ -2840,8 +2955,10 @@ fn lossy_sequence(seed: u64, form: support::Loss) -> Lossy {
                 out.second_lapsed += 1;
             }
         }
-        if link_done_decline {
-            out.link_done_decline += 1;
+        if done_decline {
+            out.done_decline += 1;
+        } else if same_again {
+            out.same_again += 1;
         } else if closing > 1 {
             out.twice.push(raised.kind());
             if show {
@@ -2876,7 +2993,7 @@ fn lossy_sequences_leave_no_item_with_two_closing_rows_and_send_allow_only_by_th
             }
         }
         println!(
-            "lossy form={form:?} sequences={count} items_with_two_closing_rows={} by_kind={by_kind:?} confirmations_answered_and_lapsed={} bind_moves={} second_steps_raised={} second_steps_answered={} second_steps_with_two_answer_rows={} second_steps_answered_and_lapsed={} link_done_then_decline={} allows_sent={} broken={}",
+            "lossy form={form:?} sequences={count} items_with_two_closing_rows={} by_kind={by_kind:?} confirmations_answered_and_lapsed={} bind_moves={} second_steps_raised={} second_steps_answered={} second_steps_with_two_answer_rows={} second_steps_answered_and_lapsed={} done_then_decline={} same_choice_again={} allows_sent={} handback_presses_refused={} handback_results_checked={} broken={}",
             all.twice.len(),
             all.confirm_rows,
             all.bind_moves,
@@ -2884,8 +3001,11 @@ fn lossy_sequences_leave_no_item_with_two_closing_rows_and_send_allow_only_by_th
             all.second_steps,
             all.second_twice,
             all.second_lapsed,
-            all.link_done_decline,
+            all.done_decline,
+            all.same_again,
             all.allows,
+            all.handbacks_refused,
+            all.handed,
             all.broken.len()
         );
         println!(
@@ -2902,6 +3022,10 @@ fn lossy_sequences_leave_no_item_with_two_closing_rows_and_send_allow_only_by_th
         );
         assert!(
             all.binds_raised > 0 && all.allows > 0 && all.second_twice > 0,
+            "{form:?}: {all:?}"
+        );
+        assert!(
+            all.handbacks_refused > 0 && all.handed > 0 && all.done_decline > 0,
             "{form:?}: {all:?}"
         );
     }
@@ -4174,6 +4298,164 @@ fn rd61_t_e_a_stored_done_not_taken_gets_no_lapse_and_no_done_at_any_end() {
                 !handed_back(&c, m).contains(&HandbackResult::Done),
                 "{case}: the run never gets done"
             );
+        }
+    }
+}
+
+/// The three ways in which the owner holds a press's row that the run did not take (RD-61
+/// (h) 4): its reply lost with the move's read failing too, its row landing after a move that
+/// did not read it, or its row acknowledged with `Runs::answer_handback` answering busy.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Held {
+    Unread,
+    Later,
+    Busy,
+}
+
+const HELD: [Held; 3] = [Held::Unread, Held::Later, Held::Busy];
+
+/// A run of agent 0 that waits on an item of the handback `reason`, whose press `first` the owner
+/// holds in the way `how` and the run did not take.
+fn held_not_taken(
+    reason: HandbackReason,
+    first: Choice,
+    how: Held,
+) -> (Coordinator<Both>, RunId, ItemId) {
+    let (c, run, item) = match how {
+        Held::Busy => stored_not_taken(reason, first),
+        Held::Later | Held::Unread => {
+            let c = coordinator(&[MANUAL], Limits::PRODUCT);
+            let run = start(&c, 0);
+            c.on_run(&run, handback(&run, 0, reason)).unwrap();
+            let (item, _) = open_item(&c);
+            if how == Held::Later {
+                press_landing_later(&c, &item, first);
+            } else {
+                c.ports().loss.set(Some(support::Loss::Reply));
+                c.ports()
+                    .ports
+                    .refuse(Method::History, PortError::NoService);
+                assert_eq!(c.answer(&item, first, None), Err(Cause::NoService));
+                c.ports().loss.set(None);
+                c.ports().ports.clear_refusals();
+            }
+            (c, run, item)
+        }
+    };
+    assert_eq!(
+        closing_rows(&c, &item),
+        1,
+        "{how:?}: the owner holds the row"
+    );
+    (c, run, item)
+}
+
+/// The choices of the item's answer rows at the owner, in their order.
+fn answer_choices(c: &Coordinator<Both>, item: &ItemId) -> Vec<Choice> {
+    events(c)
+        .iter()
+        .filter_map(|w| match w {
+            What::ItemAnswered { item: i, answer } if i == item => answer.choice(),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The two kinds of RD-61 (d) that a test can raise: `stuck` and the first step of a `sign_in`.
+const DECLINE_DONE: [HandbackReason; 2] = [HandbackReason::StepFailed, HandbackReason::SignIn];
+
+/// RD-61 (h) 4, T-f: `done` stored and not taken, then decline: two rows, `declined` once, the
+/// move answers as for an open item, and no card.
+#[test]
+fn rd61_t_f_a_stored_done_not_taken_then_decline_stores_two_rows_and_sends_declined_once() {
+    use halvo_coord::types::HandbackResult;
+    for reason in DECLINE_DONE {
+        for how in HELD {
+            let case = format!("{reason:?} {how:?}");
+            let (c, _run, item) = held_not_taken(reason, Choice::Done, how);
+            let m = mark(&c);
+            assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()), "{case}");
+            assert_eq!(
+                answer_choices(&c, &item),
+                [Choice::Done, Choice::Decline],
+                "{case}"
+            );
+            assert_eq!(handed_back(&c, m), [HandbackResult::Declined], "{case}");
+            assert!(c.snapshot().items.is_empty(), "{case}: no card");
+        }
+    }
+}
+
+/// RD-61 (h) 4, T-g, a pin: decline stored and not taken, then Done: one row, `declined`, and
+/// `unknown_item`.
+#[test]
+fn rd61_t_g_pin_a_stored_decline_not_taken_then_done_sends_declined_and_answers_unknown_item() {
+    use halvo_coord::types::HandbackResult;
+    for reason in DECLINE_DONE {
+        for how in HELD {
+            let case = format!("{reason:?} {how:?}");
+            let (c, _run, item) = held_not_taken(reason, Choice::Decline, how);
+            let m = mark(&c);
+            assert_eq!(
+                c.answer(&item, Choice::Done, None),
+                Err(Cause::UnknownItem),
+                "{case}"
+            );
+            assert_eq!(answer_choices(&c, &item), [Choice::Decline], "{case}");
+            assert_eq!(handed_back(&c, m), [HandbackResult::Declined], "{case}");
+        }
+    }
+}
+
+/// RD-61 (h) 4, T-h, the clause on `stuck` and a sign-in's first step: `done` stored with the
+/// port busy, then a decline whose row got no acknowledgement, then Done: `declined` once with
+/// the rows done, decline where the owner holds the decline, `done` once with the rows done, done
+/// where it never reached the owner; and decline again in Done's place leaves two rows, not
+/// three.
+#[test]
+fn rd61_t_h_the_clause_holds_for_stuck_and_a_sign_ins_first_step() {
+    use halvo_coord::types::HandbackResult;
+    for reason in DECLINE_DONE {
+        for (landed, then) in [
+            (true, Choice::Done),
+            (false, Choice::Done),
+            (true, Choice::Decline),
+        ] {
+            let case = format!("{reason:?} landed={landed} then={then:?}");
+            let (c, _run, item) = stored_not_taken(reason, Choice::Done);
+            let m = mark(&c);
+            if landed {
+                press_landing_later(&c, &item, Choice::Decline);
+            } else {
+                c.ports().ports.refuse(Method::Log, PortError::NoService);
+                assert_eq!(
+                    c.answer(&item, Choice::Decline, None),
+                    Err(Cause::NoService),
+                    "{case}"
+                );
+                c.ports().ports.clear_refusals();
+            }
+            let out = c.answer(&item, then, None);
+            let (answer, rows, result) = match (landed, then) {
+                (true, Choice::Done) => (
+                    Err(Cause::UnknownItem),
+                    vec![Choice::Done, Choice::Decline],
+                    HandbackResult::Declined,
+                ),
+                (false, _) => (
+                    Ok(()),
+                    vec![Choice::Done, Choice::Done],
+                    HandbackResult::Done,
+                ),
+                _ => (
+                    Ok(()),
+                    vec![Choice::Done, Choice::Decline],
+                    HandbackResult::Declined,
+                ),
+            };
+            assert_eq!(out, answer, "{case}");
+            assert_eq!(answer_choices(&c, &item), rows, "{case}");
+            assert_eq!(handed_back(&c, m), [result], "{case}");
         }
     }
 }

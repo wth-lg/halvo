@@ -36,6 +36,9 @@ pub struct Both {
     /// Each `Runs::answer_bind`: its run, its answer, whether it did its work, and how many
     /// events the owner held at the call.
     pub binds_at: std::cell::RefCell<Vec<(RunId, BindResult, bool, usize)>>,
+    /// Each `Runs::answer_handback`: its run, its result, whether it did its work, and how many
+    /// events the owner held at the call.
+    pub handbacks_at: std::cell::RefCell<Vec<(RunId, HandbackResult, bool, usize)>>,
 }
 
 /// A lost acknowledgement of the next `log`, in one of two forms: the owner stores the rows and
@@ -151,7 +154,12 @@ impl Runs for Both {
     }
 
     fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {
-        self.ports.answer_handback(run, result)
+        let at = self.ports.events.borrow().len();
+        let out = self.ports.answer_handback(run, result);
+        self.handbacks_at
+            .borrow_mut()
+            .push((run.clone(), result, out.is_ok(), at));
+        out
     }
 
     fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError> {
@@ -257,6 +265,7 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
         loss: Cell::new(None),
         lost: std::cell::RefCell::new(Vec::new()),
         binds_at: std::cell::RefCell::new(Vec::new()),
+        handbacks_at: std::cell::RefCell::new(Vec::new()),
     }
 }
 

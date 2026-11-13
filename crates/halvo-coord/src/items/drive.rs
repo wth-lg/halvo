@@ -3,7 +3,7 @@
 //! keeps the guard's table in step with the items, and sends the setup's body until the owner
 //! acknowledges it (I3.5).
 
-use super::{compose_bind, compose_confirm, confirm_step, handback_kind, handback_result};
+use super::{choices, compose_bind, compose_confirm, confirm_step, handback_kind, handback_result};
 use super::{setup_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
 use super::{Setup, SetupBody, SetupInput, SetupMove, SetupState};
 use crate::guard::Table;
@@ -514,12 +514,15 @@ impl Press<'_> {
         }
     }
 
-    /// Whether the press is the declining choice of an account link after its stored `done`
-    /// (ruling RD-46 B4).
+    /// Whether the press is the declining choice after a stored `done`, for a kind whose two
+    /// choices are decline and done (rulings RD-46 B4, RD-61 (d)): the declining choice is the
+    /// first of the kind's own choices, never one taken from a result, and a kind with other
+    /// choices never declines after.
     fn declines_after(&self, stored: &Answered) -> bool {
-        self.kind == RunItemKind::LinkAccount
-            && stored.choice() == Some(Choice::Done)
-            && self.answer.choice() == Some(Choice::Decline)
+        let [declining, done] = choices(self.kind.kind());
+        [declining, done] == [Choice::Decline, Choice::Done]
+            && stored.choice() == Some(done)
+            && self.answer.choice() == Some(declining)
     }
 }
 
