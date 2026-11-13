@@ -115,6 +115,36 @@ fn a_piece_that_is_no_address_refuses_the_slot() {
 }
 
 #[test]
+fn only_the_space_is_trimmed_and_other_ascii_white_space_refuses_the_slot() {
+    let ann = "ann@people.test";
+    for byte in ['\t', '\n', '\u{b}', '\u{c}', '\r'] {
+        for piece in [
+            format!("{byte}{ann}"),
+            format!("{ann}{byte}"),
+            format!("{byte}{ann}{byte}"),
+            format!(" {byte}{ann}{byte} "),
+        ] {
+            for slot in [
+                piece.clone(),
+                format!("{piece}, bob@people.test"),
+                format!("bob@people.test, {piece}"),
+            ] {
+                assert_eq!(read(&slot), Err(SendersError::NotAnAddress), "{slot:?}");
+            }
+        }
+        let fits = format!("{}{byte}", of_length(319));
+        assert_eq!(read(&fits), Err(SendersError::NotAnAddress), "{fits:?}");
+    }
+    let at_bound = of_length(320);
+    assert_eq!(
+        read(&format!("   {at_bound}  , bob@people.test")),
+        Ok(vec![at_bound.clone(), "bob@people.test".to_owned()])
+    );
+    let over = of_length(321);
+    assert_eq!(read(&format!(" {over} ")), Err(SendersError::NotAnAddress));
+}
+
+#[test]
 fn an_address_twice_without_ascii_case_refuses_the_slot() {
     for slot in [
         "ann@people.test, ann@people.test",
