@@ -11,7 +11,7 @@ use halvo_seam::message::{
     decode_client, Cause, ClientMessage, Entry, Expiry, OpenCursor, Refusal, ServerError,
     ServerMessage, ZERO,
 };
-use halvo_seam::record::CaptureRecord;
+use halvo_seam::record::{CaptureRecord, ServedKind};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Fault {
@@ -49,9 +49,23 @@ enum Fault {
     FilteredStopSkipsARecord,
     NextInTheFirstSegmentAtAStop,
     DropsTheFirstRecordOfTheSecondFile,
+    FirstRecordDroppedUnder(Form),
 }
 
 use Fault::*;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Form {
+    TwoNames,
+}
+
+fn form_of(open: &OpenCursor) -> Option<Form> {
+    let names: Vec<ServedKind> = open.kinds().map(|k| k.kinds().to_vec()).unwrap_or_default();
+    match (names.as_slice(), open.range().is_some()) {
+        ([_, _, ..], false) => Some(Form::TwoNames),
+        _ => None,
+    }
+}
 
 struct Fixture {
     test: &'static str,
@@ -343,6 +357,14 @@ impl Wrong {
         };
         self.reads += 1;
         self.cursor_reads += 1;
+        if let FirstRecordDroppedUnder(form) = self.fault {
+            let under = self.last.as_ref().and_then(form_of) == Some(form);
+            if self.two_files && self.cursor_reads == 1 && under && !b.records.is_empty() {
+                b.records.remove(0);
+                let segs: Vec<u64> = b.records.iter().map(|e| e.pos.seg).collect();
+                b.expiry.retain(|x| segs.contains(&x.seg));
+            }
+        }
         let shift = match self.fault {
             ExpiryMovesFromReadToRead => self.reads,
             ExpiryMovesFromConnectionToConnection => self.connection,
@@ -645,6 +667,10 @@ fn conformance_check_filtered_stops() {
             (NextInTheFirstSegmentAtAStop, [None, None, None, check]),
             (
                 DropsTheFirstRecordOfTheSecondFile,
+                [None, None, None, check],
+            ),
+            (
+                FirstRecordDroppedUnder(Form::TwoNames),
                 [None, None, None, check],
             ),
         ],

@@ -1180,7 +1180,7 @@ fn control_a_kinds_list_out_of_the_order_of_c4_4_that_gets_bad_request() {
             Pass,
             Pass,
             Fail("the filter window_title and foreground_app: open_cursor at {seg 0, idx 0} got the error bad-request"),
-            Pass,
+            Fail("check filtered_stops: the filter keystroke and window_title on the fourth text of set A and set C from {seg 0, idx 0}: open_cursor at {seg 0, idx 0} got the error bad-request"),
         ],
     );
 }

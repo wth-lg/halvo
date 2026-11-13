@@ -1260,8 +1260,13 @@ fn filtered_stops<S: Subject>(
     }
     let entry = |i: usize| c.entries.get(i).ok_or("the store served too few entries");
     let range = (entry(100)?.record.at(), entry(400)?.record.at());
-    let filters: [Filter; 4] = [
+    let filters: [Filter; 5] = [
         ("window_title", Some(&["window_title"]), None),
+        (
+            "keystroke and window_title",
+            Some(&["keystroke", "window_title"]),
+            None,
+        ),
         ("the range", None, Some(range)),
         (
             "the range with window_title",
