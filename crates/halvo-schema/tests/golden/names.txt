@@ -7,8 +7,14 @@ address_field
 after
 afternoon
 agent
+agent_bindings
+agent_checkpoint
 agent_config
+agent_effect
+agent_log
+agent_playbook
 agent_run
+agent_session
 allow
 allow_once
 analysis
@@ -32,6 +38,7 @@ body
 bounded
 budget
 by
+bytes
 calendar_cleanup
 calendar_delete
 calendar_list
@@ -43,6 +50,7 @@ cause
 changed
 check
 checkpoint
+checkpoints
 choose
 class
 class_mismatch
@@ -64,6 +72,7 @@ coord_history
 coord_log
 coordinator
 coordinator_write
+copy
 count
 count_is
 create_agent
@@ -114,9 +123,11 @@ fill
 finish
 first
 floor
+folder
 frame
 from
 frontier
+gone
 graph_calendar
 graph_mail
 handback
@@ -154,9 +165,12 @@ learn_edit
 learn_routine
 learn_run
 lease_renewal_or_change
+left
 limit
 limits
+link
 link_account
+list_checkpoints
 list_refinements
 load
 load_session
@@ -166,11 +180,13 @@ locators
 log
 low
 low_cost_hosted
+made
 mail_draft_reply
 mail_list
 mail_send
 manual
 mark
+mark_checkpoint
 medium
 minutes
 missed
@@ -192,6 +208,7 @@ night
 no
 no_record
 none
+not_file
 nothing_to_do
 number
 observe
@@ -213,6 +230,7 @@ payment
 period
 permissions
 person
+planned
 playbook
 pointer
 post
@@ -270,6 +288,7 @@ sessions
 set_bindings
 set_state
 setup
+sha256
 sheet
 shop_order
 shortcut
@@ -300,6 +319,7 @@ stuck
 submit
 summaries
 summary
+superseded
 support
 tab
 target
@@ -322,6 +342,7 @@ trigger
 try_again
 unattended
 unknown
+unreadable
 untrusted
 unverified
 upload
