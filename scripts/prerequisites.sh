@@ -177,11 +177,17 @@ pnpm_platform() {
 }
 
 pnpm_lock_integrity() {
-  awk -v entry="  '$1':" '
-    NR == 1 && $0 == "---" { next }
-    $0 == "---" { exit }
-    found { print; exit }
-    $0 == entry { found = 1 }
+  awk -v entry="  '$1':" -v name="$1:" -v quote="'" '
+    /\r/ { carriage_return = 1; exit }
+    NR == 1 && /^---([ \t]|$)/ { next }
+    /^(---|\.\.\.)([ \t]|$)/ { exit }
+    /^[^ #]/ { top = $0 }
+    inside && /^(  [^ ]| [^ ]|[^ ])/ { inside = 0 }
+    inside && /^ +resolution:/ { resolutions++ }
+    inside && !read_first { first = $0; read_first = 1 }
+    top == "packages:" { key = $0; gsub(quote, "", key); gsub(/[" ]/, "", key); if (key == name) names++ }
+    top == "packages:" && $0 == entry { inside = 1; entries++ }
+    END { if (!carriage_return && names == 1 && entries == 1 && resolutions == 1) print first }
   ' backend/pnpm-lock.yaml 2>/dev/null | sed -n 's/^    resolution: {integrity: sha512-\([A-Za-z0-9+/]\{86\}==\)}$/\1/p'
 }
 
@@ -820,6 +826,28 @@ EOF
   printf "\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s, tarball: https://example.invalid/p.tgz}\n\n" "$good" >>"$case_dir/lock"
   cp "$case_dir/lock" "$lock_file"
   lock_reads '' 'a resolution with a second field'
+  write_lock '@pnpm/exe.p@1.0.0' "$other" '@pnpm/exe.p@1.0.0' "$good"
+  lock_reads '' 'two entries of the package'
+  printf -- "---\npackages:\n\n  \"@pnpm/exe.p@1.0.0\":\n    resolution: {integrity: sha512-%s}\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$other" "$good" >"$lock_file"
+  lock_reads '' 'two entries of the package, one of them in double quotes'
+  printf -- "---\nnotes: |\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$other" "$good" >"$lock_file"
+  lock_reads "$good" 'the entry under packages: after the text of an entry in a block scalar'
+  printf -- "---\nnotes: |\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n\npackages:\n" "$good" >"$lock_file"
+  lock_reads '' 'the text of an entry in a block scalar alone'
+  printf -- "---\nimporters:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n\npackages:\n" "$good" >"$lock_file"
+  lock_reads '' 'an entry under importers:'
+  write_lock '@pnpm/exe.p@1.0.0' "$good"
+  awk '{ printf "%s\r\n", $0 }' "$lock_file" >"$case_dir/lock"
+  cp "$case_dir/lock" "$lock_file"
+  lock_reads '' 'a first document with CRLF lines'
+  printf -- "---\npackages:\n\n  \"@pnpm/exe.p@1.0.0\":\n    resolution: {integrity: sha512-%s}\n--- \npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$good" "$other" >"$lock_file"
+  lock_reads '' 'an entry after a document marker with a trailing space'
+  printf -- "---\npackages:\n...\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n" "$good" >"$lock_file"
+  lock_reads '' 'an entry after the end marker of the first document'
+  printf -- "---\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n    resolution: {integrity: sha512-%s}\n" "$good" "$other" >"$lock_file"
+  lock_reads '' 'an entry with two resolution lines'
+  printf -- "---\npackages:\n\n  '@pnpm/exe.p@1.0.0':\n    resolution: {integrity: sha512-%s}\n    cpu: [arm64]\n\nsnapshots:\n\n  '@pnpm/exe.p@1.0.0':\n    optional: true\n\n---\nlockfileVersion: '9.0'\n" "$good" >"$lock_file"
+  lock_reads "$good" 'the entry under packages: with its snapshot under snapshots:'
   mv "$lock_file" "$lock_file.absent"
   lock_reads '' 'no lock file'
   verdict "$name"
