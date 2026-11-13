@@ -17,6 +17,6 @@ pub use attention::Attention;
 pub use bell::Bell;
 pub use handler::{handler, MAIN, REFUSED};
 pub use hub::{Agents, Core, Hub, Native, Present, Reply, Waits};
-pub use present::Card;
+pub use present::{decide, Card, Outcome};
 pub use window::{on_window_event, Close, CLOSE};
 pub use wired::Wired;
