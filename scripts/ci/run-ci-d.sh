@@ -281,6 +281,61 @@ run_script() {
   code=$(cat "$code_file" 2>/dev/null)
   last=$(tail -n 1 "$out")
   judge
+  tree_check "$script_name"
+}
+
+tree_state() {
+  tree_head=$(git rev-parse -q --verify HEAD 2>/dev/null) || tree_head=none
+  {
+    printf 'HEAD %s\n' "$tree_head"
+    git status --porcelain --untracked-files=no 2>/dev/null || printf 'status failed\n'
+    git ls-files -v >"$tmp/ls-files" 2>/dev/null || printf 'status failed\n'
+    sed -n 's/^\([^H]\) /!\1 /p' "$tmp/ls-files"
+  } >"$1"
+}
+
+tree_report() {
+  case $1:$2 in
+    ':HEAD '*) return ;;
+    *':HEAD '*) tree_msg="$1 moved HEAD" ;;
+    ':status failed') tree_msg='git cannot read the tracked files before the first script' ;;
+    *':status failed') tree_msg="git cannot read the tracked files after $1" ;;
+    *)
+      case $tree_named in
+        *" ${2#???} "*) return ;;
+      esac
+      tree_named="$tree_named${2#???} "
+      if [ -z "$1" ]; then
+        tree_msg="a tracked file differs from HEAD before the first script: ${2#???}"
+      else
+        tree_msg="$1 changed a tracked file: ${2#???}"
+      fi
+      ;;
+  esac
+  record FAIL "FAIL run-ci-d ($tree_msg)"
+}
+
+tree_check() {
+  tree_named=' '
+  tree_state "$tmp/tree.after"
+  while IFS= read -r tree_line; do
+    grep -qxF -e "$tree_line" "$tmp/tree.before" || tree_report "$1" "$tree_line"
+  done <"$tmp/tree.after"
+  while IFS= read -r tree_line; do
+    case $tree_line in
+      'HEAD '*) continue ;;
+    esac
+    grep -qxF -e "$tree_line" "$tmp/tree.after" || tree_report "$1" "$tree_line"
+  done <"$tmp/tree.before"
+  mv "$tmp/tree.after" "$tmp/tree.before"
+}
+
+tree_start() {
+  tree_named=' '
+  tree_state "$tmp/tree.before"
+  while IFS= read -r tree_line; do
+    tree_report '' "$tree_line"
+  done <"$tmp/tree.before"
 }
 
 note() {
@@ -536,6 +591,11 @@ fixture_commit() {
   fixture_tree=$(git -C "$fixture" write-tree) || return 1
   fixture_head=$(printf 'tree %s\nauthor ci.d fixture <fixture@example.invalid> 1 +0000\ncommitter ci.d fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' "$fixture_tree" | git -C "$fixture" hash-object -t commit -w --stdin) || return 1
   git -C "$fixture" update-ref HEAD "$fixture_head"
+}
+
+track_file() {
+  printf 'line 1\n' >"$fixture/tracked.txt" &&
+    git -C "$fixture" add tracked.txt >/dev/null 2>&1 && fixture_commit
 }
 
 add_script() {
@@ -802,6 +862,23 @@ own_self_test() {
   own_case lockfile-changed-and-staged 1 "$guard_line" macos
   new_repo && add_script r1 10-a.sh "$good" 'git -C "$CI_D_REPO" update-index --assume-unchanged Cargo.lock; printf "x\n" >>"$CI_D_REPO/Cargo.lock"; printf "PASS 10-a\n"'
   own_case lockfile-changed-under-assume-unchanged 1 "$guard_line" macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; printf "PASS 10-a\n"' &&
+    add_script r1 20-b.sh "$good" "$pass_b"
+  case_absent='FAIL run-ci-d (20-b changed a tracked file: tracked.txt)'
+  own_case script-changes-a-tracked-file 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" 'd=$(mktemp -d "$TMPDIR/x.XXXXXX") && printf "x\n" >"$d/f" && printf "x\n" >"$CI_D_ARTIFACTS/f" && printf "PASS 10-a\n"'
+  own_case script-writes-only-under-its-tmpdir-and-artifacts 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" 'cp "$CI_D_REPO/tracked.txt" "$CI_D_REPO/kept"; printf "x\n" >>"$CI_D_REPO/tracked.txt"; git -C "$CI_D_REPO" add tracked.txt; cp "$CI_D_REPO/kept" "$CI_D_REPO/tracked.txt"; printf "PASS 10-a\n"'
+  own_case script-stages-a-change-and-restores-the-file 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  for bit in assume-unchanged skip-worktree; do
+    new_repo && track_file && add_script r1 10-a.sh "$good" "git -C \"\$CI_D_REPO\" update-index --$bit tracked.txt; printf 'x\\n' >>\"\$CI_D_REPO/tracked.txt\"; printf 'PASS 10-a\\n'"
+    own_case "script-changes-a-tracked-file-under-$bit" 1 'FAIL run-ci-d (10-a changed a tracked file: tracked.txt)' macos
+  done
+  new_repo && track_file && add_script r1 10-a.sh "$good" 'r=$CI_D_REPO; printf "x\n" >>"$r/tracked.txt"; git -C "$r" add tracked.txt; t=$(git -C "$r" write-tree); p=$(git -C "$r" rev-parse HEAD); c=$(printf "tree %s\nparent %s\nauthor f <f@example.invalid> 1 +0000\ncommitter f <f@example.invalid> 1 +0000\n\nf\n" "$t" "$p" | git -C "$r" hash-object -t commit -w --stdin); git -C "$r" update-ref HEAD "$c"; printf "PASS 10-a\n"'
+  own_case script-commits-a-change 1 'FAIL run-ci-d (10-a moved HEAD)' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" "$pass_a" && printf 'x\n' >>"$fixture/tracked.txt"
+  case_absent='FAIL run-ci-d (10-a changed a tracked file: tracked.txt)'
+  own_case tracked-file-differs-before-the-first-script 1 'FAIL run-ci-d (a tracked file differs from HEAD before the first script: tracked.txt)' macos
 
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
   own_case self-test-rejects-two 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
@@ -815,6 +892,15 @@ own_self_test() {
   own_case self-test-exits-2 1 'FAIL self-test:10-a (exit 2)' macos --self-test 10-a
   new_repo && add_script r1 10-a.sh "$good" 'printf "PASS self-test:10-a (2 failing fixtures rejected)\n"; exit 1'
   own_case self-test-pass-line-with-exit-1 1 'FAIL self-test:10-a (exit 1)' macos --self-test 10-a
+  new_repo && track_file &&
+    add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "x\n" >>"$CI_D_REPO/tracked.txt"; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"' &&
+    add_script r1 20-b.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:20-b (1 failing fixtures rejected)\n"'
+  case_jobs=2
+  own_case self-test-changes-a-tracked-file 1 'FAIL run-ci-d (the step ci.d self-test changed a tracked file: tracked.txt)' macos --self-test 10-a 20-b
+  new_repo && track_file && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (1 failing fixtures rejected)\n"' &&
+    printf 'x\n' >>"$fixture/tracked.txt"
+  case_absent='FAIL run-ci-d (the step ci.d self-test changed a tracked file: tracked.txt)'
+  own_case tracked-file-differs-before-the-first-self-test 1 'FAIL run-ci-d (a tracked file differs from HEAD before the first script: tracked.txt)' macos --self-test 10-a
 
   new_repo && add_script B 10-x.sh "$good" ': >"$CI_D_REPO/first-ran"; printf "PASS 10-x\n"' &&
     add_script a 20-y.sh "$good" '[ -e "$CI_D_REPO/first-ran" ] || { printf "FAIL 20-y (it ran first)\n"; exit 1; }; printf "PASS 20-y\n"'
@@ -1055,6 +1141,7 @@ if [ "$mode" = self-test ]; then
   fi
 fi
 
+tree_start
 ran=' '
 if [ "$mode" = self-test ]; then
   ran=' run-ci-d '
@@ -1114,6 +1201,7 @@ if [ "$mode" = self-test ]; then
     fi
     st_i=$((st_i + 1))
   done
+  tree_check 'the step ci.d self-test'
 fi
 
 for name in $wanted; do

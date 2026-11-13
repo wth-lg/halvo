@@ -33,6 +33,7 @@ Each job of `ci.yml` has the steps `ci.d self-test` and `ci.d`, which run the fi
   For any other status, or a last line that does not match the status, the driver prints `FAIL <NN-name> (exit <n>)`. In CI, where `CI=true`, a SKIP is a failure: a script installs the tool that it needs or fails.
 - With `--self-test` it runs its own check on fixtures that it carries. At least one fixture must fail. Its last line is `PASS self-test:<NN-name> (<k> failing fixtures rejected)` with exit status 0, or `FAIL self-test:<NN-name> (<cause>)` with exit status 1. The driver fails a script whose `k` is 0.
 - It writes only under a directory from `mktemp -d`, which it leaves in place, and under `CI_D_ARTIFACTS`. It changes no tracked file and builds with `--locked`.
+- The driver holds the rule on tracked files. It reads `git status --porcelain --untracked-files=no`, the entries of `git ls-files -v` that are marked assume-unchanged or skip-worktree, and the commit of HEAD before the first script, after each script of the step `ci.d`, and after the step `ci.d self-test` as a whole, whose self-tests run at the same time. Each entry that a script or the step changed fails the run with `FAIL run-ci-d (<NN-name> changed a tracked file: <path>)`, `FAIL run-ci-d (the step ci.d self-test changed a tracked file: <path>)` or `FAIL run-ci-d (<NN-name> moved HEAD)`. A tracked file that already differs from HEAD before the first script fails the run with `FAIL run-ci-d (a tracked file differs from HEAD before the first script: <path>)`, and no script is named for it.
 - It prints counts, sizes, times and booleans only, because the logs of CI are public.
 - It does not depend on another script having run.
 
@@ -67,7 +68,7 @@ What a self-test keeps to, so that it can run beside the others: it writes only 
 | Status | Meaning |
 |---|---|
 | 0 | Every script that ran passed or skipped, at least one passed, and the lockfile guard passed. |
-| 1 | A script failed, every script skipped, no script names the job, a NAME matches no script, or the lockfile guard failed. With `--self-test` also: `CI_D_SELF_TEST_JOBS` or `CI_D_SCRIPT_LIMIT_S` is set to anything but a whole number from 1 to 999999999, or `scripts/ci/self-test-alone.txt` cannot be read or names no script, or `perl` does not run. |
+| 1 | A script failed, every script skipped, no script names the job, a NAME matches no script, a tracked file differs from HEAD (see A script), or the lockfile guard failed. With `--self-test` also: `CI_D_SELF_TEST_JOBS` or `CI_D_SCRIPT_LIMIT_S` is set to anything but a whole number from 1 to 999999999, or `scripts/ci/self-test-alone.txt` cannot be read or names no script, or `perl` does not run. |
 | 130, 143 | With `--self-test`: INT or TERM reached the driver, which ended every self-test that it had started. |
 | 64 | Bad usage. |
 
