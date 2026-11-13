@@ -180,7 +180,6 @@ fn split_refusals() {
 const CANARY_HEADER: &str =
     r#"{"line":"script","v":1,"day1":1767225600000000000,"canaries":["cn-one.test"]}"#;
 
-/// A script file of one stream: a planted routine on its own site, and one noise item on the canary site.
 fn canary_stream(dir: &Path, id: &str, own: &str, title: &str) -> String {
     let mut lines = vec![
         CANARY_HEADER.to_owned(),
@@ -276,7 +275,6 @@ fn the_check_and_heldout_pair_names_its_two_sides() {
     assert_eq!(stream_lines.len(), 4);
 }
 
-/// A script file of one stream: a planted routine on one step, and where given a noise item on another.
 fn linked_stream(
     dir: &Path,
     id: &str,
@@ -315,7 +313,6 @@ fn linked_stream(
     s(&p)
 }
 
-/// Splits the files and returns the side of each of the named streams, after asserting two groups.
 fn sides_of(dir: &Path, files: &[String], streams: &[&str]) -> Vec<String> {
     let o = split(dir, "3", "x", files);
     assert_eq!(o.code, 0, "{}", o.stderr);

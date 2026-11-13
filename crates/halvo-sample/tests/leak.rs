@@ -171,7 +171,6 @@ fn leak_refusals() {
     );
 }
 
-/// The lines of a script of one stream on one site: a planted routine and a one-off task.
 fn plain_stream(id: &str, sites: &str, site: &str, words: (&str, &str)) -> Vec<String> {
     let mut lines = vec![
         format!(r#"{{"line":"stream","stream":"{id}","sites":"{sites}"}}"#),
