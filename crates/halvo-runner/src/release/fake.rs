@@ -1422,6 +1422,35 @@ fn after_a_reject_an_effect_whose_request_gets_no_reply_ends_the_run_effect_unkn
     assert_eq!(record.done(), Some(Outcome::EffectUnknown));
 }
 
+/// CP-174 Part 1 (c): A's card after its `rebind` is answered `reject_once`, and then the load before B's `begin`
+/// gives `refuse` (autonomy `observe`). The end that B's own path gives is the run's end: `refused`, not `declined`.
+/// The runner's close makes any run with a `releasing` effect `effect_unknown`, so (d) cannot show this; this test
+/// fails when the flag of the reject takes the place of that end.
+#[test]
+fn after_a_reject_a_later_load_that_refuses_ends_the_run_refused() {
+    let plan = Plan {
+        answer_for: Some(allow_then_reject),
+        observe_from_load: Some(3),
+        ..Plan::plain()
+    };
+    let (record, left) = run_each(
+        vec![a_then_c(), vec![delete("b", Source::Extract)]],
+        None,
+        plan,
+    );
+    assert!(left.is_empty(), "nothing leaves");
+    assert_eq!(
+        last_rows(&record),
+        [
+            (EffectState::Rejected, None),
+            (EffectState::Rejected, Some(Cause::Ended))
+        ],
+        "A rejected by the person, B ended by the runner"
+    );
+    assert_eq!(loads(&record), 3);
+    assert_eq!(record.done(), Some(Outcome::Refused));
+}
+
 /// CP-174 Part 1, F1 (e): a `cleared` effect whose value changed is ended by the runner, which leaves a `rejected`
 /// row with the cause `ended`, proposed again as `cleared` and `committed`. No `reject_once` came, so the run does
 /// not end `declined`: the flag of a reject is not read from the state `rejected`.
