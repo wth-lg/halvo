@@ -43,6 +43,7 @@ checkout_copy() {
   git clone -q --shared --no-checkout "$top" "$base/repo" || return 1
   git -C "$base/repo" checkout -q --detach "$head" || return 1
   copy_files "$base/repo$below" "$base" || return 1
+  git init -q "$base/other" || return 1
   printf '%s\n' "$base/repo$below"
 }
 

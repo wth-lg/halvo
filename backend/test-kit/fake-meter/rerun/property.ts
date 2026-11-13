@@ -10,6 +10,7 @@ import {
   type Finding,
   HOLD_LIFE,
   HOUR,
+  READ_WIDTH_SECONDS,
   RETRY_AFTER,
   type Report,
   RULE_MICRO_PER_MINOR,
@@ -19,7 +20,7 @@ import {
 } from "./world.ts";
 
 export const RULE_DOWNTIME_BUDGET = 20 * DAY;
-export const READ_WIDTH_SECONDS = 60;
+export { READ_WIDTH_SECONDS };
 if (!(RULE_DOWNTIME_BUDGET < DOCUMENTED.maxTimestampAgeSeconds)) {
   throw new RangeError("the downtime budget of the rule is under the oldest timestamp that the provider takes");
 }

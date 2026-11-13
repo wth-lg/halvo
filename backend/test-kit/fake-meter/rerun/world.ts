@@ -15,6 +15,7 @@ export const RETRY_AFTER = 60;
 export const WINDOW_MARGIN = 300;
 export const LATE_DELIVERY = 90;
 export const LATE_RESPONSE = 20;
+export const READ_WIDTH_SECONDS = 60;
 if (LATE_DELIVERY > WINDOW_MARGIN || LATE_RESPONSE > WINDOW_MARGIN) {
   throw new RangeError("a late delivery and a late response arrive inside the window margin");
 }
@@ -174,6 +175,9 @@ class World {
     this.options = options;
     this.downtimeLeft = options.downtimeBudgetSeconds;
     if (!(scenario.meter.graceSeconds > HOLD_LIFE)) throw new RangeError("the grace period of the provider is longer than the life of a hold");
+    if (scenario.meter.readGranularitySeconds !== READ_WIDTH_SECONDS) {
+      throw new RangeError(`a scenario states a read width of its own (${scenario.meter.readGranularitySeconds} s), and the model reads READ_WIDTH_SECONDS (${READ_WIDTH_SECONDS} s)`);
+    }
     const anchorBefore = scenario.capAnchorSecondsBeforeSubscription;
     if (!(anchorBefore >= 1 && anchorBefore < 7 * DAY)) throw new RangeError("the cap anchor lies 1 second or more, and less than a week, before the subscription");
     this.meter = new FakeMeter({ ...scenario.meter, invoicePeriodSeconds: BILLING_PERIOD });
@@ -690,8 +694,15 @@ class World {
     );
     if (stays) return;
     account.cutAt = at;
-    if (!this.movedTheCutBack) this.count("ordering.moved-the-cut-back-before-the-seal");
-    this.movedTheCutBack = true;
+    const acrossAHold = account.test.host.step(
+      (sql) =>
+        sql.exec(
+          "SELECT i.start FROM metering_interval i WHERE i.sealed_at IS NULL AND i.end_at > ? AND EXISTS (SELECT 1 FROM ledger_holds h WHERE h.sync_interval = i.start AND h.state IN ('open', 'settled'))",
+          at * 1000,
+        ).length > 0,
+    );
+    if (acrossAHold && !this.movedTheCutBack) this.count("ordering.moved-the-cut-back-across-an-unsealed-interval-with-a-hold");
+    if (acrossAHold) this.movedTheCutBack = true;
   }
 
   private async reactivate(account: Account): Promise<void> {
@@ -721,8 +732,12 @@ class World {
     this.count("stored-state.read");
     if (read.state === "cancelled") {
       this.count("stored-state.cancelled");
-      if (read.cancelFirst === null) this.count("stored-state.cancelled-without-its-first-cancel");
-      if (read.metered && read.cutKind === null) this.count("stored-state.cancelled-and-metered-without-its-cut");
+      if (read.endedAt === null && read.cancelFirst === null) {
+        this.fail("a cancelled account keeps no cancel time", `${account.id}: state cancelled with ended_at null and cancel_first null`);
+      } else if (read.cancelFirst === null) {
+        this.count("stored-state.cancelled-with-a-stated-end-and-no-first-cancel");
+      }
+      if (read.metered && read.cutKind === null) this.fail("a cancelled account has no cut", `${account.id}: state cancelled, metered, cut_kind null`);
     }
     if (after === "reactivate" && read.state !== "cancelled") {
       this.fail("a cancelled account changed its state", `${account.id}: the state is ${read.state} after an active event`);

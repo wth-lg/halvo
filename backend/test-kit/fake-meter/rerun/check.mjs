@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = process.env.HALVO_ROOT ?? join(HERE, "../../..");
 const STATE = process.env.GATE_STATE ?? join(ROOT, ".tmp");
+const OWN_FILE = "test-kit/fake-meter/rerun/check.mjs";
 const SEEDS = [1, 2, 3, 4, 5];
 const ORDERINGS = 20000;
 const SETTINGS = 38;
@@ -83,6 +84,11 @@ function trackedChanges(when) {
   if (run.status !== 0) {
     const why = run.error?.message ?? `exit ${run.status ?? run.signal}: ${(run.stderr ?? "").split("\n").find((line) => line !== "") ?? "no message"}`;
     fail(`git could not say ${when} the check whether a tracked file differs from HEAD (${why})`);
+    return [];
+  }
+  const own = spawnSync("git", ["-C", ROOT, "ls-files", "--error-unmatch", "--", OWN_FILE], { encoding: "utf8" });
+  if (own.status !== 0) {
+    fail(`git answers ${when} the check for a repository that does not track the check's own file ${OWN_FILE}`);
     return [];
   }
   return run.stdout.split("\n").filter((line) => line !== "");
@@ -242,7 +248,7 @@ function runTests() {
   writeFileSync(join(dir, "vitest.out"), `${run.stdout ?? ""}${run.stderr ?? ""}`);
   note(`vitest exit ${run.status ?? run.signal}; its report: ${report}`);
   if (!existsSync(report)) {
-    fail(`vitest wrote no report for the four tests (exit ${run.status ?? run.signal})`);
+    fail(`vitest wrote no report for the ${TESTS.length} tests (exit ${run.status ?? run.signal})`);
     return;
   }
   const results = JSON.parse(readFileSync(report, "utf8")).testResults ?? [];
