@@ -74,7 +74,13 @@ fn task_dialog_a_timeout_rejects() {
 fn task_dialog_the_two_ids_differ_and_neither_is_an_id_of_the_systems_own_buttons() {
     assert_ne!(TASK_ALLOW, TASK_REJECT);
     for own in (1..=11).chain([32000]) {
-        assert_ne!(TASK_ALLOW, own, "the allowing id is the system's own id {own}");
-        assert_ne!(TASK_REJECT, own, "the rejecting id is the system's own id {own}");
+        assert_ne!(
+            TASK_ALLOW, own,
+            "the allowing id is the system's own id {own}"
+        );
+        assert_ne!(
+            TASK_REJECT, own,
+            "the rejecting id is the system's own id {own}"
+        );
     }
 }

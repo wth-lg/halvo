@@ -39,3 +39,80 @@ fn the_task_dialog_rejects_by_default_cancels_and_closes_to_reject_and_sets_no_t
         "Escape and close give IDCANCEL"
     );
 }
+
+mod seams {
+    use super::super::{ALLOW, REJECT};
+    use crate::present::system::{task_answer, wait_alert, Step};
+    use halvo_coord::items::ConfirmAnswer;
+    use std::cell::Cell;
+    use std::sync::mpsc;
+
+    fn alert(queued: Result<(), ()>, steps: &[Step], close: bool) -> (ConfirmAnswer, usize) {
+        let (tx, rx) = mpsc::channel();
+        for step in steps {
+            tx.send(*step).unwrap();
+        }
+        let tx = if close {
+            drop(tx);
+            None
+        } else {
+            Some(tx)
+        };
+        let reports = Cell::new(0);
+        let answer = wait_alert(queued, &rx, &|| reports.set(reports.get() + 1));
+        drop(tx);
+        (answer, reports.get())
+    }
+
+    #[test]
+    fn alert_the_report_then_1001_allows_after_one_report() {
+        assert_eq!(
+            alert(Ok(()), &[Step::Shown, Step::Response(1001)], false),
+            (ALLOW, 1)
+        );
+    }
+
+    #[test]
+    fn alert_the_report_then_1000_rejects() {
+        assert_eq!(
+            alert(Ok(()), &[Step::Shown, Step::Response(1000)], false),
+            (REJECT, 1)
+        );
+    }
+
+    #[test]
+    fn alert_the_report_then_a_closed_channel_rejects() {
+        assert_eq!(alert(Ok(()), &[Step::Shown], true), (REJECT, 1));
+    }
+
+    #[test]
+    fn alert_a_channel_closed_at_once_rejects_with_no_report() {
+        assert_eq!(alert(Ok(()), &[], true), (REJECT, 0));
+    }
+
+    #[test]
+    fn alert_a_response_with_no_report_before_it_rejects() {
+        assert_eq!(alert(Ok(()), &[Step::Response(1001)], false), (REJECT, 0));
+    }
+
+    #[test]
+    fn alert_a_queue_call_that_fails_rejects_with_no_report() {
+        assert_eq!(
+            alert(Err(()), &[Step::Shown, Step::Response(1001)], false),
+            (REJECT, 0)
+        );
+    }
+
+    #[test]
+    fn task_dialog_a_failed_call_beside_the_allowing_id_rejects() {
+        assert_eq!(task_answer(Err(()), 100), REJECT);
+    }
+
+    #[test]
+    fn task_dialog_a_call_that_returned_allows_for_100_alone() {
+        assert_eq!(task_answer(Ok::<(), ()>(()), 100), ALLOW);
+        for pressed in [101, 2, 0] {
+            assert_eq!(task_answer(Ok::<(), ()>(()), pressed), REJECT, "{pressed}");
+        }
+    }
+}

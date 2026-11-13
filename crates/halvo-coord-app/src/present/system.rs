@@ -1,3 +1,7 @@
+#[cfg(any(test, target_os = "macos"))]
+use super::outcome::from_alert;
+#[cfg(any(test, windows))]
+use super::outcome::from_task_dialog;
 use super::{Card, Dialog};
 use halvo_coord::items::ConfirmAnswer;
 use tauri::{AppHandle, Runtime};
@@ -52,22 +56,56 @@ pub fn controls(card: &Card) -> [&str; 2] {
     [card.reject(), card.allow()]
 }
 
+/// A message of the main thread's alert to the thread that waits for it: the alert is on
+/// screen, or it ended with this response.
+#[cfg(any(test, target_os = "macos"))]
+#[derive(Clone, Copy)]
+pub enum Step {
+    Shown,
+    Response(isize),
+}
+
+/// The answer of an alert whose show on the main thread was queued with `queued` and which sends
+/// its two steps on `rx`: `on_screen` once the alert reports itself on screen, then `allow`
+/// for the response 1001 alone. A failed queue and a channel that closes before the report
+/// answer `reject` with no report; a channel that closes after the report and a response with
+/// no report before it answer `reject`.
+#[cfg(any(test, target_os = "macos"))]
+pub fn wait_alert<E>(
+    queued: Result<(), E>,
+    rx: &std::sync::mpsc::Receiver<Step>,
+    on_screen: &dyn Fn(),
+) -> ConfirmAnswer {
+    if queued.is_err() {
+        return from_alert(None);
+    }
+    match rx.recv() {
+        Ok(Step::Shown) => on_screen(),
+        _ => return from_alert(None),
+    }
+    match rx.recv() {
+        Ok(Step::Response(response)) => from_alert(Some(response)),
+        _ => from_alert(None),
+    }
+}
+
+/// The answer of a task dialog from the result of its call and the id of the pressed button:
+/// `allow` for the allowing id from a call that returned, and `reject` for every other pair.
+#[cfg(any(test, windows))]
+pub fn task_answer<E>(called: Result<(), E>, pressed: i32) -> ConfirmAnswer {
+    from_task_dialog(called.ok().map(|_| pressed))
+}
+
 #[cfg(target_os = "macos")]
 mod macos {
-    use super::super::outcome::from_alert;
     use super::super::Card;
-    use super::controls;
+    use super::{controls, wait_alert, Step};
     use halvo_coord::items::ConfirmAnswer;
     use objc2::MainThreadMarker;
     use objc2_app_kit::NSAlert;
     use objc2_foundation::NSString;
     use std::sync::mpsc;
     use tauri::{AppHandle, Runtime};
-
-    enum Step {
-        Shown,
-        Response(isize),
-    }
 
     pub fn show<R: Runtime>(
         app: &AppHandle<R>,
@@ -91,24 +129,15 @@ mod macos {
             let _ = tx.send(Step::Shown);
             let _ = tx.send(Step::Response(alert.runModal()));
         });
-        if queued.is_err() {
-            return from_alert(None);
-        }
-        match rx.recv() {
-            Ok(Step::Shown) => on_screen(),
-            _ => return from_alert(None),
-        }
-        match rx.recv() {
-            Ok(Step::Response(response)) => from_alert(Some(response)),
-            _ => from_alert(None),
-        }
+        wait_alert(queued, &rx, on_screen)
     }
 }
 
 #[cfg(windows)]
 pub(super) mod windows {
-    use super::super::outcome::{from_task_dialog, TASK_ALLOW, TASK_REJECT};
+    use super::super::outcome::{TASK_ALLOW, TASK_REJECT};
     use super::super::Card;
+    use super::task_answer;
     use halvo_coord::items::ConfirmAnswer;
     use std::panic::{catch_unwind, AssertUnwindSafe};
     use windows::core::{HRESULT, HSTRING, PCWSTR};
@@ -194,7 +223,7 @@ pub(super) mod windows {
         let mut pressed = 0i32;
         // SAFETY: `config` points into `texts`, `buttons` and `on_screen`, each of which
         // outlives the call.
-        let shown = unsafe { TaskDialogIndirect(&config, Some(&mut pressed), None, None) };
-        from_task_dialog(shown.ok().map(|()| pressed))
+        let called = unsafe { TaskDialogIndirect(&config, Some(&mut pressed), None, None) };
+        task_answer(called, pressed)
     }
 }
