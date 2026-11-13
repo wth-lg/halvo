@@ -9,7 +9,12 @@ extern "C" {
     fn DisableSecureEventInput() -> i32;
 }
 
+static CARBON_CALLS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn one_carbon_call_at_a_time<T>(call: impl FnOnce() -> T) -> T {
+    let _one = CARBON_CALLS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     call()
 }
 
@@ -17,8 +22,8 @@ pub fn secure_input_active() -> bool {
     secure_input_on(one_carbon_call_at_a_time(|| {
         // SAFETY: a parameterless C predicate with no side effects.
         // CarbonEventsCore.h marks it "Not thread safe" (line 3056 of the SDK on
-        // this Mac), so no other thread may call it or the hold and release
-        // below at the same time.
+        // this Mac): no other of the three calls runs at the same time, because
+        // each runs inside the lock of one_carbon_call_at_a_time.
         unsafe { IsSecureEventInputEnabled() }
     }))
 }
@@ -43,8 +48,9 @@ fn enable_secure_event_input() -> i32 {
     one_carbon_call_at_a_time(|| {
         // SAFETY: parameterless Carbon call that returns an OSStatus, as
         // CarbonEventsCore.h declares it (line 3004). The header marks it "Not
-        // thread safe" (line 2996 of the SDK on this Mac), so no other thread
-        // may call it or the release and the predicate at the same time.
+        // thread safe" (line 2996 of the SDK on this Mac): no other of the three
+        // calls runs at the same time, because each runs inside the lock of
+        // one_carbon_call_at_a_time.
         unsafe { EnableSecureEventInput() }
     })
 }
@@ -66,8 +72,9 @@ pub(crate) fn disable_secure_event_input() -> i32 {
     one_carbon_call_at_a_time(|| {
         // SAFETY: parameterless Carbon call that returns an OSStatus, as
         // CarbonEventsCore.h declares it (line 3040). The header marks it "Not
-        // thread safe" (line 3032 of the SDK on this Mac), so no other thread
-        // may call it or the hold and the predicate at the same time.
+        // thread safe" (line 3032 of the SDK on this Mac): no other of the three
+        // calls runs at the same time, because each runs inside the lock of
+        // one_carbon_call_at_a_time.
         unsafe { DisableSecureEventInput() }
     })
 }
