@@ -9,6 +9,7 @@ use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
+mod stall;
 mod stamp_phases;
 use stamp_phases::{period_ms, phase_of, Phase, TICK_PERIOD_FALLBACK_MS};
 

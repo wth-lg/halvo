@@ -335,6 +335,8 @@ fn release_held(gate: &mut GateState, producer: &Producer, at_stop: bool) {
         let Some((key, stroke, app)) = gate.held.pop_front() else {
             break;
         };
+        #[cfg(feature = "test-seam")]
+        seam::note(stroke.vkey, &answer, key.tick(), now);
         match answer {
             None => producer.lose(1),
             Some(Ok(clearance)) => {
@@ -347,6 +349,71 @@ fn release_held(gate: &mut GateState, producer: &Producer, at_stop: bool) {
                 gate.counts.withheld.store(true, Ordering::Relaxed);
             }
         }
+    }
+}
+
+/// What a test build reads of the keys that a keyboard source decided. Only
+/// the feature `test-seam` builds it, and only the crate's dev-dependency on
+/// itself turns that feature on, so no product build has it. It holds the
+/// class of each key and never its virtual-key code.
+#[cfg(feature = "test-seam")]
+pub mod seam {
+    use std::sync::{Mutex, PoisonError};
+
+    pub use crate::floor::payload::KeyClass;
+    use crate::secure_input::{KeystrokeClearance, Withheld};
+
+    /// What the keyboard source did with a key.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum Verdict {
+        Recorded,
+        Late,
+        WithheldPassword,
+        WithheldUnknown,
+        /// Still undecided when its source stopped.
+        LostAtStop,
+    }
+
+    /// One key that a keyboard source decided, in the order of the decisions.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Decided {
+        pub class: KeyClass,
+        pub verdict: Verdict,
+        /// The OS time of the key, in ticks of GetTickCount.
+        pub os_tick: u32,
+        /// The tick at which the source decided the key.
+        pub decided_tick: u32,
+    }
+
+    static DECIDED: Mutex<Vec<Decided>> = Mutex::new(Vec::new());
+
+    pub(super) fn note(
+        vkey: u16,
+        answer: &Option<Result<KeystrokeClearance, Withheld>>,
+        os_tick: u32,
+        decided_tick: u32,
+    ) {
+        let verdict = match answer {
+            None => Verdict::LostAtStop,
+            Some(Ok(_)) => Verdict::Recorded,
+            Some(Err(Withheld::Late)) => Verdict::Late,
+            Some(Err(Withheld::Active)) => Verdict::WithheldPassword,
+            Some(Err(Withheld::Unknown)) => Verdict::WithheldUnknown,
+        };
+        DECIDED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(Decided {
+                class: super::class_of(vkey),
+                verdict,
+                os_tick,
+                decided_tick,
+            });
+    }
+
+    /// The keys decided since the last call, oldest first.
+    pub fn take() -> Vec<Decided> {
+        std::mem::take(&mut *DECIDED.lock().unwrap_or_else(PoisonError::into_inner))
     }
 }
 

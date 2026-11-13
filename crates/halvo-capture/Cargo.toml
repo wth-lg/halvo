@@ -8,6 +8,9 @@ publish = false
 [features]
 secure-enclave = []
 r2 = []
+# A seam that the functional tests read: a test build alone turns it on,
+# through the dev-dependency on this crate below.
+test-seam = []
 
 [dependencies]
 uuid = { version = "1", features = ["v7", "serde"] }
@@ -80,6 +83,7 @@ windows-sys = { version = "0.61", features = [
 ] }
 
 [dev-dependencies]
+halvo-capture = { path = ".", features = ["test-seam"] }
 proc-macro2 = { version = "1.0.107", default-features = false }
 proptest = "1"
 tempfile = "3"
