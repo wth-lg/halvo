@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -82,28 +71,109 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
+      - name: Loop over the tests of U5.2 and its round, and the binary of tests/open.rs
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          cat > "$RUNNER_TEMP/loop.py" <<'PY'
+          """loop.py <cargo messages>: runs the built test binaries of halvo-derived again, the binary itself and not cargo, from
+          crates/halvo-derived: each named test 200 times by its name (20 times where its first run takes more than 2 s), each
+          test of the module tests:: of the library the same way, and the whole binary of tests/open.rs 200 times, each with its
+          count of passes; then the entries under the target's tmp directory whose names begin with derived-. It exits 1 when a
+          named test fails a run, and prints the lines of each failing run."""
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+          import time
+
+          TESTS = {
+              "privacy": [
+                  "privacy_scrub", "privacy_window", "privacy_bounded", "privacy_kept", "privacy_redact", "privacy_listed",
+                  "delete_all_leaves_no_database_file_and_no_key_file",
+                  "the_ciphertext_check_finds_no_planted_marker_in_the_raw_file_bytes",
+                  "a_second_process_is_refused_also_with_the_lock_file_unlinked",
+                  "an_open_is_refused_while_another_holds_the_writer_lock_and_the_database_is_free",
+                  "with_the_clock_set_back_a_day_a_workflow_takes_its_proposal_without_the_summary_ahead_until_that_day",
+                  "a_support_row_goes_with_its_summary_whatever_its_own_day",
+                  "the_search_finds_a_stored_marker_in_the_database_file_after_a_checkpoint",
+                  "the_search_finds_a_stored_marker_in_the_log_before_a_checkpoint",
+                  "the_keyless_open_refuses_a_keyed_database_and_the_keyed_open_a_keyless_one",
+              ],
+              "cases": [
+                  "own_origin_refused", "a_proposal_for_a_stored_workflow_keeps_its_id_state_and_agent_and_takes_the_rest",
+                  "a_routine_on_days_1_31_and_61_yields_its_proposal_on_day_61_across_the_window",
+                  "a_stop_inside_one_request_leaves_its_typed_commit_stored_and_no_state_call",
+                  "a_panic_of_a_handler_leaves_its_earlier_commit_stored_and_the_next_request_is_answered",
+                  "two_scratch_directories_of_one_name_in_one_process_get_two_paths",
+                  "the_scratch_leaf_name_differs_for_two_readings_of_the_clock",
+                  "a_second_making_of_a_scratch_leaf_that_exists_fails",
+              ],
+              "propose": ["a_proposal_that_names_a_summary_after_the_clock_s_day_or_past_its_bound_is_refused"],
+              "past_bound": ["a_dropped_fixture_leaves_no_directory"],
+          }
+          PASSED_ONE = re.compile(r"test result: ok\. 1 passed; 0 failed")
+
+
+          def main():
+              exes = {}
+              for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
+                  if not line.startswith("{"):
+                      continue
+                  m = json.loads(line)
+                  if m.get("reason") != "compiler-artifact" or not m.get("executable"):
+                      continue
+                  if "/crates/halvo-derived#" not in m.get("package_id", "").replace("\\", "/"):
+                      continue
+                  kind, name = m["target"]["kind"][0], m["target"]["name"]
+                  exes["lib" if kind == "lib" else name] = m["executable"]
+              os.chdir(os.path.join("crates", "halvo-derived"))
+              listed = subprocess.run([exes["lib"], "--list"], capture_output=True, text=True).stdout
+              TESTS["lib"] = [l[: -len(": test")] for l in listed.splitlines() if l.startswith("tests::") and l.endswith(": test")]
+              bad = 0
+              for binary, names in TESTS.items():
+                  for name in names:
+                      start = time.monotonic()
+                      runs = [subprocess.run([exes[binary], name, "--exact", "--test-threads=1"], capture_output=True, text=True)]
+                      first = time.monotonic() - start
+                      n = int(sys.argv[2]) if len(sys.argv) > 2 else (20 if first > 2 else 200)
+                      for _ in range(n - 1):
+                          runs.append(subprocess.run([exes[binary], name, "--exact", "--test-threads=1"],
+                                                     capture_output=True, text=True))
+                      passes = sum(1 for r in runs if r.returncode == 0 and PASSED_ONE.search(r.stdout))
+                      print(f"LOOP {binary} {name} runs {n} passes {passes} first-run-seconds {first:.2f}", flush=True)
+                      if passes != n:
+                          bad += 1
+                          failed = next(r for r in runs if not (r.returncode == 0 and PASSED_ONE.search(r.stdout)))
+                          for l in (failed.stdout + failed.stderr).splitlines()[-25:]:
+                              print(f"  {l}")
+              open_passes = 0
+              whole = int(sys.argv[2]) if len(sys.argv) > 2 else 200
+              for i in range(whole):
+                  r = subprocess.run([exes["open"]], capture_output=True, text=True)
+                  if r.returncode == 0:
+                      open_passes += 1
+                  else:
+                      print(f"LOOP open run {i + 1} failed:")
+                      for l in (r.stdout + r.stderr).splitlines()[-25:]:
+                          print(f"  {l}")
+              print(f"LOOP open whole binary runs {whole} passes {open_passes}", flush=True)
+              tmp = os.path.join("..", "..", "target", "tmp")
+              left = sorted(e for e in os.listdir(tmp) if e.startswith("derived-")) if os.path.isdir(tmp) else []
+              for entry in left:
+                  print(f"LEFT {entry}")
+              print(f"LOOP entries left under target/tmp named derived-: {len(left)}", flush=True)
+              sys.exit(1 if bad else 0)
+
+
+          main()
+          PY
+          PY_BIN=$(command -v python3 || command -v python)
+          cargo test --locked -p halvo-derived --no-run --message-format=json > "$RUNNER_TEMP/messages.json" 2> "$RUNNER_TEMP/no-run.txt"
+          "$PY_BIN" "$RUNNER_TEMP/loop.py" "$RUNNER_TEMP/messages.json"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -140,21 +210,110 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-derived
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 50-derived
+      - name: Loop over the tests of U5.2 and its round, and the binary of tests/open.rs
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          cat > "$RUNNER_TEMP/loop.py" <<'PY'
+          """loop.py <cargo messages>: runs the built test binaries of halvo-derived again, the binary itself and not cargo, from
+          crates/halvo-derived: each named test 200 times by its name (20 times where its first run takes more than 2 s), each
+          test of the module tests:: of the library the same way, and the whole binary of tests/open.rs 200 times, each with its
+          count of passes; then the entries under the target's tmp directory whose names begin with derived-. It exits 1 when a
+          named test fails a run, and prints the lines of each failing run."""
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+          import time
+
+          TESTS = {
+              "privacy": [
+                  "privacy_scrub", "privacy_window", "privacy_bounded", "privacy_kept", "privacy_redact", "privacy_listed",
+                  "delete_all_leaves_no_database_file_and_no_key_file",
+                  "the_ciphertext_check_finds_no_planted_marker_in_the_raw_file_bytes",
+                  "a_second_process_is_refused_also_with_the_lock_file_unlinked",
+                  "an_open_is_refused_while_another_holds_the_writer_lock_and_the_database_is_free",
+                  "with_the_clock_set_back_a_day_a_workflow_takes_its_proposal_without_the_summary_ahead_until_that_day",
+                  "a_support_row_goes_with_its_summary_whatever_its_own_day",
+                  "the_search_finds_a_stored_marker_in_the_database_file_after_a_checkpoint",
+                  "the_search_finds_a_stored_marker_in_the_log_before_a_checkpoint",
+                  "the_keyless_open_refuses_a_keyed_database_and_the_keyed_open_a_keyless_one",
+              ],
+              "cases": [
+                  "own_origin_refused", "a_proposal_for_a_stored_workflow_keeps_its_id_state_and_agent_and_takes_the_rest",
+                  "a_routine_on_days_1_31_and_61_yields_its_proposal_on_day_61_across_the_window",
+                  "a_stop_inside_one_request_leaves_its_typed_commit_stored_and_no_state_call",
+                  "a_panic_of_a_handler_leaves_its_earlier_commit_stored_and_the_next_request_is_answered",
+                  "two_scratch_directories_of_one_name_in_one_process_get_two_paths",
+                  "the_scratch_leaf_name_differs_for_two_readings_of_the_clock",
+                  "a_second_making_of_a_scratch_leaf_that_exists_fails",
+              ],
+              "propose": ["a_proposal_that_names_a_summary_after_the_clock_s_day_or_past_its_bound_is_refused"],
+              "past_bound": ["a_dropped_fixture_leaves_no_directory"],
+          }
+          PASSED_ONE = re.compile(r"test result: ok\. 1 passed; 0 failed")
+
+
+          def main():
+              exes = {}
+              for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
+                  if not line.startswith("{"):
+                      continue
+                  m = json.loads(line)
+                  if m.get("reason") != "compiler-artifact" or not m.get("executable"):
+                      continue
+                  if "/crates/halvo-derived#" not in m.get("package_id", "").replace("\\", "/"):
+                      continue
+                  kind, name = m["target"]["kind"][0], m["target"]["name"]
+                  exes["lib" if kind == "lib" else name] = m["executable"]
+              os.chdir(os.path.join("crates", "halvo-derived"))
+              listed = subprocess.run([exes["lib"], "--list"], capture_output=True, text=True).stdout
+              TESTS["lib"] = [l[: -len(": test")] for l in listed.splitlines() if l.startswith("tests::") and l.endswith(": test")]
+              bad = 0
+              for binary, names in TESTS.items():
+                  for name in names:
+                      start = time.monotonic()
+                      runs = [subprocess.run([exes[binary], name, "--exact", "--test-threads=1"], capture_output=True, text=True)]
+                      first = time.monotonic() - start
+                      n = int(sys.argv[2]) if len(sys.argv) > 2 else (20 if first > 2 else 200)
+                      for _ in range(n - 1):
+                          runs.append(subprocess.run([exes[binary], name, "--exact", "--test-threads=1"],
+                                                     capture_output=True, text=True))
+                      passes = sum(1 for r in runs if r.returncode == 0 and PASSED_ONE.search(r.stdout))
+                      print(f"LOOP {binary} {name} runs {n} passes {passes} first-run-seconds {first:.2f}", flush=True)
+                      if passes != n:
+                          bad += 1
+                          failed = next(r for r in runs if not (r.returncode == 0 and PASSED_ONE.search(r.stdout)))
+                          for l in (failed.stdout + failed.stderr).splitlines()[-25:]:
+                              print(f"  {l}")
+              open_passes = 0
+              whole = int(sys.argv[2]) if len(sys.argv) > 2 else 200
+              for i in range(whole):
+                  r = subprocess.run([exes["open"]], capture_output=True, text=True)
+                  if r.returncode == 0:
+                      open_passes += 1
+                  else:
+                      print(f"LOOP open run {i + 1} failed:")
+                      for l in (r.stdout + r.stderr).splitlines()[-25:]:
+                          print(f"  {l}")
+              print(f"LOOP open whole binary runs {whole} passes {open_passes}", flush=True)
+              tmp = os.path.join("..", "..", "target", "tmp")
+              left = sorted(e for e in os.listdir(tmp) if e.startswith("derived-")) if os.path.isdir(tmp) else []
+              for entry in left:
+                  print(f"LEFT {entry}")
+              print(f"LOOP entries left under target/tmp named derived-: {len(left)}", flush=True)
+              sys.exit(1 if bad else 0)
+
+
+          main()
+          PY
+          PY_BIN=$(command -v python3 || command -v python)
+          cargo test --locked -p halvo-derived --no-run --message-format=json > "$RUNNER_TEMP/messages.json" 2> "$RUNNER_TEMP/no-run.txt"
+          "$PY_BIN" "$RUNNER_TEMP/loop.py" "$RUNNER_TEMP/messages.json"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
