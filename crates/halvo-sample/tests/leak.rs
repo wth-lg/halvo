@@ -170,3 +170,117 @@ fn leak_refusals() {
         "tier-manifest",
     );
 }
+
+/// The lines of a script of one stream on one site: a planted routine and a one-off task.
+fn plain_stream(id: &str, sites: &str, site: &str, words: (&str, &str)) -> Vec<String> {
+    let mut lines = vec![
+        format!(r#"{{"line":"stream","stream":"{id}","sites":"{sites}"}}"#),
+        common::step_line(&format!("{id}-a"), site, words.0, false),
+        common::step_line(&format!("{id}-b"), site, words.1, false),
+    ];
+    for day in 1..=3 {
+        lines.push(common::episode(
+            id,
+            &format!("{id}-e{day}"),
+            &format!("{id}-t1"),
+            "email",
+            "planted",
+            day,
+            &[common::item(
+                &format!("{id}-a"),
+                0,
+                30 * common::SEC,
+                1,
+                1,
+                0,
+            )],
+        ));
+    }
+    lines.push(common::episode(
+        id,
+        &format!("{id}-e9"),
+        &format!("{id}-t2"),
+        "ride_order",
+        "one_off",
+        9,
+        &[common::item(
+            &format!("{id}-b"),
+            0,
+            30 * common::SEC,
+            0,
+            1,
+            0,
+        )],
+    ));
+    lines
+}
+
+fn script_file(path: &Path, lines: &[String]) -> String {
+    let text: String = std::iter::once(common::HEADER.to_owned())
+        .chain(lines.iter().cloned())
+        .map(|l| format!("{l}\n"))
+        .collect();
+    write(path, &text);
+    s(path)
+}
+
+#[test]
+fn a_development_body_that_holds_a_copy_of_a_stream_fails_and_without_it_passes() {
+    let dir = scratch("copied-stream");
+    let tier_lines = plain_stream("t1", "check", "teal-one.test", ("Teal page", "Teal form"));
+    let tier_script = script_file(&dir.join("tier.jsonl"), &tier_lines);
+    write(
+        &dir.join("layers.jsonl"),
+        "{\"step\":\"t1-a\",\"source\":\"render\",\"accessibility_text\":null,\"extracted_text\":null}\n{\"step\":\"t1-b\",\"source\":\"render\",\"accessibility_text\":null,\"extracted_text\":null}\n",
+    );
+    let t = dir.join("bodies/gen-check");
+    let o = run(&[
+        "build",
+        "--tier",
+        "gen-check",
+        "--layer-records",
+        &s(&dir.join("layers.jsonl")),
+        "--seed",
+        "5",
+        "--out",
+        &s(&t),
+        &tier_script,
+    ]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    let dev_lines = plain_stream("d1", "seen", "dusk-one.test", ("Dusk note", "Dusk list"));
+    let dev_script = script_file(&dir.join("dev.jsonl"), &dev_lines);
+    let copy_lines = plain_stream("t1", "seen", "teal-one.test", ("Teal page", "Teal form"));
+    let copy_script = script_file(&dir.join("copy.jsonl"), &copy_lines);
+    let without = dir.join("without");
+    let with = dir.join("with");
+    assert_eq!(
+        run(&["build", "--seed", "8", "--out", &s(&without), &dev_script]).code,
+        0
+    );
+    assert_eq!(
+        run(&[
+            "build",
+            "--seed",
+            "8",
+            "--out",
+            &s(&with),
+            &dev_script,
+            &copy_script
+        ])
+        .code,
+        0
+    );
+    let o = run(&["leak", &s(&t), &s(&without)]);
+    assert_eq!(o.code, 0, "{}", o.stdout);
+    assert!(
+        o.stdout
+            .contains("shared streams=0 sites=0 templates=0 canaries=0\n"),
+        "{}",
+        o.stdout
+    );
+    assert!(o.stdout.ends_with("leak PASS\n"));
+    let o = run(&["leak", &s(&t), &s(&with)]);
+    assert_eq!(o.code, 1, "{}", o.stdout);
+    assert!(o.stdout.contains("shared streams=1 "), "{}", o.stdout);
+    assert!(o.stdout.ends_with("leak FAIL\n"));
+}
