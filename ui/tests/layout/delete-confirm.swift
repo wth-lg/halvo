@@ -77,6 +77,7 @@ let app = NSApplication.shared
 app.setActivationPolicy(.prohibited)
 
 let config = WKWebViewConfiguration()
+config.websiteDataStore = WKWebsiteDataStore.nonPersistent()
 config.userContentController.addUserScript(
     WKUserScript(source: stub, injectionTime: .atDocumentStart, forMainFrameOnly: true))
 let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 620, height: 720), configuration: config)
