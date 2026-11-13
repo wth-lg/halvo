@@ -2681,3 +2681,103 @@ fn a_stop_after_an_answer_whose_row_was_stored_and_whose_handback_failed_stores_
     );
     assert_eq!(cancels_of(&c, m, &run), 1);
 }
+
+/// The person's Stop for `who`, which has no live run: answers ok, makes the calls `calls` alone,
+/// stores no event, and leaves the rows and the items of the snapshot as they were (ruling
+/// RD-43 (a) to (c)). The snapshot of the hold's check card reads `Owner::agents` for the
+/// unknown effects that the card shows, after every move of the person while it stands.
+fn a_stop_changes_nothing(c: &Coordinator<Both>, who: &AgentId, calls: &[Call], case: &str) {
+    let before = c.snapshot();
+    let stored = events(c).len();
+    let m = mark(c);
+    assert_eq!(c.control(who, Action::Stop), Ok(()), "{case}");
+    assert_eq!(calls_since(c, m), calls, "{case}: the calls of the control");
+    assert_eq!(events(c).len(), stored, "{case}: no event stored");
+    let after = c.snapshot();
+    let ids = |s: &Snapshot| s.items.iter().map(|i| i.item().clone()).collect::<Vec<_>>();
+    assert_eq!(ids(&after), ids(&before), "{case}: the same item");
+    assert_eq!(after.rows, before.rows, "{case}: the same rows");
+}
+
+#[test]
+fn the_persons_stop_of_an_agent_with_no_live_run_or_a_stopping_one_lapses_nothing_and_stores_nothing(
+) {
+    let limits = Limits::PRODUCT;
+    let c = coordinator(&[MANUAL], limits);
+    let run = start(&c, 0);
+    c.ports().ports.end_runner(&run);
+    c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)))
+        .unwrap();
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run,
+            day: DAY,
+            outcome: Outcome::Completed,
+            unknown: 1,
+        },
+    );
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    assert_eq!(open_item(&c).1, ItemKind::Check, "the hold's check");
+    a_stop_changes_nothing(&c, &agent(0), &[Call::Agents], "the hold's check");
+
+    let (c, made, _) = setup_agent();
+    assert_eq!(open_item(&c).1, ItemKind::Setup);
+    a_stop_changes_nothing(&c, &made, &[], "a setup item");
+
+    let slotted = support::A {
+        person: true,
+        slotted: true,
+    };
+    let c = coordinator(&[slotted], limits);
+    assert_eq!(open_item(&c).1, ItemKind::Ready);
+    a_stop_changes_nothing(&c, &agent(0), &[], "a ready item");
+
+    let one = Limits {
+        max_live_runs: 1,
+        ..limits
+    };
+    let c = coordinator(&[MANUAL, slotted], one);
+    let (ready, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::Ready);
+    let first = start(&c, 0);
+    c.ports().ports.refuse(Method::Log, PortError::NoService);
+    assert_eq!(c.answer(&ready, Choice::Start, None), Ok(()));
+    c.ports().ports.clear_refusals();
+    assert_eq!(started(&c).len(), 1, "agent 1's start waits in the queue");
+    assert_eq!(
+        c.snapshot()
+            .items
+            .iter()
+            .map(|i| i.item().clone())
+            .collect::<Vec<_>>(),
+        [ready.clone()],
+        "the queued agent holds its ready item"
+    );
+    a_stop_changes_nothing(&c, &agent(1), &[], "a queued agent with a ready item");
+    c.ports().ports.end_runner(&first);
+    c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
+        .unwrap();
+    let starts = started(&c);
+    assert_eq!(
+        starts.len(),
+        2,
+        "the queued start is taken when its turn comes"
+    );
+    let second = starts.last().cloned().unwrap();
+    assert!(events(&c).iter().any(|w| matches!(
+        w,
+        What::RunStarted { run, .. } if *run == second
+    )));
+
+    let c = coordinator(&[MANUAL], limits);
+    let run = start(&c, 0);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    let stored = events(&c).len();
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()), "a stopping run");
+    assert_eq!(cancels_of(&c, m, &run), 0, "no second cancel");
+    assert_eq!(calls_since(&c, m), Vec::<Call>::new());
+    assert_eq!(events(&c).len(), stored, "nothing stored");
+}
