@@ -301,7 +301,15 @@ fn lock_file_options() -> OpenOptions {
     options
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+fn lock_file_options() -> OpenOptions {
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut options = OpenOptions::new();
+    options.custom_flags(libc::O_NONBLOCK);
+    options
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
 fn lock_file_options() -> OpenOptions {
     OpenOptions::new()
 }
@@ -984,6 +992,37 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&lock).unwrap(),
             "left by an earlier run\n"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_fifo_at_the_lock_path_gives_io_at_once() {
+        let dir = fresh_dir("fifo");
+        let lock = lock_path_in(&dir);
+        std::fs::create_dir_all(lock.parent().unwrap()).unwrap();
+        let made = Command::new("/usr/bin/mkfifo").arg(&lock).status().unwrap();
+        assert!(made.success(), "mkfifo exited {made}");
+        let (send, receive) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = send.send(take_lock_from(Ok(Some(dir.into_os_string()))).map(|_| ()));
+        });
+        match receive.recv_timeout(std::time::Duration::from_secs(30)) {
+            Ok(Err(LockError::Io { call: "open", .. })) => {}
+            other => panic!("a fifo at the lock path: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_lock_file_that_another_process_made_after_the_open_is_kept_as_it_is() {
+        let dir = fresh_dir("made-meanwhile");
+        let lock = lock_path_in(&dir);
+        std::fs::create_dir_all(lock.parent().unwrap()).unwrap();
+        std::fs::write(&lock, "made by another loader\n").unwrap();
+        create_lock_file(&lock).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(&lock).unwrap(),
+            "made by another loader\n"
         );
     }
 

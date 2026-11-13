@@ -167,6 +167,42 @@ fn two_children_with_other_account_variables_print_the_parents_lock_path() {
 }
 
 #[test]
+fn children_with_other_cache_and_user_variables_and_working_directories_print_the_parents_lock_path(
+) {
+    let parent = model_lock_path().ok();
+    for name in ["first", "second"] {
+        let dir = fresh_dir(&format!("more-{name}"));
+        let mut command = with_account_variables_in(child_command("path"), &dir);
+        for variable in [
+            "TMPDIR",
+            "TMP",
+            "TEMP",
+            "XDG_CACHE_HOME",
+            "XDG_CONFIG_HOME",
+            "XDG_DATA_HOME",
+            "CFFIXED_USER_HOME",
+            "HOMEPATH",
+            "PWD",
+        ] {
+            let value = dir.join(variable);
+            std::fs::create_dir_all(&value).unwrap();
+            command.env(variable, value);
+        }
+        for variable in ["USER", "LOGNAME", "USERNAME"] {
+            command.env(variable, format!("someone-{name}"));
+        }
+        command.env("HOMEDRIVE", "Q:").current_dir(&dir);
+        let got = printed_path(&mut command);
+        assert!(got.is_some(), "a child printed no lock path");
+        assert!(got == parent, "a child's lock path is not the parent's");
+        assert!(
+            !got.unwrap().starts_with(&dir),
+            "the lock path lies under a directory of the child"
+        );
+    }
+}
+
+#[test]
 fn a_child_with_none_of_the_account_variables_prints_the_parents_lock_path() {
     let parent = model_lock_path().ok();
     let mut command = child_command("path");
