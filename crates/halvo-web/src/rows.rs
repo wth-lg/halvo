@@ -24,7 +24,8 @@ impl Left {
 /// `args`, a guard not among them), and its guards (`is_guard`). A table that could not be read is open with the cause
 /// `table_unread`; a process whose program lies inside the browser's bundle, which began at or
 /// after the mark and whose arguments cannot be read, is open with the cause `args_unread`, because
-/// it may be the run's own.
+/// it may be the run's own. Whether a program lies inside the bundle is read by the function that
+/// `Mark::owns` uses (`checks::inside`), so that both read one path alike (CP-186 S7).
 pub fn read_left(
     table: Option<&[Proc]>,
     mark: &Mark,
@@ -46,7 +47,9 @@ pub fn read_left(
     let unread = table.iter().any(|p| {
         p.started_us >= mark.since_us
             && p.pid != std::process::id()
-            && p.exe.as_deref().is_some_and(|e| e.starts_with(&mark.root))
+            && p.exe
+                .as_deref()
+                .is_some_and(|e| crate::checks::inside(e, &mark.root))
             && args(p.pid).is_none()
     });
     Left {
@@ -60,6 +63,47 @@ pub fn read_left(
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    /// CP-186 S7: a process whose program lies inside the bundle by the path test of
+    /// `Mark::owns`, with its arguments unread, is open; one whose path only begins like the
+    /// bundle's (`/B.apps`) is not.
+    #[test]
+    fn s7_read_left_reads_inside_as_mark_owns_does() {
+        let proc = |exe: &str| Proc {
+            pid: 4_000_000_041,
+            ppid: 1,
+            started_us: 20,
+            pgid: 0,
+            exe: Some(exe.into()),
+        };
+        let table = vec![proc("/B.app/Contents/MacOS/b")];
+        let left = read_left(Some(&table), &mark(), &|_| None, &|_| false);
+        assert_eq!(left.open, Some("args_unread"));
+        let table = vec![proc("/B.apps/b")];
+        let left = read_left(Some(&table), &mark(), &|_| None, &|_| false);
+        assert_eq!(left.open, None);
+    }
+
+    /// CP-186 S7, the review's case relay/05 (Windows): a bundle process whose path differs in
+    /// letter case and slashes, with its arguments unread, is open, as `Mark::owns` reads it.
+    #[cfg(windows)]
+    #[test]
+    fn s7_a_bundle_process_in_another_letter_case_is_open_on_windows() {
+        let mark = Mark {
+            profile: r"C:\p".into(),
+            since_us: 10,
+            root: PathBuf::from(r"C:\Apps\Browser"),
+        };
+        let table = vec![Proc {
+            pid: 4_000_000_040,
+            ppid: 1,
+            started_us: 20,
+            pgid: 0,
+            exe: Some(r"c:/apps/browser/b.exe".into()),
+        }];
+        let left = read_left(Some(&table), &mark, &|_| None, &|_| false);
+        assert_eq!(left.open, Some("args_unread"));
+    }
 
     fn mark() -> Mark {
         Mark {

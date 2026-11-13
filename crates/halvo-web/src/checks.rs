@@ -129,7 +129,7 @@ impl Mark {
 
 /// Whether `exe` lies inside `root`: by path components on macOS, and on Windows with `/` and `\`
 /// taken as one and the letter case ignored, as the system compares paths there.
-fn inside(exe: &Path, root: &Path) -> bool {
+pub(crate) fn inside(exe: &Path, root: &Path) -> bool {
     if root.as_os_str().is_empty() {
         return false;
     }
