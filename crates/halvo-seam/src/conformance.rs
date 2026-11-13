@@ -999,9 +999,10 @@ fn old_store<S: Subject>(
     conn: &mut Conn<S>,
     old: &StoreId,
     at: Position,
+    filter: (Option<&[&str]>, Span),
     what: &str,
 ) -> Result<StoreId, String> {
-    let new = match conn.error(&open_text(Some(old), at, None, None), what)? {
+    let new = match conn.error(&open_text(Some(old), at, filter.0, filter.1), what)? {
         Cause::StoreChanged(id) if &id != old => id,
         Cause::StoreChanged(_) => return Err("store-changed names the old store id".to_owned()),
         other => return Err(format!("{what} got {}; want store-changed", other.name())),
@@ -1086,12 +1087,26 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
     let p = rf.r[10].pos;
     subject.load(&SET_B)?;
     let mut conn = connect(subject, instants)?;
-    let new = old_store(&mut conn, &rf.s, p, "an open_cursor with the old store id")?;
+    let new = old_store(
+        &mut conn,
+        &rf.s,
+        p,
+        (None, None),
+        "an open_cursor with the old store id",
+    )?;
     let at_zero = old_store(
         &mut conn,
         &rf.s,
         ZERO,
+        (None, None),
         "an open_cursor with the old store id at the zero position",
+    )?;
+    let filtered = old_store(
+        &mut conn,
+        &rf.s,
+        p,
+        (Some(&["keystroke"]), Some((Instant(0), Instant(i64::MAX)))),
+        "an open_cursor with the old store id, a kinds filter and a range",
     )?;
     let cause = conn.error(
         &open_text(None, p, None, None),
@@ -1112,6 +1127,12 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
     if first.store != at_zero {
         return Err(format!(
             "check {}: store-changed to an open_cursor with the old store id at the zero position names another id than the new store's reply",
+            CHECKS[0]
+        ));
+    }
+    if first.store != filtered {
+        return Err(format!(
+            "check {}: store-changed to an open_cursor with the old store id, a kinds filter and a range names another id than the new store's reply",
             CHECKS[0]
         ));
     }

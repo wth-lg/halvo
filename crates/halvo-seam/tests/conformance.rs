@@ -17,6 +17,7 @@ use halvo_seam::record::{CaptureRecord, ServedKind};
 enum Fault {
     StoreChangedOnReadNamesAnotherId,
     StoreChangedAtZeroNamesAnotherId,
+    StoreChangedToAFilteredOpenNamesAnotherId,
     OpenWhileOpenServes,
     OpenWhileOpenClosesTheCursor,
     OpenWhileOpenGetsBadPosition,
@@ -474,6 +475,14 @@ impl Wrong {
 fn open_reply(t: &mut FixtureTransport, fault: Fault, open: &OpenCursor) -> ServerMessage {
     let reply = t.handle(&ClientMessage::OpenCursor(open.clone()));
     match (fault, reply) {
+        (StoreChangedToAFilteredOpenNamesAnotherId, ServerMessage::Error(e))
+            if open.kinds().is_some() || open.range().is_some() =>
+        {
+            match e.cause() {
+                Cause::StoreChanged(id) => error(Cause::StoreChanged(other(id))),
+                _ => ServerMessage::Error(e),
+            }
+        }
         (StoreChangedAtZeroNamesAnotherId, ServerMessage::Error(e)) if open.position() == ZERO => {
             match e.cause() {
                 Cause::StoreChanged(id) => error(Cause::StoreChanged(other(id))),
@@ -561,6 +570,10 @@ fn conformance_check_store_changed_names_the_current_id() {
         &[
             (StoreChangedOnReadNamesAnotherId, [None, None, None, check]),
             (StoreChangedAtZeroNamesAnotherId, [None, None, None, check]),
+            (
+                StoreChangedToAFilteredOpenNamesAnotherId,
+                [None, None, None, check],
+            ),
         ],
     );
 }
