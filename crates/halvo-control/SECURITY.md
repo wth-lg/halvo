@@ -65,7 +65,9 @@ descriptor or a handle from a reply.
 - Send signals to the daemon.
 - Run the offline delete, `halvo-capture --delete-all`.
 - Answer as a false server on the socket path before the daemon binds it. The app's
-  guard against that is the pid of the child it started; `ctl` has none.
+  guard against that is the pid of the child it started; `ctl` has none. Exit 0 of
+  `ctl pause` and `ctl resume` proves only that the peer at the socket answered that
+  state, and a false server of the same user can answer anything.
 - Unwrap the root. On Windows DPAPI's user scope lets any program of the same user
   unprotect the root file. The root file of an unsigned macOS build has owner-only
   permissions and is readable by the same user.

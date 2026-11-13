@@ -1637,6 +1637,35 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
     Ok(())
 }
 
+/// The two requests that change capture, as [`reaches_the_end`] names them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureChange {
+    Pause,
+    Resume,
+}
+
+/// Whether `status` shows the end that `change` asks for (ruling PL-8 part (5)(a)): for a pause
+/// desired paused and capture paused; for a resume desired running and capture starting,
+/// running, partial, faulted or no_indicator. ctl's exit status and the app's
+/// `set_capture_state` both read it.
+pub fn reaches_the_end(change: CaptureChange, status: &DaemonStatus) -> bool {
+    let f = status.fields();
+    match change {
+        CaptureChange::Pause => f.desired == CaptureState::Paused && f.capture == Capture::Paused,
+        CaptureChange::Resume => {
+            f.desired == CaptureState::Running
+                && matches!(
+                    f.capture,
+                    Capture::Starting
+                        | Capture::Running
+                        | Capture::Partial
+                        | Capture::Faulted
+                        | Capture::NoIndicator
+                )
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeleteDecision {
     Accept,

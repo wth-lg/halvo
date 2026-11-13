@@ -426,12 +426,25 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
             printed(inventory_text(&inventory), crate::exit::CLEAN)
         }
         (Verb::Pause | Verb::Resume, Reply::CaptureChanged(status)) => {
-            let stdout = format!("capture={}\n", status.fields().capture.as_str());
+            let f = status.fields();
+            let (change, name) = if *verb == Verb::Pause {
+                (crate::proto::CaptureChange::Pause, "pause")
+            } else {
+                (crate::proto::CaptureChange::Resume, "resume")
+            };
+            let reached = crate::proto::reaches_the_end(change, &status);
+            let stdout = format!("capture={}\n", f.capture.as_str());
             let mut stderr = String::new();
-            if *verb == Verb::Pause && status.fields().capture == crate::proto::Capture::Pausing {
+            if *verb == Verb::Pause && f.capture == crate::proto::Capture::Pausing {
                 stderr.push_str(
                     "halvo-capture: capture did not stop in time; the capture service is ending\n",
                 );
+            } else if !reached {
+                stderr.push_str(&format!(
+                    "halvo-capture: the capture service answered desired={} capture={}, not the state that {name} asks for\n",
+                    f.desired.as_str(),
+                    f.capture.as_str()
+                ));
             }
             if status.fields().state_file == StateFile::WriteFailed {
                 stderr.push_str(&format!(
@@ -439,7 +452,7 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
                     data_dir.state_file().display()
                 ));
             }
-            let status = if stderr.is_empty() {
+            let status = if reached && f.state_file != StateFile::WriteFailed {
                 crate::exit::CLEAN
             } else {
                 crate::exit::ERROR
