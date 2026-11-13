@@ -53,18 +53,32 @@ enum Fault {
     NextInTheFirstSegmentAtAStop,
     DropsTheFirstRecordOfTheSecondFile,
     FirstRecordDroppedUnder(Form),
+    FirstRecordDroppedFromZero,
+    OutsideRecordInPlaceUnderARange,
+    LowWatermarkOnTheOpenAfterEveryShred,
+    RisenWatermarkRefusesWAfterOneShred,
+    OpenWithKindsWhileOpenServes,
+    PhantomAfterTheRefusedOpenAtTheWatermark,
 }
 
 use Fault::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Form {
+    WindowTitle,
+    Keystroke,
+    Range,
+    RangeWindowTitle,
     TwoNames,
 }
 
 fn form_of(open: &OpenCursor) -> Option<Form> {
     let names: Vec<ServedKind> = open.kinds().map(|k| k.kinds().to_vec()).unwrap_or_default();
     match (names.as_slice(), open.range().is_some()) {
+        ([ServedKind::WindowTitle], false) => Some(Form::WindowTitle),
+        ([ServedKind::Keystroke], false) => Some(Form::Keystroke),
+        ([], true) => Some(Form::Range),
+        ([ServedKind::WindowTitle], true) => Some(Form::RangeWindowTitle),
         ([_, _, ..], false) => Some(Form::TwoNames),
         _ => None,
     }
@@ -189,6 +203,7 @@ impl Subject for Fixture {
                         position: ZERO,
                         first_null: None,
                         cursor_reads: 0,
+                        phantom_next: false,
                         connection,
                         further,
                         reads: 0,
@@ -212,7 +227,10 @@ impl Subject for Fixture {
     fn shred_oldest(&mut self) -> Result<(), String> {
         self.settle()?;
         self.first_live += 1;
-        if self.fault == Some(RisenWatermarkRefusedAfterAShred) {
+        if matches!(
+            self.fault,
+            Some(RisenWatermarkRefusedAfterAShred | RisenWatermarkRefusesWAfterOneShred)
+        ) {
             let first = self.files.first().ok_or("no store is loaded")?;
             let path = first.with_file_name(format!("day-{:03}.jsonl", self.files.len() + 1));
             fs::write(&path, "").map_err(|e| format!("write failed: {e}"))?;
@@ -257,6 +275,7 @@ struct Wrong {
     last: Option<OpenCursor>,
     first_null: Option<bool>,
     cursor_reads: i64,
+    phantom_next: bool,
 }
 
 impl Wrong {
@@ -269,10 +288,25 @@ impl Wrong {
         let fallen = self.fault == WatermarkFallsWhenEverySegmentIsShredded
             && self.all_shredded
             && open.position() > Position { seg: 1, idx: 0 };
-        if fallen || (refuses && self.shredded && open.position() == t.watermark()) {
+        let below_risen = Position {
+            seg: t.watermark().seg.saturating_sub(1),
+            idx: 0,
+        };
+        let refuses_w = self.fault == RisenWatermarkRefusesWAfterOneShred
+            && self.one_shred
+            && open.position() == below_risen;
+        if fallen || refuses_w || (refuses && self.shredded && open.position() == t.watermark()) {
             return error(Cause::BadPosition);
         }
-        let reply = open_reply(t, self.fault, open);
+        let mut reply = open_reply(t, self.fault, open);
+        if self.fault == LowWatermarkOnTheOpenAfterEveryShred
+            && self.all_shredded
+            && open.position() == t.watermark()
+        {
+            if let ServerMessage::Batch(b) = &mut reply {
+                b.watermark.seg -= 1;
+            }
+        }
         let refused = matches!(&reply, ServerMessage::Error(e) if *e.cause() == Cause::BadRequest);
         let names_s = open.store() == Some(t.store());
         let reply = match self.fault {
@@ -322,6 +356,14 @@ impl Wrong {
                 t.handle(&ClientMessage::Close);
                 t.handle(&ClientMessage::OpenCursor(open.clone()))
             }
+            OpenWithKindsWhileOpenServes if refused && open.kinds().is_some() => {
+                t.handle(&ClientMessage::Close);
+                t.handle(&ClientMessage::OpenCursor(open.clone()))
+            }
+            PhantomAfterTheRefusedOpenAtTheWatermark if refused && self.at_watermark => {
+                self.phantom_next = true;
+                reply
+            }
             NullStoreOpenWhileOpenServes if refused && open.store().is_none() => {
                 t.handle(&ClientMessage::Close);
                 t.handle(&ClientMessage::OpenCursor(open.clone()))
@@ -360,13 +402,27 @@ impl Wrong {
         };
         self.reads += 1;
         self.cursor_reads += 1;
-        if let FirstRecordDroppedUnder(form) = self.fault {
-            let under = self.last.as_ref().and_then(form_of) == Some(form);
-            if self.two_files && self.cursor_reads == 1 && under && !b.records.is_empty() {
-                b.records.remove(0);
-                let segs: Vec<u64> = b.records.iter().map(|e| e.pos.seg).collect();
-                b.expiry.retain(|x| segs.contains(&x.seg));
+        let filtered = self
+            .last
+            .as_ref()
+            .is_some_and(|o| o.kinds().is_some() || o.range().is_some());
+        let dropped = match self.fault {
+            FirstRecordDroppedUnder(form) => self.last.as_ref().and_then(form_of) == Some(form),
+            FirstRecordDroppedFromZero => {
+                filtered && self.last.as_ref().is_some_and(|o| o.position() == ZERO)
             }
+            _ => false,
+        };
+        let first_of_two_files = self.two_files && self.cursor_reads == 1 && !b.records.is_empty();
+        if dropped && first_of_two_files {
+            b.records.remove(0);
+            let segs: Vec<u64> = b.records.iter().map(|e| e.pos.seg).collect();
+            b.expiry.retain(|x| segs.contains(&x.seg));
+        }
+        let ranged = self.last.as_ref().is_some_and(|o| o.range().is_some());
+        if self.fault == OutsideRecordInPlaceUnderARange && ranged && first_of_two_files {
+            let line = conformance::SET_A[3].split_inclusive('\n').next().unwrap();
+            b.records[0].record = CaptureRecord::read_line(line.as_bytes()).unwrap();
         }
         let shift = match self.fault {
             ExpiryMovesFromReadToRead => self.reads,
@@ -383,7 +439,9 @@ impl Wrong {
             PhantomRecordAfterEveryShred => self.all_shredded,
             _ => false,
         };
-        if phantom && at_w && b.records.is_empty() {
+        let after_refusal = self.fault == PhantomAfterTheRefusedOpenAtTheWatermark
+            && std::mem::take(&mut self.phantom_next);
+        if ((phantom && at_w) || after_refusal) && b.records.is_empty() {
             let line = conformance::SET_A[0].split_inclusive('\n').next().unwrap();
             let record = CaptureRecord::read_line(line.as_bytes()).unwrap();
             b.expiry = vec![Expiry {
@@ -634,6 +692,11 @@ fn conformance_check_open_while_open() {
                 [None, None, check, check],
             ),
             (OpenMidReadReplacesTheCursor, [None, None, None, check]),
+            (OpenWithKindsWhileOpenServes, [check, None, check, None]),
+            (
+                PhantomAfterTheRefusedOpenAtTheWatermark,
+                [check, None, check, None],
+            ),
             (
                 OpenPastTheWatermarkWhileOpenGetsBadPosition,
                 [check, None, check, None],
@@ -656,6 +719,14 @@ fn conformance_check_open_at_the_watermark_after_a_shred() {
             ),
             (PhantomRecordAfterEveryShred, [None, check, None, None]),
             (WatermarkRefusedAfterOneShred, [None, check, None, None]),
+            (
+                LowWatermarkOnTheOpenAfterEveryShred,
+                [None, check, None, None],
+            ),
+            (
+                RisenWatermarkRefusesWAfterOneShred,
+                [None, check, None, None],
+            ),
             (
                 WatermarkFallsWhenEverySegmentIsShredded,
                 [None, check, None, None],
@@ -707,6 +778,24 @@ fn conformance_check_filtered_stops() {
                 FirstRecordDroppedUnder(Form::TwoNames),
                 [None, None, None, check],
             ),
+            (
+                FirstRecordDroppedUnder(Form::WindowTitle),
+                [None, None, None, check],
+            ),
+            (
+                FirstRecordDroppedUnder(Form::Keystroke),
+                [None, None, None, check],
+            ),
+            (
+                FirstRecordDroppedUnder(Form::Range),
+                [None, None, None, check],
+            ),
+            (
+                FirstRecordDroppedUnder(Form::RangeWindowTitle),
+                [None, None, None, check],
+            ),
+            (FirstRecordDroppedFromZero, [None, None, None, check]),
+            (OutsideRecordInPlaceUnderARange, [None, None, None, check]),
         ],
     );
 }
