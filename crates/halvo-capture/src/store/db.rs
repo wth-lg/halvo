@@ -1,8 +1,10 @@
 //! SQLCipher metadata store and the [`EncryptedStore`].
 
+use std::ffi::OsStr;
 use std::fs::{File, TryLockError};
 use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -18,12 +20,17 @@ use crate::custody::{
 };
 use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
-use super::durable::{self, DurableFs, OsFs};
+use super::durable::{self, Dir, DurableFs, EntryKind, OsFs, Refused};
 use super::segment::{self, SegmentHeader, SegmentKey};
 use super::{SegmentStore, StoreError, StoreResult};
 
 const KEY_FILE_VERSION: u32 = 1;
 const DATABASE_VERSION: i64 = 1;
+const KEY_FILE: &str = "store.key";
+const KEY_FILE_TEMP: &str = "store.key.tmp";
+const DATABASE_FILE: &str = "store.db";
+const DATABASE_LOG: &str = "store.db-wal";
+const LINKED_DATABASE: &str = "the database file of the store is a link";
 
 #[derive(Deserialize)]
 struct KeyFileVersion {
@@ -55,24 +62,33 @@ impl KeyFile {
         store_dir.join("store.key.tmp")
     }
 
-    fn write(&self, store_dir: &Path) -> StoreResult<()> {
+    fn write(&self, store_dir: &Dir) -> StoreResult<()> {
         let json =
             serde_json::to_vec_pretty(self).map_err(|_| StoreError::Io(ErrorKind::InvalidData))?;
         durable::write_durably(
             &OsFs,
-            &Self::temp_path(store_dir),
-            &Self::path(store_dir),
+            store_dir,
+            OsStr::new(KEY_FILE_TEMP),
+            OsStr::new(KEY_FILE),
             io_error,
-            remove_if_present,
+            || Ok(()),
+            |dir, temp| match dir.remove_file(temp) {
+                Err(e) if e.kind() != ErrorKind::NotFound => Err(io_error(e)),
+                _ => Ok(()),
+            },
             |out| out.write_all(&json).map_err(io_error),
         )
     }
 
     pub(crate) fn read(store_dir: &Path) -> StoreResult<Self> {
-        let json = match std::fs::read(Self::path(store_dir)) {
+        Self::read_in(&Dir::open(store_dir).map_err(store_dir_error)?)
+    }
+
+    fn read_in(store_dir: &Dir) -> StoreResult<Self> {
+        let json = match read_whole(store_dir, KEY_FILE) {
             Ok(json) => json,
             Err(e) if e.kind() == ErrorKind::NotFound => return Err(StoreError::Sealed),
-            Err(e) => return Err(io_error(e)),
+            Err(e) => return Err(key_file_error(e)),
         };
         serde_json::from_slice::<KeyFileVersion>(&json)
             .map_err(|_| StoreError::KeyFileUnparseable)
@@ -114,6 +130,88 @@ impl KeyFile {
 
 fn io_error(e: std::io::Error) -> StoreError {
     StoreError::Io(e.kind())
+}
+
+fn read_whole(store_dir: &Dir, name: &str) -> std::io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    store_dir
+        .open_file(OsStr::new(name))?
+        .read_to_end(&mut bytes)?;
+    Ok(bytes)
+}
+
+fn key_file_error(e: std::io::Error) -> StoreError {
+    match durable::refusal(&e) {
+        Some(Refused::Link) => {
+            StoreError::Corrupt("the key file of the store is a link".to_string())
+        }
+        Some(_) => StoreError::KeyFileUnparseable,
+        None => io_error(e),
+    }
+}
+
+fn store_dir_error(e: std::io::Error) -> StoreError {
+    match durable::refusal(&e) {
+        Some(Refused::Link) => StoreError::Corrupt("the store directory is a link".to_string()),
+        Some(_) => StoreError::Io(ErrorKind::NotADirectory),
+        None => io_error(e),
+    }
+}
+
+fn database_file_error(e: std::io::Error) -> StoreError {
+    match durable::refusal(&e) {
+        Some(Refused::Link) => StoreError::Corrupt(LINKED_DATABASE.to_string()),
+        Some(_) => StoreError::DatabaseUnreadable,
+        None if e.kind() == ErrorKind::NotFound => StoreError::DatabaseMissing,
+        None => io_error(e),
+    }
+}
+
+fn database_open_error(e: rusqlite::Error) -> StoreError {
+    match &e {
+        rusqlite::Error::SqliteFailure(failure, _)
+            if failure.extended_code == rusqlite::ffi::SQLITE_CANTOPEN_SYMLINK =>
+        {
+            StoreError::Corrupt(LINKED_DATABASE.to_string())
+        }
+        _ => db_error(e),
+    }
+}
+
+const DATABASE_OPEN: OpenFlags = OpenFlags::SQLITE_OPEN_READ_WRITE
+    .union(OpenFlags::SQLITE_OPEN_NO_MUTEX)
+    .union(OpenFlags::SQLITE_OPEN_NOFOLLOW);
+
+const PROBE_OPEN: OpenFlags = OpenFlags::SQLITE_OPEN_READ_ONLY
+    .union(OpenFlags::SQLITE_OPEN_NO_MUTEX)
+    .union(OpenFlags::SQLITE_OPEN_NOFOLLOW);
+
+/// Opens the connection on the database file of `store_dir`. On macOS the
+/// store first sets the mode of the file to 0600 on its own descriptor and
+/// closes that descriptor before SQLite opens the name, because closing a
+/// descriptor of the file after SQLite took its locks would drop them.
+#[cfg(unix)]
+fn open_database(store_dir: &Dir, path: &Path) -> StoreResult<Connection> {
+    use std::os::unix::fs::PermissionsExt;
+    store_dir
+        .open_file(OsStr::new(DATABASE_FILE))
+        .map_err(database_file_error)?
+        .set_permissions(std::fs::Permissions::from_mode(0o600))
+        .map_err(io_error)?;
+    Connection::open_with_flags(path, DATABASE_OPEN).map_err(database_open_error)
+}
+
+/// Opens the connection on the database file of `store_dir`. On Windows the
+/// store holds the file from its check until the connection is open, with a
+/// handle that shares no delete, so no other file can take the name.
+#[cfg(windows)]
+fn open_database(store_dir: &Dir, path: &Path) -> StoreResult<Connection> {
+    let held = store_dir
+        .hold_file(OsStr::new(DATABASE_FILE))
+        .map_err(database_file_error)?;
+    let conn = Connection::open_with_flags(path, DATABASE_OPEN).map_err(database_open_error);
+    drop(held);
+    conn
 }
 
 pub(crate) use super::failpoint;
@@ -242,38 +340,33 @@ impl Db {
             .try_for_each(|p| remove_if_present(p))
     }
 
-    pub(crate) fn open(store_dir: &Path, key: &[u8; 32]) -> StoreResult<Self> {
+    pub(crate) fn open(store_dir: &Dir, key: &[u8; 32]) -> StoreResult<Self> {
         Self::open_file(store_dir, key, Database::New)
     }
 
-    pub(crate) fn open_existing(store_dir: &Path, key: &[u8; 32]) -> StoreResult<Self> {
+    pub(crate) fn open_existing(store_dir: &Dir, key: &[u8; 32]) -> StoreResult<Self> {
         Self::open_file(store_dir, key, Database::Existing)
     }
 
-    fn refuse_a_linked_file(store_dir: &Path) -> StoreResult<()> {
-        match std::fs::symlink_metadata(Self::path(store_dir)) {
-            Ok(meta) if meta.file_type().is_symlink() => Err(StoreError::Corrupt(
-                "the database file of the store is a link".to_string(),
-            )),
+    fn refuse_a_linked_file(store_dir: &Dir) -> StoreResult<()> {
+        match store_dir.entry(OsStr::new(DATABASE_FILE)) {
+            Ok(entry) if entry.kind == EntryKind::Link => {
+                Err(StoreError::Corrupt(LINKED_DATABASE.to_string()))
+            }
             Ok(_) => Ok(()),
             Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
             Err(e) => Err(io_error(e)),
         }
     }
 
-    fn refuse_a_live_holder(store_dir: &Path) -> StoreResult<()> {
+    fn refuse_a_live_holder(store_dir: &Dir) -> StoreResult<()> {
         halvo_sqlcipher::initialize().map_err(StoreError::Db)?;
-        let path = Self::path(store_dir);
-        match std::fs::metadata(&path) {
-            Ok(meta) if meta.is_file() && meta.len() > 0 => {}
+        let path = Self::path(store_dir.path());
+        match store_dir.entry(OsStr::new(DATABASE_FILE)) {
+            Ok(entry) if entry.kind == EntryKind::File && entry.len > 0 => {}
             _ => return Ok(()),
         }
-        let probe = match Connection::open_with_flags(
-            &path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY
-                | OpenFlags::SQLITE_OPEN_URI
-                | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        ) {
+        let probe = match Connection::open_with_flags(&path, PROBE_OPEN) {
             Ok(probe) => probe,
             Err(_) => return Ok(()),
         };
@@ -286,50 +379,51 @@ impl Db {
         });
         match read.map_err(|e| e.sqlite_error_code()) {
             Err(Some(ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked)) => {
-                Err(StoreError::Locked(store_dir.to_path_buf()))
+                Err(StoreError::Locked(store_dir.path().to_path_buf()))
             }
             _ => Ok(()),
         }
     }
 
-    fn require_file(store_dir: &Path) -> StoreResult<()> {
-        match std::fs::metadata(Self::path(store_dir)) {
-            Ok(meta) if meta.is_file() && meta.len() == 0 => Err(StoreError::DatabaseMissing),
-            Ok(meta) if meta.is_file() => Ok(()),
+    fn require_file(store_dir: &Dir) -> StoreResult<()> {
+        match store_dir.entry(OsStr::new(DATABASE_FILE)) {
+            Ok(entry) if entry.kind == EntryKind::Link => {
+                Err(StoreError::Corrupt(LINKED_DATABASE.to_string()))
+            }
+            Ok(entry) if entry.kind == EntryKind::File && entry.len == 0 => {
+                Err(StoreError::DatabaseMissing)
+            }
+            Ok(entry) if entry.kind == EntryKind::File => Ok(()),
             Ok(_) => Err(StoreError::DatabaseUnreadable),
             Err(e) if e.kind() == ErrorKind::NotFound => Err(StoreError::DatabaseMissing),
             Err(e) => Err(io_error(e)),
         }
     }
 
-    fn open_file(store_dir: &Path, key: &[u8; 32], database: Database) -> StoreResult<Self> {
+    fn open_file(store_dir: &Dir, key: &[u8; 32], database: Database) -> StoreResult<Self> {
         if database == Database::Existing {
             Self::require_file(store_dir)?;
         }
         halvo_sqlcipher::initialize().map_err(StoreError::Db)?;
-        let path = Self::path(store_dir);
-        let log_holds_bytes =
-            std::fs::metadata(path.with_extension("db-wal")).is_ok_and(|meta| meta.len() > 0);
+        let path = Self::path(store_dir.path());
+        let log_was_there = match store_dir.entry(OsStr::new(DATABASE_LOG)) {
+            Ok(_) => true,
+            Err(e) if e.kind() == ErrorKind::NotFound => false,
+            Err(e) => return Err(io_error(e)),
+        };
         if database == Database::New {
-            OsFs.create_new(&path).map_err(io_error)?;
+            store_dir
+                .create_new(OsStr::new(DATABASE_FILE))
+                .map_err(io_error)?;
         }
-        let conn = match database {
-            Database::New => Connection::open(&path),
-            Database::Existing => Connection::open_with_flags(
-                &path,
-                OpenFlags::SQLITE_OPEN_READ_WRITE
-                    | OpenFlags::SQLITE_OPEN_URI
-                    | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-            ),
-        }
-        .map_err(db_error)?;
-        conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, log_holds_bytes)
+        let conn = open_database(store_dir, &path)?;
+        conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, log_was_there)
             .map_err(db_error)?;
         conn.busy_timeout(Duration::ZERO).map_err(db_error)?;
         conn.execute_batch(&key_pragma(key)).map_err(db_error)?;
         conn.execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
             .map_err(db_error)?;
-        verify_key(&conn, store_dir)?;
+        verify_key(&conn, store_dir.path())?;
         if database == Database::Existing {
             known_version(pragma_int(&conn, "user_version")?, DATABASE_VERSION)?;
         }
@@ -699,7 +793,7 @@ enum Keyed {
 /// The encrypted store: the SQLCipher database, the per-segment files
 /// under `dir`, and the one store key in the clear only in memory.
 pub struct EncryptedStore {
-    dir: PathBuf,
+    dir: Dir,
     retention: Duration,
     custody: Box<dyn KeyCustody + Send>,
     keyed: Keyed,
@@ -722,9 +816,10 @@ impl EncryptedStore {
         custody: Box<dyn KeyCustody + Send>,
         retention: Duration,
     ) -> StoreResult<Self> {
-        durable::create_private_dir_all(dir)
-            .and_then(|()| durable::make_private(dir))
-            .map_err(io_error)?;
+        durable::create_private_dir_all(dir).map_err(io_error)?;
+        let store = Dir::open(dir).map_err(store_dir_error)?;
+        store.make_private().map_err(io_error)?;
+        let dir = store.path();
         let _writer_lock = WriterLock::take(dir)?;
         if KeyFile::path(dir).exists() {
             return Err(StoreError::AlreadyExists(dir.to_path_buf()));
@@ -733,11 +828,12 @@ impl EncryptedStore {
         remove_dir_if_present(&segment::segments_root(dir))?;
         remove_if_present(&KeyFile::temp_path(dir))?;
         let store_key = StoreKey::random()?;
-        let db = Db::open(dir, store_key.expose()).map_err(|e| Self::without_database(dir, e))?;
+        let db =
+            Db::open(&store, store_key.expose()).map_err(|e| Self::without_database(dir, e))?;
         let db = Self::under_a_new_root(dir, custody.as_ref(), db)?;
-        match Self::write_key_file(dir, custody.as_ref(), &store_key) {
+        match Self::write_key_file(&store, custody.as_ref(), &store_key) {
             Ok(()) => Ok(Self {
-                dir: dir.to_path_buf(),
+                dir: store,
                 retention,
                 custody,
                 keyed: Keyed::Open { db, store_key },
@@ -763,7 +859,7 @@ impl EncryptedStore {
     }
 
     fn write_key_file(
-        dir: &Path,
+        dir: &Dir,
         custody: &dyn KeyCustody,
         store_key: &StoreKey,
     ) -> StoreResult<()> {
@@ -821,20 +917,21 @@ impl EncryptedStore {
             RootId,
         ) -> Result<Box<dyn KeyCustody + Send>, CustodyError>,
     ) -> StoreResult<Self> {
-        durable::make_private(dir).map_err(io_error)?;
-        let _writer_lock = WriterLock::take(dir)?;
-        let key_file = KeyFile::read(dir)?;
+        let store = Dir::open(dir).map_err(store_dir_error)?;
+        store.make_private().map_err(io_error)?;
+        let _writer_lock = WriterLock::take(store.path())?;
+        let key_file = KeyFile::read_in(&store)?;
         let wrapped = key_file.wrapped_store_key()?;
-        segment::refuse_a_linked_segments_root(dir)?;
-        Db::refuse_a_linked_file(dir)?;
-        Db::refuse_a_live_holder(dir)?;
+        segment::refuse_a_linked_segments_root(&store)?;
+        Db::refuse_a_linked_file(&store)?;
+        Db::refuse_a_live_holder(&store)?;
         let custody = custody_for(key_file.custody_kind, key_file.root_id)?;
         let started = Instant::now();
         let store_key = custody.unwrap_store_key(&wrapped)?;
         let unwrap_time = started.elapsed();
-        let db = Db::open_existing(dir, store_key.expose())?;
+        let db = Db::open_existing(&store, store_key.expose())?;
         Ok(Self {
-            dir: dir.to_path_buf(),
+            dir: store,
             retention,
             custody,
             keyed: Keyed::Open { db, store_key },
@@ -856,6 +953,10 @@ impl EncryptedStore {
     }
 
     pub(crate) fn dir(&self) -> &Path {
+        self.dir.path()
+    }
+
+    pub(crate) fn handle(&self) -> &Dir {
         &self.dir
     }
 
@@ -935,7 +1036,7 @@ impl EncryptedStore {
         let byte_len =
             segment::write_segment_file(&self.dir, self.fs.as_ref(), &seg_key, &header, bytes)?;
         if let Err(e) = db.commit_segment_key(segment_key_id, &wrapped) {
-            remove_if_present(&segment::segment_path(&self.dir, segment_id))?;
+            segment::remove_written_segment(&self.dir, segment_id)?;
             return Err(e);
         }
         Ok((
@@ -965,28 +1066,47 @@ impl SegmentStore for EncryptedStore {
     }
 }
 
-pub(crate) fn dir_size(dir: &Path) -> StoreResult<u64> {
-    let mut total = 0u64;
-    let mut stack = vec![dir.to_path_buf()];
-    while let Some(p) = stack.pop() {
-        let entries = match std::fs::read_dir(&p) {
-            Ok(e) => e,
-            Err(e) if e.kind() == ErrorKind::NotFound => continue,
-            Err(e) => return Err(io_error(e)),
-        };
+fn listed(dir: &Dir) -> StoreResult<Vec<durable::Entry>> {
+    match dir.entries() {
+        Ok(entries) => Ok(entries),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(Vec::new()),
+        Err(e) => Err(io_error(e)),
+    }
+}
+
+/// The bytes of the regular files below `dir`, each directory opened and
+/// listed through the handle of its parent; a link is neither followed nor
+/// counted.
+pub(crate) fn dir_size(dir: &Dir) -> StoreResult<u64> {
+    type Pending = Vec<(Option<Rc<Dir>>, std::ffi::OsString)>;
+    fn take(
+        parent: Option<&Rc<Dir>>,
+        entries: Vec<durable::Entry>,
+        total: &mut u64,
+        pending: &mut Pending,
+    ) {
         for entry in entries {
-            let entry = entry.map_err(io_error)?;
-            let meta = match entry.metadata() {
-                Ok(m) => m,
-                Err(e) if e.kind() == ErrorKind::NotFound => continue,
-                Err(e) => return Err(io_error(e)),
-            };
-            if meta.is_dir() {
-                stack.push(entry.path());
-            } else {
-                total += meta.len();
+            match entry.kind {
+                EntryKind::File => *total += entry.len,
+                EntryKind::Dir => pending.push((parent.cloned(), entry.name)),
+                EntryKind::Link | EntryKind::Other => {}
             }
         }
+    }
+    let mut total = 0u64;
+    let mut pending = Pending::new();
+    take(None, listed(dir)?, &mut total, &mut pending);
+    while let Some((parent, name)) = pending.pop() {
+        let opened = match &parent {
+            Some(parent) => parent.open_dir(&name),
+            None => dir.open_dir(&name),
+        };
+        let below = match opened {
+            Ok(below) => Rc::new(below),
+            Err(e) if e.kind() == ErrorKind::NotFound || durable::refusal(&e).is_some() => continue,
+            Err(e) => return Err(io_error(e)),
+        };
+        take(Some(&below), listed(&below)?, &mut total, &mut pending);
     }
     Ok(total)
 }
@@ -1062,7 +1182,7 @@ mod tests {
     #[test]
     fn a_write_ahead_log_that_cannot_be_read_fails_the_checkpoint() {
         let dir = tempfile::tempdir().unwrap();
-        let mut db = Db::open(dir.path(), &[7u8; 32]).unwrap();
+        let mut db = Db::open(&Dir::open(dir.path()).unwrap(), &[7u8; 32]).unwrap();
         db.wal_path = dir.path().join("no-such-wal");
         assert!(
             db.checkpoint_truncate().is_ok(),
@@ -1141,7 +1261,7 @@ mod tests {
     #[test]
     fn a_checkpoint_that_leaves_bytes_in_the_wal_is_incomplete_and_no_sqlite_code() {
         let dir = tempfile::tempdir().unwrap();
-        let mut db = Db::open(dir.path(), &[7u8; 32]).unwrap();
+        let mut db = Db::open(&Dir::open(dir.path()).unwrap(), &[7u8; 32]).unwrap();
         let wal = dir.path().join("a-wal-that-keeps-bytes");
         std::fs::write(&wal, [1u8; 100]).unwrap();
         db.wal_path = wal;
@@ -1512,7 +1632,8 @@ mod tests {
         let seg_key =
             segment::unwrap_segment_key(store.store_key().unwrap().expose(), &wrapped).unwrap();
         let mut plain = Vec::new();
-        segment::read_segment_file(store.dir(), &seg_key, seg_ref.segment_id, &mut plain).unwrap();
+        segment::read_segment_file(store.handle(), &seg_key, seg_ref.segment_id, &mut plain)
+            .unwrap();
         assert_eq!(plain, b"screen frame bytes");
         let mut again = Vec::new();
         assert_eq!(

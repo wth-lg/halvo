@@ -260,7 +260,7 @@ fn first_opens_for_parent() {
             let (barrier, dir) = (Arc::clone(&barrier), dir.path().to_path_buf());
             std::thread::spawn(move || {
                 barrier.wait();
-                super::db::Db::open(&dir, &[7u8; 32]).map(drop)
+                super::db::Db::open(&super::durable::Dir::open(&dir).unwrap(), &[7u8; 32]).map(drop)
             })
         })
         .collect();
@@ -726,7 +726,7 @@ fn files_under(dir: &Path) -> Vec<PathBuf> {
 fn a_failed_write_commits_no_key_and_leaves_no_readable_file() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = super::db::test_support::make_store(dir.path());
-    let before = super::db::dir_size(dir.path()).unwrap();
+    let before = super::db::dir_size(store.handle()).unwrap();
 
     let result = store.write_segment(&mut DyingReader {
         remaining: CHUNK * 2 + 17,
@@ -743,7 +743,7 @@ fn a_failed_write_commits_no_key_and_leaves_no_readable_file() {
         leftovers.is_empty(),
         "a failed write left files: {leftovers:?}"
     );
-    let grown = super::db::dir_size(dir.path()).unwrap() - before;
+    let grown = super::db::dir_size(store.handle()).unwrap() - before;
     assert!(
         grown < CHUNK as u64,
         "the store grew by {grown} bytes after a failed write of two chunks; only the \
@@ -853,6 +853,225 @@ fn the_keyless_sweep_does_not_follow_a_shard_that_links_out_of_the_store() {
         2,
         "the pass ({pass:?}) removed files outside the store through a linked shard"
     );
+}
+
+fn entries_below(dir: &Path) -> Vec<(String, u64)> {
+    let mut found = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(below) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&below) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let meta = std::fs::symlink_metadata(entry.path()).unwrap();
+            if meta.is_dir() && !meta.file_type().is_symlink() {
+                stack.push(entry.path());
+            } else {
+                let name = entry.path().strip_prefix(dir).unwrap().to_path_buf();
+                found.push((name.to_string_lossy().into_owned(), meta.len()));
+            }
+        }
+    }
+    found.sort();
+    found
+}
+
+type SwapAnswer = Arc<std::sync::Mutex<Option<Result<(), Option<i32>>>>>;
+
+fn swap_shard_for_a_link(shard: &Path, parked: &Path, target: &Path, answer: &SwapAnswer) {
+    let mut answer = answer.lock().unwrap();
+    if answer.is_some() {
+        return;
+    }
+    let moved = std::fs::rename(shard, parked);
+    if moved.is_ok() {
+        link_dir(target, shard);
+    }
+    *answer = Some(moved.map_err(|e| e.raw_os_error()));
+}
+
+const SHARING_VIOLATION: i32 = 32;
+
+#[test]
+fn the_keyless_sweep_removes_nothing_through_a_shard_that_becomes_a_link_after_the_walk() {
+    use super::durable::test_support::{Call, RecordingFs};
+
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let shard_name = segment_id.simple().to_string()[..2].to_string();
+    let keyless = format!("{shard_name}{}.seg", "0".repeat(30));
+    let shard = segment::segments_root(store.dir()).join(&shard_name);
+    std::fs::write(shard.join(&keyless), b"a keyless file of the store").unwrap();
+    std::fs::write(outside.path().join(&keyless), b"a file outside the store").unwrap();
+    let answer = SwapAnswer::default();
+    let fs = {
+        let (shard, parked) = (shard.clone(), dir.path().join("parked-shard"));
+        let (target, answer) = (outside.path().to_path_buf(), Arc::clone(&answer));
+        RecordingFs::observed_by(move |call| {
+            if matches!(call, Call::RemoveFile(path) if path.parent() == Some(shard.as_path())) {
+                swap_shard_for_a_link(&shard, &parked, &target, &answer);
+            }
+        })
+    };
+    store.use_fs(Arc::new(fs));
+
+    let swept = store
+        .remove_keyless_files()
+        .map(|sweep| (sweep.removed, sweep.not_store_files))
+        .map_err(|e| format!("{e:?}"));
+
+    let swapped = *answer.lock().unwrap();
+    assert!(
+        outside.path().join(&keyless).exists(),
+        "the sweep ({swept:?}) removed a file outside the store through a shard swapped for a link"
+    );
+    match swapped {
+        Some(Ok(())) => assert_eq!(
+            swept,
+            Ok((1, 1)),
+            "the sweep did not remove the keyless file of the walked shard and count the link"
+        ),
+        Some(Err(code)) => assert!(
+            cfg!(windows) && code == Some(SHARING_VIOLATION) && swept == Ok((1, 0)),
+            "the move of the walked shard answered {code:?} and the sweep {swept:?}"
+        ),
+        None => panic!("the sweep removed no file through the seam: {swept:?}"),
+    }
+}
+
+#[test]
+fn the_keyless_sweep_counts_a_shard_that_becomes_a_link_before_its_open_and_removes_nothing_behind_it(
+) {
+    use super::durable::test_support::{Call, RecordingFs};
+
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let shard_name = segment_id.simple().to_string()[..2].to_string();
+    let keyless = format!("{shard_name}{}.seg", "0".repeat(30));
+    let shard = segment::segments_root(store.dir()).join(&shard_name);
+    let parked = dir.path().join("parked-shard");
+    std::fs::write(shard.join(&keyless), b"a keyless file of the store").unwrap();
+    std::fs::write(outside.path().join(&keyless), b"a file outside the store").unwrap();
+    let answer = SwapAnswer::default();
+    let fs = {
+        let (shard, parked) = (shard.clone(), parked.clone());
+        let (target, answer) = (outside.path().to_path_buf(), Arc::clone(&answer));
+        RecordingFs::observed_by(move |call| {
+            if matches!(call, Call::OpenDir(path) if *path == shard) {
+                swap_shard_for_a_link(&shard, &parked, &target, &answer);
+            }
+        })
+    };
+    store.use_fs(Arc::new(fs));
+
+    let swept = store
+        .remove_keyless_files()
+        .map(|sweep| (sweep.removed, sweep.not_store_files))
+        .map_err(|e| format!("{e:?}"));
+
+    assert_eq!(
+        *answer.lock().unwrap(),
+        Some(Ok(())),
+        "the shard was not swapped for a link before its open"
+    );
+    assert!(
+        outside.path().join(&keyless).exists(),
+        "the sweep ({swept:?}) removed a file behind a shard that became a link before its open"
+    );
+    assert!(parked.join(&keyless).exists());
+    assert_eq!(
+        swept,
+        Ok((0, 1)),
+        "the sweep did not count the link that it found in place of the shard"
+    );
+}
+
+fn sweep_race(control: bool) -> String {
+    use std::sync::atomic::AtomicBool;
+    const SWEEPS: u64 = 3_600;
+
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let segments = segment::segments_root(store.dir());
+    let (outside, parked) = (dir.path().join("outside"), dir.path().join("parked"));
+    std::fs::create_dir(&outside).unwrap();
+    std::fs::create_dir(&parked).unwrap();
+    std::fs::create_dir(segments.join("ab")).unwrap();
+    let victim = outside.join(format!("ab{}.seg", "0123456789abcdef0123456789abcd"));
+    std::fs::write(&victim, b"a file outside the store").unwrap();
+    let stop = Arc::new(AtomicBool::new(false));
+    let racer = {
+        let (stop, segments, outside, parked) = (
+            Arc::clone(&stop),
+            segments.clone(),
+            outside.clone(),
+            parked.clone(),
+        );
+        std::thread::spawn(move || {
+            let (shard, aside) = (segments.join("ab"), parked.join("ab"));
+            let mut swaps = 0u64;
+            while !stop.load(Ordering::Relaxed) {
+                if std::fs::rename(&shard, &aside).is_ok() {
+                    if control {
+                        let _ = std::fs::create_dir(&shard);
+                        std::thread::yield_now();
+                        let _ = std::fs::remove_dir(&shard);
+                    } else {
+                        link_dir(&outside, &shard);
+                        std::thread::yield_now();
+                        let _ = std::fs::remove_file(&shard);
+                        let _ = std::fs::remove_dir(&shard);
+                    }
+                    let _ = std::fs::rename(&aside, &shard);
+                    swaps += 1;
+                }
+            }
+            swaps
+        })
+    };
+    let started = Instant::now();
+    let (mut sweeps, mut removed_outside, mut refused) = (0u64, 0u64, 0u64);
+    while sweeps < SWEEPS && started.elapsed() < Duration::from_secs(600) {
+        if store.remove_keyless_files().is_err() {
+            refused += 1;
+        }
+        sweeps += 1;
+        if !victim.exists() {
+            removed_outside += 1;
+            std::fs::write(&victim, b"a file outside the store").unwrap();
+        }
+    }
+    stop.store(true, Ordering::Relaxed);
+    let swaps = racer.join().unwrap();
+    let counts = format!(
+        "control={control} sweeps={sweeps} racer_swaps={swaps} sweeps_with_an_error={refused} \
+         removed_outside={removed_outside} seconds={:.1}",
+        started.elapsed().as_secs_f64()
+    );
+    println!("sweep race: {counts}");
+    assert!(sweeps >= SWEEPS, "the race ran {sweeps} sweeps: {counts}");
+    assert_eq!(
+        removed_outside, 0,
+        "the sweep removed a file outside the store: {counts}"
+    );
+    counts
+}
+
+#[test]
+#[ignore = "a counted race of 3,600 sweeps, 1 to 3 s on a Mac and 600 s at most; run it by hand when the sweep changes: cargo test -p halvo-capture --lib -- --ignored --exact store::hardening_tests::the_keyless_sweep_removes_nothing_outside_while_a_thread_swaps_a_shard_for_a_link --nocapture"]
+fn the_keyless_sweep_removes_nothing_outside_while_a_thread_swaps_a_shard_for_a_link() {
+    sweep_race(false);
+}
+
+#[test]
+#[ignore = "the control of the counted sweep race, with a plain directory swapped in; run it by hand with the race: cargo test -p halvo-capture --lib -- --ignored --exact store::hardening_tests::the_keyless_sweep_race_control_with_a_plain_directory_swapped_in --nocapture"]
+fn the_keyless_sweep_race_control_with_a_plain_directory_swapped_in() {
+    sweep_race(true);
 }
 
 #[test]
@@ -1263,6 +1482,382 @@ fn open_refuses_a_store_db_that_is_a_link_before_its_custody_and_writes_nothing_
 }
 
 #[cfg(unix)]
+fn make_fifo(path: &Path) {
+    let name = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).unwrap();
+    assert_eq!(
+        unsafe { libc::mkfifo(name.as_ptr(), 0o600) },
+        0,
+        "mkfifo {}",
+        path.display()
+    );
+}
+
+#[cfg(unix)]
+const FIFO_BOUND: Duration = Duration::from_secs(5);
+
+/// The answer of `call` when it comes within `bound`, run on its own thread.
+/// When the call is still blocked at the bound, a writer opens `fifo` to let it
+/// go, and the answer is `None`.
+#[cfg(unix)]
+fn answer_within<T: Send + 'static>(
+    bound: Duration,
+    fifo: &Path,
+    call: impl FnOnce() -> T + Send + 'static,
+) -> Option<T> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let (sender, answers) = std::sync::mpsc::channel();
+    let caller = std::thread::spawn(move || {
+        let _ = sender.send(call());
+    });
+    match answers.recv_timeout(bound) {
+        Ok(answer) => {
+            caller.join().unwrap();
+            Some(answer)
+        }
+        Err(_) => {
+            let _ = std::fs::File::options()
+                .write(true)
+                .custom_flags(libc::O_NONBLOCK)
+                .open(fifo);
+            let _ = answers.recv_timeout(Duration::from_secs(10));
+            None
+        }
+    }
+}
+
+fn answer_text<T>(result: &StoreResult<T>) -> String {
+    match result {
+        Ok(_) => "Ok".to_string(),
+        Err(e) => format!("{e:?}"),
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn open_answers_a_store_key_that_is_a_link_as_corrupt_within_a_bound_and_names_no_id() {
+    for behind_the_link in ["the key file", "a FIFO"] {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+        let target = outside.path().join("store.key");
+        match behind_the_link {
+            "the key file" => std::fs::rename(KeyFile::path(&store_dir), &target).unwrap(),
+            _ => {
+                std::fs::remove_file(KeyFile::path(&store_dir)).unwrap();
+                make_fifo(&target);
+            }
+        }
+        std::os::unix::fs::symlink(&target, KeyFile::path(&store_dir)).unwrap();
+
+        let opened = answer_within(FIFO_BOUND, &target, move || {
+            answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id))
+        });
+
+        let answer = opened.unwrap_or_else(|| {
+            panic!("an open with a link to {behind_the_link} at store.key gave no answer in {FIFO_BOUND:?}")
+        });
+        assert_eq!(
+            answer, "Corrupt(\"the key file of the store is a link\")",
+            "an open with a link to {behind_the_link} at store.key"
+        );
+        assert!(!answer.contains(&root_id.to_string()));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn open_answers_a_store_key_that_is_a_fifo_as_key_file_unparseable_within_a_bound() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let key_file = KeyFile::path(&store_dir);
+    std::fs::remove_file(&key_file).unwrap();
+    make_fifo(&key_file);
+
+    let opened = answer_within(FIFO_BOUND, &key_file, move || {
+        answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id))
+    });
+
+    assert_eq!(
+        opened.as_deref(),
+        Some("KeyFileUnparseable"),
+        "an open with a FIFO at store.key gave no answer in {FIFO_BOUND:?}, or another one"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_segment_read_answers_a_segment_file_that_is_a_link_as_corrupt_within_a_bound_and_names_no_id()
+{
+    for behind_the_link in ["the segment file", "a FIFO"] {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
+        let path = segment_path(&store_dir, segment_id);
+        let target = outside.path().join("segment");
+        match behind_the_link {
+            "the segment file" => std::fs::rename(&path, &target).unwrap(),
+            _ => {
+                std::fs::remove_file(&path).unwrap();
+                make_fifo(&target);
+            }
+        }
+        std::os::unix::fs::symlink(&target, &path).unwrap();
+        let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+
+        let read = answer_within(FIFO_BOUND, &target, move || {
+            answer_text(&store.read_segment(segment_id, &mut Vec::new()))
+        });
+
+        let answer = read.unwrap_or_else(|| {
+            panic!("a read through a link to {behind_the_link} gave no answer in {FIFO_BOUND:?}")
+        });
+        assert_eq!(
+            answer, "Corrupt(\"a segment file of the store is a link\")",
+            "a read of a segment file that is a link to {behind_the_link}"
+        );
+        assert!(!answer.contains(&segment_id.simple().to_string()));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_segment_read_answers_a_segment_file_that_is_a_fifo_as_corrupt_within_a_bound() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
+    let path = segment_path(&store_dir, segment_id);
+    std::fs::remove_file(&path).unwrap();
+    make_fifo(&path);
+    let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+
+    let read = answer_within(FIFO_BOUND, &path, move || {
+        answer_text(&store.read_segment(segment_id, &mut Vec::new()))
+    });
+
+    assert_eq!(
+        read.as_deref(),
+        Some("Corrupt(\"a segment file of the store is no regular file\")"),
+        "a read of a segment file that is a FIFO gave no answer in {FIFO_BOUND:?}, or another one"
+    );
+}
+
+fn names_in(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+/// Puts a link at store.db to `target`, or answers why this account may not
+/// make a file link.
+fn link_store_db_to(store_dir: &Path, target: &Path) -> Result<(), String> {
+    let db = store_dir.join("store.db");
+    let kept = std::fs::read(&db).unwrap();
+    std::fs::remove_file(&db).unwrap();
+    #[cfg(unix)]
+    let linked = std::os::unix::fs::symlink(target, &db);
+    #[cfg(windows)]
+    let linked = std::os::windows::fs::symlink_file(target, &db);
+    linked.map_err(|e| {
+        std::fs::write(&db, kept).unwrap();
+        format!("this account may not make a file link: {e}")
+    })
+}
+
+#[test]
+fn open_refuses_a_link_put_at_store_db_inside_the_custody_call_and_changes_nothing_beside_its_target(
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let target = outside.path().join("store.db");
+    std::fs::copy(store_dir.join("store.db"), &target).unwrap();
+    let (beside_before, bytes_before) = (names_in(outside.path()), std::fs::read(&target).unwrap());
+    let linked = std::sync::Mutex::new(None);
+
+    let opened = EncryptedStore::open_with(&store_dir, DEFAULT_RETENTION, |_, _| {
+        *linked.lock().unwrap() = Some(link_store_db_to(&store_dir, &target));
+        Ok(Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            root_id,
+        )))
+    });
+    let answer = answer_text(&opened);
+    drop(opened);
+
+    match linked.into_inner().unwrap() {
+        Some(Ok(())) => {}
+        Some(Err(why)) => {
+            println!("the seam put no link at store.db: {why}");
+            if cfg!(windows) {
+                return;
+            }
+            panic!("{why}");
+        }
+        None => panic!("open did not call the custody: {answer}"),
+    }
+    assert_ne!(answer, "Ok", "an open went through a link put at store.db");
+    assert_eq!(
+        names_in(outside.path()),
+        beside_before,
+        "an entry appeared beside the target of the link ({answer})"
+    );
+    assert!(
+        std::fs::read(&target).unwrap() == bytes_before,
+        "the bytes of the target changed ({answer})"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+#[ignore = "a counted race of 300 opens; run it by hand when the opens of store.db change: cargo test -p halvo-capture --lib -- --ignored --exact store::hardening_tests::no_open_goes_through_a_link_that_a_thread_swaps_in_at_store_db --nocapture"]
+fn no_open_goes_through_a_link_that_a_thread_swaps_in_at_store_db() {
+    use std::sync::atomic::AtomicBool;
+    const OPENS: usize = 300;
+
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let outside = dir.path().join("outside");
+    std::fs::create_dir(&outside).unwrap();
+    let target = outside.join("store.db");
+    std::fs::rename(store_dir.join("store.db"), &target).unwrap();
+    std::fs::hard_link(&target, store_dir.join("store.db")).unwrap();
+    let stop = Arc::new(AtomicBool::new(false));
+    let racer = {
+        let (stop, store_dir, target) = (Arc::clone(&stop), store_dir.clone(), target.clone());
+        std::thread::spawn(move || {
+            let (hard, soft, db) = (
+                store_dir.join("swap.hard"),
+                store_dir.join("swap.soft"),
+                store_dir.join("store.db"),
+            );
+            let mut swaps = 0u64;
+            while !stop.load(Ordering::SeqCst) {
+                let _ = std::fs::remove_file(&soft);
+                std::os::unix::fs::symlink(&target, &soft).unwrap();
+                std::fs::rename(&soft, &db).unwrap();
+                let _ = std::fs::remove_file(&hard);
+                std::fs::hard_link(&target, &hard).unwrap();
+                std::fs::rename(&hard, &db).unwrap();
+                swaps += 1;
+            }
+            swaps
+        })
+    };
+    let (mut beside_the_target, mut inside, mut refused) = (0usize, 0usize, 0usize);
+    let mut other = Vec::new();
+    for _ in 0..OPENS {
+        match open_over_file_root(&store_dir, &roots_dir, root_id) {
+            Ok(store) => {
+                if outside.join("store.db-wal").exists() {
+                    beside_the_target += 1;
+                } else {
+                    inside += 1;
+                }
+                drop(store);
+                let _ = std::fs::remove_file(outside.join("store.db-wal"));
+            }
+            Err(StoreError::Corrupt(_)) => refused += 1,
+            Err(e) => other.push(format!("{e:?}")),
+        }
+    }
+    stop.store(true, Ordering::SeqCst);
+    let swaps = racer.join().unwrap();
+    other.sort();
+    other.dedup();
+    let counts = format!(
+        "opens={OPENS} swaps={swaps} ok_with_a_log_beside_the_target={beside_the_target} \
+         ok_inside={inside} refused_as_corrupt={refused} other_answers={other:?}"
+    );
+    println!("store.db race: {counts}");
+    assert_eq!(
+        beside_the_target, 0,
+        "an open went through a link swapped in at store.db: {counts}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn open_narrows_store_db_to_0600_on_its_own_handle_so_its_log_is_made_0600() {
+    use std::os::unix::fs::PermissionsExt;
+    let mode = |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let db = store_dir.join("store.db");
+    std::fs::set_permissions(&db, std::fs::Permissions::from_mode(0o644)).unwrap();
+    assert!(!store_dir.join("store.db-wal").exists());
+
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    store
+        .write_segment(&mut Cursor::new(b"after the open"))
+        .unwrap();
+
+    assert_eq!(
+        (mode(&db), mode(&store_dir.join("store.db-wal"))),
+        (0o600, 0o600),
+        "after an open of a store.db at 0644 and one write, store.db and store.db-wal"
+    );
+}
+
+#[test]
+fn file_colon_store_for_parent() {
+    let Some(roots_dir) = std::env::var_os("HALVO_TEST_FILE_COLON_ROOTS") else {
+        println!(
+            "file_colon_store_for_parent: HALVO_TEST_FILE_COLON_ROOTS is not set, so no parent asked for a store"
+        );
+        return;
+    };
+    let custody = file_root_custody(
+        Path::new(&roots_dir),
+        TestProtector::new(0x5a).0,
+        RootId::fresh(),
+    );
+    let mut store =
+        EncryptedStore::create(Path::new("file:x"), Box::new(custody), DEFAULT_RETENTION).unwrap();
+    store.write_segment(&mut Cursor::new(b"in file:x")).unwrap();
+}
+
+#[test]
+fn a_relative_store_directory_named_file_colon_x_holds_its_database_and_x_gets_no_file() {
+    let cwd = tempfile::tempdir().unwrap();
+    let roots = tempfile::tempdir().unwrap();
+    std::fs::create_dir(cwd.path().join("x")).unwrap();
+    let output = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "store::hardening_tests::file_colon_store_for_parent",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .current_dir(cwd.path())
+        .env("HALVO_TEST_FILE_COLON_ROOTS", roots.path())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "the child failed: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+
+    let db = cwd.path().join("file:x").join("store.db");
+    let meta = std::fs::metadata(&db).unwrap();
+    assert!(meta.len() > 0, "store.db in file:x is empty");
+    #[cfg(unix)]
+    assert_eq!(
+        std::os::unix::fs::PermissionsExt::mode(&meta.permissions()) & 0o777,
+        0o600
+    );
+    assert_eq!(
+        names_in(&cwd.path().join("x")),
+        Vec::<String>::new(),
+        "the store put a file into x"
+    );
+}
+
+#[cfg(unix)]
 #[test]
 fn delete_all_unlinks_a_store_key_that_is_a_link_and_writes_nothing_through_it() {
     let dir = tempfile::tempdir().unwrap();
@@ -1556,6 +2151,34 @@ fn open_refuses_a_format_version_that_this_build_does_not_know_and_changes_no_fi
             "user_version -1: OlderStore { found: -1, supported: 1 }",
         ]
     );
+
+    {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+        set_user_version(&store_dir, &roots_dir, root_id, 99);
+        let log = store_dir.join("store.db-wal");
+        std::fs::write(&log, b"").unwrap();
+
+        let refused = open_by_the_recorded_root(&store_dir, &roots_dir).map(drop);
+
+        assert!(
+            matches!(
+                refused,
+                Err(StoreError::NewerStore {
+                    found: 99,
+                    supported: 1
+                })
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            std::fs::symlink_metadata(&log)
+                .map(|meta| (meta.is_file(), meta.len()))
+                .ok(),
+            Some((true, 0)),
+            "a refused open removed or changed an empty store.db-wal"
+        );
+    }
 
     #[cfg(unix)]
     {
@@ -3982,6 +4605,124 @@ fn a_segment_write_puts_no_file_through_a_shard_that_links_out_of_the_store() {
     );
 }
 
+fn regular_file_bytes(dir: &Path) -> u64 {
+    let mut total = 0;
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(below) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&below) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let meta = std::fs::symlink_metadata(entry.path()).unwrap();
+            if meta.is_dir() && !meta.file_type().is_symlink() {
+                stack.push(entry.path());
+            } else if meta.is_file() {
+                total += meta.len();
+            }
+        }
+    }
+    total
+}
+
+enum ShardSwap {
+    ForAForeignDirectory,
+    ForALinkToItsMovedSelf,
+}
+
+fn a_segment_write_whose_shard_is_swapped_at_the_create_of_its_partial(swap: ShardSwap) {
+    use super::durable::test_support::{Call, RecordingFs};
+
+    let dir = tempfile::tempdir().unwrap();
+    let (foreign, aside) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    std::fs::write(foreign.path().join("notes.txt"), b"a file of the person").unwrap();
+    let roots_dir = dir.path().join("roots");
+    let root_id = RootId::fresh();
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+    let mut store = EncryptedStore::create(
+        &dir.path().join("store"),
+        Box::new(custody),
+        DEFAULT_RETENTION,
+    )
+    .unwrap();
+    let moved = aside.path().join("moved-shard");
+    let target = match swap {
+        ShardSwap::ForAForeignDirectory => foreign.path().to_path_buf(),
+        ShardSwap::ForALinkToItsMovedSelf => moved.clone(),
+    };
+    let answer = SwapAnswer::default();
+    let fs = {
+        let (moved, target, answer) = (moved.clone(), target.clone(), Arc::clone(&answer));
+        RecordingFs::observed_by(move |call| {
+            if let Call::CreateNew(partial) = call {
+                swap_shard_for_a_link(partial.parent().unwrap(), &moved, &target, &answer);
+            }
+        })
+    };
+    store.use_fs(Arc::new(fs));
+    let (foreign_before, aside_before) =
+        (entries_below(foreign.path()), entries_below(aside.path()));
+
+    let written = store
+        .write_segment(&mut Cursor::new(b"through the swapped shard"))
+        .map(drop);
+
+    let swapped = *answer.lock().unwrap();
+    let size = store.size_bytes();
+    let in_the_store = regular_file_bytes(store.dir());
+    let aside_after = entries_below(aside.path());
+    let foreign_after = entries_below(foreign.path());
+    let deleted = store.crypto_shred_all().map(drop);
+
+    assert_eq!(
+        foreign_after, foreign_before,
+        "the write ({written:?}) put a file into a foreign directory through a swapped shard"
+    );
+    match swapped {
+        Some(Ok(())) => {
+            assert_eq!(
+                aside_after, aside_before,
+                "the write ({written:?}) left a file in the shard that was moved out of the store"
+            );
+            if let ShardSwap::ForALinkToItsMovedSelf = swap {
+                assert!(
+                    matches!(&written, Err(StoreError::Corrupt(text))
+                        if text == "a shard of the segments directory of the store is a link"),
+                    "a write whose shard was moved away and linked back answered {written:?}"
+                );
+            }
+        }
+        Some(Err(code)) => assert!(
+            cfg!(windows) && code == Some(SHARING_VIOLATION) && written.is_ok(),
+            "the move of the shard answered {code:?} and the write {written:?}"
+        ),
+        None => panic!("the write made no partial file through the seam: {written:?}"),
+    }
+    assert!(
+        matches!(size, Ok(bytes) if bytes == in_the_store),
+        "size_bytes answered {size:?}, and the regular files of the store hold {in_the_store} bytes"
+    );
+    assert!(deleted.is_ok(), "delete-all answered {deleted:?}");
+    assert_eq!(
+        (entries_below(foreign.path()), entries_below(aside.path())),
+        (foreign_before, aside_before),
+        "delete-all changed what lies outside the store"
+    );
+}
+
+#[test]
+fn a_segment_write_puts_no_file_into_a_foreign_directory_put_in_place_of_its_shard_at_the_create() {
+    a_segment_write_whose_shard_is_swapped_at_the_create_of_its_partial(
+        ShardSwap::ForAForeignDirectory,
+    );
+}
+
+#[test]
+fn a_segment_write_whose_shard_is_moved_away_and_linked_back_at_the_create_answers_corrupt() {
+    a_segment_write_whose_shard_is_swapped_at_the_create_of_its_partial(
+        ShardSwap::ForALinkToItsMovedSelf,
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn a_root_write_tightens_a_roots_directory_made_at_0755_to_0700() {
@@ -4066,18 +4807,22 @@ fn create_tightens_an_existing_store_directory_made_at_0755_to_0700() {
 #[test]
 fn a_durable_write_and_a_durable_removal_report_a_directory_sync_that_fails() {
     use super::durable::test_support::{Kind, RecordingFs};
-    use super::durable::{remove_durably, write_durably};
+    use super::durable::{remove_durably, write_durably, Dir};
+    use std::ffi::OsStr;
 
     let dir = tempfile::tempdir().unwrap();
-    let (temp, target) = (dir.path().join("file.tmp"), dir.path().join("file"));
+    let handle = Dir::open(dir.path()).unwrap();
+    let (temp, target) = (OsStr::new("file.tmp"), OsStr::new("file"));
     let fs = RecordingFs::new();
     fs.fail(Kind::SyncDir);
     let written: io::Result<()> = write_durably(
         &fs,
-        &temp,
-        &target,
+        &handle,
+        temp,
+        target,
         |e| e,
-        |_| Ok(()),
+        || Ok(()),
+        |_, _| Ok(()),
         |out| out.write_all(b"bytes"),
     );
     assert_eq!(
@@ -4085,7 +4830,7 @@ fn a_durable_write_and_a_durable_removal_report_a_directory_sync_that_fails() {
         Err(io::ErrorKind::StorageFull),
         "a durable write whose directory sync failed reported success"
     );
-    let removed = remove_durably(&fs, &target);
+    let removed = remove_durably(&fs, &handle, target);
     assert_eq!(
         removed.map_err(|e| e.kind()),
         Err(io::ErrorKind::StorageFull),
@@ -4096,18 +4841,21 @@ fn a_durable_write_and_a_durable_removal_report_a_directory_sync_that_fails() {
 #[test]
 fn a_durable_write_whose_discard_fails_answers_with_the_error_of_the_discard() {
     use super::durable::test_support::{Kind, RecordingFs};
-    use super::durable::write_durably;
+    use super::durable::{write_durably, Dir};
+    use std::ffi::OsStr;
 
     let dir = tempfile::tempdir().unwrap();
-    let (temp, target) = (dir.path().join("file.tmp"), dir.path().join("file"));
+    let handle = Dir::open(dir.path()).unwrap();
     let fs = RecordingFs::new();
     fs.fail(Kind::Rename);
     let written: io::Result<()> = write_durably(
         &fs,
-        &temp,
-        &target,
+        &handle,
+        OsStr::new("file.tmp"),
+        OsStr::new("file"),
         |e| e,
-        |_| Err(io::Error::from(io::ErrorKind::PermissionDenied)),
+        || Ok(()),
+        |_, _| Err(io::Error::from(io::ErrorKind::PermissionDenied)),
         |out| out.write_all(b"bytes"),
     );
     assert_eq!(

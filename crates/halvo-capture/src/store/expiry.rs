@@ -6,7 +6,7 @@ use halvo_sqlcipher::rusqlite::{self, Connection, Row};
 use uuid::Uuid;
 
 use super::db::{db_error, unix_secs_now, Db, EncryptedStore, KeyFile};
-use super::segment::{self, SegmentFile};
+use super::segment;
 use super::{SegmentExpiry, ShredReport, StoreError, StoreResult};
 
 const STORE_KEY_COUNT: u64 = 1;
@@ -84,26 +84,14 @@ impl EncryptedStore {
 
     pub(crate) fn remove_keyless_files(&self) -> StoreResult<Sweep> {
         let live: HashSet<Uuid> = self.segment_ids_with_keys(None)?.into_iter().collect();
-        let walk = segment::segment_files(self.dir())?;
-        let mut sweep = Sweep {
-            removed: 0,
-            not_store_files: walk.not_store_files,
-        };
-        let mut failures = Vec::new();
-        for file in walk.files {
-            if let SegmentFile::Segment { id, .. } = &file {
-                if live.contains(id) {
-                    continue;
-                }
-            }
-            match segment::remove_segment_file(self.fs(), file.path()) {
-                Ok(()) => sweep.removed += 1,
-                Err(e) => failures.push(e),
-            }
-        }
-        match failures.into_iter().next() {
+        let swept =
+            segment::sweep_segment_files(self.handle(), self.fs(), &|id| live.contains(&id))?;
+        match swept.first_failure {
             Some(first) => Err(first),
-            None => Ok(sweep),
+            None => Ok(Sweep {
+                removed: swept.removed,
+                not_store_files: swept.not_store_files,
+            }),
         }
     }
 

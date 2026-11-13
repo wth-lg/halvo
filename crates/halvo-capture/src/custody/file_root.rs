@@ -5,7 +5,7 @@ use zeroize::Zeroizing;
 
 use super::dev_fallback::{aead_open, aead_seal, fill_random, store_key_from};
 use super::{CustodyError, RootId, StoreKey, WrappedKey};
-use crate::store::durable::{self, OsFs};
+use crate::store::durable::{self, Dir, OsFs};
 
 const ROOT_EXT: &str = "root";
 const PARTIAL_EXT: &str = "root.tmp";
@@ -28,9 +28,22 @@ fn root_io(e: std::io::Error) -> CustodyError {
 }
 
 fn write_complete(partial: &Path, path: &Path, blob: &[u8]) -> Result<(), CustodyError> {
-    durable::write_durably(&OsFs, partial, path, root_io, scrub_and_remove, |out| {
-        out.write_all(blob).map_err(root_io)
-    })
+    let (Some(dir), Some(partial_name), Some(name)) =
+        (path.parent(), partial.file_name(), path.file_name())
+    else {
+        return Err(CustodyError::Os(None));
+    };
+    let dir = Dir::open(dir).map_err(root_io)?;
+    durable::write_durably(
+        &OsFs,
+        &dir,
+        partial_name,
+        name,
+        root_io,
+        || Ok(()),
+        |_, _| scrub_and_remove(partial),
+        |out| out.write_all(blob).map_err(root_io),
+    )
 }
 
 fn scrub_and_remove(path: &Path) -> Result<(), CustodyError> {
