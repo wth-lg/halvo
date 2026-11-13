@@ -78,10 +78,27 @@ the messages of the reply rule of A1 and asks the model for one body each with t
   request says why, and the compile goes on. A field that an action does not take is never read
   and refuses nothing. The harness also refuses a `fill`, a `select` or a `press` on a line
   that the snapshot marks `credential`, and counts it in `typed_credential`.
-- A compile asks the model at most 32 times, and it ends as a miss when the model gives the
-  same reply to the same page a second time. The request differs at each call, because the
-  step list grows, so the rule ends a model that cycles among the same actions; it ended 11 of
-  the 18 compiles of each round on `mac`, and ministral_3_3b's traces cycle among three lines.
+- A compile asks the model at most 32 times and counts every ask, also one whose reply is no
+  action, is refused or equals an earlier reply; the reply to the thirty-second ask, when it is
+  no `done`, ends the compile as a miss with the cause `calls`. By the ruling CP-179 no reply
+  ends a compile because it was given before. The first head of this unit had such a stop (the
+  same reply to the same page a second time); it ended 11 of the 18 `mac` compiles of each round,
+  each just after a request that differed from the one before, and the product has no such end.
+- A run ends at 2,000 s, without its wait for the model lock, read before each ask and each
+  stored step: the cell prints `notrun` with the cause `wall` and is no miss of its model
+  (ruling CP-179 (1) (c)). One ask can still overrun the bound.
+- The harness's own words in a request (the frame around the goal text, the lines of the list
+  "Done so far:" with their causes, and the questions) stand in `src/words.rs` and nowhere else,
+  and `run.sh --prompt-lines` prints its SHA-256 on a fifth `prompt` line. A carried-out action's
+  line ends with ` (done)`, ` (done; the page shows no change)` when the next snapshot's text
+  equals the one before it, or ` (done; a request was sent)`; every refusal holds
+  `(refused: <cause>)` and no other line does; a `select` on a line that is no select control
+  gets the cause `<ref> is a <role> line and no select control; a select names the line of the
+  control that holds the option`, with the executor's role word and no text of the page
+  (ruling CP-179 (2)). A repeat has no line of its own.
+- A carried-out action whose verb, target and args equal the step stored last, given while the
+  snapshot's text is the one at which that step was given, is carried out and stores no second
+  step (ruling CP-179 (1) (e)).
 - A field of the grammar that an action does not take is never read. The grammar of
   `tools/r3-trials/model/grammars/action.gbnf` lets every action carry all five fields, and
   the models fill them all (`{"action":"fill","ref":"e3","slot":"email","key":"Enter","name":"email"}`
@@ -99,6 +116,14 @@ the messages of the reply rule of A1 and asks the model for one body each with t
   lists of the state object (payments, orders, sent mail, deleted events) beyond the steps
   that the harness allowed, a step being allowed when it was confirmed and a state-changing
   request left during it.
+- One request (ruling CP-179 (1) (d), (f)): after one state-changing request has left in a run
+  no further one leaves. The rule is armed closed again after each click or press has settled
+  and its paused requests have been read; a later click or press whose request is failed so ends
+  the run as a miss with the cause `second_request`. A run passes only when the fixture's entries
+  equal the requests that the harness let through and the fixture's count of state-changing
+  requests is those and the sign-in posts, and a compile only when it let exactly one through.
+  In a replay, a step stored without a request whose click or press sets one off ends the replay
+  with the cause `request`, as the product's replay ends a run there (A9.2).
 - `recover=ok` needs the run to complete with the state check; a step that found its control
   needs no model.
 - A run that starts the model starts its child at the start of the run, so `wall_s` holds the
@@ -112,8 +137,13 @@ the messages of the reply rule of A1 and asks the model for one body each with t
   text for a text line, the one extract target that the snapshot gives; a playbook of
   `bill` thus holds the amount's own text as the locator of its extract step, and the test
   ids of A10.3, which the library's snapshot does not show, are in no locator.
-- The bodies are counted as the model wrote them: a MiniCPM5 body that is all thinking counts
-  when it is not empty and holds no marker and no address.
+- The body of a reply (ruling CP-179 (6)) is the model's output after its last closing mark of a
+  thinking block (`<think>`, `</think>`, the one spelling of the saved bodies), trimmed, or the
+  whole output when it holds no mark. An output with an opening mark and no closing mark after
+  it, a body with a mark left after the cut, and an output whose tokens equal the level's
+  `reply_tokens` have no body. A body counts when it has three words or more, no marker and no
+  address; the floor of three words is this trial's alone. `bodies.txt` keeps each whole output
+  with its count and its tokens. A model whose thinking carries no such mark is not cut.
 
 ## How the cells of unit U0.6 ran
 
@@ -126,7 +156,12 @@ binary, and round 2 at c882c15, which fails a request whose extracts are not kep
 file holds round 2. Two earlier calls at an uncommitted state, which refused every field that an action
 does not take, are in the builder's evidence and in no line of the result file. A single
 model request on `mac` took from 10 s to 650 s at 1-minute loads of about 100 to 240, so the
-`wall_s` of a `mac` run says nothing of the trial's speed.
+`wall_s` of a `mac` run says nothing of the trial's speed. The importer copies those `wall_s`
+into its rows with the rest, and no `limits` line rests on them: A13.6 gives those lines for the
+verdict's driver and writer alone, and A1.3 names the limits of path B and `writer=none`. The
+cell `mac` ministral_3_3b `bill` seed 2 took two calls: the helper ended the first at its hold
+(its file holds one load line), the second's lines are the cell's, and both stand as its
+`timed` lines. A body may differ by machine (ministral_3_3b's seed 3).
 
 What the models did, from the traces of the runs: on `bill` minicpm5_2b gave `handback` on the
 sign-in page and then a `select` of the slot `payee` on a heading, which the page did not take,
@@ -146,8 +181,16 @@ argument list but for `--model standin_<mode>`, `--weights control/<mode>.txt` a
 The modes: `right` walks the task as a right driver would; `effect_early` clicks the effect
 button before it keeps the extracts; `option_then_right` names an option line in its first
 select, then goes on as `right`; `sign_in_click` (bill) clicks the sign-in button before any
-handback; `option_line` (bill) names an option line in every select. The script reads the
-lines against `control/expected.txt` and prints `control mode=.. machine=.. task=.. result=..`.
+handback; `option_line` (bill) names an option line in every select, until the cap;
+`extract_then_click` (bill) extracts on the sign-in page and clicks its button;
+`option_twice_then_right` (bill) names an option line in its first two selects;
+`extract_to_cap` (bill) gives the same extract until the cap; `effect_twice` (bill) walks as
+`right` on the fixture's variant `slow_charge`, whose answer to the effect button's post comes
+6,000 ms after it records the charge, and so clicks the effect button again while the form still
+stands. For `effect_twice` alone the script passes r3-drive `--compile-variant slow_charge`,
+which names the variant in the compile run's reset; a cell of the trial passes no such flag.
+The script reads the lines against `control/expected.txt` and prints
+`control mode=.. machine=.. task=.. result=..`.
 At d3472bf the right walk passed `bill` and failed every replay of `order` on `mac` and on
 `hosted-win`, which showed that no driver could have passed `order`; the mend of 4d1020c, the
 stored place, makes it pass.
@@ -159,3 +202,11 @@ stored place, makes it pass.
   at most three times in a row; its sign-in closes the request rule again after its click; and
   the trace's run line prints the site's sign-ins, failed sign-ins and state-changing requests.
   The block of `docs/r3/trials/driver.md` was printed by the harness before this change.
+- Ruling CP-179 (2026-11-13): the stop at a repeated reply goes and the cap of 32 asks stays; a
+  run is bounded at 2,000 s; one state-changing request per run, the end `second_request`, and a
+  compile that is ok only with exactly one request let through; a replay ends at a request of a
+  step stored without one (`request`); a carried-out repeat stores no second step; the harness's
+  words of a request move into `src/words.rs` (first with the same bytes, 343b83d) and then say
+  what a carried-out action did and why a refusal was made; the body of a reply is the text after
+  the model's thinking, with three words or more. The four prompt files did not change. The
+  block of `docs/r3/trials/driver.md` was printed by the harness before both changes.
