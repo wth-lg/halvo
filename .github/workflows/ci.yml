@@ -2,186 +2,380 @@ name: ci
 
 on:
   push:
-  pull_request:
 
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
+      - name: U0.7c-9 build of the web trial (scratch branch, never merged; counts only)
         shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
+        timeout-minutes: 14
         run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
+          set +e
+          host=$(rustc -vV | sed -n 's/^host: //p')
+          s0=$(date +%s)
+          cargo build --release --locked --quiet --target "$host" --target-dir "$PWD/tools/r3-trials/web/target" \
+            --manifest-path "$PWD/tools/r3-trials/web/Cargo.toml"
+          b=$?
+          echo "build exit=$b seconds=$(( $(date +%s) - s0 ))"
+          exit $b
+      - name: U0.7c-9 org_policy cells of hosted-mac (scratch branch, never merged; counts only)
         shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
+        timeout-minutes: 32
         run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
+          mkdir -p "$RUNNER_TEMP/org9"
+          cat >"$RUNNER_TEMP/org9/reader.swift" <<'SWIFT'
+          // The policy-page reader of U0.7c's ninth run.
+          //   reader pdf PDF NAME VALUE [TEXT_OUT]   reads the PDF's text with PDFKit (and writes it to TEXT_OUT)
+          //   reader text FILE NAME VALUE            reads a text file, for tries without a browser
+          // It prints booleans, counts and closed-list words only:
+          //   policy_page  the text holds "policy name" in any case, with spaces and line ends taken out
+          //   named        yes when the name is in the text (named_by=text), in the text squashed to letters and
+          //                digits (named_by=squashed: line ends, spaces, soft hyphens and zero-width marks
+          //                gone), or in pieces: a word that ends with a prefix of the name (6 letters, or half
+          //                of a short name and at least 4), then words up to 12 lines after or before it that
+          //                carry the rest, other words between them skipped (named_by=pieces); else no
+          //                (named_by=none)
+          //   prefix_len   the longest prefix of the name that the squashed text holds, of name_len
+          //   near         the words of the name's first line and the six lines after it, as false, direct,
+          //                Platform, Machine, Mandatory, OK or other (a piece of the name itself is skipped)
+          //   value_seen   near holds VALUE
+          //   platform_count  how often the text holds "Platform"
+          import Foundation
+          import PDFKit
 
-  windows:
-    runs-on: windows-2025
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 2
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-      - name: Scripts and hook in a core.autocrlf=true clone
-        shell: bash
-        run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
-          echo "$line_endings"
-          test -n "$line_endings"
-          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
-          if [ -n "$crlf_files" ]; then
-            echo "git checked out these files with CRLF:"
-            echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf', and no later line may take eol=lf from these files."
-            exit 1
-          fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
-          fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
-          esac
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+          func squash(_ s: String) -> String {
+              String(String.UnicodeScalarView(s.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }))
+          }
+
+          let a = CommandLine.arguments
+          guard a.count >= 5, a[1] == "pdf" || a[1] == "text" else {
+              print("policy_page=no readable=no named=no named_by=none prefix_len=0 name_len=0 value_seen=no platform_count=0 near=-")
+              exit(2)
+          }
+          let name = a[3]
+          let value = a[4]
+          var text = ""
+          if a[1] == "pdf" {
+              guard let doc = PDFDocument(url: URL(fileURLWithPath: a[2])) else {
+                  print("policy_page=no readable=no named=no named_by=none prefix_len=0 name_len=\(name.count) value_seen=no platform_count=0 near=-")
+                  exit(2)
+              }
+              text = doc.string ?? ""
+              if a.count >= 6 { try? text.write(toFile: a[5], atomically: true, encoding: .utf8) }
+          } else {
+              text = (try? String(contentsOfFile: a[2], encoding: .utf8)) ?? ""
+          }
+          let lines = text.components(separatedBy: .newlines)
+          let sq = lines.map(squash)
+          let all = squash(text)
+
+          // the line where the name starts and how it was found
+          var start: Int? = nil
+          var by = "none"
+          if let i = lines.firstIndex(where: { $0.contains(name) }) {
+              start = i; by = "text"
+          } else if all.contains(name) {
+              by = "squashed"
+              func window(_ i: Int) -> String { sq[i..<min(sq.count, i + 13)].joined() }
+              if var i = sq.indices.first(where: { window($0).contains(name) }) {
+                  let first = i
+                  while i + 1 < sq.count && i + 1 <= first + 12 && window(i + 1).contains(name) { i += 1 }
+                  start = i
+              }
+          } else {
+              // pieces: a word that ends with a prefix of the name (6 characters or more), then words on
+              // the lines up to 12 before or after it that carry the rest piece by piece, other words skipped
+              var words: [(line: Int, w: String)] = []
+              for (n, l) in lines.enumerated() {
+                  for w in l.split(whereSeparator: { $0.isWhitespace }) {
+                      let q = squash(String(w))
+                      if !q.isEmpty { words.append((n, q)) }
+                  }
+              }
+              // the shortest first piece: 6 letters, or half the name for a short name (at least 4)
+              let least = min(6, max(4, name.count / 2))
+              outer: for (wi, x) in words.enumerated() {
+                  var p = min(x.w.count, name.count - 1)
+                  while p >= least && !x.w.hasSuffix(String(name.prefix(p))) { p -= 1 }
+                  if p < least { continue }
+                  let near = words.indices.filter { $0 != wi && abs(words[$0].line - x.line) <= 12 }
+                  let order = near.filter { $0 > wi } + near.filter { $0 < wi }.reversed()
+                  var pos = p
+                  for k in order {
+                      let rest = String(name.dropFirst(pos))
+                      let t = words[k].w
+                      if t.hasPrefix(rest) { start = x.line; by = "pieces"; break outer }
+                      if rest.hasPrefix(t) && t.count >= 2 { pos += t.count }
+                  }
+              }
+          }
+          var prefix = 0
+          while prefix < name.count && all.contains(String(name.prefix(prefix + 1))) { prefix += 1 }
+
+          let known: Set<String> = ["false", "direct", "Platform", "Machine", "Mandatory", "OK"]
+          var near: [String] = []
+          if let i = start {
+              for l in lines[i..<min(lines.count, i + 7)] {
+                  for w in l.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init) {
+                      let q = squash(w)
+                      if q.count >= 2 && name.contains(q) { continue }
+                      let t = known.contains(w) ? w : "other"
+                      if !(t == "other" && near.last == "other") { near.append(t) }
+                  }
+              }
+          }
+          let page = squash(text.lowercased()).contains("policyname")
+          let platform = text.components(separatedBy: "Platform").count - 1
+          print("policy_page=\(page ? "yes" : "no") readable=yes named=\(by == "none" ? "no" : "yes") named_by=\(by) prefix_len=\(prefix) name_len=\(name.count) value_seen=\(near.contains(value) ? "yes" : "no") platform_count=\(platform) near=\(near.isEmpty ? "-" : near.joined(separator: ","))")
+          SWIFT
+          cat >"$RUNNER_TEMP/org9/lib.sh" <<'LIB'
+          # The harness functions of U0.7c's ninth run, sourced by the job's step and by the local tries.
+          # Expects: work (a directory of the run, holding the reader as $work/reader), dir (the managed
+          # preferences directory). Optional: LIMIT (seconds per call, 420), RUN_SH (the trial's run.sh),
+          # PAGE_WAIT (seconds for a policy page, 45). Prints counts, booleans, modes and closed-list words.
+          LIMIT=${LIMIT:-420}
+          RUN_SH=${RUN_SH:-tools/r3-trials/web/run.sh}
+          recorded=""
+          ncall=0
+
+          # alive PID: the process runs and is no zombie (a zombie still answers kill -0)
+          alive() {
+            s=$(ps -o stat= -p "$1" 2>/dev/null | tr -d ' ')
+            [ -n "$s" ] || return 1
+            case "$s" in Z*) return 1 ;; esac
+            return 0
+          }
+
+          # group_count PGID: how many processes the process group still holds
+          group_count() {
+            ps -axo pgid= | awk -v g="$1" '$1 == g' | wc -l | tr -d ' '
+          }
+
+          # listing AT: the managed preferences directory, the two browsers' property lists named, any
+          # other entry as other
+          listing() {
+            if [ -d "$dir" ]; then
+              echo "listing at=$1 entries=$(sudo ls -A "$dir" | wc -l | tr -d ' ')"
+              sudo ls -la "$dir" | awk -v at="$1" 'NR > 1 && $NF != "." && $NF != ".." {
+                n = $NF; if (n != "com.google.Chrome.plist" && n != "com.microsoft.Edge.plist") n = "other";
+                print "listing at=" at " mode=" $1 " owner=" $3 ":" $4 " bytes=" $5 " name=" n }'
+            else
+              echo "listing at=$1 dir=absent"
+            fi
+          }
+
+          # page BROWSER URL NAME VALUE: a headless start with no debugging channel, in a process group of
+          # its own, prints URL to a PDF; the group is ended by its recorded id; the reader reads the PDF.
+          page() {
+            p=$(mktemp -d "$work/page.XXXXXX")
+            perl -e 'setpgrp(0, 0); exec @ARGV or exit 127' "$1" --headless=new --use-mock-keychain \
+              --user-data-dir="$p" --allow-chrome-scheme-url --no-pdf-header-footer --timeout=4000 \
+              --print-to-pdf="$p.pdf" "$2" >/dev/null 2>&1 &
+            bp=$!
+            i=0
+            while [ "$i" -lt "${PAGE_WAIT:-45}" ]; do
+              [ -s "$p.pdf" ] && tail -c 64 "$p.pdf" | grep -q EOF && break
+              sleep 1
+              i=$((i + 1))
+            done
+            kill -KILL -- "-$bp" 2>/dev/null
+            wait "$bp" 2>/dev/null
+            sleep 1
+            gl=$(group_count "$bp")
+            # a process of the start that left the group (the crash handler calls setsid) is counted, not
+            # ended: it holds no port and no policy, and the runner ends it with the job
+            pl=$(pgrep -f -- "$p" | wc -l | tr -d ' ')
+            r=$("$work/reader" pdf "$p.pdf" "$3" "$4" "$p.txt" 2>/dev/null)
+            [ -n "$r" ] || r="policy_page=no readable=no named=no named_by=none prefix_len=0 name_len=0 value_seen=no platform_count=0 near=-"
+            echo "$r waited_s=$i pdf=$(basename "$p").pdf group_left=$gl profile_left=$pl"
+          }
+
+          # readback BROWSER KIND NAME VALUE AT: sets named, pc and page_ok from the browser's policy page;
+          # up to three tries, each of chrome://policy/ and then edge://policy/, until one is a policy page
+          readback() {
+            t=1
+            while :; do
+              r=$(page "$1" chrome://policy/ "$3" "$4")
+              u=chrome
+              case "$r" in *"policy_page=yes"*) ;; *) r=$(page "$1" edge://policy/ "$3" "$4"); u=edge ;; esac
+              page_ok=no
+              case "$r" in *"policy_page=yes"*) page_ok=yes ;; esac
+              [ "$page_ok" = yes ] && break
+              [ "$t" -ge 3 ] && break
+              t=$((t + 1))
+            done
+            echo "policy read browser=$2 at=$5 name=$3 url=$u try=$t $r"
+            pc=$(printf '%s\n' "$r" | sed -n 's/.* platform_count=\([0-9]*\).*/\1/p')
+            named=$(printf '%s\n' "$r" | sed -n 's/.* named=\([a-z]*\).*/\1/p')
+          }
+
+          # port_ready PORT: sets port. A free port is taken. A port that a listener holds is freed only when
+          # the holder is a process that this harness recorded (a call's process group, by its leader's id,
+          # or a fixture_pid that a call printed): it is ended by that id. Any other holder is left alone and
+          # the cell moves to the next free port 1000 above. Prints which.
+          port_ready() {
+            port=$1
+            h=$(lsof -nP -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -1)
+            if [ -z "$h" ]; then
+              echo "port_check port=$port free=yes"
+              return 0
+            fi
+            rec=no
+            case " $recorded " in *" $h "*) rec=yes ;; esac
+            if [ "$rec" = no ]; then
+              g=$(ps -o pgid= -p "$h" 2>/dev/null | tr -d ' ')
+              [ -n "$g" ] && case " $recorded " in *" $g "*) rec=yes ;; esac
+            fi
+            if [ "$rec" = yes ]; then
+              kill -TERM "$h" 2>/dev/null
+              sleep 2
+              alive "$h" && kill -KILL "$h" 2>/dev/null
+              sleep 1
+              if [ -z "$(lsof -nP -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -1)" ]; then
+                echo "port_check port=$port free=no holder_recorded=yes holder_ended=yes"
+                return 0
+              fi
+            fi
+            np=$((port + 1000))
+            n=0
+            while [ "$n" -lt 20 ] && lsof -nP -t -iTCP:"$np" -sTCP:LISTEN >/dev/null 2>&1; do
+              np=$((np + 1000))
+              n=$((n + 1))
+            done
+            echo "port_check port=$port free=no holder_recorded=$rec holder_ended=no moved_to=$np"
+            port=$np
+          }
+
+          # run_call PORT ARGS...: one call of the trial's run.sh for browser $b in a process group of its
+          # own, ended as a whole by its recorded id once it has run LIMIT seconds. Prints the call's lines,
+          # call_end, and for a stopped call call_stopped with the runs that were ok before the stop.
+          run_call() {
+            cport=$1
+            shift
+            ncall=$((ncall + 1))
+            out="$work/call-$ncall.log"
+            s0=$(date +%s)
+            perl -e 'setpgrp(0, 0); exec @ARGV or exit 127' sh "$RUN_SH" --candidate cdp --browser "$b" \
+              --port "$cport" "$@" >"$out" 2>&1 &
+            cp=$!
+            recorded="$recorded $cp"
+            stopped=no
+            while alive "$cp"; do
+              if [ $(($(date +%s) - s0)) -ge "$LIMIT" ]; then
+                stopped=yes
+                kill -TERM -- "-$cp" 2>/dev/null
+                sleep 3
+                kill -KILL -- "-$cp" 2>/dev/null
+                break
+              fi
+              sleep 1
+            done
+            wait "$cp"
+            e=$?
+            for fp in $(sed -n 's/.* fixture_pid=\([0-9][0-9]*\).*/\1/p' "$out"); do
+              recorded="$recorded $fp"
+            done
+            cat "$out"
+            # call_stopped comes before call_end, so that a reader of the log knows the cause when it reads
+            # the call's end; the trial itself prints notrun cause=signal when the TERM reaches it
+            if [ "$stopped" = yes ]; then
+              st=$(printf '%s\n' "$*" | sed -n 's/.*--step \([a-z_]*\).*/\1/p')
+              ok=$(grep -c "^run candidate=.* step=$st .*result=ok" "$out")
+              all=$(grep -c "^run candidate=.* step=$st " "$out")
+              echo "call_stopped browser=${k:-} step=$st limit_s=$LIMIT runs_ok=$ok runs_done=$all group_left=$(group_count "$cp")"
+            fi
+            echo "call_end exit=$e seconds=$(($(date +%s) - s0)) port=$cport args=$(echo "$*" | tr ' ' '_')"
+            [ "$e" -eq 0 ] || code=1
+          }
+
+          # o BROWSER KIND DOMAIN STEP NAME XML READV PAGEV PORT: one org_ cell of hosted-mac. The bundle
+          # id's property list goes into the managed preferences directory, owned by root, mode 644, and
+          # cfprefsd is ended so that it reads it; the browser's policy page is read back; the cell runs only
+          # when the page names the policy and shows one more Platform source than the control read before
+          # the write (ctl), else notrun policy_not_seen; then the file is moved out and cfprefsd ended.
+          o() {
+            b=$1; k=$2; dom=$3; step=$4; name=$5; xml=$6; readv=$7; pagev=$8; cell_port=$9
+            plist="$dir/$dom.plist"
+            hadf=no
+            [ -e "$plist" ] && hadf=yes
+            sudo mkdir -p "$dir"
+            printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n\t<key>%s</key>\n\t%s\n</dict>\n</plist>\n' "$name" "$xml" >"$work/$dom.plist"
+            lint=$(plutil -lint "$work/$dom.plist" >/dev/null 2>&1 && echo ok || echo bad)
+            sudo install -o root -g wheel -m 644 "$work/$dom.plist" "$plist"
+            irc=$?
+            sudo killall cfprefsd 2>/dev/null
+            sleep 1
+            listing plist_install
+            back=$(defaults read "$dir/$dom" "$name" 2>/dev/null)
+            echo "policy file browser=$k name=$name lint=$lint install_exit=$irc defaults_read_matches=$([ "$back" = "$readv" ] && echo yes || echo no)"
+            seen=no
+            readback "$b" "$k" "$name" "$pagev" before_cell
+            # the cause of a cell that does not run: no policy page before the write (control_unread) or
+            # before the cell (page_unread), else the page did not show the policy (policy_not_seen)
+            why=policy_not_seen
+            [ "$page_ok" = yes ] || why=page_unread
+            [ "${ctl_ok:-no}" = yes ] || why=control_unread
+            [ "$why" = policy_not_seen ] && [ "$named" = yes ] && [ -n "$pc" ] && [ "$pc" -eq $((ctl + 1)) ] && seen=yes
+            echo "policy set browser=$k name=$name file_existed=$hadf owner=$(stat -f %Su:%Sg "$plist" 2>/dev/null) mode=$(stat -f %Sp "$plist" 2>/dev/null) value=$back page_named=$named page_platform=$pc control_platform=$ctl seen=$seen way=plist_install"
+            if [ "$seen" = yes ]; then
+              port_ready "$cell_port"
+              run_call "$port" --runs 10 --rows org --round 3 --relay --step "$step"
+            else
+              echo "notrun candidate=cdp machine=hosted-mac browser=$k step=$step cause=$why"
+            fi
+            sudo mv "$plist" "$work/removed-$k-$name.plist" 2>/dev/null
+            sudo killall cfprefsd 2>/dev/null
+            sleep 1
+            [ -e "$plist" ] && echo "policy removed=no name=$name" || echo "policy removed=yes name=$name"
+          }
+          LIB
+          set +e
+          code=0
+          dir="/Library/Managed Preferences"
+          work="$RUNNER_TEMP/org9"
+          mkdir -p "$work"
+          echo "runner macos=$(sw_vers -productVersion) bash=${BASH_VERSION%%(*}"
+          [ -d "$dir" ] && echo "managed_dir existed=yes" || echo "managed_dir existed=no"
+          s0=$(date +%s)
+          swiftc -O "$work/reader.swift" -o "$work/reader" >"$work/swiftc.log" 2>&1
+          echo "swiftc exit=$? seconds=$(($(date +%s) - s0)) error_lines=$(grep -c 'error:' "$work/swiftc.log")"
+          . "$work/lib.sh"
+          echo "harness limit_s=$LIMIT"
+          port0=18190
+          for pair in "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome|chrome|com.google.Chrome" \
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge|edge|com.microsoft.Edge"; do
+            b=${pair%%|*}
+            rest=${pair#*|}
+            k=${rest%%|*}
+            dom=${rest#*|}
+            [ -f "$b" ] || { echo "browser missing $k"; code=1; continue; }
+            echo "browser $k"
+            readback "$b" "$k" RemoteDebuggingAllowed false control_no_policy
+            ctl=${pc:-0}
+            ctl_ok=$page_ok
+            [ "$ctl_ok" = yes ] || { echo "policy control browser=$k page=no"; code=1; }
+            [ "$named" = yes ] && { echo "policy control browser=$k named_with_no_file=yes"; code=1; }
+            o "$b" "$k" "$dom" org_debugging RemoteDebuggingAllowed '<false/>' 0 false "$port0"
+            port0=$((port0 + 10))
+            o "$b" "$k" "$dom" org_proxy ProxyMode '<string>direct</string>' direct direct "$port0"
+            port0=$((port0 + 10))
+          done
+          echo "scan pages_left=$(pgrep -f -- "$work/page." | wc -l | tr -d ' ') calls_recorded=$ncall"
+          exit $code
+      - name: U0.7c-9 policy pages and calls (scratch branch, never merged)
         if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ci-artifacts-windows
-          path: target/ci-artifacts/
+          name: u07c-9-pages-and-calls
+          path: |
+            ${{ runner.temp }}/org9/page.*.pdf
+            ${{ runner.temp }}/org9/page.*.txt
+            ${{ runner.temp }}/org9/call-*.log
+          retention-days: 7
+          if-no-files-found: warn
