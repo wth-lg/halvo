@@ -40,8 +40,10 @@ fn run() {
     let parts = app::Parts {
         state: commands::capture::AppState::new(DataDir::for_current_user, open_pane),
         tray: Some(tray::install),
+        guard: engine::guard,
         poll: true,
         window_visible: true,
+        engine_rules_dir: None,
         #[cfg(windows)]
         webview_data_dir: None,
     };

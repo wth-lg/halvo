@@ -8,6 +8,7 @@ use tauri::{AppHandle, Manager, Runtime};
 
 use crate::app::{self, PageLoads};
 use crate::commands::{capture::AppState, names};
+use crate::engine::{self, GuardInstalled};
 use crate::launch::Exit;
 
 const PROBE: &str = "(function () { var ok = /^[A-Za-z0-9_:|.+-]+$/; var r = (window.Halvo && Halvo.ipc && Halvo.ipc.replied) ? Halvo.ipc.replied() : []; var v = (document.getElementById('version') || {}).textContent || ''; var s = (window.Halvo && Halvo.service) ? String(Halvo.service()) : ''; return 'version=' + (ok.test(v) ? v : '-') + ' service=' + (ok.test(s) ? s : '-') + ' replied=' + r.filter(function (n) { return ok.test(n); }).join(','); })()";
@@ -32,7 +33,8 @@ pub const SERVICES: [&str; 6] = [
 
 /// The line that the check prints for `seen`, the JSON text of the probe's
 /// string.
-pub fn line(seen: &str, version: &str) -> Option<String> {
+pub fn line(seen: &str, version: &str, guard: Option<&GuardInstalled>) -> Option<String> {
+    guard?;
     let text = seen.strip_prefix('"')?.strip_suffix('"')?;
     let (shown, rest) = text.strip_prefix("version=")?.split_once(" service=")?;
     let (service, replied) = rest.split_once(" replied=")?;
@@ -41,8 +43,9 @@ pub fn line(seen: &str, version: &str) -> Option<String> {
         .iter()
         .filter(|name| replied.split(',').any(|r| r == **name))
         .count();
-    (ok == reads.len() && shown == version && SERVICES.contains(&service))
-        .then(|| format!("page=loaded commands_ok={ok} version={shown} service={service}"))
+    (ok == reads.len() && shown == version && SERVICES.contains(&service)).then(|| {
+        format!("page=loaded commands_ok={ok} version={shown} service={service} guard=installed")
+    })
 }
 
 pub fn run(data_dir: PathBuf, within: Duration) -> i32 {
@@ -56,13 +59,16 @@ pub fn run(data_dir: PathBuf, within: Duration) -> i32 {
         );
         std::process::exit(Exit::PageNotLoaded.code());
     });
+    let engine_rules_dir = Some(data_dir.join(app::ENGINE_RULES_DIR));
     let parts = app::Parts {
         #[cfg(windows)]
         webview_data_dir: Some(data_dir.join("webview")),
         state: AppState::new(|| DataDir::from_flag(data_dir), crate::open_pane),
         tray: None,
+        guard: engine::guard,
         poll: true,
         window_visible: false,
+        engine_rules_dir,
     };
     let built = app::build(tauri::Builder::default(), parts).build(app::context());
     #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
@@ -100,7 +106,8 @@ fn watch<R: Runtime>(app: AppHandle<R>, started: Instant) {
         let Ok(seen) = rx.recv_timeout(Duration::from_secs(2)) else {
             continue;
         };
-        if let Some(line) = line(&seen, &version) {
+        let guard = app.try_state::<GuardInstalled>();
+        if let Some(line) = line(&seen, &version, guard.as_deref()) {
             let mut out = std::io::stdout().lock();
             let _ = writeln!(out, "{line}");
             let _ = out.flush();
@@ -117,6 +124,7 @@ fn watch<R: Runtime>(app: AppHandle<R>, started: Instant) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::installed_for_tests as installed;
 
     fn seen(replied: &[&str], version: &str, service: &str) -> String {
         format!(
@@ -129,14 +137,19 @@ mod tests {
     fn the_line_waits_for_every_read_command_the_version_and_a_read_service() {
         let all = ["capture_status", "inventory", "onboarding_state"];
         assert_eq!(
-            line(&seen(&all, "0.0.0", "not_running"), "0.0.0").as_deref(),
-            Some("page=loaded commands_ok=3 version=0.0.0 service=not_running")
+            line(
+                &seen(&all, "0.0.0", "not_running"),
+                "0.0.0",
+                Some(&installed())
+            )
+            .as_deref(),
+            Some("page=loaded commands_ok=3 version=0.0.0 service=not_running guard=installed")
         );
         for service in SERVICES {
             assert_eq!(
-                line(&seen(&all, "0.0.0", service), "0.0.0"),
+                line(&seen(&all, "0.0.0", service), "0.0.0", Some(&installed())),
                 Some(format!(
-                    "page=loaded commands_ok=3 version=0.0.0 service={service}"
+                    "page=loaded commands_ok=3 version=0.0.0 service={service} guard=installed"
                 ))
             );
         }
@@ -152,36 +165,78 @@ mod tests {
                     "0.0.0",
                     "unsupported"
                 ),
-                "0.0.0"
+                "0.0.0",
+                Some(&installed())
             )
             .as_deref(),
-            Some("page=loaded commands_ok=3 version=0.0.0 service=unsupported")
+            Some("page=loaded commands_ok=3 version=0.0.0 service=unsupported guard=installed")
         );
         assert_eq!(
-            line(&seen(&all[..2], "0.0.0", "not_running"), "0.0.0"),
+            line(
+                &seen(&all[..2], "0.0.0", "not_running"),
+                "0.0.0",
+                Some(&installed())
+            ),
             None
         );
-        assert_eq!(line(&seen(&all, "-", "not_running"), "0.0.0"), None);
-        assert_eq!(line(&seen(&all, "0.0.1", "not_running"), "0.0.0"), None);
-        assert_eq!(line(&seen(&all, "0.0.0", "connecting"), "0.0.0"), None);
-        assert_eq!(line(&seen(&all, "0.0.0", "-"), "0.0.0"), None);
-        assert_eq!(line(&seen(&all, "0.0.0", "capturing"), "0.0.0"), None);
-        assert_eq!(line("", "0.0.0"), None);
-        assert_eq!(line("\"not the probe\"", "0.0.0"), None);
+        assert_eq!(
+            line(&seen(&all, "-", "not_running"), "0.0.0", Some(&installed())),
+            None
+        );
+        assert_eq!(
+            line(
+                &seen(&all, "0.0.1", "not_running"),
+                "0.0.0",
+                Some(&installed())
+            ),
+            None
+        );
+        assert_eq!(
+            line(
+                &seen(&all, "0.0.0", "connecting"),
+                "0.0.0",
+                Some(&installed())
+            ),
+            None
+        );
+        assert_eq!(
+            line(&seen(&all, "0.0.0", "-"), "0.0.0", Some(&installed())),
+            None
+        );
+        assert_eq!(
+            line(
+                &seen(&all, "0.0.0", "capturing"),
+                "0.0.0",
+                Some(&installed())
+            ),
+            None
+        );
+        assert_eq!(line("", "0.0.0", Some(&installed())), None);
+        assert_eq!(line("\"not the probe\"", "0.0.0", Some(&installed())), None);
         assert_eq!(
             line(
                 "version=0.0.0 service=not_running replied=capture_status,inventory,onboarding_state",
-                "0.0.0"
+                "0.0.0",
+                Some(&installed())
             ),
             None
         );
         assert_eq!(
             line(
                 "\"version=0.0.0 replied=capture_status,inventory,onboarding_state\"",
-                "0.0.0"
+                "0.0.0",
+                Some(&installed())
             ),
             None
         );
+    }
+
+    #[test]
+    fn without_the_proof_of_the_guard_the_check_prints_no_line() {
+        let all = ["capture_status", "inventory", "onboarding_state"];
+        for service in SERVICES {
+            assert_eq!(line(&seen(&all, "0.0.0", service), "0.0.0", None), None);
+        }
     }
 
     #[test]

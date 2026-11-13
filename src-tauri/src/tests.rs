@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use halvo_control::onboarding::Permission;
 use halvo_control::proto::{Platform, Request};
@@ -10,13 +12,16 @@ use serde_json::Value;
 use tauri::ipc::{CallbackFn, Invoke, InvokeBody};
 use tauri::test::{get_ipc_response, mock_builder, MockRuntime, INVOKE_KEY};
 use tauri::webview::InvokeRequest;
-use tauri::{App, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{App, AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::app;
 use crate::commands::capture::AppState;
 use crate::commands::control::Gated;
 use crate::commands::{self, names};
+use crate::engine::{self, EngineSite, GuardAnswer, GuardInstalled};
+use crate::launch::Exit;
 use crate::poller;
+use crate::tray::{self, TrayInstalled};
 
 pub const APP_URL: &str = if cfg!(windows) {
     "http://tauri.localhost"
@@ -72,9 +77,19 @@ pub fn test_parts(dir: PathBuf, state: AppState) -> app::Parts<MockRuntime> {
         webview_data_dir: Some(dir.join("webview")),
         state,
         tray: None,
+        guard: guard_installed,
         poll: false,
         window_visible: false,
+        engine_rules_dir: None,
     }
+}
+
+pub fn guard_installed(
+    _window: &WebviewWindow<MockRuntime>,
+    _site: EngineSite,
+    answer: Sender<GuardAnswer>,
+) {
+    let _ = answer.send(Ok(engine::installed_for_tests()));
 }
 
 pub struct TestApp {
@@ -1066,3 +1081,240 @@ fn the_configuration_holds_no_dev_policy_and_no_dev_address() {
 
 mod layer;
 mod states;
+
+#[derive(Default)]
+pub struct GuardCalls {
+    urls: Mutex<Vec<String>>,
+    held: Mutex<Option<Sender<GuardAnswer>>>,
+}
+
+fn called_at(window: &WebviewWindow<MockRuntime>) {
+    let url = window.url().map(|url| url.to_string()).unwrap_or_default();
+    window
+        .state::<GuardCalls>()
+        .urls
+        .lock()
+        .expect("the calls")
+        .push(url);
+}
+
+fn guard_held(window: &WebviewWindow<MockRuntime>, _site: EngineSite, answer: Sender<GuardAnswer>) {
+    called_at(window);
+    *window.state::<GuardCalls>().held.lock().expect("the slot") = Some(answer);
+}
+
+fn guard_refused(
+    window: &WebviewWindow<MockRuntime>,
+    _site: EngineSite,
+    answer: Sender<GuardAnswer>,
+) {
+    called_at(window);
+    let _ = answer.send(Err("refused by the stand-in".to_string()));
+}
+
+fn guard_dropped(
+    window: &WebviewWindow<MockRuntime>,
+    _site: EngineSite,
+    answer: Sender<GuardAnswer>,
+) {
+    called_at(window);
+    drop(answer);
+}
+
+fn tray_stand_in(_app: &AppHandle<MockRuntime>) -> tauri::Result<TrayInstalled> {
+    Ok(tray::installed_for_tests())
+}
+
+fn app_with_guard(
+    name: &str,
+    guard: engine::GuardInstall<MockRuntime>,
+    tray: Option<app::TrayInstall<MockRuntime>>,
+) -> App<MockRuntime> {
+    let connector = ScriptedConnector::new(fixture_daemon());
+    let mut parts = test_parts(scratch_dir(name), state_of(&connector));
+    parts.guard = guard;
+    parts.tray = tray;
+    let mut app = app::build(mock_builder().manage(GuardCalls::default()), parts)
+        .build(app::context())
+        .expect("the app builds on the mock runtime");
+    first_iteration_runs_the_set_up(&mut app);
+    app
+}
+
+fn guard_urls(app: &App<MockRuntime>) -> Vec<String> {
+    app.state::<GuardCalls>()
+        .urls
+        .lock()
+        .expect("the calls")
+        .clone()
+}
+
+fn url_of_main(app: &App<MockRuntime>) -> Option<String> {
+    app.get_webview_window("main")
+        .and_then(|window| window.url().ok())
+        .map(|url| url.to_string())
+}
+
+#[test]
+fn the_guard_is_asked_while_the_window_main_is_blank_and_the_app_page_loads_after_its_answer() {
+    let app = app_with_guard("guard-held", guard_held, None);
+    assert_eq!(guard_urls(&app), ["about:blank"]);
+    assert_eq!(url_of_main(&app).as_deref(), Some("about:blank"));
+    assert!(app.try_state::<GuardInstalled>().is_none());
+
+    let sender = app
+        .state::<GuardCalls>()
+        .held
+        .lock()
+        .expect("the slot")
+        .take()
+        .expect("the stand-in holds the sender");
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(url_of_main(&app).as_deref(), Some("about:blank"));
+    sender
+        .send(Ok(engine::installed_for_tests()))
+        .expect("the set-up waits for the answer");
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while app.try_state::<GuardInstalled>().is_none() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(app.try_state::<GuardInstalled>().is_some());
+    assert_eq!(url_of_main(&app), Some(app::app_url().to_string()));
+    assert_eq!(guard_urls(&app), ["about:blank"]);
+}
+
+#[test]
+fn an_answer_at_once_loads_the_app_page_within_the_set_up() {
+    let connector = ScriptedConnector::new(fixture_daemon());
+    let parts = test_parts(scratch_dir("guard-at-once"), state_of(&connector));
+    let test = test_app_from(parts, app::context(), connector);
+    assert!(test.app.try_state::<GuardInstalled>().is_some());
+    assert_eq!(url_of_main(&test.app), Some(app::app_url().to_string()));
+    assert!(test.app.try_state::<app::WindowMissing>().is_none());
+}
+
+#[test]
+fn with_the_guard_not_installed_and_a_tray_the_app_runs_on_without_the_window_main() {
+    for (name, guard) in [
+        (
+            "guard-refused",
+            guard_refused as engine::GuardInstall<MockRuntime>,
+        ),
+        ("guard-dropped", guard_dropped),
+    ] {
+        let app = app_with_guard(name, guard, Some(tray_stand_in));
+        assert_eq!(guard_urls(&app), ["about:blank"], "{name}");
+        assert_eq!(url_of_main(&app).as_deref(), Some("about:blank"), "{name}");
+        assert!(app.try_state::<GuardInstalled>().is_none(), "{name}");
+        assert!(app.try_state::<app::WindowMissing>().is_some(), "{name}");
+        let state = app.state::<AppState>();
+        assert!(state
+            .tray_installed
+            .load(std::sync::atomic::Ordering::SeqCst));
+        let view = state.views.view();
+        let shown = tray::shown(app.handle(), &view);
+        let usual = tray::labels(&view);
+        assert_eq!(
+            shown.status_text,
+            "Halvo's window is not available. Quit Halvo and start it again."
+        );
+        assert!(!shown.open_enabled, "{name}");
+        assert!(usual.open_enabled, "{name}");
+        assert_eq!(
+            (
+                shown.title,
+                shown.tooltip,
+                shown.toggle_text,
+                shown.toggle_enabled
+            ),
+            (
+                usual.title,
+                usual.tooltip,
+                usual.toggle_text,
+                usual.toggle_enabled
+            ),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn the_engine_guard_on_the_mock_runtime_never_runs_its_closure_and_reads_as_not_installed() {
+    let app = app_with_guard("guard-engine-on-mock", engine::guard, Some(tray_stand_in));
+    assert_eq!(url_of_main(&app).as_deref(), Some("about:blank"));
+    assert!(app.try_state::<GuardInstalled>().is_none());
+    assert!(app.try_state::<app::WindowMissing>().is_some());
+}
+
+#[test]
+fn the_deciding_function_loads_on_installed_runs_on_with_a_tray_and_ends_without_one() {
+    assert!(matches!(
+        app::decide(Ok(engine::installed_for_tests()), false),
+        app::Opening::Load(_)
+    ));
+    assert!(matches!(
+        app::decide(Ok(engine::installed_for_tests()), true),
+        app::Opening::Load(_)
+    ));
+    assert!(matches!(
+        app::decide(Err("x".to_string()), true),
+        app::Opening::RunWithoutWindow(reason) if reason == "x"
+    ));
+    let app::Opening::End(reason) =
+        app::decide(Err("the install's closure did not run".to_string()), false)
+    else {
+        panic!("without a tray the app ends");
+    };
+    assert_eq!(
+        app::not_opened_line(&reason),
+        "halvo: the window main is not opened, because its engine guard is not installed: the install's closure did not run"
+    );
+    let code = Exit::GuardNotInstalled.code();
+    assert!(![0, 1, 64].contains(&code), "{code}");
+}
+
+#[test]
+fn the_window_main_is_built_blank_and_hidden_from_the_set_up_alone_and_counts_loads_of_the_app() {
+    let app = std::fs::read_to_string(src_tauri().join("src/app.rs")).expect("app.rs reads");
+    for (text, count) in [
+        ("main_window(", 1),
+        ("fn main_window<", 1),
+        ("window.destroy()", 1),
+        ("config.url = WebviewUrl::External(blank());\n", 1),
+        (".visible(false);\n", 1),
+        (".visible(", 1),
+        (".navigate(", 1),
+        (
+            "window.navigate(app_url())?;\n    if visible {\n        window.show()?;\n    }\n",
+            1,
+        ),
+        ("&& is_app_url(payload.url())\n", 1),
+        ("app.manage(installed);", 1),
+    ] {
+        assert_eq!(app.matches(text).count(), count, "{text}");
+    }
+    let guard = app
+        .find("(parts.guard)(&window, site, sender)")
+        .expect("the guard's call");
+    let tray = app
+        .find("let tray = match parts.tray")
+        .expect("the tray's install");
+    let decided = app.find("match answer.try_recv()").expect("the decision");
+    assert!(guard < tray && tray < decided);
+}
+
+#[cfg(windows)]
+#[test]
+fn the_engine_start_arguments_repeat_the_runtime_default_and_map_every_other_host_to_no_address() {
+    assert_eq!(
+        app::ENGINE_ARGS,
+        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --host-resolver-rules=\"MAP * ~NOTFOUND, EXCLUDE tauri.localhost, EXCLUDE ipc.localhost\""
+    );
+    let app = std::fs::read_to_string(src_tauri().join("src/app.rs")).expect("app.rs reads");
+    assert_eq!(
+        app.matches(".additional_browser_args(ENGINE_ARGS)").count(),
+        1
+    );
+    assert_eq!(app.matches("proxy_url").count(), 0);
+}

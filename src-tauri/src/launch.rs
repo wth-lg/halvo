@@ -18,6 +18,7 @@ pub enum Exit {
     Usage,
     PageLoaded,
     PageNotLoaded,
+    GuardNotInstalled,
 }
 
 impl Exit {
@@ -25,6 +26,7 @@ impl Exit {
         match self {
             Exit::Quit | Exit::PageLoaded => 0,
             Exit::PageNotLoaded => 1,
+            Exit::GuardNotInstalled => 3,
             Exit::Usage => 64,
         }
     }
@@ -135,6 +137,7 @@ mod tests {
         assert_eq!(Exit::PageLoaded.code(), 0);
         assert_eq!(Exit::PageNotLoaded.code(), 1);
         assert_eq!(Exit::Usage.code(), 64);
+        assert_eq!(Exit::GuardNotInstalled.code(), 3);
     }
 
     #[test]

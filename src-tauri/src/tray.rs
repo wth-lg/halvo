@@ -19,6 +19,7 @@ pub struct TrayHandles<R: Runtime> {
     tray: TrayIcon<R>,
     status_item: MenuItem<R>,
     toggle_item: MenuItem<R>,
+    open_item: MenuItem<R>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,9 +29,12 @@ pub struct TrayLabels {
     pub status_text: &'static str,
     pub toggle_text: &'static str,
     pub toggle_enabled: bool,
+    pub open_enabled: bool,
 }
 
 pub const NOT_RUNNING: &str = "Capture service not running";
+
+pub const WINDOW_MISSING: &str = "Halvo's window is not available. Quit Halvo and start it again.";
 
 fn line(title: &'static str, status_text: &'static str, tooltip: &'static str) -> TrayLabels {
     TrayLabels {
@@ -39,6 +43,23 @@ fn line(title: &'static str, status_text: &'static str, tooltip: &'static str) -
         status_text,
         toggle_text: "Pause capture",
         toggle_enabled: false,
+        open_enabled: true,
+    }
+}
+
+pub fn without_window(labels: TrayLabels) -> TrayLabels {
+    TrayLabels {
+        status_text: WINDOW_MISSING,
+        open_enabled: false,
+        ..labels
+    }
+}
+
+pub fn shown<R: Runtime>(app: &AppHandle<R>, view: &StatusView) -> TrayLabels {
+    if app.try_state::<crate::app::WindowMissing>().is_some() {
+        without_window(labels(view))
+    } else {
+        labels(view)
     }
 }
 
@@ -117,7 +138,7 @@ pub fn labels(view: &StatusView) -> TrayLabels {
 }
 
 pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayInstalled> {
-    let initial = labels(&app.state::<AppState>().views.view());
+    let initial = shown(app, &app.state::<AppState>().views.view());
     let status_item = MenuItem::with_id(app, "status", initial.status_text, false, None::<&str>)?;
     let toggle_item = MenuItem::with_id(
         app,
@@ -126,7 +147,13 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayInstalled> {
         initial.toggle_enabled,
         None::<&str>,
     )?;
-    let open_item = MenuItem::with_id(app, OPEN_ID, "Open Halvo", true, None::<&str>)?;
+    let open_item = MenuItem::with_id(
+        app,
+        OPEN_ID,
+        "Open Halvo",
+        initial.open_enabled,
+        None::<&str>,
+    )?;
     let quit_item = MenuItem::with_id(app, QUIT_ID, "Quit Halvo", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
@@ -155,6 +182,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayInstalled> {
         tray,
         status_item,
         toggle_item,
+        open_item,
     });
     Ok(TrayInstalled(()))
 }
@@ -163,12 +191,13 @@ pub fn refresh<R: Runtime>(app: &AppHandle<R>, view: &StatusView) {
     let Some(handles) = app.try_state::<TrayHandles<R>>() else {
         return;
     };
-    let texts = labels(view);
+    let texts = shown(app, view);
     let _ = handles.tray.set_title(Some(texts.title));
     let _ = handles.tray.set_tooltip(Some(texts.tooltip));
     let _ = handles.status_item.set_text(texts.status_text);
     let _ = handles.toggle_item.set_text(texts.toggle_text);
     let _ = handles.toggle_item.set_enabled(texts.toggle_enabled);
+    let _ = handles.open_item.set_enabled(texts.open_enabled);
 }
 
 fn toggle<R: Runtime>(app: &AppHandle<R>) {

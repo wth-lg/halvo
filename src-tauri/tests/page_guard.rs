@@ -28,6 +28,12 @@ mod app;
 )]
 #[path = "../src/commands/mod.rs"]
 mod commands;
+#[expect(
+    dead_code,
+    reason = "this test crate compiles the app's engine.rs by path, because app.rs installs its guard: \
+              the tests hand in a stand-in, so guard and the platform module stay unused here; \
+              the app's own build lints the whole module"
+)]
 #[path = "../src/engine.rs"]
 mod engine;
 #[expect(
@@ -116,8 +122,12 @@ impl Guarded {
                 no_pane,
             ),
             tray: None,
+            guard: |_, _, answer| {
+                let _ = answer.send(Ok(engine::installed_for_tests()));
+            },
             poll: false,
             window_visible: false,
+            engine_rules_dir: None,
         };
         let mut app = app::build(mock_builder(), parts)
             .build(context)
