@@ -347,6 +347,19 @@ fn a_clock_at_day_zero_gives_nothing() {
     let mut store = Store::default();
     store.put_routine(&fresh(1, DAY));
     assert!(store.step(0).is_empty());
+
+    let prev = settled(5, DAY, 7, DAY - 14, DAY);
+    let stale = RoutineState {
+        missed: 4,
+        mark: RuleMark::Stale,
+        since: Some(DAY + 60),
+        ..figures(&prev)
+    };
+    let stale = with_figures(&prev, 6, DAY + 60, &stale);
+    let mut store = Store::default();
+    store.put_routine(&stale);
+    assert_eq!(store.step(1).len(), 1);
+    assert!(store.step(0).is_empty());
 }
 
 #[test]
