@@ -184,6 +184,8 @@ fn an_edit_row_of_each_state_passes_the_check_of_the_registered_entry_and_is_wri
 
 #[test]
 fn the_generic_check_and_the_typed_parser_both_refuse_a_row_outside_the_entry() {
+    let edit = entry("learn_edit").example;
+    let id = r#""0f1e2d3c4b5a69788796a5b4c3d2e1f0""#;
     let cases = [
         ("learn_run", RUN_EXAMPLE.replacen(r#""kept":1,"#, "", 1)),
         (
@@ -210,15 +212,162 @@ fn the_generic_check_and_the_typed_parser_both_refuse_a_row_outside_the_entry() 
             "learn_routine",
             ROUTINE_EXAMPLE.replacen(r#""app":"com.google.Chrome""#, r#""app":"/x""#, 1),
         ),
+        ("learn_edit", edit.replacen(r#""clean":0,"#, "", 1)),
+        (
+            "learn_edit",
+            edit.replacen(r#""clean":0,"#, r#""clean":0,"day":20767,"#, 1),
+        ),
+        (
+            "learn_edit",
+            edit.replacen(r#""clean":0"#, r#""clean":false"#, 1),
+        ),
+        ("learn_edit", edit.replacen(r#""rev":1"#, r#""rev":1.0"#, 1)),
+        (
+            "learn_edit",
+            edit.replacen(r#""clean":0,"#, r#""clean":0,"clean":0,"#, 1),
+        ),
+        (
+            "learn_edit",
+            edit.replacen(&format!(r#""workflow":{id}"#), r#""workflow":null"#, 1),
+        ),
+        (
+            "learn_edit",
+            edit.replacen(
+                &format!(r#""workflow":{id}"#),
+                &format!(r#""workflow":[{id}]"#),
+                1,
+            ),
+        ),
+        (
+            "learn_edit",
+            edit.replacen(
+                &format!(r#""workflow":{id}"#),
+                &format!(r#""workflow":{{"id":{id}}}"#),
+                1,
+            ),
+        ),
+        ("learn_edit", edit.replacen(r#""desc":"#, r#""Desc":"#, 1)),
+        (
+            "learn_edit",
+            edit.replacen(r#""by":"role","#, r#""by":"role","0":"x","#, 1),
+        ),
+        (
+            "learn_edit",
+            edit.replacen(r#""name":"Submit payment""#, r#""name":true"#, 1),
+        ),
+        (
+            "learn_edit",
+            edit.replacen(
+                r#""desc":"button \"Submit payment\"""#,
+                &format!(r#""desc":"{}""#, "a".repeat(1025)),
+                1,
+            ),
+        ),
     ];
     for (kind, line) in cases {
+        assert_ne!(line, entry(kind).example);
         assert!(check_record(entry(kind), &line).is_err(), "{line}");
         let typed = match kind {
             "learn_run" => LearnRun::parse(line.as_bytes()).is_err(),
-            _ => LearnRoutine::parse(line.as_bytes()).is_err(),
+            "learn_routine" => LearnRoutine::parse(line.as_bytes()).is_err(),
+            "learn_edit" => LearnEdit::parse(line.as_bytes()).is_err(),
+            other => panic!("{other} is no kind of the learning run"),
         };
         assert!(typed, "{line}");
     }
+}
+
+const A_NAME: &str = r#""x""#;
+const AN_ID: &str = r#""0f1e2d3c4b5a69788796a5b4c3d2e1f0""#;
+const A_HASH: &str = r#""abababababababababababababababababababababababababababababababab""#;
+const A_TEXT: &str = r#""com.example.app""#;
+const A_SITE: &str = r#"{"key":"northwind-power.test","source":"address_field"}"#;
+const ONE: &str = "1";
+const TWO: &str = "2";
+const MINUS_ONE: &str = "-1";
+const ABOVE_U32: &str = "4294967296";
+
+const NOT_VERSION: &[&str] = &[
+    A_NAME, AN_ID, A_HASH, A_TEXT, A_SITE, TWO, MINUS_ONE, ABOVE_U32,
+];
+const NOT_ID: &[&str] = &[
+    A_NAME, A_HASH, A_TEXT, A_SITE, ONE, TWO, MINUS_ONE, ABOVE_U32,
+];
+const NOT_NAME: &[&str] = &[A_HASH, A_TEXT, A_SITE, ONE, TWO, MINUS_ONE, ABOVE_U32];
+const NOT_COUNT: &[&str] = &[A_NAME, AN_ID, A_HASH, A_TEXT, A_SITE, MINUS_ONE, ABOVE_U32];
+const NOT_TEXT: &[&str] = &[ONE, TWO, MINUS_ONE, ABOVE_U32];
+
+const EDIT_KEYS: [(&str, &str, &str, &[&str]); 15] = [
+    ("v", r#""v":1"#, r#""v":@"#, NOT_VERSION),
+    (
+        "workflow",
+        r#""workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0""#,
+        r#""workflow":@"#,
+        NOT_ID,
+    ),
+    (
+        "agent",
+        r#""agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809""#,
+        r#""agent":@"#,
+        NOT_ID,
+    ),
+    (
+        "edit",
+        r#""edit":"5c4b3a29180f7e6d5c4b3a29180f7e6d""#,
+        r#""edit":@"#,
+        NOT_ID,
+    ),
+    ("rev", r#""rev":3"#, r#""rev":@"#, NOT_COUNT),
+    ("base", r#""base":2"#, r#""base":@"#, NOT_COUNT),
+    ("n", r#""n":7"#, r#""n":@"#, NOT_COUNT),
+    ("state", r#""state":"reverted""#, r#""state":@"#, NOT_NAME),
+    (
+        "cause",
+        r#""cause":"class_mismatch""#,
+        r#""cause":@"#,
+        NOT_NAME,
+    ),
+    (
+        "on",
+        r#""on":"4b3a29180f7e6d5c4b3a29180f7e6d5c""#,
+        r#""on":@"#,
+        NOT_ID,
+    ),
+    (
+        "runs",
+        r#""runs":["9f8e7d6c5b4a39281706f5e4d3c2b1a0","8e7d6c5b4a39281706f5e4d3c2b1a09f"]"#,
+        r#""runs":[@]"#,
+        NOT_ID,
+    ),
+    ("first", r#""first":20767"#, r#""first":@"#, NOT_COUNT),
+    ("last", r#""last":20770"#, r#""last":@"#, NOT_COUNT),
+    ("clean", r#""clean":1"#, r#""clean":@"#, NOT_COUNT),
+    ("target", r#""value":"a.pay""#, r#""value":@"#, NOT_TEXT),
+];
+
+#[test]
+fn a_value_of_another_field_type_under_each_key_of_an_edit_row_is_refused_by_the_entry_and_the_parser(
+) {
+    let edit = entry("learn_edit");
+    let row = OTHER_EDITS[1];
+    assert_eq!(check_record(edit, row), Ok(()));
+    let read: serde_json::Map<String, serde_json::Value> = serde_json::from_str(row).unwrap();
+    let mut keys: Vec<&str> = read.keys().map(String::as_str).collect();
+    keys.sort_unstable();
+    let mut table: Vec<&str> = EDIT_KEYS.iter().map(|(key, ..)| *key).collect();
+    table.sort_unstable();
+    assert_eq!(table, keys);
+    let mut cases = 0;
+    for (key, from, to, values) in EDIT_KEYS {
+        assert_eq!(row.matches(from).count(), 1, "{from}");
+        for value in values {
+            let line = row.replacen(from, &to.replacen('@', value, 1), 1);
+            assert!(check_record(edit, &line).is_err(), "{key}: {value}");
+            assert!(LearnEdit::parse(line.as_bytes()).is_err(), "{key}: {value}");
+            cases += 1;
+        }
+    }
+    assert_eq!(cases, 108);
 }
 
 #[test]
