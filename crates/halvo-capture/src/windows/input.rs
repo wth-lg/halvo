@@ -417,6 +417,7 @@ impl CaptureSource for RawInputSource {
 struct DeviceGuard {
     usage_page: u16,
     usage: u16,
+    _claim: DeviceClaim,
 }
 
 impl Drop for DeviceGuard {
@@ -466,7 +467,6 @@ fn run_raw_input(
 ) {
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 
-    let _claim = claim;
     let device = state.device;
     // SAFETY: GetModuleHandleW with no name reads the handle of this process's
     // executable and takes no pointer.
@@ -528,6 +528,7 @@ fn run_raw_input(
     let _device_guard = DeviceGuard {
         usage_page: HID_USAGE_PAGE_GENERIC,
         usage: device.hid_usage(),
+        _claim: claim,
     };
 
     super::ensure_message_queue();
