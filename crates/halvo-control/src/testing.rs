@@ -11,12 +11,12 @@ use crate::onboarding::{
 use crate::paths::DataDir;
 use crate::proto::{
     decode_request, delete_decision, encode_reply, unknown_answer, AlreadyDeleted, Cap, CapSet,
-    Capture, Custody, DaemonStatus, DaemonVersion, Decoded, DeleteDecision, DeleteFields,
-    DeleteReport, Deleted, ErrorCode, ErrorReply, Health, IntentState, InventoryReply, KindLine,
-    LastStop, Lease, OnOff, Parent, PasswordGuard, PermissionForm, PermissionLine,
-    PermissionRequested, Platform, Reply, Request, RootDestroyed, Section, SourceLine, SourceName,
-    SourceState, StateFile, StatusFields, Stopped, StoreErrorKind, StoreState, SwitchLine,
-    SwitchName, Totals, PERMISSION_FORM,
+    Capture, CaptureReason, Custody, DaemonStatus, DaemonVersion, Decoded, DeleteDecision,
+    DeleteFields, DeleteReport, Deleted, ErrorCode, ErrorReply, Health, IntentState,
+    InventoryReply, KindLine, LastStop, Lease, OnOff, Parent, PasswordGuard, PermissionForm,
+    PermissionLine, PermissionRequested, Platform, Reply, Request, RootDestroyed, Section,
+    SourceLine, SourceName, SourceState, StateFile, StatusFields, Stopped, StoreErrorKind,
+    StoreState, SwitchLine, SwitchName, Totals, PERMISSION_FORM,
 };
 use crate::wire::{read_one_frame, write_frame, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
 
@@ -247,6 +247,44 @@ pub fn sample_delete_report() -> DeleteReport {
     .expect("the sample report holds together")
 }
 
+fn start_stopped_sources(f: &mut StatusFields) {
+    for line in &mut f.sources {
+        if line.state == (SourceState::Stopped { by_user: false }) {
+            line.state = SourceState::Running;
+        }
+    }
+}
+
+/// Sets the capture value that C2.3 gives desired, the lease and the states of the required
+/// sources: paused, no_indicator, running, partial, or faulted with a reason.
+fn settle(f: &mut StatusFields) {
+    let required: Vec<&SourceLine> = f
+        .sources
+        .iter()
+        .filter(|s| s.state != SourceState::Off)
+        .collect();
+    let running = required
+        .iter()
+        .filter(|s| matches!(s.state, SourceState::Running | SourceState::Impaired { .. }))
+        .count();
+    let (capture, reason) = if f.desired == CaptureState::Paused {
+        (Capture::Paused, None)
+    } else if f.lease != Lease::Fresh {
+        (Capture::NoIndicator, None)
+    } else if running == required.len() {
+        (Capture::Running, None)
+    } else if running > 0 {
+        (Capture::Partial, None)
+    } else {
+        (
+            Capture::Faulted,
+            f.capture_reason.or(Some(CaptureReason::NoSource)),
+        )
+    };
+    f.capture = capture;
+    f.capture_reason = reason;
+}
+
 /// A daemon in memory that answers requests through the real decoder, the delete rule, the
 /// permission form and one mutation at a time. It records every request that reached its
 /// handlers.
@@ -262,6 +300,7 @@ pub struct ScriptedDaemon {
     fresh_store: Option<StoreId>,
     next_store: u8,
     requests: Vec<Request>,
+    refused_change: bool,
 }
 
 fn error(code: ErrorCode, message: &str) -> Reply {
@@ -287,6 +326,7 @@ impl ScriptedDaemon {
             fresh_store: Some(store_id(0x10)),
             next_store: 0x11,
             requests: Vec::new(),
+            refused_change: false,
         }
     }
 
@@ -340,7 +380,10 @@ impl ScriptedDaemon {
         let mut fields = self.status.clone().into_fields();
         change(&mut fields);
         fields.onboarding = onboarding_of(fields.platform, &fields.permissions);
-        self.status = DaemonStatus::new(fields).expect("the scripted change holds together");
+        match DaemonStatus::new(fields) {
+            Ok(status) => self.status = status,
+            Err(_) => self.refused_change = true,
+        }
     }
 
     fn permission(&mut self, permission: Permission, change: impl FnOnce(&mut PermissionLine)) {
@@ -387,6 +430,17 @@ impl ScriptedDaemon {
     }
 
     fn handle(&mut self, request: Request) -> Reply {
+        let reply = self.handle_request(request);
+        if std::mem::take(&mut self.refused_change) {
+            return error(
+                ErrorCode::Internal,
+                "the scripted change does not hold together",
+            );
+        }
+        reply
+    }
+
+    fn handle_request(&mut self, request: Request) -> Reply {
         self.requests.push(request.clone());
         if !self.form.serves(&request) {
             return error(
@@ -399,23 +453,14 @@ impl ScriptedDaemon {
         }
         match request {
             Request::Status { indicator } => {
-                let f = self.status.fields();
-                if indicator
-                    && f.lease != Lease::Fresh
-                    && f.capture == Capture::NoIndicator
-                    && f.desired == CaptureState::Running
-                {
+                if indicator && self.status.fields().lease != Lease::Fresh {
                     self.edit(|f| {
                         f.lease = Lease::Fresh;
-                        f.capture = Capture::Running;
-                        for line in &mut f.sources {
-                            if line.state == (SourceState::Stopped { by_user: false }) {
-                                line.state = SourceState::Running;
-                            }
+                        if f.desired == CaptureState::Running {
+                            start_stopped_sources(f);
                         }
+                        settle(f);
                     });
-                } else if indicator {
-                    self.edit(|f| f.lease = Lease::Fresh);
                 }
                 Reply::Status(self.status.clone())
             }
@@ -446,13 +491,10 @@ impl ScriptedDaemon {
             Request::Resume => {
                 self.edit(|f| {
                     f.desired = CaptureState::Running;
-                    f.capture = Capture::Running;
-                    f.capture_reason = None;
-                    for line in &mut f.sources {
-                        if line.state == (SourceState::Stopped { by_user: false }) {
-                            line.state = SourceState::Running;
-                        }
+                    if f.lease == Lease::Fresh {
+                        start_stopped_sources(f);
                     }
+                    settle(f);
                 });
                 Reply::CaptureChanged(self.status.clone())
             }
