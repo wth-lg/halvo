@@ -499,3 +499,37 @@ fn the_hint_falls_to_the_next_evidence_row_inside_its_window_and_is_null_when_no
         "(a hint, support ids) before the first expiry, at it, and at the second"
     );
 }
+
+/// DS-4, H2: the evidence page's candidates hold the evidence row's own expiry inside their EXISTS, so `next` is
+/// reserved only for a candidate that the page could hand out: a page of exactly 261,120 bytes stays whole, with a
+/// null `next`, when the other evidence row of its workflow has passed its expiry and no expiry has run.
+#[test]
+fn a_page_of_the_bound_stays_whole_when_the_other_evidence_row_has_passed_its_expiry() {
+    let scratch = Scratch::new("reply-bound-expired");
+    let clock = TestClock::at_day(DAY);
+    let mut steps = 200;
+    while evidence_reply_len(&[&big(1, steps + 1, 0)], None) <= REPLY_MAX {
+        steps += 1;
+    }
+    let rest = REPLY_MAX - evidence_reply_len(&[&big(1, steps, 0)], None);
+    let exact = big(1, steps, rest);
+    let mut soon = episode(2, DAY, domain("w1.test"));
+    soon.expires = Instant(clock.now() + 5_000);
+    let fixed = Rc::new(RefCell::new(vec![proposal(
+        site("w1.test"),
+        "com.example.browser",
+        &[1, 2],
+    )]));
+    let host = Host::new(Box::new(clock.clone()), Box::new(Fixed(Rc::clone(&fixed))));
+    let mut store = open_host(&scratch, host).unwrap();
+    store
+        .commit_batch(&store_id(1), &[exact, soon], position(1, 0), &mut Seq(1))
+        .unwrap();
+    clock.set(clock.now() + 5_000);
+    let page = evidence(&store, workflow_of(&store, "w1.test"), None).unwrap();
+    assert_eq!(reply_len(&page), 261_120);
+    assert!(
+        matches!(&page, ReplyResult::Evidence(p) if p.evidence.len() == 1 && p.next.is_none()),
+        "one whole item and a null next"
+    );
+}

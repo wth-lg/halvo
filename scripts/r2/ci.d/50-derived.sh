@@ -88,6 +88,7 @@ esac
 #= tests/read.rs a_page_counts_the_id_under_next_against_the_bound
 #= tests/read.rs the_evidence_read_leaves_out_a_window_row_from_its_expiry_instant
 #= tests/read.rs the_hint_falls_to_the_next_evidence_row_inside_its_window_and_is_null_when_none_is_left
+#= tests/read.rs a_page_of_the_bound_stays_whole_when_the_other_evidence_row_has_passed_its_expiry
 #= tests/export.rs export_proposals_writes_the_header_and_one_line_per_proposed_workflow_in_order
 #= tests/export.rs export_proposals_writes_no_id_of_a_support_row_past_its_bound
 #= tests/past_bound.rs every_read_hands_out_what_an_expiry_at_its_clock_would_leave
