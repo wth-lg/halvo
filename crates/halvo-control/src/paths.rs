@@ -610,11 +610,32 @@ mod system {
 
     impl Drop for TaskMem {
         fn drop(&mut self) {
+            #[cfg(test)]
+            {
+                if !self.0.is_null() {
+                    tests::FREED.with(|freed| freed.set(freed.get() + 1));
+                }
+            }
             // SAFETY: the pointer is null or the buffer that SHGetKnownFolderPath allocated for its
             // caller to free, and this drop frees it once; CoTaskMemFree of a null pointer does
             // nothing.
             unsafe { CoTaskMemFree(Some(self.0 .0 as *const _)) };
         }
+    }
+
+    /// Runs `call` with the out pointer of a buffer that is freed on every path, a failure
+    /// included, and copies the string out of it on success.
+    fn known_folder(
+        call: impl FnOnce(*mut PWSTR) -> HRESULT,
+    ) -> Result<Option<OsString>, PathError> {
+        let mut path = TaskMem(PWSTR::null());
+        call(&mut path.0)
+            .ok()
+            .map_err(|e| PathError::Lookup(e.code().0))?;
+        // SAFETY: the call succeeded, so `path.0` points to a NUL-terminated string, which
+        // `path` frees only after this copy.
+        let wide = unsafe { path.0.as_wide() };
+        Ok(Some(OsString::from_wide(wide)))
     }
 
     pub fn base_dir() -> Result<Option<OsString>, PathError> {
@@ -631,28 +652,71 @@ mod system {
         .map_err(|e| PathError::Lookup(e.code().0))?;
         let token = Token(token);
         windows::core::link!("shell32.dll" "system" fn SHGetKnownFolderPath(rfid: *const GUID, dwflags: u32, htoken: HANDLE, ppszpath: *mut PWSTR) -> HRESULT);
-        let mut path = TaskMem(PWSTR::null());
-        // SAFETY: the folder id is a static GUID, the token is open with the TOKEN_QUERY and
-        // TOKEN_IMPERSONATE rights that the function asks for, and `path.0` is a live PWSTR that
-        // the call writes.
-        unsafe {
-            SHGetKnownFolderPath(
-                &FOLDERID_LocalAppData,
-                KF_FLAG_DEFAULT.0 as u32,
-                token.0,
-                &mut path.0,
-            )
-        }
-        .ok()
-        .map_err(|e| PathError::Lookup(e.code().0))?;
-        // SAFETY: the call succeeded, so `path.0` points to a NUL-terminated string, which
-        // `path` frees only after this copy.
-        let wide = unsafe { path.0.as_wide() };
-        Ok(Some(OsString::from_wide(wide)))
+        known_folder(|path| {
+            // SAFETY: the folder id is a static GUID, the token is open with the TOKEN_QUERY and
+            // TOKEN_IMPERSONATE rights that the function asks for, and `path` is the live out
+            // pointer of a PWSTR that the call writes.
+            unsafe {
+                SHGetKnownFolderPath(
+                    &FOLDERID_LocalAppData,
+                    KF_FLAG_DEFAULT.0 as u32,
+                    token.0,
+                    path,
+                )
+            }
+        })
     }
 
     pub fn user_temp_dir() -> Result<Option<super::DarwinUserTempDir>, PathError> {
         Ok(None)
+    }
+
+    #[cfg(test)]
+    pub(super) mod tests {
+        use std::cell::Cell;
+
+        use windows::core::{HRESULT, PWSTR};
+        use windows::Win32::Foundation::E_FAIL;
+        use windows::Win32::System::Com::CoTaskMemAlloc;
+
+        use super::{known_folder, PathError};
+
+        thread_local! {
+            pub(crate) static FREED: Cell<usize> = const { Cell::new(0) };
+        }
+
+        fn stand_in(path: *mut PWSTR, code: HRESULT) -> HRESULT {
+            let text: Vec<u16> = "C:\\stand-in\0".encode_utf16().collect();
+            // SAFETY: the size is that of `text`; the buffer is written below before any read.
+            let buffer = unsafe { CoTaskMemAlloc(text.len() * 2) }.cast::<u16>();
+            assert!(!buffer.is_null());
+            // SAFETY: `buffer` holds `text.len()` u16 values, and `path` is the live out
+            // pointer that known_folder hands in.
+            unsafe {
+                std::ptr::copy_nonoverlapping(text.as_ptr(), buffer, text.len());
+                *path = PWSTR(buffer);
+            }
+            code
+        }
+
+        #[test]
+        fn a_failed_lookup_that_hands_back_a_buffer_frees_it_and_answers_its_code() {
+            let before = FREED.with(Cell::get);
+            assert_eq!(
+                known_folder(|path| stand_in(path, E_FAIL)),
+                Err(PathError::Lookup(E_FAIL.0))
+            );
+            assert_eq!(
+                FREED.with(Cell::get),
+                before + 1,
+                "the buffer was not freed"
+            );
+            let ok = known_folder(|path| stand_in(path, HRESULT(0)))
+                .unwrap()
+                .unwrap();
+            assert_eq!(ok, "C:\\stand-in");
+            assert_eq!(FREED.with(Cell::get), before + 2);
+        }
     }
 }
 
