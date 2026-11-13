@@ -2708,25 +2708,21 @@ mod driver {
         let read =
             |at: &str, subject: &Option<(r3_web::procs::Proc, Option<r3_web::start::PipeIds>)>| {
                 subject.as_ref().map(|(root, pipe)| {
-                    let (counts, counted) = checks::check_counted(&checks::Subject {
+                    let (counts, named) = checks::check_named(&checks::Subject {
                         root,
                         profile: &opts.profile,
                         pipe: pipe.as_ref(),
                         relay_port: ctx.relay.as_ref().map(|_| ctx.relay_port),
                     });
-                    // CP-140 (2): each process counted in port_flag or pipe_holder, by name
-                    for c in &counted {
-                        eprintln!(
-                            "check_counted step={name} i={i} at={at} rule={} pid={} ppid={} program={} again={}",
-                            c.rule,
-                            c.pid,
-                            c.ppid,
-                            c.exe
-                                .as_deref()
-                                .map(|e| e.to_string_lossy().replace(' ', "_"))
-                                .unwrap_or_else(|| "-".into()),
-                            c.again
-                        );
+                    // CP-145 (2) (g): each process counted in port_flag or pipe_holder, named and
+                    // classed, on standard output where the block keeps it
+                    for n in &named {
+                        out(&format!(
+                            "check_named machine={} browser={} step={name} i={i} at={at} {}",
+                            ctx.machine,
+                            ctx.kind,
+                            n.keys()
+                        ));
                     }
                     eprintln!(
                         "check step={name} i={i} at={at} {}",
@@ -2855,8 +2851,11 @@ mod driver {
             let mut open_runs = 0;
             let mut checked_runs = 0;
             let mut check_ok = 0;
-            let mut check_sums: Vec<(&'static str, usize)> =
-                checks::RULES.iter().map(|r| (*r, 0)).collect();
+            let mut check_sums: Vec<(&'static str, usize)> = checks::RULES
+                .iter()
+                .chain(checks::KEYS.iter())
+                .map(|r| (*r, 0))
+                .collect();
             let mut peers = (0u32, 0u32);
             let mut times = Vec::new();
             let mut majors = Vec::new();
@@ -2882,7 +2881,7 @@ mod driver {
                         }
                         if let Some(counts) = &r.checks {
                             checked_runs += 1;
-                            if counts.iter().all(|c| c.count == 0) {
+                            if checks::read_holds(counts) {
                                 check_ok += 1;
                             }
                             for c in counts {

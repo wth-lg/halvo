@@ -244,58 +244,278 @@ pub fn names_a_port(command_line: &str) -> bool {
     command_line.contains("--remote-debugging-port")
 }
 
-/// A process that a check counted in `port_flag` or `pipe_holder` (the coordinator's ruling CP-140
-/// (2)): its number, its parent, its program where that can be read, and what a second read of the
-/// same process `AGAIN_AFTER` later finds: `yes` it still counts, `no` it runs and no longer
-/// counts, `gone` it no longer runs. The print changes nothing that the check counts.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Counted {
-    pub rule: &'static str,
-    pub pid: u32,
-    pub ppid: u32,
-    pub exe: Option<std::path::PathBuf>,
-    pub again: &'static str,
+/// The four ends of the executor's pipe, by the order of `PipeIds::handles`.
+pub const ENDS: [&str; 4] = [
+    "browser_read",
+    "executor_write",
+    "executor_read",
+    "browser_write",
+];
+
+/// The keys that a read and a cell's check line carry beside the six rules (CP-145 (2) (g) and the
+/// coordinator's point on an unread table): the processes of the two rules that passed or are
+/// open, and the reads whose process table could not be read.
+pub const KEYS: [&str; 5] = [
+    "port_flag_passing",
+    "port_flag_open",
+    "pipe_holder_passing",
+    "pipe_holder_open",
+    "table_unread",
+];
+
+/// How long the follow of a counted process lasts at most, and its step (CP-145 (2) (c): the
+/// length of `FIRST_REPLY_WAIT`, inside which a start must answer).
+pub const FOLLOW_CAP: std::time::Duration = std::time::Duration::from_secs(30);
+pub const FOLLOW_STEP: std::time::Duration = std::time::Duration::from_millis(5);
+
+/// The class of a process that a read counted in `port_flag` or `pipe_holder` (CP-145 (2)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Class {
+    Counts,
+    Passing,
+    Open,
 }
 
-/// The pause before the second read of a process that a check counted; a check that counts
-/// nothing does not wait.
-pub const AGAIN_AFTER: std::time::Duration = std::time::Duration::from_millis(500);
+impl Class {
+    pub fn word(self) -> &'static str {
+        match self {
+            Class::Counts => "counts",
+            Class::Passing => "passing",
+            Class::Open => "open",
+        }
+    }
+}
+
+/// The parent of a counted process, by number and start time from the table of the same read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Parent {
+    First,
+    Tree,
+    Executor,
+    Other,
+    Unread,
+}
+
+impl Parent {
+    pub fn word(self) -> &'static str {
+        match self {
+            Parent::First => "first",
+            Parent::Tree => "tree",
+            Parent::Executor => "executor",
+            Parent::Other => "other",
+            Parent::Unread => "unread",
+        }
+    }
+}
+
+/// One read of a counted process's own state: its arguments, its program and the ends of the
+/// executor's pipe that it holds, by index of `ENDS`; `None` where the read failed.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProcRead {
+    pub args: Option<Vec<String>>,
+    pub exe: Option<std::path::PathBuf>,
+    pub ends: Option<Vec<usize>>,
+}
+
+/// Why a counted process counts at once (CP-145 (2) (b)), or `None` when it may be on its way and
+/// the check follows it.
+pub fn counts_at_once(
+    r: &ProcRead,
+    parent: Parent,
+    bundle: &Path,
+    windows: bool,
+) -> Option<&'static str> {
+    if windows {
+        return Some("windows");
+    }
+    if let Some(a) = &r.args {
+        return Some(if a.iter().any(|x| names_a_port(x)) {
+            "flag"
+        } else {
+            "args_read_holding"
+        });
+    }
+    if r.ends
+        .as_ref()
+        .is_some_and(|e| e.iter().any(|i| *i == 1 || *i == 2))
+    {
+        return Some("executor_end");
+    }
+    if r.exe.as_deref().is_some_and(|e| !inside(e, bundle)) {
+        return Some("program_out");
+    }
+    if !matches!(parent, Parent::First | Parent::Tree) {
+        return Some("parent");
+    }
+    None
+}
+
+/// The follow of a counted process whose arguments could not be read (CP-145 (2) (c) to (e)):
+/// `read` gives its state by number and start time, or `None` once it no longer runs. Gives the
+/// class, what the deciding read found, and the milliseconds to it.
+pub fn follow(
+    read: &mut dyn FnMut() -> Option<ProcRead>,
+    now_ms: &mut dyn FnMut() -> u128,
+    pause: &mut dyn FnMut(),
+    cap: std::time::Duration,
+    bundle: &Path,
+) -> (Class, &'static str, u128) {
+    let cap = cap.as_millis();
+    loop {
+        let at = now_ms();
+        let Some(r) = read() else {
+            return (Class::Open, "holder_gone", at);
+        };
+        if let Some(a) = &r.args {
+            let found = if a.iter().any(|x| names_a_port(x)) {
+                "flag"
+            } else if r.exe.as_deref().is_none_or(|e| !inside(e, bundle)) {
+                "program_out"
+            } else if r.ends.as_ref().is_none_or(|e| !e.is_empty()) {
+                "holds"
+            } else {
+                return (Class::Passing, "settled", at);
+            };
+            return (Class::Counts, found, at);
+        }
+        if at >= cap {
+            return (Class::Counts, "args_unread_at_cap", at);
+        }
+        pause();
+    }
+}
+
+/// A process that a read counted, named (CP-145 (2) (g)).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NamedProc {
+    pub rule: &'static str,
+    pub pid: u32,
+    pub started_us: u64,
+    pub ppid: u32,
+    pub parent_started_us: Option<u64>,
+    pub parent: Parent,
+    /// The program's file name, never its path.
+    pub program: Option<String>,
+    pub bundle: &'static str,
+    pub args: bool,
+    pub flag: bool,
+    pub end: String,
+    pub follow_ms: Option<u128>,
+    pub found: &'static str,
+    pub class: Class,
+}
+
+impl NamedProc {
+    /// The keys of its naming line, after the step, the run and the read.
+    pub fn keys(&self) -> String {
+        format!(
+            "rule={} pid={} started_us={} ppid={} parent_started_us={} parent={} program={} bundle={} args={} flag={} end={} follow_ms={} found={} class={}",
+            self.rule,
+            self.pid,
+            self.started_us,
+            self.ppid,
+            self.parent_started_us.map_or("-".into(), |v| v.to_string()),
+            self.parent.word(),
+            self.program.as_deref().unwrap_or("-").replace(' ', "_"),
+            self.bundle,
+            if self.args { "read" } else { "unread" },
+            if self.flag { "yes" } else { "no" },
+            self.end,
+            self.follow_ms.map_or("-".into(), |v| v.to_string()),
+            self.found,
+            self.class.word()
+        )
+    }
+}
+
+/// Whether a read holds: each of the two followed rules counts nothing less its passing and open
+/// processes and has none open, the table was read, and each other rule counts 0.
+pub fn read_holds(counts: &[Count]) -> bool {
+    let n = |rule: &str| {
+        counts
+            .iter()
+            .find(|c| c.rule == rule)
+            .map_or(0, |c| c.count)
+    };
+    RULES.iter().all(|r| match *r {
+        "port_flag" | "pipe_holder" => {
+            let passing = n(&format!("{r}_passing"));
+            let open = n(&format!("{r}_open"));
+            n(r).saturating_sub(passing + open) == 0 && open == 0
+        }
+        _ => n(r) == 0,
+    }) && n("table_unread") == 0
+}
 
 /// Reads every rule once. A rule whose read the system refused counts each unread process as one.
 pub fn check(s: &Subject<'_>) -> Vec<Count> {
-    check_with(s, &command_line)
+    check_named(s).0
 }
 
-/// `check`, with each process that it counted in `port_flag` or `pipe_holder` (`Counted`).
-pub fn check_counted(s: &Subject<'_>) -> (Vec<Count>, Vec<Counted>) {
-    check_detail(s, &command_line)
+/// `check`, with each process that it counted in `port_flag` or `pipe_holder` named and classed.
+pub fn check_named(s: &Subject<'_>) -> (Vec<Count>, Vec<NamedProc>) {
+    let table = {
+        // the start lock for the check's read (CP-145 (2) (f)): no child of this process is on its
+        // way while the table is read
+        let _held = crate::start::lock();
+        procs::table().ok()
+    };
+    check_detail(s, table, &command_line, FOLLOW_CAP)
 }
 
-/// `check` with the reading of a process's command line given, for tests.
+/// `check` with the reading of a process's command line given, for tests; it follows no process.
 pub fn check_with(s: &Subject<'_>, line_of: &dyn Fn(u32) -> Option<String>) -> Vec<Count> {
-    check_detail(s, line_of).0
+    check_detail(s, procs::table().ok(), line_of, std::time::Duration::ZERO).0
 }
 
-/// `check_counted` with the reading of a process's command line given, for tests.
+/// The ends of `ids` that `pid` holds, by index of `ENDS`; `None` when its descriptors could not
+/// be read.
+fn ends_of(pid: u32, ids: Option<&PipeIds>) -> Option<Vec<usize>> {
+    let Some(ids) = ids else {
+        return Some(Vec::new());
+    };
+    #[cfg(target_os = "macos")]
+    {
+        crate::peer::pipe_handles_of(pid).map(|held| {
+            (0..4)
+                .filter(|i| ids.handles[*i] != 0 && held.iter().any(|(_, h)| *h == ids.handles[*i]))
+                .collect()
+        })
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        if holds_an_end(pid, ids) {
+            None
+        } else {
+            Some(Vec::new())
+        }
+    }
+}
+
+/// `check_named` on a table read under the start lock (`None`: it could not be read), with the
+/// reading of a command line and the follow's cap given.
 pub fn check_detail(
     s: &Subject<'_>,
+    table: Option<Vec<Proc>>,
     line_of: &dyn Fn(u32) -> Option<String>,
-) -> (Vec<Count>, Vec<Counted>) {
-    let table = procs::table().unwrap_or_default();
+    follow_cap: std::time::Duration,
+) -> (Vec<Count>, Vec<NamedProc>) {
+    let table_unread = usize::from(table.is_none());
+    let table = table.unwrap_or_default();
     let tree = tree_of(&table, s.root);
     let pids: Vec<u32> = tree.iter().map(|p| p.pid).collect();
     let mut port_flag = 0;
-    let mut flagged: Vec<&Proc> = Vec::new();
+    let mut flagged: Vec<(Proc, bool)> = Vec::new();
     for p in &tree {
         match line_of(p.pid) {
             Some(line) if names_a_port(&line) => {
                 port_flag += 1;
-                flagged.push(p);
+                flagged.push((p.clone(), true));
             }
             Some(_) => {}
             None if procs::running(p) => {
                 port_flag += 1;
-                flagged.push(p);
+                flagged.push((p.clone(), false));
             }
             None => {}
         }
@@ -318,42 +538,120 @@ pub fn check_detail(
         .map(|ids| pipe_holder_procs(&table, s.root, ids))
         .unwrap_or_default();
     let pipe_holder = holders.len();
-    let mut counted = Vec::new();
-    if !flagged.is_empty() || !holders.is_empty() {
-        std::thread::sleep(AGAIN_AFTER);
-        let again = |p: &Proc, still: &dyn Fn(&Proc) -> bool| {
-            if !procs::running(p) {
-                "gone"
-            } else if still(p) {
-                "yes"
-            } else {
-                "no"
+    // CP-145 (2): each counted process classed by its own state
+    let bundle = s
+        .root
+        .exe
+        .as_deref()
+        .map(procs::bundle_root)
+        .unwrap_or_default();
+    let parent_of = |p: &Proc| -> (Parent, Option<u64>) {
+        let Some(row) = table.iter().find(|t| t.pid == p.ppid) else {
+            return (Parent::Unread, None);
+        };
+        let kind = if procs::same(row, s.root) {
+            Parent::First
+        } else if row.pid == me {
+            Parent::Executor
+        } else if tree.iter().any(|t| procs::same(t, row))
+            && row.exe.as_deref().is_some_and(|e| inside(e, &bundle))
+        {
+            Parent::Tree
+        } else {
+            Parent::Other
+        };
+        (kind, Some(row.started_us))
+    };
+    let state = |p: &Proc| ProcRead {
+        args: line_of(p.pid).map(|l| vec![l]),
+        exe: p.exe.clone(),
+        ends: ends_of(p.pid, s.pipe),
+    };
+    let start = std::time::Instant::now();
+    let mut named = Vec::new();
+    let mut class_of: Vec<(Proc, Class, &'static str, Option<u128>, ProcRead)> = Vec::new();
+    let all: Vec<(&'static str, Proc)> = flagged
+        .iter()
+        .map(|(p, _)| ("port_flag", p.clone()))
+        .chain(holders.iter().map(|p| ("pipe_holder", p.clone())))
+        .collect();
+    for (rule, p) in &all {
+        // the class is the process's, the same on both lines
+        let known = class_of.iter().find(|(q, ..)| procs::same(q, p)).cloned();
+        let (class, found, follow_ms, first) = match known {
+            Some((_, c, f, ms, r)) => (c, f, ms, r),
+            None => {
+                let first = state(p);
+                let (parent, _) = parent_of(p);
+                let (c, f, ms) = match counts_at_once(&first, parent, &bundle, cfg!(windows)) {
+                    Some(f) => (Class::Counts, f, None),
+                    None => {
+                        let (c, f, ms) = follow(
+                            &mut || {
+                                if !procs::running(p) {
+                                    return None;
+                                }
+                                Some(ProcRead {
+                                    args: line_of(p.pid).map(|l| vec![l]),
+                                    exe: procs::table()
+                                        .ok()
+                                        .and_then(|t| t.into_iter().find(|t| procs::same(t, p)))
+                                        .and_then(|t| t.exe),
+                                    ends: ends_of(p.pid, s.pipe),
+                                })
+                            },
+                            &mut || start.elapsed().as_millis(),
+                            &mut || std::thread::sleep(FOLLOW_STEP),
+                            follow_cap,
+                            &bundle,
+                        );
+                        (c, f, Some(ms))
+                    }
+                };
+                class_of.push((p.clone(), c, f, ms, first.clone()));
+                (c, f, ms, first)
             }
         };
-        for p in flagged {
-            let still = |p: &Proc| line_of(p.pid).is_none_or(|l| names_a_port(&l));
-            counted.push(Counted {
-                rule: "port_flag",
-                pid: p.pid,
-                ppid: p.ppid,
-                exe: p.exe.clone(),
-                again: again(p, &still),
-            });
-        }
-        if let Some(ids) = s.pipe {
-            for p in &holders {
-                let still = |p: &Proc| holds_an_end(p.pid, ids);
-                counted.push(Counted {
-                    rule: "pipe_holder",
-                    pid: p.pid,
-                    ppid: p.ppid,
-                    exe: p.exe.clone(),
-                    again: again(p, &still),
-                });
-            }
-        }
+        let (parent, parent_started_us) = parent_of(p);
+        named.push(NamedProc {
+            rule,
+            pid: p.pid,
+            started_us: p.started_us,
+            ppid: p.ppid,
+            parent_started_us,
+            parent,
+            program: p
+                .exe
+                .as_ref()
+                .and_then(|e| e.file_name())
+                .map(|n| n.to_string_lossy().into_owned()),
+            bundle: match p.exe.as_deref() {
+                None => "unread",
+                Some(e) if inside(e, &bundle) => "in",
+                Some(_) => "out",
+            },
+            args: first.args.is_some(),
+            flag: first
+                .args
+                .as_ref()
+                .is_some_and(|a| a.iter().any(|x| names_a_port(x))),
+            end: match &first.ends {
+                None => "unread".into(),
+                Some(e) if e.is_empty() => "none".into(),
+                Some(e) => e.iter().map(|i| ENDS[*i]).collect::<Vec<_>>().join(","),
+            },
+            follow_ms,
+            found,
+            class,
+        });
     }
-    let counts = vec![
+    let of = |rule: &str, class: Class| {
+        named
+            .iter()
+            .filter(|n| n.rule == rule && n.class == class)
+            .count()
+    };
+    let mut counts = vec![
         Count {
             rule: "port_flag",
             count: port_flag,
@@ -379,7 +677,16 @@ pub fn check_detail(
             count: pipe_holder,
         },
     ];
-    (counts, counted)
+    for (rule, count) in [
+        ("port_flag_passing", of("port_flag", Class::Passing)),
+        ("port_flag_open", of("port_flag", Class::Open)),
+        ("pipe_holder_passing", of("pipe_holder", Class::Passing)),
+        ("pipe_holder_open", of("pipe_holder", Class::Open)),
+        ("table_unread", table_unread),
+    ] {
+        counts.push(Count { rule, count });
+    }
+    (counts, named)
 }
 
 /// The TCP listeners of process `pid` among `sockets` but the one on `relay_port`.
@@ -745,11 +1052,12 @@ mod tests {
         assert!(holders >= 1, "pipe_holder={holders} with a second holder");
     }
 
-    /// CP-140 (2): a check that counts a second holder of the pipe names it (number, parent,
-    /// program) and reads it again 0.5 s later, and counts as `check` does.
+    /// CP-145 (2) (g): a check that counts a second holder of the pipe names it (number, start
+    /// time, parent, program by file name, the ends held, its class) and counts as before; a holder
+    /// whose arguments were read while it held an end counts at once.
     #[cfg(target_os = "macos")]
     #[test]
-    fn a_counted_holder_is_named_and_read_again() {
+    fn a_counted_holder_is_named_with_its_class() {
         let (mut on, mut root, row) = second_holder();
         let subject = Subject {
             root: &row,
@@ -757,37 +1065,243 @@ mod tests {
             pipe: Some(&on.ids),
             relay_port: None,
         };
-        let (counts, counted) = check_counted(&subject);
+        let (counts, named) = check_named(&subject);
         let plain = check(&subject);
         let child = on.child.pid();
         on.child.kill();
         let _ = root.kill();
         let _ = root.wait();
-        let holder = counted
-            .iter()
-            .find(|c| c.rule == "pipe_holder" && c.pid == child)
-            .cloned();
-        // the two rules that the print names: each count is the number of processes named for it,
-        // and `check` counts the pipe's holders as `check_counted` does (the other rules read this
-        // test process, whose listeners the suite's other tests change between the two reads)
         let count = |cs: &[Count], rule: &str| cs.iter().find(|c| c.rule == rule).unwrap().count;
         for rule in ["port_flag", "pipe_holder"] {
-            let named = counted.iter().filter(|c| c.rule == rule).count();
-            assert_eq!(count(&counts, rule), named, "{rule}: {counted:?}");
+            let n = named.iter().filter(|c| c.rule == rule).count();
+            assert_eq!(count(&counts, rule), n, "{rule}: {named:?}");
         }
-        assert_eq!(
-            count(&counts, "pipe_holder"),
-            count(&plain, "pipe_holder"),
-            "the print changed what the check counts"
-        );
-        let holder =
-            holder.unwrap_or_else(|| panic!("the holder {child} is not named: {counted:?}"));
+        assert_eq!(count(&counts, "pipe_holder"), count(&plain, "pipe_holder"));
+        let holder = named
+            .iter()
+            .find(|c| c.rule == "pipe_holder" && c.pid == child)
+            .unwrap_or_else(|| panic!("the holder {child} is not named: {named:?}"));
         assert_eq!(holder.ppid, std::process::id(), "{holder:?}");
-        assert!(
-            holder.exe.as_deref() == Some(std::path::Path::new("/bin/sleep")),
-            "{holder:?}"
+        assert_eq!(holder.parent, Parent::Executor, "{holder:?}");
+        assert_eq!(holder.program.as_deref(), Some("sleep"), "{holder:?}");
+        assert_eq!(holder.end, "browser_read,browser_write", "{holder:?}");
+        assert_eq!(
+            (holder.class, holder.found),
+            (Class::Counts, "args_read_holding")
         );
-        assert_eq!(holder.again, "yes", "{holder:?}");
+        assert!(
+            !holder.keys().contains("/bin/"),
+            "a path in {}",
+            holder.keys()
+        );
+        assert!(!read_holds(&counts));
+    }
+
+    /// CP-145 (2): the classes of a counted process, on stand-in reads. Each case: the read that
+    /// counted it, its parent, the later reads of the follow (`None`: it no longer runs), and the
+    /// class with what decided it.
+    #[test]
+    fn a_counted_process_is_classed_by_its_own_state() {
+        use std::path::PathBuf;
+        let bundle = PathBuf::from("/Applications/B.app");
+        let inner = || Some(bundle.join("Contents/Frameworks/H.app/Contents/MacOS/H"));
+        let r = |args: Option<&str>, exe: Option<PathBuf>, ends: Option<Vec<usize>>| ProcRead {
+            args: args.map(|a| vec![a.to_string()]),
+            exe,
+            ends,
+        };
+        let unread = r(None, inner(), Some(vec![0]));
+        type Case = (
+            &'static str,
+            ProcRead,
+            Parent,
+            Vec<Option<ProcRead>>,
+            bool,
+            Class,
+            &'static str,
+        );
+        let cases: Vec<Case> = vec![
+            (
+                "unread, then read with no flag, no end, a parent of the tree",
+                unread.clone(),
+                Parent::Tree,
+                vec![Some(r(Some("H --type=gpu"), inner(), Some(vec![])))],
+                false,
+                Class::Passing,
+                "settled",
+            ),
+            (
+                "unread, then read with the flag",
+                unread.clone(),
+                Parent::First,
+                vec![Some(r(
+                    Some("H --remote-debugging-port=0"),
+                    inner(),
+                    Some(vec![]),
+                ))],
+                false,
+                Class::Counts,
+                "flag",
+            ),
+            (
+                "unread, then still holding an end",
+                unread.clone(),
+                Parent::First,
+                vec![Some(r(Some("H"), inner(), Some(vec![3])))],
+                false,
+                Class::Counts,
+                "holds",
+            ),
+            (
+                "arguments read while it held an end, which it then closes",
+                r(Some("H"), inner(), Some(vec![0])),
+                Parent::First,
+                vec![Some(r(Some("H"), inner(), Some(vec![])))],
+                false,
+                Class::Counts,
+                "args_read_holding",
+            ),
+            (
+                "the same, and it then ends",
+                r(Some("H"), inner(), Some(vec![0])),
+                Parent::First,
+                vec![None],
+                false,
+                Class::Counts,
+                "args_read_holding",
+            ),
+            (
+                "unread, then gone",
+                unread.clone(),
+                Parent::First,
+                vec![None],
+                false,
+                Class::Open,
+                "holder_gone",
+            ),
+            (
+                "a parent outside the tree",
+                unread.clone(),
+                Parent::Other,
+                vec![Some(r(Some("H"), inner(), Some(vec![])))],
+                false,
+                Class::Counts,
+                "parent",
+            ),
+            (
+                "a parent that cannot be read",
+                unread.clone(),
+                Parent::Unread,
+                vec![Some(r(Some("H"), inner(), Some(vec![])))],
+                false,
+                Class::Counts,
+                "parent",
+            ),
+            (
+                "the executor as the parent",
+                unread.clone(),
+                Parent::Executor,
+                vec![Some(r(Some("H"), inner(), Some(vec![])))],
+                false,
+                Class::Counts,
+                "parent",
+            ),
+            (
+                "a program outside the bundle",
+                r(None, Some(PathBuf::from("/bin/sh")), Some(vec![0])),
+                Parent::First,
+                vec![Some(r(Some("sh"), inner(), Some(vec![])))],
+                false,
+                Class::Counts,
+                "program_out",
+            ),
+            (
+                "an executor's end held",
+                r(None, inner(), Some(vec![2])),
+                Parent::First,
+                vec![Some(r(Some("H"), inner(), Some(vec![])))],
+                false,
+                Class::Counts,
+                "executor_end",
+            ),
+            (
+                "descriptors that cannot be read at the later read",
+                unread.clone(),
+                Parent::First,
+                vec![Some(r(Some("H"), inner(), None))],
+                false,
+                Class::Counts,
+                "holds",
+            ),
+            (
+                "arguments still unread at the cap",
+                unread.clone(),
+                Parent::First,
+                vec![Some(unread.clone()); 10],
+                false,
+                Class::Counts,
+                "args_unread_at_cap",
+            ),
+            (
+                "on Windows a holder that a later read no longer finds",
+                unread.clone(),
+                Parent::First,
+                vec![Some(r(Some("H"), inner(), Some(vec![])))],
+                true,
+                Class::Counts,
+                "windows",
+            ),
+        ];
+        let mut wrong = Vec::new();
+        for (name, first, parent, later, windows, want, why) in cases {
+            let (class, found) = match counts_at_once(&first, parent, &bundle, windows) {
+                Some(f) => (Class::Counts, f),
+                None => {
+                    let mut reads = later.into_iter();
+                    let clock = std::cell::Cell::new(0u128);
+                    let (c, f, _) = follow(
+                        &mut || reads.next().unwrap_or(None),
+                        &mut || clock.get(),
+                        &mut || clock.set(clock.get() + 5),
+                        // the cap of the case: nine steps of 5 ms
+                        std::time::Duration::from_millis(45),
+                        &bundle,
+                    );
+                    (c, f)
+                }
+            };
+            if (class, found) != (want, why) {
+                wrong.push(format!("{name}: {class:?} {found}, want {want:?} {why}"));
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+        assert_eq!(FOLLOW_CAP, std::time::Duration::from_secs(30));
+        assert_eq!(FOLLOW_STEP, std::time::Duration::from_millis(5));
+    }
+
+    /// The coordinator's point on an unread table: a read whose process table could not be read is
+    /// open (`table_unread=1`), never a read that found nothing.
+    #[test]
+    fn a_read_of_an_unread_table_is_open_and_not_empty() {
+        let row = Proc {
+            pid: std::process::id(),
+            ppid: 1,
+            started_us: 0,
+            exe: None,
+        };
+        let subject = Subject {
+            root: &row,
+            profile: std::path::Path::new("/nonexistent-profile"),
+            pipe: None,
+            relay_port: None,
+        };
+        let (counts, _) = check_detail(&subject, None, &|_| None, std::time::Duration::ZERO);
+        let n = |rule: &str| counts.iter().find(|c| c.rule == rule).unwrap().count;
+        assert_eq!(n("table_unread"), 1);
+        assert!(
+            !read_holds(&counts),
+            "an unread table read as a read that holds"
+        );
     }
 
     /// CP-126 E5 T2: a process that holds the executor's read end alone (the third of the four
