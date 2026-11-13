@@ -182,9 +182,7 @@ pub fn login_item_state(
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(LoginItemState::Absent),
         Err(e) => return Err(e),
     };
-    // SAFETY: geteuid reads the process's effective user id; it takes no pointer and cannot fail.
-    let owner = unsafe { libc::geteuid() };
-    if !is_the_plist_of(&meta, owner) {
+    if !is_the_plist_of(&meta, user::EffectiveUser::current()) {
         return Ok(LoginItemState::Stale);
     }
     if std::fs::read(&path)? == spec.plist().as_bytes() {
@@ -195,10 +193,35 @@ pub fn login_item_state(
 }
 
 #[cfg(target_os = "macos")]
-fn is_the_plist_of(meta: &std::fs::Metadata, owner: u32) -> bool {
+mod user {
+    /// The process's effective user. Its one constructor reads the process, so that no
+    /// caller can pass another user id, such as the owner of the file being checked.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) struct EffectiveUser(u32);
+
+    impl EffectiveUser {
+        pub(crate) fn current() -> Self {
+            // SAFETY: geteuid reads the process's effective user id; it takes no pointer and
+            // cannot fail.
+            Self(unsafe { libc::geteuid() })
+        }
+
+        pub(crate) fn uid(self) -> u32 {
+            self.0
+        }
+
+        #[cfg(test)]
+        pub(crate) fn another(self) -> Self {
+            Self(self.0.wrapping_add(1))
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn is_the_plist_of(meta: &std::fs::Metadata, owner: user::EffectiveUser) -> bool {
     use std::os::unix::fs::MetadataExt;
 
-    meta.is_file() && meta.mode() & 0o7777 == 0o644 && meta.uid() == owner
+    meta.is_file() && meta.mode() & 0o7777 == 0o644 && meta.uid() == owner.uid()
 }
 
 #[cfg(target_os = "macos")]
@@ -1010,9 +1033,10 @@ mod login_item_tests {
             std::fs::symlink_metadata(&path).unwrap()
         };
         let plist = made("plist", 0o644);
-        let me = plist.uid();
+        let me = user::EffectiveUser::current();
+        assert_eq!(plist.uid(), me.uid());
         assert!(is_the_plist_of(&plist, me));
-        assert!(!is_the_plist_of(&plist, me + 1), "another owner");
+        assert!(!is_the_plist_of(&plist, me.another()), "another owner");
         for mode in [0o664, 0o640, 0o600, 0o444, 0o755, 0o4644] {
             let other = made(&format!("mode-{mode:o}"), mode);
             assert!(!is_the_plist_of(&other, me), "mode {mode:o}");
