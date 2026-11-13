@@ -27,6 +27,8 @@ pub const TITLE_RETRY_WINDOW: Duration = FOREGROUND_POLL.saturating_mul(5);
 
 pub const IDENTITY_CAP_BYTES: usize = 1024;
 
+const IDENTITY_READ_CAP_UNITS: usize = 1024;
+
 /// A text of at most [`IDENTITY_CAP_BYTES`] bytes that is not empty.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CappedText(String);
@@ -202,12 +204,16 @@ fn executable_path(pid: libc::pid_t) -> Option<String> {
     Some(String::from_utf8_lossy(&buffer).into_owned())
 }
 
+fn bundle_identifier(text: &objc2_foundation::NSString) -> String {
+    text.to_string()
+}
+
 fn read_frontmost() -> Option<Foreground> {
     autoreleasepool(|_| {
         let workspace = NSWorkspace::sharedWorkspace();
         let app = workspace.frontmostApplication()?;
         let pid = app.processIdentifier();
-        let bundle_id = app.bundleIdentifier().map(|s| s.to_string());
+        let bundle_id = app.bundleIdentifier().map(|s| bundle_identifier(&s));
         let path = executable_path(pid);
         Some(Foreground {
             identity: AppIdentity::of(bundle_id.as_deref(), path.as_deref()),
@@ -612,6 +618,44 @@ impl Drop for ForegroundSource {
 mod tests {
     use super::*;
     use crate::sink::{self, SinkWriter};
+    use core_foundation::base::{kCFAllocatorDefault, TCFType};
+    use core_foundation::string::{CFString, CFStringCreateWithCharacters};
+
+    fn utf16_string(units: &[u16]) -> CFString {
+        // SAFETY: `units` holds `units.len()` UTF-16 units for the call; the
+        // create call copies them and returns a +1 reference.
+        unsafe {
+            CFString::wrap_under_create_rule(CFStringCreateWithCharacters(
+                kCFAllocatorDefault,
+                units.as_ptr(),
+                units.len() as isize,
+            ))
+        }
+    }
+
+    fn as_nsstring(text: &CFString) -> &objc2_foundation::NSString {
+        // SAFETY: a CFString is toll-free bridged with NSString, and the
+        // reference borrows `text`, which keeps the string alive.
+        unsafe { &*(text.as_concrete_TypeRef() as *const objc2_foundation::NSString) }
+    }
+
+    #[test]
+    fn a_bundle_identifier_with_an_unpaired_surrogate_is_read_lossily_and_within_the_cap() {
+        let evil = utf16_string(&[0x63, 0x6F, 0x6D, 0x2E, 0x65, 0x76, 0x69, 0x6C, 0xD800]);
+        eprintln!("before the conversion of a bundle identifier");
+        let id = bundle_identifier(as_nsstring(&evil));
+        eprintln!("after the conversion of a bundle identifier");
+        let identity = AppIdentity::of(
+            Some(&id),
+            Some("/Applications/Evil.app/Contents/MacOS/Evil"),
+        );
+        assert_eq!(identity.text(), "com.evil\u{FFFD}");
+        assert!(matches!(identity, AppIdentity::BundleId(_)));
+        let long = utf16_string(&vec![u16::from(b'a'); IDENTITY_READ_CAP_UNITS + 976]);
+        let read = bundle_identifier(as_nsstring(&long));
+        assert_eq!(read, "a".repeat(IDENTITY_READ_CAP_UNITS));
+        assert!(read.len() <= IDENTITY_CAP_BYTES);
+    }
 
     fn app(bundle_id: &str, pid: libc::pid_t) -> Option<Foreground> {
         Some(Foreground {
