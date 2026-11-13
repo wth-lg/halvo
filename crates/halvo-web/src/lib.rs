@@ -15,17 +15,34 @@ pub mod relay;
 mod standin;
 pub mod start;
 
-/// The start flags of the product's browser, before the relay's flags (`relay::relay_flags`): the
-/// first flag set of A13.2, which turns off the browser's own connections, and the flags that
-/// U0.7b added, each closing a way out of A13.7 (A11.1, A13.3).
-pub const PRODUCT_FLAGS: [&str; 17] = [
+/// The start flags of the product's browser, before the relay's flags (`relay::relay_flags`), each
+/// the executor's own (A11.1, A13.3), with its reason:
+///
+/// - `--disable-background-networking`, `--disable-component-update`, `--disable-sync`,
+///   `--disable-field-trial-config`, `--disable-client-side-phishing-detection`,
+///   `--disable-default-apps`, `--disable-domain-reliability`: the browser's own connections of
+///   A13.2's first set (updates, sync, variations, safe browsing's model, default apps,
+///   reliability reports) are off, so the relay sees the agent's traffic alone.
+/// - `--metrics-recording-only`: metrics are kept and never sent.
+/// - `--no-first-run`, `--no-default-browser-check`: no first-run page and no check of the default
+///   browser, which would open pages or ask the person.
+/// - `--disable-updater-scheduler`: the browser does not wake its updater, which would look names
+///   up itself (U0.7b).
+/// - `--dns-prefetch-disable`, `--no-pings`: no lookups for links and no hyperlink pings.
+/// - `--disable-extensions`, `--disable-component-extensions-with-background-pages`: no extension
+///   runs code or makes requests beside the page.
+/// - `--disable-features=...`: fetches after a document is gone, discovery on the local network
+///   and casting, signed exchanges, prerendering, prefetch through a proxy, network error and other
+///   reports, federated sign-in, payment handlers, a passkey on another device, attribution and
+///   the privacy sandbox's interfaces, feed suggestions, optimization hints, translation, and the
+///   hiding of local addresses behind mDNS are off: each a way out of A13.7 that U0.7b closed.
+pub const PRODUCT_FLAGS: [&str; 16] = [
     "--disable-background-networking",
     "--disable-component-update",
     "--disable-sync",
     "--disable-field-trial-config",
     "--disable-client-side-phishing-detection",
     "--disable-default-apps",
-    "--disable-breakpad",
     "--disable-domain-reliability",
     "--metrics-recording-only",
     "--no-first-run",
@@ -38,19 +55,27 @@ pub const PRODUCT_FLAGS: [&str; 17] = [
     "--disable-features=FetchLaterAPI,MediaRouter,DialMediaRouteProvider,CastMediaRouteProvider,SignedHTTPExchange,SignedExchangeSubresourcePrefetch,Prerender2,PrefetchProxy,NetworkErrorLogging,Reporting,DocumentReporting,FedCm,PaymentHandler,WebAuthenticationCable,AttributionReporting,PrivacySandboxAdsAPIs,InterestFeedContentSuggestions,OptimizationHints,Translate,WebRtcHideLocalIpsWithMdns",
 ];
 
-/// The flags of `PRODUCT_FLAGS` that are the product's means against a crash's dump (CP-165 (2)):
-/// the crash row's control starts without them (`cdp::CrashMeans::Without`).
-pub const CRASH_MEANS: [&str; 1] = ["--disable-breakpad"];
+/// The product's means against a crash's dump (CP-165 (2), CP-167 E2), flags of the executor's
+/// own after `PRODUCT_FLAGS`, `{profile}` standing for the run's profile directory:
+///
+/// - `--disable-breakpad`: the browser's crash reporting off, A13.2's first set.
+/// - `--breakpad-dump-location={profile}/Crashpad`: the crash handler's database inside the run's
+///   profile, so that a dump, and the database's own files, stand in the profile, which the stop
+///   removes, and never in the crash place of the account's own browser. The switch's name stands
+///   in the browser's own binary (Google Chrome Framework of Chrome 153 on the development Mac);
+///   run 43452224392 showed it on hosted macOS with Chrome 157 and Edge 156, where the crash with
+///   the product's earlier means alone wrote its dump to the account's Crashpad directory.
+///
+/// The crash row's control starts without them (`cdp::CrashMeans::Without`).
+pub const CRASH_MEANS: [&str; 2] = [
+    "--disable-breakpad",
+    "--breakpad-dump-location={profile}/Crashpad",
+];
 
-/// The candidates of the crash row (CP-167 E2), a closed list: each is added after the product's
-/// flags by `cdp::CrashMeans::Candidate`, with `{profile}` standing for the run's profile
-/// directory. Each switch name stands in the browser's own binary; what each does is what the
-/// row's runs show.
-pub const CRASH_CANDIDATES: [(&str, &[&str]); 4] = [
-    (
-        "dump_location",
-        &["--breakpad-dump-location={profile}/Crashpad"],
-    ),
+/// The further candidates of the crash row (CP-167 E2), a closed list, each added after the
+/// product's means by `cdp::CrashMeans::Candidate`; each switch name stands in the browser's own
+/// binary, and what each does is what the row records.
+pub const CRASH_CANDIDATES: [(&str, &[&str]); 3] = [
     (
         "system_port",
         &["--reset-own-crash-exception-port-to-system-default"],

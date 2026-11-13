@@ -72,6 +72,7 @@ const STOP_WAIT: Duration = Duration::from_secs(15);
 /// what reached the relay after the crash, whether the stop removed both directories, and the
 /// browser's major version.
 struct Reading {
+    places: Vec<crash_row::Place>,
     left: Vec<crash_row::File>,
     inside_dumps: usize,
     handler: &'static str,
@@ -136,7 +137,7 @@ async fn crash_reading(
     let _ = ex
         .open(&format!("http://utility.agent.test:{port}/signin"))
         .await;
-    let seen = relay.handle().refusals().len() as u64 + relay.tunnels();
+    let (refused_before, tunnels_before) = (relay.handle().refusals().len(), relay.tunnels());
     if crash {
         ex.crash().await;
     }
@@ -155,8 +156,12 @@ async fn crash_reading(
     tokio::time::sleep(Duration::from_secs(3)).await;
     let second = crash_row::snapshot(&places);
     let later_changes = crash_row::changed(&first, &second).len();
-    let sent =
-        (relay.handle().refusals().len() as u64 + relay.tunnels()).saturating_sub(seen) as usize;
+    let sent = relay.tunnels().saturating_sub(tunnels_before) as usize;
+    let refused = relay
+        .handle()
+        .refusals()
+        .len()
+        .saturating_sub(refused_before);
     let changed = crash_row::changed(&before, &second);
     let inside_dumps = changed
         .iter()
@@ -168,7 +173,7 @@ async fn crash_reading(
     relay.stop();
     let left = crash_row::left_outside(&changed, &places);
     println!(
-        "row crash reading={name} handler={handler} later_changes={later_changes} left_count={} left_bytes={} left_places={} dumps_left={} dumps_inside_profile={inside_dumps} removed={}",
+        "row crash reading={name} handler={handler} later_changes={later_changes} tunnels_after_crash={sent} refused_after_crash={refused} left_count={} left_bytes={} left_places={} dumps_left={} dumps_inside_profile={inside_dumps} removed={}",
         left.len(),
         left.iter().map(|f| f.size).sum::<u64>(),
         by_place(&left),
@@ -176,6 +181,7 @@ async fn crash_reading(
         if stopped.removed { "yes" } else { "no" }
     );
     Ok(Reading {
+        places,
         left,
         inside_dumps,
         handler,
@@ -246,7 +252,7 @@ async fn crash(argv: &[String]) -> (usize, usize) {
                 let beyond = crash_row::beyond(&w.left, &baseline.left);
                 let control_dumps: Vec<&crash_row::File> =
                     c.left.iter().filter(|f| crash_row::is_dump(f)).collect();
-                let result = crash_row::result(&baseline.left, &w.left, &c.left, w.sent);
+                let result = crash_row::result(&w.places, &baseline.left, &w.left, &c.left, w.sent);
                 if name == "product" {
                     product_ok = result == "ok";
                 }

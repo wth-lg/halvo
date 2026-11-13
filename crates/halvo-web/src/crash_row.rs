@@ -133,8 +133,10 @@ pub fn beyond(with: &[File], without: &[File]) -> Vec<File> {
 /// The row's result of one system and browser (CP-165 (2) (b)): `notrun` when the control left no
 /// dump, for then nothing showed that the crash was taken as one; `miss` when the crash with the
 /// means left a file outside the profile that the start with no crash did not leave, or when
-/// anything was sent after the crash; `ok` otherwise.
+/// anything was sent after the crash; `ok` otherwise. A file in a report place of the system
+/// (`Place::system`) is recorded with no promise and decides nothing (CP-165 (2) (d) and (g)).
 pub fn result(
+    places: &[Place],
     baseline: &[File],
     means: &[File],
     control: &[File],
@@ -143,7 +145,8 @@ pub fn result(
     if !control.iter().any(is_dump) {
         return "notrun";
     }
-    if !beyond(means, baseline).is_empty() || sent_after_crash > 0 {
+    let deciding = |f: &&File| !places.iter().any(|p| p.name == f.place && p.system);
+    if beyond(means, baseline).iter().any(|f| deciding(&f)) || sent_after_crash > 0 {
         return "miss";
     }
     "ok"
@@ -178,12 +181,12 @@ pub fn crash_place(kind: &str) -> Option<PathBuf> {
 }
 
 /// Whether uploads are on in the Crashpad database at `place`, read from its `settings.dat`
-/// (Crashpad's `Settings`: a magic number, a version, then the options, whose first bit is
-/// uploads enabled). `None` when the file is absent or not of that form. Reads the file, changes
+/// (Crashpad's `Settings`: a magic number `CPds`, in either byte order, a version, then the
+/// options, whose first bit is uploads enabled). `None` when the file is absent or not of that form. Reads the file, changes
 /// nothing.
 pub fn send_setting(place: &Path) -> Option<bool> {
     let bytes = std::fs::read(place.join("settings.dat")).ok()?;
-    if bytes.len() < 12 || &bytes[0..4] != b"CPds" {
+    if bytes.len() < 12 || (&bytes[0..4] != b"CPds" && &bytes[0..4] != b"sdPC") {
         return None;
     }
     let options = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
@@ -423,6 +426,14 @@ mod tests {
         assert!(!sizes.iter().any(|(r, _)| *r == "kept.txt"), "{sizes:?}");
     }
 
+    fn row_places() -> Vec<Place> {
+        vec![
+            place("profile", PathBuf::from("/p"), true, false),
+            place("crashpad", PathBuf::from("/c"), false, false),
+            place("reports", PathBuf::from("/r"), false, true),
+        ]
+    }
+
     fn file(place: &'static str, rel: &str, size: u64) -> File {
         File {
             place,
@@ -436,11 +447,12 @@ mod tests {
     /// with the means left nothing.
     #[test]
     fn a_control_with_no_dump_reads_notrun() {
+        let places = row_places();
         let control = vec![file("crashpad", "settings.dat", 40)];
-        assert_eq!(result(&[], &[], &control, 0), "notrun");
-        assert_eq!(result(&[], &[], &[], 0), "notrun");
+        assert_eq!(result(&places, &[], &[], &control, 0), "notrun");
+        assert_eq!(result(&places, &[], &[], &[], 0), "notrun");
         let control = vec![file("crashpad", "pending/abc.dmp", 4096)];
-        assert_eq!(result(&[], &[], &control, 0), "ok");
+        assert_eq!(result(&places, &[], &[], &control, 0), "ok");
     }
 
     /// CP-167 E3: a row whose crash with the means left a file that the start with no crash did
@@ -448,18 +460,24 @@ mod tests {
     /// left reads ok; anything sent after the crash reads miss.
     #[test]
     fn a_crash_with_the_means_that_left_a_file_reads_miss() {
+        let places = row_places();
         let control = vec![file("crashpad", "completed/abc.dmp", 4096)];
         let baseline = vec![file("crashpad", "settings.dat", 40)];
         let same = vec![file("crashpad", "settings.dat", 40)];
-        assert_eq!(result(&baseline, &same, &control, 0), "ok");
+        assert_eq!(result(&places, &baseline, &same, &control, 0), "ok");
         let extra = vec![
+            file("crashpad", "settings.dat", 40),
+            file("crashpad", "new/x.dmp", 9),
+        ];
+        assert_eq!(result(&places, &baseline, &extra, &control, 0), "miss");
+        let resized = vec![file("crashpad", "settings.dat", 41)];
+        assert_eq!(result(&places, &baseline, &resized, &control, 0), "miss");
+        assert_eq!(result(&places, &baseline, &same, &control, 1), "miss");
+        let reported = vec![
             file("crashpad", "settings.dat", 40),
             file("reports", "Chrome.ips", 9),
         ];
-        assert_eq!(result(&baseline, &extra, &control, 0), "miss");
-        let resized = vec![file("crashpad", "settings.dat", 41)];
-        assert_eq!(result(&baseline, &resized, &control, 0), "miss");
-        assert_eq!(result(&baseline, &same, &control, 1), "miss");
+        assert_eq!(result(&places, &baseline, &reported, &control, 0), "ok");
     }
 
     #[test]
@@ -479,6 +497,8 @@ mod tests {
     #[test]
     fn the_send_setting_is_read_from_settings_dat_and_nothing_else_is_taken() {
         let dir = crate::child::scratch("send-setting");
+        std::fs::write(dir.join("settings.dat"), b"sdPC\x01\0\0\0\x01\0\0\0").unwrap();
+        assert_eq!(send_setting(&dir), Some(true));
         let mut data = b"CPds".to_vec();
         data.extend(1u32.to_le_bytes());
         data.extend(1u32.to_le_bytes());

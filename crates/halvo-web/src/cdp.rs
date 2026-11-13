@@ -102,7 +102,7 @@ pub struct StartOptions {
 }
 
 /// Which flags against a crash's dump a start carries (CP-165 (2), CP-167 E2): the product's
-/// (`crate::CRASH_MEANS` among `crate::PRODUCT_FLAGS`), none of them (the crash row's control), or
+/// (`crate::CRASH_MEANS`, after `crate::PRODUCT_FLAGS`), none of them (the crash row's control), or
 /// the product's and one candidate of the closed list `crate::CRASH_CANDIDATES` (the crash row's
 /// readings). A caller names an entry of a list of the crate and adds no flag of its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -292,17 +292,21 @@ fn write_settings(profile: &Path, local_state: Option<&str>) -> Res<()> {
 }
 
 /// The browser's command line after its path, every flag the executor's own: the product's flags
-/// (`crate::PRODUCT_FLAGS`), the relay's flags, headless when asked, the profile, the debugging pipe
+/// (`crate::PRODUCT_FLAGS`), its means against a crash's dump (`crate::CRASH_MEANS`, with the
+/// run's profile), the relay's flags, headless when asked, the profile, the debugging pipe
 /// and the first page. A caller adds no flag, so none can name a port or a route beside the relay.
 /// No flag names a bound site, and the product carries no mock keychain (A8.3).
 pub fn launch_args(opts: &StartOptions) -> Vec<String> {
-    let mut args: Vec<String> = crate::PRODUCT_FLAGS
-        .iter()
-        .filter(|f| opts.crash_means != CrashMeans::Without || !crate::CRASH_MEANS.contains(f))
-        .map(|f| f.to_string())
-        .collect();
+    let mut args: Vec<String> = crate::PRODUCT_FLAGS.iter().map(|f| f.to_string()).collect();
+    let profile = opts.profile.display().to_string();
+    if opts.crash_means != CrashMeans::Without {
+        args.extend(
+            crate::CRASH_MEANS
+                .iter()
+                .map(|f| f.replace("{profile}", &profile)),
+        );
+    }
     if let CrashMeans::Candidate(i) = opts.crash_means {
-        let profile = opts.profile.display().to_string();
         for f in crate::CRASH_CANDIDATES.get(i).map_or(&[][..], |c| c.1) {
             args.push(f.replace("{profile}", &profile));
         }
@@ -1731,6 +1735,13 @@ pub(crate) mod tests {
             relay,
         );
         let mut want: Vec<String> = crate::PRODUCT_FLAGS.iter().map(|f| f.to_string()).collect();
+        want.extend(
+            [
+                "--disable-breakpad",
+                "--breakpad-dump-location=/p/profile/Crashpad",
+            ]
+            .map(String::from),
+        );
         want.extend(crate::relay::relay_flags(18999));
         want.extend(
             [
@@ -1762,18 +1773,19 @@ pub(crate) mod tests {
         let relay = crate::relay::RelayHandle::for_tests(18999);
         let mut opts = options_with(PathBuf::from("/b/chrome"), PathBuf::from("/p/q"), relay);
         let product = launch_args(&opts);
-        for f in crate::CRASH_MEANS {
-            assert!(product.iter().any(|a| a == f), "{f}");
-        }
+        let location = "--breakpad-dump-location=/p/q/Crashpad".to_string();
+        assert!(product.contains(&"--disable-breakpad".to_string()));
+        assert!(product.contains(&location), "{product:?}");
         opts.crash_means = CrashMeans::Without;
         let without = launch_args(&opts);
-        assert!(!without
-            .iter()
-            .any(|a| crate::CRASH_MEANS.contains(&a.as_str())));
-        assert_eq!(without.len() + crate::CRASH_MEANS.len(), product.len());
+        assert!(
+            !without.iter().any(|a| a.contains("breakpad")),
+            "{without:?}"
+        );
+        assert_eq!(without.len() + 2, product.len());
         opts.crash_means = CrashMeans::Candidate(0);
         let candidate = launch_args(&opts);
-        assert!(candidate.contains(&"--breakpad-dump-location=/p/q/Crashpad".to_string()));
+        assert!(candidate.contains(&location));
         assert_eq!(candidate.len(), product.len() + 1);
         opts.crash_means = CrashMeans::Candidate(crate::CRASH_CANDIDATES.len());
         assert_eq!(launch_args(&opts), product);
