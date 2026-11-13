@@ -13,7 +13,8 @@ pub const MAIN: &str = "main";
 /// grants it.
 pub const REFUSED: &str = "this command answers the page of the window main alone";
 
-/// `handler_with` and the waits of the product's limits.
+/// `handler_with` and the waits of the product's limits, whatever limits a hub was built
+/// with; a shell with other limits calls `handler_with`.
 pub fn handler<R: Runtime>() -> impl Fn(Invoke<R>) -> bool + Send + Sync + 'static {
     handler_with(Waits::of(&Limits::PRODUCT))
 }
@@ -27,7 +28,10 @@ pub fn handler<R: Runtime>() -> impl Fn(Invoke<R>) -> bool + Send + Sync + 'stat
 /// `note.no_service`) at once; `agents_next` looks for `Agents` every 100 ms for at most
 /// `waits.next`, hands the call to it once it is there, and else answers the stand-in; every
 /// other command answers `{"error":"no_service"}` where its row of `LIST` names that cause, and
-/// `{"error":"unknown_item"}` where it does not (`agents_setup_typed`).
+/// `{"error":"unknown_item"}` where it does not (`agents_setup_typed`). A held call that is
+/// handed to the hub waits the hub's own wait anew, so a call made just before the app manages
+/// `Agents` can be answered up to twice `waits.next` after it was made; before the hand-over
+/// no hide rule binds it.
 pub fn handler_with<R: Runtime>(
     waits: Waits,
 ) -> impl Fn(Invoke<R>) -> bool + Send + Sync + 'static {

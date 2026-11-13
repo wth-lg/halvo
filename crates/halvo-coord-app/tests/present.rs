@@ -199,10 +199,9 @@ fn an_item_whose_dialog_never_reports_on_screen_never_arms() {
     assert_eq!(hub.coordinator().snapshot().items.len(), 1);
 }
 
-/// A presenter whose dialog closes inside `present`, as one that fails to show it would.
-struct Dropping(Arc<std::sync::atomic::AtomicUsize>);
+struct PresenterDroppingItsNative(Arc<std::sync::atomic::AtomicUsize>);
 
-impl Present for Dropping {
+impl Present for PresenterDroppingItsNative {
     fn present(&self, dialog: Native) {
         self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         drop(dialog);
@@ -212,7 +211,10 @@ impl Present for Dropping {
 #[test]
 fn a_presenter_that_drops_its_native_inside_present_can_be_handed_the_item_again() {
     let shown = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let (hub, item) = confirming_with(Class::Payment, Box::new(Dropping(shown.clone())));
+    let (hub, item) = confirming_with(
+        Class::Payment,
+        Box::new(PresenterDroppingItsNative(shown.clone())),
+    );
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let args = json!({ "item": item });

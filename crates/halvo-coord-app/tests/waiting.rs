@@ -75,7 +75,7 @@ fn a_waiting_next_answers_the_whole_state_a_coalesce_after_the_change() {
     let (_app, main, _other) = app(hub.clone());
     let seq = hub.coordinator().snapshot().seq;
     let waiting = wait_next(&main, seq);
-    sleep(ms(200));
+    sleep(ms(1_300));
     let changed = Instant::now();
     hub.coordinator()
         .control(&agent(0), Action::RunNow)
@@ -92,11 +92,11 @@ fn a_waiting_next_answers_the_whole_state_a_coalesce_after_the_change() {
 
 #[test]
 fn changes_inside_coalesce_ms_reach_the_page_as_one_reply() {
-    let hub = hub(1, 10_000, 600);
+    let hub = hub(1, 10_000, 2_000);
     let (_app, main, _other) = app(hub.clone());
     let seq = hub.coordinator().snapshot().seq;
     let waiting = wait_next(&main, seq);
-    sleep(ms(150));
+    sleep(ms(1_300));
     hub.coordinator()
         .control(&agent(0), Action::RunNow)
         .unwrap();
@@ -225,7 +225,7 @@ fn a_hide_and_a_show_before_the_waiting_call_wakes_still_end_it_with_closed() {
     let (_app, main, _other) = app(hub.clone());
     let seq = hub.coordinator().snapshot().seq;
     let waiting = wait_next(&main, seq);
-    sleep(ms(200));
+    sleep(ms(1_300));
     hub.hidden();
     hub.shown();
     let (reply, took) = waiting.join().unwrap();
@@ -251,7 +251,7 @@ fn a_waiting_next_answers_one_coalesce_after_the_change_and_not_later() {
     let (_app, main, _other) = app(hub.clone());
     let seq = hub.coordinator().snapshot().seq;
     let waiting = wait_next(&main, seq);
-    sleep(ms(300));
+    sleep(ms(1_300));
     let changed = Instant::now();
     hub.coordinator()
         .control(&agent(0), Action::RunNow)
@@ -436,4 +436,67 @@ fn a_first_tick_that_changes_nothing_still_answers_the_waiting_next() {
         took < ms(2_500),
         "the first tick rings the bell although the state did not change: {took:?}"
     );
+}
+
+#[test]
+fn two_calls_that_wait_at_once_each_get_the_state_of_the_change() {
+    let hub = hub(1, 10_000, 2_000);
+    let (_app, main, _other) = app(hub.clone());
+    let seq = hub.coordinator().snapshot().seq;
+    let first = wait_next(&main, seq);
+    let second = wait_next(&main, seq);
+    sleep(ms(1_300));
+    let changed = Instant::now();
+    hub.coordinator()
+        .control(&agent(0), Action::RunNow)
+        .unwrap();
+    let new = u64::from(hub.coordinator().snapshot().seq);
+    for (n, call) in [first, second].into_iter().enumerate() {
+        let (reply, _) = call.join().unwrap();
+        let after = changed.elapsed();
+        assert_eq!(seq_of(&reply), new, "call {n}");
+        assert!(
+            after < ms(3_000),
+            "RD-74 1.1: each of two calls that wait at once gets its reply; call {n} answered \
+             {after:?} after the change"
+        );
+    }
+}
+
+#[test]
+fn an_extra_key_beside_an_after_equal_to_the_seq_is_read_as_after_0() {
+    let hub = hub(1, 4_000, 2_000);
+    let (_app, main, _other) = app(hub.clone());
+    let seq = hub.coordinator().snapshot().seq;
+    let state = serde_json::to_string(&hub.coordinator().snapshot()).unwrap();
+    let start = Instant::now();
+    let reply = invoke_body(
+        &main,
+        "agents_next",
+        InvokeBody::Json(json!({"after": seq, "extra": 1})),
+    );
+    let took = start.elapsed();
+    assert_eq!(reply, Ok(state), "the whole state, as for after 0");
+    assert!(took < ms(2_000), "{took:?}");
+}
+
+#[test]
+fn an_after_that_is_no_number_in_a_world_whose_seq_is_1_answers_the_state() {
+    let hub = hub(0, 4_000, 2_000);
+    let (_app, main, _other) = app(hub.clone());
+    assert_eq!(
+        hub.coordinator().snapshot().seq,
+        1,
+        "a world of no agent stays at seq 1"
+    );
+    let state = serde_json::to_string(&hub.coordinator().snapshot()).unwrap();
+    let start = Instant::now();
+    let reply = invoke_body(
+        &main,
+        "agents_next",
+        InvokeBody::Json(json!({"after": "x"})),
+    );
+    let took = start.elapsed();
+    assert_eq!(reply, Ok(state), "the whole state of seq 1");
+    assert!(took < ms(2_000), "{took:?}");
 }

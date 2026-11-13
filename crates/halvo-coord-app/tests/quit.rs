@@ -79,7 +79,7 @@ fn the_hook_waits_for_the_run_that_obeys_its_cancel_with_no_move_held_open() {
     let run = live_run(&hub);
     let m = mark(&hub);
     let quitting = quit(&hub, None);
-    sleep(ms(300));
+    sleep(ms(1_300));
     assert!(
         calls_since(&hub, m).contains(&Call::Cancel(run.clone())),
         "the first step sent cancel"
@@ -151,18 +151,18 @@ fn for_a_run_stopped_before_the_quit_the_grace_counts_from_its_stop() {
 
 #[test]
 fn the_grace_counts_from_the_end_of_a_slow_first_step() {
-    let hub = hub(1);
+    let hub = hub(3);
     live_run(&hub);
     let m = mark(&hub);
     let holder = {
         let hub = hub.clone();
-        std::thread::spawn(move || hub.coordinator().ports().inner().with(|_| sleep(ms(700))))
+        std::thread::spawn(move || hub.coordinator().ports().inner().with(|_| sleep(ms(2_000))))
     };
     sleep(ms(50));
     let t0 = Instant::now();
     let quitting = quit(&hub, None);
     let (mut cancel_at, mut kill_at) = (None, None);
-    while kill_at.is_none() && t0.elapsed() < ms(6_000) {
+    while kill_at.is_none() && t0.elapsed() < ms(12_000) {
         let calls = calls_since(&hub, m);
         if cancel_at.is_none() && calls.iter().any(|c| matches!(c, Call::Cancel(_))) {
             cancel_at = Some(t0.elapsed());
@@ -176,8 +176,8 @@ fn the_grace_counts_from_the_end_of_a_slow_first_step() {
     quitting.join().unwrap();
     let (cancel, kill) = (cancel_at.unwrap(), kill_at.unwrap());
     assert!(
-        kill - cancel >= ms(900),
-        "the kill came {:?} after the cancel, less than cancel_grace_s = 1 s",
+        kill - cancel >= ms(2_000),
+        "the kill came {:?} after the cancel, less than cancel_grace_s = 3 s less a second",
         kill - cancel
     );
 }
@@ -195,4 +195,24 @@ fn a_clock_that_fails_after_the_first_step_leaves_the_whole_grace() {
         halvo_coord::ports::Clock::now(hub.coordinator().ports()).is_err(),
         "the clock failed"
     );
+}
+
+#[test]
+fn the_budget_counts_from_the_hooks_start_through_a_slow_first_step() {
+    let hub = hub(30);
+    let run = live_run(&hub);
+    let m = mark(&hub);
+    let holder = {
+        let hub = hub.clone();
+        std::thread::spawn(move || hub.coordinator().ports().inner().with(|_| sleep(ms(2_000))))
+    };
+    sleep(ms(50));
+    let took = quit(&hub, Some(ms(3_000))).join().unwrap();
+    holder.join().unwrap();
+    assert!(
+        took >= ms(2_900) && took < ms(4_000),
+        "the budget of 3 s counts from the hook's start, not from the end of a 2 s first step: \
+         {took:?}"
+    );
+    assert_eq!(kills(&hub, m), [run]);
 }

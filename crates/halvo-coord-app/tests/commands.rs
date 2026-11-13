@@ -483,9 +483,7 @@ fn stand_in() -> String {
     )
 }
 
-/// A mock app with the handler of `next` milliseconds of wait and the windows main and other,
-/// which manages no Agents.
-fn bare(
+fn app_managing_no_agents(
     next: u64,
 ) -> (
     tauri::App<tauri::test::MockRuntime>,
@@ -523,7 +521,7 @@ fn the_seq_of_a_new_coordinator_is_at_least_1() {
 
 #[test]
 fn before_agents_is_managed_another_window_is_refused_and_main_gets_the_stand_in_or_a_cause() {
-    let (_app, main, other) = bare(1_000);
+    let (_app, main, other) = app_managing_no_agents(1_000);
     for command in LIST.iter().map(|c| c.name) {
         assert_eq!(
             invoke(&other, command, args_of(command)),
@@ -550,18 +548,23 @@ fn before_agents_is_managed_another_window_is_refused_and_main_gets_the_stand_in
 
 #[test]
 fn before_agents_is_managed_a_next_is_held_and_answers_the_stand_in_at_its_wait() {
-    let (_app, main, _other) = bare(1_500);
+    let (_app, main, _other) = app_managing_no_agents(2_000);
     let start = std::time::Instant::now();
     let waiting = std::thread::spawn(move || invoke(&main, "agents_next", json!({"after": 1})));
     std::thread::sleep(std::time::Duration::from_millis(1_000));
     assert!(!waiting.is_finished(), "no answer inside a second");
     assert_eq!(waiting.join().unwrap(), Ok(stand_in()));
-    assert!(start.elapsed() >= std::time::Duration::from_millis(1_400));
+    let took = start.elapsed();
+    assert!(
+        took >= std::time::Duration::from_millis(1_900)
+            && took < std::time::Duration::from_millis(3_000),
+        "the stand-in after the handler's wait of 2 s: {took:?}"
+    );
 }
 
 #[test]
 fn a_held_next_is_handed_to_the_hub_once_the_app_manages_agents() {
-    let (app, main, _other) = bare(10_000);
+    let (app, main, _other) = app_managing_no_agents(10_000);
     let start = std::time::Instant::now();
     let waiting = std::thread::spawn(move || invoke(&main, "agents_next", json!({"after": 0})));
     std::thread::sleep(std::time::Duration::from_millis(300));
@@ -573,4 +576,72 @@ fn a_held_next_is_handed_to_the_hub_once_the_app_manages_agents() {
         Ok(serde_json::to_string(&hub.coordinator().snapshot()).unwrap())
     );
     assert!(start.elapsed() < std::time::Duration::from_millis(5_000));
+}
+
+#[test]
+fn before_agents_is_managed_each_command_answers_a_cause_of_its_own_row() {
+    let (_app, main, _other) = app_managing_no_agents(1_000);
+    for command in LIST
+        .iter()
+        .filter(|c| c.name != "agents_snapshot" && c.name != "agents_next")
+    {
+        let reply = invoke(&main, command.name, args_of(command.name)).unwrap();
+        let cause: Value = serde_json::from_str(&reply).unwrap();
+        assert!(
+            command
+                .errors
+                .iter()
+                .any(|e| cause["error"] == json!(e.name())),
+            "{}: {reply} is no cause of its row",
+            command.name
+        );
+    }
+}
+
+#[test]
+fn before_its_first_tick_the_hub_hands_every_other_command_to_the_coordinator() {
+    let fresh = Hub::new(
+        world(1, Limits::PRODUCT),
+        Limits::PRODUCT,
+        Counts::default().sink(),
+        Dialogs::default().boxed(),
+    );
+    let c = fresh.coordinator();
+    let snapshot =
+        serde_json::to_string(&Core::call(&*fresh, "agents_snapshot", Some(&json!({})))).unwrap();
+    assert_eq!(snapshot, stand_in());
+    let item = halvo_coord::types::ItemId::parse(&format!("{:032x}", 0x77)).unwrap();
+    let own: [(&str, Reply); 5] = [
+        (
+            "agents_card",
+            c.card(&agent(0)).map_or_else(Reply::Error, Reply::Card),
+        ),
+        (
+            "agents_control",
+            c.control(&agent(0), halvo_coord::types::Action::RunNow)
+                .into(),
+        ),
+        (
+            "agents_answer",
+            c.answer(&item, halvo_coord::types::Choice::Allow, None)
+                .into(),
+        ),
+        ("agents_present", c.present(&item).into()),
+        (
+            "agents_setup_typed",
+            c.setup_typed(&item, halvo_coord::types::Param::Payee, "x")
+                .into(),
+        ),
+    ];
+    for (command, reply) in own {
+        assert_eq!(
+            Core::call(&*fresh, command, Some(&args_of(command))),
+            reply,
+            "{command} goes to the coordinator before the first tick"
+        );
+    }
+    assert_eq!(
+        serde_json::to_string(&Core::call(&*fresh, "agents_snapshot", Some(&json!({})))).unwrap(),
+        stand_in()
+    );
 }
