@@ -477,9 +477,10 @@ impl PumpHandle {
     }
 
     fn let_go(&mut self) {
-        self.signal.set();
-        (self.post)(self.id);
-        self.join = None;
+        if self.join.take().is_some() {
+            self.signal.set();
+            (self.post)(self.id);
+        }
     }
 }
 
