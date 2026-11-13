@@ -158,6 +158,7 @@ esac
 #= tests/privacy.rs a_support_row_goes_with_its_summary_whatever_its_own_day
 #= tests/privacy.rs the_search_finds_a_stored_marker_in_the_database_file_after_a_checkpoint
 #= tests/privacy.rs the_search_finds_a_stored_marker_in_the_log_before_a_checkpoint
+#= src/lib.rs tests::the_store_s_own_connection_keeps_temporary_storage_in_memory_after_a_first_and_a_second_open
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"

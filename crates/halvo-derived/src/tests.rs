@@ -204,6 +204,29 @@ fn the_store_s_own_connection_has_secure_delete_on_after_a_first_and_a_second_op
     );
 }
 
+/// `PRAGMA temp_store` is 2, memory, on the store's one connection after a first and after a second open of the same
+/// files, so that no temporary table or index of a statement is written to a file outside `derived/`.
+#[test]
+fn the_store_s_own_connection_keeps_temporary_storage_in_memory_after_a_first_and_a_second_open() {
+    let dir = data_dir("temp-store");
+    let temp_store = |store: &Store| -> i64 {
+        store
+            .db
+            .conn
+            .query_row("PRAGMA temp_store", [], |r| r.get(0))
+            .unwrap()
+    };
+    let store = open_unit(&dir);
+    assert_eq!(temp_store(&store), 2, "after the first open");
+    drop(store);
+    let store = open_unit(&dir);
+    assert_eq!(
+        temp_store(&store),
+        2,
+        "after a second open of the same files"
+    );
+}
+
 /// DS-4: the reads' condition at the level of the statement, for the rows that no call of the store can make: a
 /// bounded row with no day is not handed out, and a kept row and a window row with no day are.
 #[test]
