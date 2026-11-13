@@ -77,6 +77,17 @@ pub(crate) fn scratch(name: &str) -> std::path::PathBuf {
     dir
 }
 
+pub(crate) fn locks() -> halvo_checkpoint::Locks {
+    let exe = std::env::current_exe().expect("the test binary");
+    let target = exe
+        .ancestors()
+        .nth(3)
+        .expect("the target directory above deps");
+    let data = target.join("tmp").join("halvo-sheet-unit-data");
+    std::fs::create_dir_all(&data).expect("make the data directory");
+    halvo_checkpoint::Locks::open(&data, std::time::Duration::from_secs(10)).expect("the locks")
+}
+
 pub(crate) fn edit(all: &mut Entries, name: &str, from: &str, to: &str) {
     let text = String::from_utf8(all.remove(name).expect("the entry")).expect("utf-8");
     assert!(text.contains(from), "{name} lacks {from}");

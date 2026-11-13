@@ -157,6 +157,9 @@ pub enum Act {
 
 /// What the supervisor saw.
 pub struct Seen {
+    /// The data directory that the harness gave the runner, and the runner's argument line.
+    pub data_dir: PathBuf,
+    pub line: Vec<String>,
     pub frames: Vec<FromRunner>,
     pub status: Option<ExitStatus>,
     pub stderr: String,
@@ -258,6 +261,8 @@ pub struct Runner {
     output: Option<ChildStdout>,
     stderr: Option<std::process::ChildStderr>,
     reaped: Arc<AtomicBool>,
+    data_dir: PathBuf,
+    line: Vec<String>,
 }
 
 /// The longest a runner of a test may live: one still running then is ended, so that its test fails and does not
@@ -287,10 +292,24 @@ fn end_at_deadline(pid: u32, reaped: Arc<AtomicBool>) {
 }
 
 impl Runner {
+    /// Starts the runner with `--data-dir` and a data directory of the test's own in front of
+    /// `args`, so that no runner of a test locks under this account's real data directory
+    /// (CP-134); it refuses before the child starts a line without the argument.
     pub fn start(args: &[String]) -> Runner {
+        let data_dir = scratch("data");
+        let mut line = vec![
+            "--data-dir".to_string(),
+            data_dir.to_string_lossy().into_owned(),
+        ];
+        line.extend(args.iter().cloned());
+        assert!(
+            line.windows(2)
+                .any(|pair| pair[0] == "--data-dir" && !pair[1].is_empty()),
+            "a runner of a test starts with --data-dir and a directory of its own"
+        );
         let mut command = Command::new(RUNNER);
         command
-            .args(args)
+            .args(&line)
             .env("TMPDIR", env!("CARGO_TARGET_TMPDIR"))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -309,6 +328,8 @@ impl Runner {
             stderr: child.stderr.take(),
             child,
             reaped,
+            data_dir,
+            line,
         }
     }
 
@@ -540,6 +561,8 @@ impl Supervisor {
         }
         let stderr = runner.stderr();
         Seen {
+            data_dir: runner.data_dir.clone(),
+            line: runner.line.clone(),
             frames,
             status,
             stderr,
@@ -647,7 +670,10 @@ pub fn is_effect(frame: &FromRunner, state: EffectState) -> bool {
 
 /// The cells of the fill range as the sheet executor reads them, each written as text.
 pub fn range_texts(dir: &Path, workbook: &Path) -> Vec<Vec<String>> {
-    let folder = halvo_sheet::Folder::new(dir).expect("a folder");
+    let data = scratch("read-data");
+    let locks =
+        halvo_sheet::Locks::open(&data, LONG).expect("the locks of a data directory of its own");
+    let folder = halvo_sheet::Folder::new(dir, locks).expect("a folder");
     let range = halvo_sheet::Range::parse("B2:D6").expect("a range");
     folder
         .read(workbook, "Ledger", range)
