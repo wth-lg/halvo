@@ -193,6 +193,7 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/run-ci-d.XXXXXX") || {
   printf 'FAIL run-ci-d (mktemp failed)\n'
   exit 1
 }
+trap 'st_clear "$tmp"' EXIT
 recap=$tmp/recap
 : >"$recap"
 passed=0
@@ -401,7 +402,8 @@ st_queue() {
       CI_D_REPO=$repo
       CI_D_JOB=$job
       CI_D_ARTIFACTS=$st_q_artifacts
-      export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS
+      TMPDIR=$st_d/tmp
+      export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR
       st_t0=$(date +%s)
       {
         perl -e "$st_perl" sh "$st_q_file" </dev/null &
@@ -554,7 +556,15 @@ st_print() {
     lost:* | *:none) record FAIL "FAIL $st_tag (it ended without an exit status)" ;;
     *) judge ;;
   esac
+  st_clear "$st_d/tmp" || record FAIL "FAIL $st_tag (its TMPDIR cannot be removed)"
   [ "$mode" = self-test ] || tree_check "$script_name"
+}
+
+st_clear() {
+  [ -e "$1" ] || [ -L "$1" ] || return 0
+  chmod -R u+w "$1" 2>/dev/null
+  rm -rf "$1" 2>/dev/null
+  [ ! -e "$1" ] && [ ! -L "$1" ]
 }
 
 st_flush() {
@@ -687,8 +697,23 @@ own_run() {
   fi
 }
 
+tmpdirs_gone() {
+  tmpdirs_got=no-tmpdirs-recorded
+  [ -f "$fixture/tmpdirs" ] || return 1
+  tmpdirs_n=$(sort -u "$fixture/tmpdirs" | wc -l)
+  tmpdirs_n=${tmpdirs_n##* }
+  tmpdirs_got=$tmpdirs_n-tmpdirs-recorded
+  [ "$tmpdirs_n" -eq "$case_gone" ] || return 1
+  tmpdirs_got=tmpdir-left
+  while IFS= read -r tmpdirs_p; do
+    [ ! -e "$tmpdirs_p" ] || return 1
+  done <"$fixture/tmpdirs"
+}
+
 own_judge() {
   before=
+  empty_left=
+  [ -z "$case_empty" ] || empty_left=$(ls -A "$case_tmpdir")
   if [ -n "$case_signal" ]; then
     [ ! -s "$fixture/before" ] || read -r before <"$fixture/before"
     printf 'case run-ci-d/%s processes by recorded id: %s before the signal, %s after\n' "$case_name" "${before:-none}" "$left"
@@ -704,6 +729,10 @@ own_judge() {
     got=$left-processes-left
   elif [ -n "$case_signal" ] && [ "${before:-0}" -lt "$case_signal_min" ]; then
     got=${before:-no}-processes-before-the-signal
+  elif [ -n "$case_gone" ] && ! tmpdirs_gone; then
+    got=$tmpdirs_got
+  elif [ -n "$empty_left" ]; then
+    got=temporary-directory-left
   else
     got=$want
     if [ -n "$case_first" ]; then
@@ -738,6 +767,8 @@ own_judge() {
   case_wait=
   case_absent=
   case_signal_min=
+  case_gone=
+  case_empty=
 }
 
 # shellcheck disable=SC2016
@@ -766,6 +797,8 @@ own_self_test() {
   case_wait=
   case_absent=
   case_signal_min=
+  case_gone=
+  case_empty=
   perl_bin=$(command -v perl) || perl_bin=perl
   case_perl="setpgrp(0, 0); \$SIG{QUIT} = 'DEFAULT'; \$SIG{INT} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;"
   mkdir -p "$tmp/no-perl" && printf '#!/bin/sh\nexit 1\n' >"$tmp/no-perl/perl" && chmod +x "$tmp/no-perl/perl"
@@ -935,8 +968,28 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" 'here=$(pwd); [ "$CI_D_REPO" = "$here" ] && [ "$CI_D_JOB" = macos ] && [ "$CI_D_ARTIFACTS" = "$here/target/ci-artifacts/10-a" ] && [ -d "$CI_D_ARTIFACTS" ] && [ "$LC_ALL" = C ] && [ "${PATH%%:*}" = "$CARGO_HOME/bin" ] || { printf "FAIL 10-a (environment)\n"; exit 1; }; printf "PASS 10-a\n"'
   case_locale=en_US.UTF-8
   own_case environment 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
-  new_repo && add_script r1 10-a.sh "$good" 'trap "" TERM; sleep 60 & printf "%s\n%s\n" "$$" "$!" >>"$CI_D_REPO/pids"; wait; printf "PASS 10-a\n"' &&
+  leaves='[ -d "$TMPDIR" ] && [ -z "$(ls -A "$TMPDIR")" ] || { printf "FAIL %s (its TMPDIR is no empty directory)\n" "$me"; exit 1; }; printf "%s\n" "$TMPDIR" >>"$CI_D_REPO/tmpdirs"; mkdir "$TMPDIR/left" && : >"$TMPDIR/left/file"'
+  new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; printf 'PASS 10-a\\n'" &&
+    add_script r1 20-b.sh "$good" "me=20-b; $leaves; chmod 555 \"\$TMPDIR/left\"; printf 'FAIL 20-b (planned)\\n'; exit 1"
+  case_gone=2
+  own_case tmpdir-of-each-script-removed-whatever-its-status 1 'FAIL 20-b (planned)' macos
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b"
+  case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX")
+  case_empty=yes
+  own_case driver-removes-its-temporary-directory 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$good" 'mkdir "$TMPDIR/left"; chmod 555 "$TMPDIR/.."; printf "PASS 10-a\n"'
+  mkdir "$tmp/read-only" && chmod 555 "$tmp/read-only"
+  if { : >"$tmp/read-only/probe"; } 2>/dev/null; then
+    own_case tmpdir-whose-parent-the-script-made-read-only-is-removed 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
+  else
+    case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX")
+    case_empty=yes
+    own_case tmpdir-that-cannot-be-removed 1 'FAIL 10-a (its TMPDIR cannot be removed)' macos
+  fi
+  chmod 755 "$tmp/read-only"
+  new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; trap '' TERM; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; wait; printf 'PASS 10-a\\n'" &&
     add_script r1 20-b.sh "$good" "$pass_b"
+  case_gone=1
   case_limit=5
   case_max_s=15
   case_first='FAIL 10-a (time limit 5 s)'
@@ -975,6 +1028,15 @@ own_self_test() {
   alone='before=0; for f in "$CI_D_REPO"/start.*; do [ -e "$f" ] || continue; o=${f##*/start.}; [ -e "$CI_D_REPO/end.$o" ] || { printf "FAIL self-test:%s (it started beside %s)\n" "$me" "$o"; exit 1; }; before=$((before + 1)); done; : >"$CI_D_REPO/start.$me"; sleep 2; after=0; for f in "$CI_D_REPO"/start.*; do after=$((after + 1)); done; [ "$after" -eq "$((before + 1))" ] || { printf "FAIL self-test:%s (another self-test started beside it)\n" "$me"; exit 1; }'
   meets="$prelude; meet || $ran_alone; $passes"
   alone_list=scripts/ci/self-test-alone.txt
+
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $leaves; $passes" && add_script r1 20-b.sh "$good" "$prelude; $leaves; $passes"
+  case_jobs=2
+  case_gone=2
+  own_case tmpdir-of-each-self-test-removed 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" && add_script r1 20-b.sh "$good" "$prelude; $passes"
+  case_tmpdir=$(mktemp -d "$tmp/own-tmp.XXXXXX")
+  case_empty=yes
+  own_case driver-removes-its-temporary-directory-in-the-self-test-step 0 'ci.d macos self-test: 3 passed, 0 failed' macos --self-test
 
   new_repo && add_script r1 10-a.sh "$good" "$meets" && add_script r1 20-b.sh "$good" "$meets"
   case_jobs=2
@@ -1021,8 +1083,9 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" "$prelude; meet || $ran_alone; kill -s KILL \"\$PPID\"; sleep 1; $passes" && add_script r1 20-b.sh "$good" "$meets"
   case_jobs=2
   own_case driver-job-of-a-self-test-killed 1 'FAIL self-test:10-a (it ended without an exit status)' macos --self-test 10-a 20-b
-  new_repo && add_script r1 10-a.sh "$good" "$prelude; trap 'printf \"ended by TERM\\n\"; exit 143' TERM; sleep 30 & wait \"\$!\"; $passes" && add_script r1 20-b.sh "$good" "$prelude; $passes"
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $leaves; trap 'printf \"ended by TERM\\n\"; exit 143' TERM; sleep 30 & wait \"\$!\"; $passes" && add_script r1 20-b.sh "$good" "$prelude; $passes"
   case_jobs=2
+  case_gone=1
   case_limit=2
   case_first="ended by TERM${nl}seconds 10-a "
   case_then='FAIL self-test:10-a (time limit 2 s)'
