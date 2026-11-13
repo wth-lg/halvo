@@ -50,6 +50,22 @@ fn spend_sim(args: &[&str]) -> (Option<i32>, String, String) {
 }
 
 #[test]
+fn the_export_of_each_seed_holds_the_moves_of_its_own_run() {
+    let dir = scratch();
+    let mut files = Vec::new();
+    for seed in [2u64, 3] {
+        let out = dir.join(format!("sequences-{seed}.jsonl"));
+        let path = out.to_str().expect("a UTF-8 path");
+        let run = spend_sim(&["--seed", &seed.to_string(), "--export", path]);
+        assert_eq!(run.0, Some(0), "seed {seed}");
+        let text = std::fs::read_to_string(&out).expect("the export");
+        assert_eq!(text, simulate(seed).export(), "seed {seed}");
+        files.push(text);
+    }
+    assert_ne!(files[0], files[1]);
+}
+
+#[test]
 fn the_export_is_a_new_file_that_holds_the_moves_of_the_run() {
     let dir = scratch();
     let out = dir.join("sequences.jsonl");
