@@ -151,7 +151,7 @@ at the first phase, before any check was built.
 **licenses** (`gate/lib/licenses.mjs`). It reads the license of every package in `pnpm-lock.yaml`.
 A package bundled into the deployable Worker must have a license in `gate/license-allowlist.json`.
 Every other package must have one too, or an entry in `gate/license-exceptions.json` that names
-the package, its license and the reason. The check also fails when it could not read every
+the package by its exact name, its versions, its license, the chain that brings it and the reason. The check also fails when it could not read every
 package's license, when an exception covers no package, and when a package is an error-tracking,
 analytics or crash-upload package. That last rule is a list of name patterns in
 `gate/lib/licenses.mjs`: a package of that kind whose name the list does not hold passes it, and

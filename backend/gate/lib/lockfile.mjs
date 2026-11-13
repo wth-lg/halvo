@@ -40,8 +40,9 @@ export function licenseOf(manifest) {
   const value = manifest.license ?? manifest.licenses;
   if (typeof value === "string") return value;
   if (Array.isArray(value)) {
-    const names = value.map((entry) => (typeof entry === "string" ? entry : entry?.type)).filter(Boolean);
-    return names.length > 0 ? names.join(` ${LICENSE_LIST_READING} `) : null;
+    const names = value.map((entry) => (typeof entry === "string" ? entry : entry?.type));
+    if (names.length === 0 || names.some((name) => typeof name !== "string" || name.trim() === "")) return null;
+    return names.map((name) => `(${name})`).join(` ${LICENSE_LIST_READING} `);
   }
   if (value && typeof value.type === "string") return value.type;
   return null;

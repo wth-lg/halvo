@@ -1,5 +1,5 @@
 {
-  "expect": "FAIL licenses: 1 problems; first: a-tool-with-a-list@1.0.0 has the license MIT AND GPL-3.0-only, which is neither on the allowlist nor in the exceptions",
+  "expect": "FAIL licenses: 1 problems; first: a-tool-with-a-list@1.0.0 has the license (MIT) AND (GPL-3.0-only), which is neither on the allowlist nor in the exceptions",
   "packages": [
     {
       "id": "a-tool-with-a-list@1.0.0",
