@@ -1312,3 +1312,28 @@ fn a_confirmation_request_holds_cut_after_agent_as_yes_no_or_null() {
         );
     }
 }
+
+#[test]
+fn a_load_reply_whose_start_row_is_of_another_agent_does_not_answer_the_asking_agent_s_load() {
+    let load = |agent: &str| {
+        RunnerCall::parse(format!(r#"{{"op":"load","agent":"{agent}","run":"{R}"}}"#).as_bytes())
+            .unwrap()
+    };
+    let start_of = |agent: &str| {
+        format!(
+            r#"{{"v":1,"workflow":"{W}","agent":"{agent}","day":20768,"at":1794339000000000010}}"#
+        )
+    };
+    let own = RunnerReply::parse(load_reply(&start_of(A)).as_bytes()).unwrap();
+    assert!(own.answers(&load(A)));
+    let none = RunnerReply::parse(load_reply("null").as_bytes()).unwrap();
+    assert!(none.answers(&load(A)));
+    let text = swap(
+        &load_reply(&start_of(A2)),
+        &format!(r#""agent":"{A}""#),
+        &format!(r#""agent":"{A2}""#),
+    );
+    let other = RunnerReply::parse(text.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    assert!(other.answers(&load(A2)));
+    assert!(!other.answers(&load(A)));
+}
