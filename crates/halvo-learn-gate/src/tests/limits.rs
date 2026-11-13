@@ -63,6 +63,24 @@ fn reader_takes_a_span_of_calendar_days_min_and_refuses_one_day_less() {
     assert!(read(&spanning(239)).is_err());
 }
 
+#[test]
+fn drift_plays_a_case_whose_last_day_is_the_largest_day() {
+    let lines: Vec<&str> = RENAMED.lines().collect();
+    let first = day_of(lines[1]);
+    let far = read(&spanning(u32::MAX - first)).expect("a case whose last day is 4294967295");
+    assert_eq!(far.occurrences[far.occurrences.len() - 1].day, u32::MAX);
+    let near = read(RENAMED).expect("the development case");
+    for arm in Arm::ALL {
+        let got = play_case(&far, arm, false).expect("every occurrence completes");
+        let want = play_case(&near, arm, false).expect("every occurrence completes");
+        assert_eq!(got.counts, want.counts, "{}", arm.as_str());
+        assert_eq!(
+            (got.reverted_good, got.edit_rows),
+            (want.reverted_good, want.edit_rows)
+        );
+    }
+}
+
 fn button(id: &str, name: &str, test_id: &str) -> Control {
     Control {
         id: id.to_owned(),
