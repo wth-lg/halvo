@@ -213,7 +213,7 @@ test an_address_of_the_app_host_with_a_password_and_no_user_name_is_refused ... 
 test a_child_web_view_of_the_window_main_gets_no_command_of_the_unit_and_deletes_nothing ... ok
 test launch::tests::an_unknown_or_an_extra_argument_is_a_usage_error ... ok
 test launch::tests::check_page_refuses_a_missing_repeated_relative_or_bad_option ... ok
-test launch::tests::a_version_flag_after_another_argument_is_a_usage_error ... ok
+test launch::tests::an_argument_that_is_not_unicode_is_a_usage_error ... ok
 test a_capability_handed_to_the_context_macro_reaches_no_command_of_the_unit_from_another_window ... ok
 test launch::tests::no_argument_runs_the_app_and_version_alone_prints_the_version ... ok
 test tray::tests::the_indicator_reflects_paused_and_running ... ok
