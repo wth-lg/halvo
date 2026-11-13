@@ -1,11 +1,10 @@
 //! Window-title capture via `SetWinEventHook`.
 
-use crate::event::Modality;
 use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
 };
 
-use super::{Lifecycle, Packet, Producer, PumpReady};
+use super::{Lifecycle, Observed, Packet, Producer, PumpReady};
 
 #[cfg(target_os = "windows")]
 use super::foreground::{
@@ -29,12 +28,12 @@ pub(crate) fn title_packet(title: &str, exe_path: Option<String>, tick: u32) -> 
     if title.trim().is_empty() {
         return None;
     }
-    Some(Packet {
-        kind: Modality::WindowTitle,
-        app: exe_path,
-        byte_len: title.len() as u64,
+    Some(Packet::observed(
+        Observed::WindowTitle,
+        exe_path,
+        title.len() as u64,
         tick,
-    })
+    ))
 }
 
 /// Whether a name-change event names the title of the window in front: the
@@ -260,12 +259,13 @@ fn run_title_hook(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::event::Modality;
 
     #[test]
     fn a_non_empty_title_maps_to_a_window_title_packet() {
         let packet = title_packet("Inbox - Mail", Some("C:\\mail.exe".to_string()), 3)
             .expect("a non-empty title produces a packet");
-        assert_eq!(packet.kind, Modality::WindowTitle);
+        assert_eq!(packet.kind(), Modality::WindowTitle);
         assert_eq!(packet.app.as_deref(), Some("C:\\mail.exe"));
         assert_eq!(packet.byte_len, 12);
         assert_eq!(packet.tick, 3);

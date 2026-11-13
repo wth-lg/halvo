@@ -1,14 +1,17 @@
 //! Keystroke and pointer capture via Raw Input (`WM_INPUT`).
 
+use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use crate::event::Modality;
 use crate::floor::payload::KeyClass;
 use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
 };
 
-use super::{Lifecycle, Packet, Producer, PumpReady};
+use super::{Lifecycle, Observed, Packet, Producer, PumpReady};
+use crate::secure_input::windows::{moves_focus, HeldKey, PasswordGate};
+use crate::secure_input::{KeystrokeClearance, Withheld};
 
 /// Which device a source listens to; also its modality.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -137,20 +140,19 @@ pub(crate) fn map_keystroke(state: &mut KeyState, key: KeyStroke) -> Option<KeyC
     Some(class_of(key.vkey))
 }
 
+/// The packet of a key that the gate cleared: the clearance is taken by
+/// value, so no keystroke packet exists without one.
 pub(crate) fn keystroke_packet(
-    key: KeyStroke,
+    clearance: KeystrokeClearance,
     foreground_app: Option<String>,
     tick: u32,
-) -> Option<Packet> {
-    if key.released {
-        return None;
-    }
-    Some(Packet {
-        kind: Modality::Keystroke,
-        app: foreground_app,
-        byte_len: key.payload_len(),
+) -> Packet {
+    Packet::keystroke(
+        clearance,
+        foreground_app,
+        core::mem::size_of::<u16>() as u64,
         tick,
-    })
+    )
 }
 
 pub(crate) fn pointer_packet(
@@ -158,12 +160,12 @@ pub(crate) fn pointer_packet(
     foreground_app: Option<String>,
     tick: u32,
 ) -> Packet {
-    Packet {
-        kind: Modality::Pointer,
-        app: foreground_app,
-        byte_len: sample.payload_len(),
+    Packet::observed(
+        Observed::Pointer,
+        foreground_app,
+        sample.payload_len(),
         tick,
-    }
+    )
 }
 
 #[cfg(target_os = "windows")]
@@ -197,6 +199,50 @@ struct InputState {
     producer: Producer,
     last_app: Arc<Mutex<Option<String>>>,
     keys: KeyState,
+    gate: Option<GateState>,
+}
+
+/// The keyboard source's side of the password gate: the keys it holds, with
+/// the app in front at each key's input time, and the counts that its health
+/// reads.
+struct GateState {
+    gate: Arc<PasswordGate>,
+    held: VecDeque<(HeldKey, Option<String>)>,
+    counts: Arc<GateCounts>,
+}
+
+#[derive(Debug, Default)]
+struct GateCounts {
+    late: AtomicU64,
+    withheld: AtomicBool,
+}
+
+/// How often the keyboard pump asks the gate again for the keys it holds.
+const GATE_POLL_MS: u32 = 15;
+
+/// Hands every held key that the gate has decided to the producer, in input
+/// order; at the stop, a key that still waits is counted lost.
+fn release_held(gate: &mut GateState, producer: &Producer, at_stop: bool) {
+    let now = super::now_tick();
+    while let Some((key, _)) = gate.held.front() {
+        let answer = gate.gate.clearance(key, now);
+        if answer.is_none() && !at_stop {
+            break;
+        }
+        let Some((key, app)) = gate.held.pop_front() else {
+            break;
+        };
+        match answer {
+            None => producer.lose(1),
+            Some(Ok(clearance)) => producer.push(keystroke_packet(clearance, app, key.tick())),
+            Some(Err(Withheld::Late)) => {
+                gate.counts.late.fetch_add(1, Ordering::Relaxed);
+            }
+            Some(Err(Withheld::Active | Withheld::Unknown)) => {
+                gate.counts.withheld.store(true, Ordering::Relaxed);
+            }
+        }
+    }
 }
 
 thread_local! {
@@ -374,13 +420,19 @@ pub struct RawInputSource {
     life: Lifecycle,
     calls: StartCalls,
     removed: Removed,
+    gate: Option<Arc<PasswordGate>>,
+    gate_counts: Arc<GateCounts>,
 }
 
 impl RawInputSource {
     /// A keyboard source, attributing keystrokes to `last_app` (shared with the
-    /// foreground source).
-    pub fn keyboard(last_app: Arc<Mutex<Option<String>>>) -> Self {
-        Self::new(RawDevice::Keyboard, last_app)
+    /// foreground source). It records a key only when `gate` clears it; the
+    /// gate's detector runs while the source runs.
+    pub fn keyboard(last_app: Arc<Mutex<Option<String>>>, gate: PasswordGate) -> Self {
+        Self {
+            gate: Some(Arc::new(gate)),
+            ..Self::new(RawDevice::Keyboard, last_app)
+        }
     }
 
     /// A pointer source.
@@ -395,13 +447,17 @@ impl RawInputSource {
             life: Lifecycle::default(),
             calls: SYSTEM_CALLS,
             removed: Removed::default(),
+            gate: None,
+            gate_counts: Arc::default(),
         }
     }
 
     #[cfg(test)]
     fn with_calls(device: RawDevice, calls: StartCalls) -> Self {
+        let gate = (device == RawDevice::Keyboard).then(|| Arc::new(PasswordGate::new()));
         Self {
             calls,
+            gate,
             ..Self::new(device, Arc::new(Mutex::new(None)))
         }
     }
@@ -409,6 +465,11 @@ impl RawInputSource {
     /// The counts of this source's hand-off queues since it was made.
     pub fn handoff_counts(&self) -> super::HandOffCounts {
         self.life.handoff_counts()
+    }
+
+    /// The state that the password gate of a keyboard source read last.
+    pub fn field_state(&self) -> Option<crate::secure_input::windows::FieldState> {
+        self.gate.as_ref().map(|gate| gate.field_now())
     }
 }
 
@@ -480,12 +541,21 @@ fn emit_from_raw(packet: RawInputPacket, tick: u32) {
         let app = super::app_of(&state.last_app);
         match (state.device, packet) {
             (RawDevice::Keyboard, RawInputPacket::Keyboard(key)) => {
+                let Some(gate) = state.gate.as_mut() else {
+                    return;
+                };
                 if map_keystroke(&mut state.keys, key).is_none() {
                     return;
                 }
-                if let Some(packet) = keystroke_packet(key, app, tick) {
-                    state.producer.push(packet);
+                let held = gate.gate.hold(
+                    tick,
+                    crate::secure_input::windows::focus_window_is_password_edit(),
+                );
+                if moves_focus(key.vkey) {
+                    gate.gate.latch(tick);
                 }
+                gate.held.push_back((held, app));
+                release_held(gate, &state.producer, false);
             }
             (RawDevice::Pointer, RawInputPacket::Pointer(sample)) => {
                 let packet = pointer_packet(sample, app, tick);
@@ -572,19 +642,35 @@ impl CaptureSource for RawInputSource {
         let calls = self.calls;
         let removed = Removed::default();
         self.removed = Arc::clone(&removed);
-        self.life
+        if let Some(gate) = &self.gate {
+            gate.attach()?;
+        }
+        let gate = self.gate.as_ref().map(|gate| GateState {
+            gate: Arc::clone(gate),
+            held: VecDeque::new(),
+            counts: Arc::clone(&self.gate_counts),
+        });
+        let begun = self
+            .life
             .begin(&ctx, "halvo-rawinput-forward", move |producer| {
                 let state = InputState {
                     device,
                     producer,
                     last_app,
                     keys: KeyState::default(),
+                    gate,
                 };
                 let name = format!("halvo-rawinput-{device:?}");
                 super::spawn_pump(name, move |ready, signal| {
                     run_raw_input(state, (claim, removed), calls, ready, &signal)
                 })
-            })
+            });
+        if begun.is_err() {
+            if let Some(gate) = &self.gate {
+                let _ = gate.detach(super::INPUT_STOP_DEADLINE);
+            }
+        }
+        begun
     }
 
     fn shutdown(&mut self) -> Result<(), CaptureError> {
@@ -592,12 +678,26 @@ impl CaptureSource for RawInputSource {
         if let Err(CaptureError::Timeout { .. }) = stopped {
             let _ = remove_once(&self.removed, self.device, self.calls.remove_device);
         }
-        stopped
+        let Some(gate) = &self.gate else {
+            return stopped;
+        };
+        match (stopped, gate.detach(super::INPUT_STOP_DEADLINE)) {
+            (Err(error), _) => Err(error),
+            (Ok(()), Err(error)) => {
+                self.life.removal_failed(error.clone());
+                Err(error)
+            }
+            (Ok(()), Ok(())) => Ok(()),
+        }
     }
 
     fn health(&self) -> SourceHealth {
         let counters = match self.device {
-            RawDevice::Keyboard => SourceCounters::default(),
+            RawDevice::Keyboard => SourceCounters {
+                late_events: self.gate_counts.late.load(Ordering::Relaxed),
+                keys_withheld: self.gate_counts.withheld.load(Ordering::Relaxed),
+                ..SourceCounters::default()
+            },
             RawDevice::Pointer => SourceCounters {
                 pointer_coalesced: self.life.handoff_counts().coalesced,
                 ..SourceCounters::default()
@@ -695,10 +795,52 @@ fn run_raw_input(
     };
 
     super::ensure_message_queue();
+    let poll = if device == RawDevice::Keyboard {
+        // SAFETY: SetTimer with no window makes a timer of this thread, whose
+        // callback has the TIMERPROC signature; the pump below dispatches it.
+        let poll = unsafe {
+            windows::Win32::UI::WindowsAndMessaging::SetTimer(
+                None,
+                0,
+                GATE_POLL_MS,
+                Some(gate_poll),
+            )
+        };
+        if poll == 0 {
+            ready.report(Err(super::last_os_error("SetTimer")));
+            return;
+        }
+        Some(poll)
+    } else {
+        None
+    };
     ready.report(Ok(()));
     super::pump_messages(signal);
     drop(device_guard);
+    INPUT_CTX.with(|cell| {
+        if let Some(state) = cell.borrow_mut().as_mut() {
+            if let Some(gate) = state.gate.as_mut() {
+                release_held(gate, &state.producer, true);
+            }
+        }
+    });
+    if let Some(poll) = poll {
+        // SAFETY: `poll` is the timer of this thread made above.
+        let killed = unsafe { windows::Win32::UI::WindowsAndMessaging::KillTimer(None, poll) };
+        signal.report_removal("KillTimer", killed);
+    }
     drop(ctx_guard);
+}
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn gate_poll(_hwnd: HWND, _msg: u32, _id: usize, _time: u32) {
+    INPUT_CTX.with(|cell| {
+        if let Some(state) = cell.borrow_mut().as_mut() {
+            if let Some(gate) = state.gate.as_mut() {
+                release_held(gate, &state.producer, false);
+            }
+        }
+    });
 }
 
 #[cfg(test)]
@@ -706,13 +848,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_key_down_maps_to_a_keystroke_packet() {
-        let key = KeyStroke {
-            vkey: 0x41,
-            released: false,
-        };
-        let packet = keystroke_packet(key, Some("C:\\editor.exe".to_string()), 7).unwrap();
-        assert_eq!(packet.kind, Modality::Keystroke);
+    fn a_cleared_key_maps_to_a_keystroke_packet() {
+        let packet = keystroke_packet(
+            crate::windows::tests::cleared(),
+            Some("C:\\editor.exe".to_string()),
+            7,
+        );
+        assert_eq!(packet.kind(), crate::event::Modality::Keystroke);
         assert_eq!(packet.app.as_deref(), Some("C:\\editor.exe"));
         assert_eq!(packet.byte_len, 2);
         assert_eq!(packet.tick, 7);
@@ -724,7 +866,7 @@ mod tests {
             vkey: 0x41,
             released: true,
         };
-        assert!(keystroke_packet(key, None, 7).is_none());
+        assert_eq!(map_keystroke(&mut KeyState::default(), key), None);
     }
 
     fn vkey_of(key: crate::floor::cases::Key) -> u16 {
@@ -818,7 +960,7 @@ mod tests {
             Some("C:\\game.exe".to_string()),
             9,
         );
-        assert_eq!(packet.kind, Modality::Pointer);
+        assert_eq!(packet.kind(), crate::event::Modality::Pointer);
         assert_eq!(packet.app.as_deref(), Some("C:\\game.exe"));
         assert_eq!(packet.byte_len, 12);
         assert_eq!(packet.tick, 9);
@@ -1010,7 +1152,7 @@ mod tests {
         use crate::source::{SourceContext, SourceState, Started};
         let _serial = crate::windows::tests::serial();
         let (sink, _writer) = crate::sink::channel(64);
-        let mut source = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let mut source = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let first = source.begin(SourceContext::new(sink.clone()));
         let second = source.begin(SourceContext::new(sink.clone()));
         let running = source.health().state;
@@ -1028,8 +1170,8 @@ mod tests {
     fn a_second_keyboard_source_in_the_process_waits_for_the_first_to_stop() {
         let _serial = crate::windows::tests::serial();
         let (sink, _writer) = crate::sink::channel(64);
-        let mut first = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
-        let mut second = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let mut first = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let mut second = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let first_started = first.begin(crate::source::SourceContext::new(sink.clone()));
         let while_first_runs = second.begin(crate::source::SourceContext::new(sink.clone()));
         let first_stopped = first.shutdown();

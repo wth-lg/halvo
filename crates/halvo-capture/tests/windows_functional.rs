@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
 use halvo_capture::event::{CaptureStreamEvent, Modality};
+use halvo_capture::secure_input::windows::PasswordGate;
 use halvo_capture::sink::{channel, SinkHandle, SinkWriter};
 use halvo_capture::source::{CaptureError, CaptureSource, SourceContext};
 use halvo_capture::windows::apps::scan_installed;
@@ -832,6 +833,246 @@ impl Drop for TestWindow {
     }
 }
 
+/// A control of a [`FieldWindow`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Field {
+    Plain,
+    Password,
+}
+
+enum FieldCommand {
+    Focus(Field),
+    Reveal,
+    TextLen(Field),
+    Wander(Duration),
+}
+
+enum FieldAnswer {
+    Focused(bool),
+    Revealed(bool),
+    TextLen(i32),
+    PasswordIntervals(Vec<(u128, u128)>),
+}
+
+/// A window with a plain edit and a password edit, made and served by a
+/// thread of its own that pumps its messages the whole time, so that the
+/// keyboard source's detector can read its controls while the test thread
+/// waits. Tab moves the focus between the two edits.
+struct FieldWindow {
+    commands: mpsc::Sender<FieldCommand>,
+    answers: mpsc::Receiver<FieldAnswer>,
+    thread: Option<std::thread::JoinHandle<()>>,
+    foreground: bool,
+    method: &'static str,
+}
+
+impl FieldWindow {
+    fn open(test: &str, first: Field) -> FieldWindow {
+        let (commands, take) = mpsc::channel::<FieldCommand>();
+        let (give, answers) = mpsc::channel::<FieldAnswer>();
+        let (opened, opening) = mpsc::channel();
+        let thread = std::thread::Builder::new()
+            .name("tf-field-window".to_string())
+            .spawn(move || serve_fields(first, &take, &give, &opened))
+            .expect("spawn the field window thread");
+        let (foreground, method) = opening
+            .recv_timeout(Duration::from_secs(20))
+            .expect("INCONCLUSIVE: the field window did not open");
+        say(
+            test,
+            format!("field_window_foreground={foreground} method={method} first_focus={first:?}"),
+        );
+        FieldWindow {
+            commands,
+            answers,
+            thread: Some(thread),
+            foreground,
+            method,
+        }
+    }
+
+    fn ask(&self, command: FieldCommand, limit: Duration) -> FieldAnswer {
+        self.commands
+            .send(command)
+            .expect("the field window thread");
+        self.answers
+            .recv_timeout(limit)
+            .expect("INCONCLUSIVE: the field window did not answer")
+    }
+
+    fn focus(&self, field: Field) -> bool {
+        match self.ask(FieldCommand::Focus(field), Duration::from_secs(5)) {
+            FieldAnswer::Focused(focused) => focused,
+            _ => false,
+        }
+    }
+
+    fn reveal(&self) -> bool {
+        match self.ask(FieldCommand::Reveal, Duration::from_secs(5)) {
+            FieldAnswer::Revealed(revealed) => revealed,
+            _ => false,
+        }
+    }
+
+    fn text_len(&self, field: Field) -> i32 {
+        match self.ask(FieldCommand::TextLen(field), Duration::from_secs(5)) {
+            FieldAnswer::TextLen(len) => len,
+            _ => -1,
+        }
+    }
+
+    fn start_wander(&self, span: Duration) {
+        self.commands
+            .send(FieldCommand::Wander(span))
+            .expect("the field window thread");
+    }
+
+    fn wander_intervals(&self, span: Duration) -> Vec<(u128, u128)> {
+        match self.answers.recv_timeout(span + Duration::from_secs(5)) {
+            Ok(FieldAnswer::PasswordIntervals(intervals)) => intervals,
+            _ => panic!("INCONCLUSIVE: the field window did not report its focus moves"),
+        }
+    }
+}
+
+impl Drop for FieldWindow {
+    fn drop(&mut self) {
+        let (closed, _) = mpsc::channel();
+        self.commands = closed;
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+fn focus_on(hwnd: HWND) -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, SetFocus};
+    // SAFETY: SetFocus and GetFocus take and return handle values of this
+    // thread's windows.
+    unsafe {
+        let _ = SetFocus(Some(hwnd));
+        GetFocus() == hwnd
+    }
+}
+
+fn pump_dialog(hwnd: HWND) {
+    use windows::Win32::UI::WindowsAndMessaging::IsDialogMessageW;
+    let mut msg = MSG::default();
+    // SAFETY: `msg` is a live MSG that PeekMessageW fills, and the same value
+    // goes to IsDialogMessageW, TranslateMessage and DispatchMessageW.
+    unsafe {
+        while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+            if IsDialogMessageW(hwnd, &msg).as_bool() {
+                continue;
+            }
+            let _ = TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+    }
+}
+
+/// A run of phase C: its start, its span, the next move, the seed of the
+/// intervals and the unix milliseconds of each stay in the password field.
+type Wander = (Instant, Duration, Instant, u64, Vec<(u128, u128)>);
+
+fn serve_fields(
+    first: Field,
+    take: &mpsc::Receiver<FieldCommand>,
+    give: &mpsc::Sender<FieldAnswer>,
+    opened: &mpsc::Sender<(bool, &'static str)>,
+) {
+    use windows::Win32::UI::WindowsAndMessaging::{SendMessageW, ES_PASSWORD, WS_TABSTOP};
+    const EM_SETPASSWORDCHAR: u32 = 0x00CC;
+    let window = TestWindow::create(&normal_window(
+        "HalvoVerifyFields",
+        "halvo-verify-fields",
+        120,
+        120,
+    ))
+    .expect("the field window");
+    let plain = window
+        .child_control("EDIT", WS_TABSTOP, 10)
+        .expect("the plain edit");
+    let password = window
+        .child_control("EDIT", WS_TABSTOP | WINDOW_STYLE(ES_PASSWORD as u32), 44)
+        .expect("the password edit");
+    let hwnd_of = |field| match field {
+        Field::Plain => plain,
+        Field::Password => password,
+    };
+    pump_thread(Duration::from_millis(300));
+    let (foreground, method) = window.activate();
+    focus_on(hwnd_of(first));
+    pump_thread(Duration::from_millis(300));
+    let _ = opened.send((foreground, method));
+    let mut wander: Option<Wander> = None;
+    loop {
+        pump_dialog(window.hwnd);
+        if let Some((began, span, next, seed, intervals)) = wander.as_mut() {
+            if began.elapsed() >= *span {
+                if let Some(open) = intervals.last_mut().filter(|(_, end)| *end == 0) {
+                    open.1 = unix_millis(SystemTime::now());
+                }
+                focus_on(plain);
+                let done = std::mem::take(intervals);
+                wander = None;
+                let _ = give.send(FieldAnswer::PasswordIntervals(done));
+            } else if Instant::now() >= *next {
+                *seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+                let to_password = !intervals.last().is_some_and(|(_, end)| *end == 0);
+                let now = unix_millis(SystemTime::now());
+                if to_password {
+                    focus_on(password);
+                    intervals.push((now, 0));
+                } else {
+                    focus_on(plain);
+                    if let Some(open) = intervals.last_mut() {
+                        open.1 = now;
+                    }
+                }
+                *next = Instant::now() + Duration::from_millis(150 + (*seed >> 33) % 450);
+            }
+        }
+        match take.recv_timeout(Duration::from_millis(5)) {
+            Ok(FieldCommand::Focus(field)) => {
+                let focused = focus_on(hwnd_of(field));
+                pump_thread(Duration::from_millis(50));
+                let _ = give.send(FieldAnswer::Focused(focused));
+            }
+            Ok(FieldCommand::Reveal) => {
+                // SAFETY: SendMessageW passes a plain value to this thread's
+                // edit control.
+                unsafe {
+                    let _ = SendMessageW(password, EM_SETPASSWORDCHAR, Some(WPARAM(0)), None);
+                }
+                let _ = give.send(FieldAnswer::Revealed(true));
+            }
+            Ok(FieldCommand::TextLen(field)) => {
+                let _ = give.send(FieldAnswer::TextLen(title_len(hwnd_of(field))));
+            }
+            Ok(FieldCommand::Wander(span)) => {
+                wander = Some((Instant::now(), span, Instant::now(), 7, Vec::new()));
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => break,
+        }
+    }
+}
+
+/// Types `letters` letters, each a key-down and a key-up 20 ms apart, and
+/// answers how many key events SendInput took.
+fn type_letters_slowly(letters: u32) -> u32 {
+    use windows::Win32::UI::Input::KeyboardAndMouse::VK_A;
+    let mut accepted = 0;
+    for _ in 0..letters {
+        accepted += send(&[key_input(VK_A, false)]);
+        std::thread::sleep(Duration::from_millis(20));
+        accepted += send(&[key_input(VK_A, true)]);
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    accepted
+}
+
 fn set_text(hwnd: HWND, text: &str) -> Result<(), String> {
     let text = HSTRING::from(text);
     // SAFETY: `text` is a live HSTRING for the duration of the call.
@@ -1001,11 +1242,18 @@ fn child_hold(secs: u64) {
         180,
     ))
     .expect("second window");
+    let edit = first
+        .child_control("EDIT", WINDOW_STYLE(0), 10)
+        .expect("the first window's edit");
     pump_thread(Duration::from_millis(300));
     let (foreground, method) = first.activate();
+    let edit_focused = focus_on(edit);
     say(
         "child",
-        format!("mode=hold first_window_foreground={foreground} method={method}"),
+        format!(
+            "mode=hold first_window_foreground={foreground} method={method} \
+             plain_edit_has_focus={edit_focused}"
+        ),
     );
     pump_thread(Duration::from_secs(secs));
     let held = first.is_foreground();
@@ -1202,7 +1450,11 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
         source_built_by_test("c1", "keyboard");
         let (sink, events) = capture(4096);
         let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
-        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let _fields = FieldWindow::open(
+            "c1_raw_input_delivers_keystrokes_and_pointer_events",
+            Field::Plain,
+        );
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app), PasswordGate::new());
         let mut pointer = RawInputSource::pointer(Arc::clone(&last_app));
         let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
         let pointer_start = pointer.begin(SourceContext::new(sink.clone()));
@@ -1720,7 +1972,11 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
         let mut foreground = ForegroundAppSource::new();
         let last_app = foreground.last_app();
         let mut title = WindowTitleSource::new();
-        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let _fields = FieldWindow::open(
+            "c9_peak_working_set_of_sources_1_to_4_for_60_seconds",
+            Field::Plain,
+        );
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app), PasswordGate::new());
         let mut pointer = RawInputSource::pointer(Arc::clone(&last_app));
         let mut screen = ScreenSource::new(Arc::clone(&last_app));
         let starts = [
@@ -2039,7 +2295,7 @@ fn helper_limited_listener() {
     };
     let secs: u64 = secs.parse().expect("listener seconds");
     let (sink, events) = capture(4096);
-    let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+    let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
     let start = keyboard.begin(SourceContext::new(sink.clone()));
     let started_ms = unix_millis(SystemTime::now());
     let window = TestWindow::create(&normal_window(
@@ -2048,10 +2304,19 @@ fn helper_limited_listener() {
         320,
         60,
     ));
+    let edit = window
+        .as_ref()
+        .ok()
+        .and_then(|window| window.child_control("EDIT", WINDOW_STYLE(0), 10).ok());
     let deadline = Instant::now() + Duration::from_secs(secs);
     let mut stamps = Vec::new();
     while Instant::now() < deadline {
         pump_thread(Duration::from_millis(20));
+        if let (Ok(window), Some(edit)) = (&window, edit) {
+            if window.is_foreground() {
+                focus_on(edit);
+            }
+        }
         for event in events.drain_for(Duration::from_millis(20)) {
             if event.modality == Modality::Keystroke {
                 stamps.push(unix_millis(event.captured_at.wall_clock).to_string());
@@ -2469,7 +2734,8 @@ fn capture_times_follow_the_input_order() {
         source_built_by_test("order", "keyboard");
         let (sink, writer) = channel(1);
         let last_app = Arc::new(Mutex::new(None));
-        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let _fields = FieldWindow::open("capture_times_follow_the_input_order", Field::Plain);
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app), PasswordGate::new());
         let mut pointer = RawInputSource::pointer(last_app);
         let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
         let pointer_start = pointer.begin(SourceContext::new(sink.clone()));
@@ -2543,7 +2809,9 @@ fn stop_with_a_full_sink() {
         env_report("full-sink");
         source_built_by_test("full-sink", "keyboard");
         let (sink, writer) = channel(1);
-        let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let _fields = FieldWindow::open("stop_with_a_full_sink", Field::Plain);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         let accepted = press_keys(3);
         std::thread::sleep(Duration::from_millis(500));
@@ -2594,7 +2862,9 @@ fn a_dropped_keyboard_source_stops_capturing() {
         env_report("dropped");
         source_built_by_test("dropped", "keyboard");
         let (sink, events) = capture(4096);
-        let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let _fields = FieldWindow::open("a_dropped_keyboard_source_stops_capturing", Field::Plain);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         let accepted_before = press_keys(1);
         let before = count(
@@ -2608,7 +2878,7 @@ fn a_dropped_keyboard_source_stops_capturing() {
             &events.drain_for(Duration::from_secs(1)),
             Modality::Keystroke,
         );
-        let mut next = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let mut next = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let next_start = next.begin(SourceContext::new(sink.clone()));
         let accepted_next = press_keys(1);
         let next_keys = count(
@@ -2656,7 +2926,7 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
         source_built_by_test("queued-at-stop", "keyboard");
         let (sink, writer) = channel(64);
         let last_app = Arc::new(Mutex::new(None));
-        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         std::thread::sleep(Duration::from_millis(200));
         let held = last_app.lock().expect("the last-app cell");
@@ -2668,7 +2938,8 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
             .spawn(move || {
                 let stopped = stop_counted(&mut keyboard, "keyboard");
                 let lost = keyboard.handoff_counts().lost;
-                let _ = done.send((stopped, lost));
+                let late = keyboard.health().counters.late_events;
+                let _ = done.send((stopped, lost, late));
             })
             .expect("spawn the stop thread");
         std::thread::sleep(Duration::from_millis(200));
@@ -2686,19 +2957,19 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
                 &events.drain_for(Duration::from_secs(1)),
                 Modality::Keystroke,
             ) as u64;
-        let (stopped, lost) = match &outcome {
-            Ok((stopped, lost)) => (format!("{stopped:?}"), *lost),
-            Err(e) => (format!("no answer ({e:?})"), 0),
+        let (stopped, lost, late) = match &outcome {
+            Ok((stopped, lost, late)) => (format!("{stopped:?}"), *lost, *late),
+            Err(e) => (format!("no answer ({e:?})"), 0, 0),
         };
         say(
             "queued-at-stop",
             format!(
                 "keyboard_start={} presses=5 sendinput_key_events_accepted={accepted} \
                  keystrokes_before_the_release={before_release} \
-                 stop={stopped} keystrokes_delivered={delivered} lost={lost} \
+                 stop={stopped} keystrokes_delivered={delivered} lost={lost} late={late} \
                  neither_delivered_nor_counted={}",
                 show(&start),
-                5i64 - delivered as i64 - lost as i64,
+                5i64 - delivered as i64 - lost as i64 - late as i64,
             ),
         );
         drop(sink);
@@ -2712,14 +2983,14 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
             "the hold did not take: keystrokes reached the sink before the hold was released, so this run shows nothing about input queued at a stop"
         );
         assert!(
-            matches!(outcome, Ok((Ok(()), _))),
+            matches!(outcome, Ok((Ok(()), _, _))),
             "the stop did not answer Ok: {outcome:?}"
         );
         assert_eq!(
-            delivered + lost,
+            delivered + lost + late,
             5,
             "key presses queued before the stop were neither delivered nor counted: \
-             delivered {delivered}, lost {lost}"
+             delivered {delivered}, lost {lost}, late {late}"
         );
     });
 }
@@ -2732,7 +3003,7 @@ fn a_timed_out_stop_reads_no_input_posted_after_its_answer() {
         source_built_by_test("after-timeout", "keyboard");
         let (sink, writer) = channel(64);
         let last_app = Arc::new(Mutex::new(None));
-        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         std::thread::sleep(Duration::from_millis(200));
         let held = last_app.lock().expect("the last-app cell");
@@ -2754,6 +3025,7 @@ fn a_timed_out_stop_reads_no_input_posted_after_its_answer() {
         let keyboard = stopper.join().expect("the stop thread");
         std::thread::sleep(Duration::from_secs(1));
         let lost = keyboard.handoff_counts().lost;
+        let late = keyboard.health().counters.late_events;
         let events = forward(writer);
         let delivered = count(
             &events.drain_for(Duration::from_secs(1)),
@@ -2765,7 +3037,7 @@ fn a_timed_out_stop_reads_no_input_posted_after_its_answer() {
                 "keyboard_start={} presses_before_the_stop=1 presses_after_the_answer=5 \
                  sendinput_key_events_accepted_before={accepted_before} \
                  sendinput_key_events_accepted_after={accepted_after} stop={stopped:?} \
-                 keystrokes_delivered={delivered} lost={lost}",
+                 keystrokes_delivered={delivered} lost={lost} late={late}",
                 show(&start),
             ),
         );
@@ -2781,9 +3053,9 @@ fn a_timed_out_stop_reads_no_input_posted_after_its_answer() {
             "INCONCLUSIVE: the held pump's stop did not answer Timeout: {stopped:?}"
         );
         assert_eq!(
-            delivered + lost,
+            delivered + lost + late,
             1,
-            "the pump read input posted after the Timeout answer: delivered {delivered}, lost {lost}"
+            "the pump read input posted after the Timeout answer: delivered {delivered}, lost {lost}, late {late}"
         );
     });
 }
@@ -2940,7 +3212,7 @@ fn x3_attribution_before_the_first_foreground_change() {
         let (sink, events) = capture(4096);
         let mut foreground = ForegroundAppSource::new();
         let last_app = foreground.last_app();
-        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app), PasswordGate::new());
         let foreground_start = foreground.begin(SourceContext::new(sink.clone()));
         let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
         let settle = events.drain_for(Duration::from_secs(1));
@@ -3241,7 +3513,9 @@ fn x15_a_held_key() {
         env_report("x15");
         source_built_by_test("x15", "keyboard");
         let (sink, events) = capture(4096);
-        let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let _fields = FieldWindow::open("x15_a_held_key", Field::Plain);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         let mut accepted = 0;
         for _ in 0..REPEATS {
@@ -3273,6 +3547,634 @@ fn x15_a_held_key() {
     });
 }
 
+fn unix_millis_of(event: &CaptureStreamEvent) -> u128 {
+    unix_millis(event.captured_at.wall_clock)
+}
+
+fn keystrokes_inside(
+    events: &[CaptureStreamEvent],
+    intervals: &[(u128, u128)],
+    margin: u128,
+) -> usize {
+    events
+        .iter()
+        .filter(|e| e.modality == Modality::Keystroke)
+        .filter(|e| {
+            let at = unix_millis_of(e);
+            intervals
+                .iter()
+                .any(|(start, end)| at > start + margin && at + margin < *end)
+        })
+        .count()
+}
+
+fn tab_then_letter() -> u32 {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{VK_A, VK_TAB};
+    send(&[
+        key_input(VK_TAB, false),
+        key_input(VK_TAB, true),
+        key_input(VK_A, false),
+        key_input(VK_A, true),
+    ])
+}
+
+fn letters_while(span: Duration, every: Duration) -> (u32, Vec<u128>) {
+    use windows::Win32::UI::Input::KeyboardAndMouse::VK_A;
+    let began = Instant::now();
+    let mut accepted = 0;
+    let mut sent = Vec::new();
+    while began.elapsed() < span {
+        sent.push(unix_millis(SystemTime::now()));
+        accepted += send(&[key_input(VK_A, false), key_input(VK_A, true)]);
+        std::thread::sleep(every);
+    }
+    (accepted, sent)
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn password_field_fixture_native_dialog_phases_a_to_f() {
+    with_deadline("fixture-native", Duration::from_secs(200), || {
+        const LETTERS: u32 = 5;
+        env_report("fixture-native");
+        source_built_by_test("fixture-native", "keyboard");
+        let fields = FieldWindow::open("fixture-native", Field::Plain);
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        let keys = |events: &[CaptureStreamEvent]| count(events, Modality::Keystroke);
+
+        let focused_a = fields.focus(Field::Plain);
+        let _ = events.drain_for(Duration::from_millis(500));
+        type_letters_slowly(LETTERS);
+        let a = keys(&events.drain_for(Duration::from_secs(1)));
+        let gate_a = keyboard.field_state();
+
+        let focused_b = fields.focus(Field::Password);
+        let _ = events.drain_for(Duration::from_millis(500));
+        let password_before_b = fields.text_len(Field::Password);
+        type_letters_slowly(LETTERS);
+        let b = keys(&events.drain_for(Duration::from_secs(1)));
+        let typed_b = fields.text_len(Field::Password) - password_before_b;
+        let gate_b = keyboard.field_state();
+        let withheld_b = keyboard.health().counters.keys_withheld;
+
+        fields.focus(Field::Plain);
+        let _ = events.drain_for(Duration::from_millis(500));
+        let span = Duration::from_secs(6);
+        fields.start_wander(span);
+        let (accepted_c, sent_c) = letters_while(span, Duration::from_millis(60));
+        let intervals = fields.wander_intervals(span);
+        let seen_c = events.drain_for(Duration::from_secs(1));
+        let c = keys(&seen_c);
+        let c_inside = keystrokes_inside(&seen_c, &intervals, 30);
+
+        let focused_d = fields.focus(Field::Password);
+        let _ = events.drain_for(Duration::from_millis(300));
+        let revealed = fields.reveal();
+        let _ = events.drain_for(Duration::from_millis(300));
+        type_letters_slowly(LETTERS);
+        let d = keys(&events.drain_for(Duration::from_secs(1)));
+
+        let mut e = 0;
+        let mut accepted_e = 0;
+        for _ in 0..20 {
+            fields.focus(Field::Plain);
+            let _ = events.drain_for(Duration::from_millis(300));
+            accepted_e += tab_then_letter();
+            e += keys(&events.drain_for(Duration::from_millis(400)));
+        }
+
+        drop(fields);
+        let mut f = 0;
+        for round in 0..10 {
+            let opened = FieldWindow::open("fixture-native-f", Field::Password);
+            type_letters_slowly(1);
+            f += keys(&events.drain_for(Duration::from_millis(500)));
+            if round == 9 {
+                say(
+                    "fixture-native",
+                    format!(
+                        "phase=F password_characters_last_round={}",
+                        opened.text_len(Field::Password)
+                    ),
+                );
+            }
+        }
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        say(
+            "fixture-native",
+            format!(
+                "keyboard_start={} phase=A plain_field_has_focus={focused_a} letters_sent={LETTERS} \
+                 keystroke_events={a} gate={gate_a:?}",
+                show(&start)
+            ),
+        );
+        say(
+            "fixture-native",
+            format!(
+                "phase=B password_field_has_focus={focused_b} letters_sent={LETTERS} \
+                 characters_in_password_field={typed_b} keystroke_events={b} gate={gate_b:?} \
+                 keys_withheld={withheld_b}"
+            ),
+        );
+        say(
+            "fixture-native",
+            format!(
+                "phase=C letters_sent={} sendinput_events_accepted={accepted_c} focus_moves_to_password={} \
+                 keystroke_events={c} keystroke_events_inside_password_focus={c_inside}",
+                sent_c.len(),
+                intervals.len(),
+            ),
+        );
+        say(
+            "fixture-native",
+            format!("phase=D password_field_has_focus={focused_d} revealed={revealed} keystroke_events={d}"),
+        );
+        say(
+            "fixture-native",
+            format!("phase=E rounds=20 sendinput_events_accepted={accepted_e} keystroke_events={e} tab_keys=20"),
+        );
+        say(
+            "fixture-native",
+            format!("phase=F rounds=10 keystroke_events={f}"),
+        );
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert!(
+            focused_a && focused_b && focused_d && typed_b == LETTERS as i32,
+            "INCONCLUSIVE: the scripted keys did not reach the fields"
+        );
+        assert!(
+            !intervals.is_empty() && !sent_c.is_empty(),
+            "INCONCLUSIVE: phase C moved no focus or typed nothing"
+        );
+        assert_eq!(a, LETTERS as usize, "phase A: every key of the plain field");
+        assert_eq!(b, 0, "phase B: a key of the password field was recorded");
+        assert!(withheld_b, "phase B: keys_withheld must read yes");
+        assert_eq!(
+            c_inside, 0,
+            "phase C: a key typed while the password field had the focus was recorded"
+        );
+        assert!(c >= 1, "phase C: no key of the plain field was recorded");
+        assert_eq!(
+            d, 0,
+            "phase D: a key of the revealed password field was recorded"
+        );
+        assert_eq!(
+            e, 20,
+            "phase E: a key typed right after Tab into the password field was recorded"
+        );
+        assert_eq!(
+            f, 0,
+            "phase F: a key typed into a password field that had the focus at open was recorded"
+        );
+    });
+}
+
+const FIXTURE_PAGE: &str = r#"<!doctype html>
+<html><head><meta charset="utf-8"><title>halvo-fixture</title></head>
+<body>
+<input id="plain" type="text">
+<input id="password" type="password">
+<input id="masked" type="text" style="-webkit-text-security: disc">
+<script>
+const query = new URLSearchParams(location.search);
+const phase = query.get('phase') || 'A';
+const run = query.get('run') || '0';
+const counts = { plain: 0, password: 0, masked: 0 };
+let seq = '';
+function show() {
+  document.title = 'halvo-fixture ' + phase + run + ' plain=' + counts.plain + ' password=' +
+    counts.password + ' masked=' + counts.masked + ' seq=' + seq.slice(-150) + ' end';
+}
+for (const id of ['plain', 'password', 'masked']) {
+  document.getElementById(id).addEventListener('keydown', (e) => {
+    if (e.repeat) return;
+    counts[id]++;
+    seq += id === 'password' ? 'P' : (id === 'plain' ? 'T' : 'M');
+    show();
+  });
+}
+const focusOn = (id) => document.getElementById(id).focus();
+if (phase === 'A' || phase === 'C' || phase === 'E') focusOn('plain');
+if (phase === 'B' || phase === 'D' || phase === 'F') focusOn('password');
+if (phase === 'M') focusOn('masked');
+if (phase === 'C') {
+  let x = 7;
+  const hop = () => {
+    x = (x * 1103515245 + 12345) % 2147483648;
+    focusOn(document.activeElement.id === 'plain' ? 'password' : 'plain');
+    setTimeout(hop, 150 + (x % 450));
+  };
+  setTimeout(hop, 1500);
+}
+if (phase === 'D') setTimeout(() => { document.getElementById('password').type = 'text'; }, 800);
+if (phase === 'E') {
+  document.getElementById('password').addEventListener('keyup', (e) => {
+    if (e.key !== 'Tab') setTimeout(() => focusOn('plain'), 250);
+  });
+}
+show();
+</script>
+</body></html>
+"#;
+
+struct Browser {
+    name: &'static str,
+    paths: &'static [&'static str],
+    chromium: bool,
+}
+
+const CHROME: Browser = Browser {
+    name: "chrome",
+    paths: &[
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    ],
+    chromium: true,
+};
+
+const EDGE: Browser = Browser {
+    name: "edge",
+    paths: &[
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    ],
+    chromium: true,
+};
+
+const FIREFOX: Browser = Browser {
+    name: "firefox",
+    paths: &[
+        r"C:\Program Files\Mozilla Firefox\firefox.exe",
+        r"C:\Program Files (x86)\Mozilla Firefox\firefox.exe",
+    ],
+    chromium: false,
+};
+
+struct PageCounts {
+    plain: u32,
+    password: u32,
+    masked: u32,
+    seq: String,
+}
+
+fn page_counts(title: &str) -> Option<PageCounts> {
+    let field = |key: &str| -> Option<&str> {
+        let at = title.find(key)? + key.len();
+        title[at..].split(' ').next()
+    };
+    Some(PageCounts {
+        plain: field(" plain=")?.parse().ok()?,
+        password: field(" password=")?.parse().ok()?,
+        masked: field(" masked=")?.parse().ok()?,
+        seq: field(" seq=")?.to_string(),
+    })
+}
+
+fn window_titled(prefix: &str) -> Option<(HWND, String)> {
+    use windows::core::BOOL;
+    use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextW};
+    unsafe extern "system" fn each(hwnd: HWND, found: LPARAM) -> BOOL {
+        let mut buf = [0u16; 512];
+        // SAFETY: `buf` is a live buffer whose length the call takes, and
+        // `found` is the address of the vector that the caller holds across
+        // the enumeration on this thread.
+        unsafe {
+            let len = GetWindowTextW(hwnd, &mut buf);
+            let title = String::from_utf16_lossy(&buf[..usize::try_from(len).unwrap_or(0)]);
+            (*(found.0 as *mut Vec<(HWND, String)>)).push((hwnd, title));
+        }
+        BOOL::from(true)
+    }
+    let mut all: Vec<(HWND, String)> = Vec::new();
+    // SAFETY: the callback has the WNDENUMPROC signature and reads `all`
+    // only while this call runs.
+    unsafe {
+        let _ = EnumWindows(
+            Some(each),
+            LPARAM(&mut all as *mut Vec<(HWND, String)> as isize),
+        );
+    }
+    all.into_iter().find(|(_, title)| title.starts_with(prefix))
+}
+
+fn title_of(hwnd: HWND) -> String {
+    use windows::Win32::UI::WindowsAndMessaging::GetWindowTextW;
+    let mut buf = [0u16; 512];
+    // SAFETY: `buf` is a live buffer whose length the call takes.
+    let len = unsafe { GetWindowTextW(hwnd, &mut buf) };
+    String::from_utf16_lossy(&buf[..usize::try_from(len).unwrap_or(0)])
+}
+
+struct BrowserRun<'a> {
+    browser: &'a Browser,
+    exe: String,
+    profile: tempfile::TempDir,
+    page: String,
+    runs: u32,
+}
+
+impl<'a> BrowserRun<'a> {
+    fn new(browser: &'a Browser) -> Option<BrowserRun<'a>> {
+        let exe = browser
+            .paths
+            .iter()
+            .find(|path| Path::new(path).is_file())?;
+        let profile = scratch_dir();
+        if !browser.chromium {
+            let prefs = "user_pref(\"browser.shell.checkDefaultBrowser\", false);\n\
+                         user_pref(\"browser.aboutwelcome.enabled\", false);\n\
+                         user_pref(\"datareporting.policy.dataSubmissionEnabled\", false);\n\
+                         user_pref(\"browser.startup.homepage_override.mstone\", \"ignore\");\n\
+                         user_pref(\"startup.homepage_welcome_url\", \"\");\n\
+                         user_pref(\"trailhead.firstrun.didSeeAboutWelcome\", true);\n";
+            std::fs::write(profile.path().join("user.js"), prefs).ok()?;
+        }
+        let page_path = profile.path().join("fixture.html");
+        std::fs::write(&page_path, FIXTURE_PAGE).ok()?;
+        let page = format!("file:///{}", page_path.to_string_lossy().replace('\\', "/"));
+        Some(BrowserRun {
+            browser,
+            exe: exe.to_string(),
+            profile,
+            page,
+            runs: 0,
+        })
+    }
+
+    fn open(&mut self, phase: char) -> Option<HWND> {
+        self.runs += 1;
+        let url = format!("{}?phase={phase}&run={}", self.page, self.runs);
+        let profile = self.profile.path().to_string_lossy().into_owned();
+        let args: Vec<String> = if self.browser.chromium {
+            vec![
+                format!("--user-data-dir={profile}"),
+                "--no-first-run".to_string(),
+                "--no-default-browser-check".to_string(),
+                "--disable-features=Translate".to_string(),
+                "--new-window".to_string(),
+                url,
+            ]
+        } else {
+            vec![
+                "-profile".to_string(),
+                profile,
+                "-new-window".to_string(),
+                url,
+            ]
+        };
+        let _ = Command::new(&self.exe)
+            .args(&args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .ok()?;
+        let prefix = format!("halvo-fixture {phase}{} ", self.runs);
+        let began = Instant::now();
+        while began.elapsed() < Duration::from_secs(30) {
+            if let Some((hwnd, _)) = window_titled(&prefix) {
+                for _ in 0..10 {
+                    if foreground_window() == hwnd {
+                        break;
+                    }
+                    send(&[key_input(VK_MENU, false)]);
+                    set_foreground(hwnd);
+                    send(&[key_input(VK_MENU, true)]);
+                    std::thread::sleep(Duration::from_millis(200));
+                }
+                std::thread::sleep(Duration::from_millis(1200));
+                return Some(hwnd);
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        }
+        None
+    }
+}
+
+impl Drop for BrowserRun<'_> {
+    fn drop(&mut self) {
+        let image = Path::new(&self.exe)
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let _ = Command::new("taskkill.exe")
+            .args(["/IM", &image, "/F", "/T"])
+            .output();
+        std::thread::sleep(Duration::from_millis(500));
+    }
+}
+
+/// The keystroke events of one phase: the browser opens the fixture page at
+/// `phase`, `typing` types into it, and the page's own counts come back.
+fn browser_phase(
+    test: &str,
+    run: &mut BrowserRun,
+    keyboard: &RawInputSource,
+    events: &Events,
+    phase: char,
+    typing: impl FnOnce() -> Vec<u128>,
+) -> (
+    usize,
+    Vec<CaptureStreamEvent>,
+    Option<PageCounts>,
+    Vec<u128>,
+) {
+    let hwnd = run.open(phase);
+    let foreground = hwnd.is_some_and(|hwnd| foreground_window() == hwnd);
+    let _ = events.drain_for(Duration::from_millis(300));
+    let sent = typing();
+    let seen = events.drain_for(Duration::from_millis(1500));
+    let counts = hwnd.and_then(|hwnd| page_counts(&title_of(hwnd)));
+    let keystrokes = count(&seen, Modality::Keystroke);
+    say(
+        test,
+        format!(
+            "browser={} phase={phase} page_window_found={} page_window_foreground={foreground} \
+             page_plain={} page_password={} page_masked={} keystroke_events={keystrokes} gate={:?}",
+            run.browser.name,
+            hwnd.is_some(),
+            counts.as_ref().map_or(-1, |c| i64::from(c.plain)),
+            counts.as_ref().map_or(-1, |c| i64::from(c.password)),
+            counts.as_ref().map_or(-1, |c| i64::from(c.masked)),
+            keyboard.field_state(),
+        ),
+    );
+    (keystrokes, seen, counts, sent)
+}
+
+fn letters(n: u32) -> Vec<u128> {
+    let mut sent = Vec::new();
+    for _ in 0..n {
+        sent.push(unix_millis(SystemTime::now()));
+        type_letters_slowly(1);
+    }
+    sent
+}
+
+fn password_key_events(seen: &[CaptureStreamEvent], sent: &[u128], seq: &str) -> usize {
+    let fields: Vec<char> = seq.chars().collect();
+    let offset = sent.len().saturating_sub(fields.len());
+    seen.iter()
+        .filter(|e| e.modality == Modality::Keystroke)
+        .filter(|e| {
+            let at = unix_millis_of(e);
+            let nearest = sent
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, t)| t.abs_diff(at))
+                .map(|(i, _)| i);
+            nearest
+                .and_then(|i| i.checked_sub(offset))
+                .and_then(|i| fields.get(i))
+                .is_some_and(|field| *field != 'T')
+        })
+        .count()
+}
+
+fn browser_fixture(test: &'static str, browser: &'static Browser) {
+    with_deadline(test, Duration::from_secs(300), || {
+        env_report(test);
+        source_built_by_test(test, "keyboard");
+        let mut run = BrowserRun::new(browser);
+        say(
+            test,
+            format!("browser={} installed={}", browser.name, run.is_some()),
+        );
+        let run = run
+            .as_mut()
+            .expect("the browser is not installed on this runner: FAIL");
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        let unknown_class = !browser.chromium;
+
+        let (a, _, a_page, _) = browser_phase(test, run, &keyboard, &events, 'A', || letters(5));
+        let (m, _, m_page, _) = browser_phase(test, run, &keyboard, &events, 'M', || letters(5));
+        let (b, _, b_page, _) = browser_phase(test, run, &keyboard, &events, 'B', || letters(5));
+        let withheld_b = keyboard.health().counters.keys_withheld;
+        let (c, c_seen, c_page, c_sent) = browser_phase(test, run, &keyboard, &events, 'C', || {
+            std::thread::sleep(Duration::from_millis(1000));
+            letters_while(Duration::from_secs(6), Duration::from_millis(60)).1
+        });
+        let c_seq = c_page.as_ref().map(|p| p.seq.clone()).unwrap_or_default();
+        let c_password = password_key_events(&c_seen, &c_sent, &c_seq);
+        let (d, _, d_page, _) = browser_phase(test, run, &keyboard, &events, 'D', || {
+            std::thread::sleep(Duration::from_millis(1200));
+            letters(5)
+        });
+        let (e, _, e_page, _) = browser_phase(test, run, &keyboard, &events, 'E', || {
+            for _ in 0..20 {
+                tab_then_letter();
+                std::thread::sleep(Duration::from_millis(500));
+                send(&[key_input(
+                    windows::Win32::UI::Input::KeyboardAndMouse::VK_SHIFT,
+                    false,
+                )]);
+                send(&[key_input(
+                    windows::Win32::UI::Input::KeyboardAndMouse::VK_SHIFT,
+                    true,
+                )]);
+            }
+            Vec::new()
+        });
+        let mut f = 0;
+        let mut f_password = 0;
+        for _ in 0..10 {
+            let (keys, _, page, _) =
+                browser_phase(test, run, &keyboard, &events, 'F', || letters(1));
+            f += keys;
+            f_password += page.map_or(0, |p| p.password);
+        }
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        let page = |p: &Option<PageCounts>| {
+            p.as_ref()
+                .map_or((0, 0, 0), |p| (p.plain, p.password, p.masked))
+        };
+        say(
+            test,
+            format!(
+                "keyboard_start={} browser={} detector_class={} phase_A_plain_keys={} phase_A_events={a} \
+                 phase_M_masked_keys={} phase_M_events={m} phase_B_password_keys={} phase_B_events={b} \
+                 keys_withheld={withheld_b} phase_C_keys={} phase_C_events={c} phase_C_password_key_events={c_password} \
+                 phase_D_keys={} phase_D_events={d} phase_E_password_keys={} phase_E_events={e} \
+                 phase_F_password_keys={f_password} phase_F_events={f}",
+                show(&start),
+                browser.name,
+                if unknown_class { "unknown" } else { "read" },
+                page(&a_page).0,
+                page(&m_page).2,
+                page(&b_page).1,
+                c_seq.len(),
+                page(&d_page).0 + page(&d_page).1,
+                page(&e_page).1,
+            ),
+        );
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert!(
+            page(&a_page).0 == 5 && page(&b_page).1 == 5 && page(&m_page).2 == 5,
+            "INCONCLUSIVE: the page did not take the scripted keys"
+        );
+        assert_eq!(b, 0, "phase B: a key of the password input was recorded");
+        assert!(withheld_b, "phase B: keys_withheld must read yes");
+        assert_eq!(
+            c_password, 0,
+            "phase C: a key typed into the password input was recorded"
+        );
+        assert_eq!(
+            d, 0,
+            "phase D: a key of the revealed password input was recorded"
+        );
+        assert!(
+            page(&e_page).1 >= 1,
+            "INCONCLUSIVE: phase E typed nothing into the password input"
+        );
+        assert_eq!(
+            f, 0,
+            "phase F: a key of the autofocus password input was recorded"
+        );
+        if unknown_class {
+            assert_eq!(
+                a + m + c + e,
+                0,
+                "a Firefox focus must read Unknown and give no keystroke event"
+            );
+            say(test, "detector_state=Unknown keystroke_events=0");
+        } else {
+            assert_eq!(a, 5, "phase A: every key of the text input");
+            assert_eq!(
+                m, 5,
+                "phase M: the CSS-masked text input is recorded, as the consent text says"
+            );
+            assert!(c >= 1, "phase C: no key of the text input was recorded");
+            assert_eq!(
+                e, 40,
+                "phase E: a key after Tab into the password input was recorded"
+            );
+        }
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Chrome"]
+fn password_field_fixture_chrome() {
+    browser_fixture("fixture-chrome", &CHROME);
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Edge"]
+fn password_field_fixture_edge() {
+    browser_fixture("fixture-edge", &EDGE);
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and Firefox"]
+fn password_field_fixture_firefox() {
+    browser_fixture("fixture-firefox", &FIREFOX);
+}
+
 macro_rules! defect {
     ($id:literal, $wanted:expr, $evidence:expr) => {{
         let evidence: String = $evidence;
@@ -3287,29 +4189,6 @@ mod known_defect {
     use super::*;
 
     use halvo_capture::windows::apps::wait_for_change;
-    use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, SetFocus, VK_A};
-    use windows::Win32::UI::WindowsAndMessaging::ES_PASSWORD;
-
-    fn focus(hwnd: HWND) -> bool {
-        // SAFETY: SetFocus takes a window handle of this thread by value.
-        unsafe {
-            let _ = SetFocus(Some(hwnd));
-        }
-        pump_thread(Duration::from_millis(200));
-        // SAFETY: GetFocus takes no argument and returns a handle value.
-        unsafe { GetFocus() == hwnd }
-    }
-
-    fn type_letters(letters: u32) -> u32 {
-        let mut accepted = 0;
-        for _ in 0..letters {
-            accepted += send(&[key_input(VK_A, false)]);
-            pump_thread(Duration::from_millis(20));
-            accepted += send(&[key_input(VK_A, true)]);
-            pump_thread(Duration::from_millis(20));
-        }
-        accepted
-    }
 
     fn arm_watcher() -> mpsc::Receiver<Result<(), String>> {
         let (tx, rx) = mpsc::channel();
@@ -3345,44 +4224,32 @@ mod known_defect {
             const LETTERS: u32 = 5;
             env_report("x1");
             source_built_by_test("x1", "keyboard");
+            let fields = FieldWindow::open("x1", Field::Plain);
             let (sink, events) = capture(4096);
             let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
-            let mut keyboard = RawInputSource::keyboard(last_app);
+            let mut keyboard = RawInputSource::keyboard(last_app, PasswordGate::new());
             let start = keyboard.begin(SourceContext::new(sink.clone()));
-            let window = TestWindow::create(&normal_window(
-                "HalvoVerifyPassword",
-                "halvo-verify-password",
-                80,
-                80,
-            ))
-            .expect("window");
-            let plain = window
-                .child_control("EDIT", WINDOW_STYLE(0), 10)
-                .expect("plain edit control");
-            let password = window
-                .child_control("EDIT", WINDOW_STYLE(ES_PASSWORD as u32), 44)
-                .expect("password edit control");
-            pump_thread(Duration::from_millis(300));
-            let (foreground, method) = window.activate();
 
-            let plain_focused = focus(plain);
+            let plain_focused = fields.focus(Field::Plain);
             let plain_before = events.drain_for(Duration::from_millis(500));
-            let plain_accepted = type_letters(LETTERS);
-            pump_thread(Duration::from_millis(300));
-            let plain_characters = title_len(plain);
+            let plain_accepted = type_letters_slowly(LETTERS);
             let plain_typed = count(
                 &events.drain_for(Duration::from_secs(1)),
                 Modality::Keystroke,
             );
+            let plain_characters = fields.text_len(Field::Plain);
+            let plain_gate = keyboard.field_state();
             say(
                 "x1",
                 format!(
-                    "keyboard_start={} window_foreground={foreground} method={method} \
+                    "keyboard_start={} window_foreground={} method={} \
                      plain_field_has_focus={plain_focused} letters_sent={LETTERS} \
                      sendinput_key_events_accepted={plain_accepted} \
-                     characters_in_plain_field={plain_characters} \
+                     characters_in_plain_field={plain_characters} gate_in_plain_field={plain_gate:?} \
                      keystroke_events_before_typing={} plain_field_keystroke_events={plain_typed}",
                     show(&start),
+                    fields.foreground,
+                    fields.method,
                     count(&plain_before, Modality::Keystroke),
                 ),
             );
@@ -3393,15 +4260,16 @@ mod known_defect {
             );
             assert_eq!(
                 plain_typed, LETTERS as usize,
-                "INCONCLUSIVE: the keyboard source did not record the keys typed into the plain field"
+                "the keyboard source did not record the keys typed into the plain field"
             );
 
-            let password_focused = focus(password);
+            let password_focused = fields.focus(Field::Password);
             let before = events.drain_for(Duration::from_millis(500));
-            let accepted = type_letters(LETTERS);
-            pump_thread(Duration::from_millis(300));
-            let characters = title_len(password);
+            let accepted = type_letters_slowly(LETTERS);
             let during = events.drain_for(Duration::from_secs(1));
+            let characters = fields.text_len(Field::Password);
+            let password_gate = keyboard.field_state();
+            let withheld = keyboard.health().counters.keys_withheld;
             let _ = stop_counted(&mut keyboard, "keyboard");
             let typed = count(&during, Modality::Keystroke);
             say(
@@ -3409,7 +4277,8 @@ mod known_defect {
                 format!(
                     "password_field_has_focus={password_focused} letters_sent={LETTERS} \
                      sendinput_key_events_accepted={accepted} \
-                     characters_in_password_field={characters} \
+                     characters_in_password_field={characters} gate_in_password_field={password_gate:?} \
+                     keys_withheld={withheld} \
                      keystroke_events_before_typing_into_password_field={}",
                     count(&before, Modality::Keystroke),
                 ),
@@ -3420,8 +4289,11 @@ mod known_defect {
             );
             defect!(
                 "RR-windows-01",
-                typed == 0,
-                format!("TF x1 keystroke_events_while_typing_into_password_field={typed}")
+                typed == 0 && withheld,
+                format!(
+                    "TF x1 keystroke_events_while_typing_into_password_field={typed} \
+                     plain_field_keystroke_events={plain_typed}"
+                )
             );
         });
     }

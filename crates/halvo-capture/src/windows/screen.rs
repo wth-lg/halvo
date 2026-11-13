@@ -15,13 +15,12 @@ use windows_capture::settings::{
     MinimumUpdateIntervalSettings, SecondaryWindowSettings, Settings,
 };
 
-use crate::event::Modality;
 use crate::source::{
     CaptureError, CaptureSource, HealthReason, SourceContext, SourceCounters, SourceHealth,
     SourceState, Started, StopCause,
 };
 
-use super::{HandOff, HandOffCounts, LossCounts, Packet, Producer};
+use super::{HandOff, HandOffCounts, LossCounts, Observed, Packet, Producer};
 
 /// The default minimum interval between captured frames.
 pub const DEFAULT_MIN_FRAME_INTERVAL: Duration = Duration::from_millis(500);
@@ -146,12 +145,12 @@ pub(crate) fn frame_packet(
     if width == 0 || height == 0 {
         return None;
     }
-    Some(Packet {
-        kind: Modality::ScreenFrame,
-        app: foreground_app,
-        byte_len: u64::from(width) * u64::from(height) * BGRA8_BYTES_PER_PIXEL,
+    Some(Packet::observed(
+        Observed::ScreenFrame,
+        foreground_app,
+        u64::from(width) * u64::from(height) * BGRA8_BYTES_PER_PIXEL,
         tick,
-    })
+    ))
 }
 
 /// What the capture handler needs, passed through the settings flags.
@@ -571,12 +570,13 @@ fn start_error(error: GraphicsCaptureApiError<CaptureError>) -> CaptureError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::event::Modality;
 
     #[test]
     fn a_frame_maps_to_a_screen_frame_packet_of_its_byte_count() {
         let packet = frame_packet(1920, 1080, Some("C:\\browser.exe".to_string()), 1)
             .expect("a sized frame produces a packet");
-        assert_eq!(packet.kind, Modality::ScreenFrame);
+        assert_eq!(packet.kind(), Modality::ScreenFrame);
         assert_eq!(packet.app.as_deref(), Some("C:\\browser.exe"));
         assert_eq!(packet.byte_len, 1920 * 1080 * 4);
     }

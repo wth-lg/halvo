@@ -72,11 +72,71 @@ pub fn build_event(
     )
 }
 
-pub(crate) struct Packet {
-    pub(crate) kind: Modality,
-    pub(crate) app: Option<String>,
-    pub(crate) byte_len: u64,
-    pub(crate) tick: u32,
+pub(crate) use packet::{Observed, Packet};
+
+mod packet {
+    use crate::event::Modality;
+    use crate::secure_input::KeystrokeClearance;
+
+    /// A kind that a packet holds without a clearance: every kind but the
+    /// keystroke.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum Observed {
+        Pointer,
+        ForegroundApp,
+        WindowTitle,
+        ScreenFrame,
+    }
+
+    /// One captured event on its way to the sink. A keystroke packet is made
+    /// only by [`Packet::keystroke`], which takes the key's clearance.
+    pub(crate) struct Packet {
+        kind: Modality,
+        pub(crate) app: Option<String>,
+        pub(crate) byte_len: u64,
+        pub(crate) tick: u32,
+    }
+
+    impl Packet {
+        pub(crate) fn keystroke(
+            clearance: KeystrokeClearance,
+            app: Option<String>,
+            byte_len: u64,
+            tick: u32,
+        ) -> Packet {
+            let _ = clearance.key_age();
+            Packet {
+                kind: Modality::Keystroke,
+                app,
+                byte_len,
+                tick,
+            }
+        }
+
+        pub(crate) fn observed(
+            kind: Observed,
+            app: Option<String>,
+            byte_len: u64,
+            tick: u32,
+        ) -> Packet {
+            let kind = match kind {
+                Observed::Pointer => Modality::Pointer,
+                Observed::ForegroundApp => Modality::ForegroundApp,
+                Observed::WindowTitle => Modality::WindowTitle,
+                Observed::ScreenFrame => Modality::ScreenFrame,
+            };
+            Packet {
+                kind,
+                app,
+                byte_len,
+                tick,
+            }
+        }
+
+        pub(crate) fn kind(&self) -> Modality {
+            self.kind
+        }
+    }
 }
 
 #[link(name = "kernel32")]
@@ -263,6 +323,11 @@ impl Producer {
     pub(crate) fn writer_gone(&self) -> bool {
         self.shared.lock().writer_gone
     }
+
+    /// Counts `packets` that the source could not hand over as lost.
+    pub(crate) fn lose(&self, packets: u64) {
+        self.shared.counts.lose(packets);
+    }
 }
 
 impl HandOff {
@@ -327,7 +392,7 @@ pub(crate) fn forward_one(sink: &SinkHandle, packet: Packet) -> Result<EmitOutco
     let wall_clock = capture_instant(packet.tick);
     sink.emit(build_event(
         sink,
-        packet.kind,
+        packet.kind(),
         packet.app.unwrap_or_default(),
         placement,
         wall_clock,
@@ -602,6 +667,12 @@ impl Lifecycle {
 
     pub(crate) fn handoff_counts(&self) -> HandOffCounts {
         self.counts.read()
+    }
+
+    /// Records a removal call that failed after the pump's stop, so that the
+    /// source reads as failed with that error and starts no more.
+    pub(crate) fn removal_failed(&mut self, error: CaptureError) {
+        self.removal_failed.get_or_insert(error);
     }
 }
 
@@ -941,12 +1012,12 @@ pub(crate) mod tests {
     }
 
     fn pointer(app: &str) -> Packet {
-        Packet {
-            kind: Modality::Pointer,
-            app: Some(app.to_string()),
-            byte_len: 12,
-            tick: now_tick(),
-        }
+        Packet::observed(Observed::Pointer, Some(app.to_string()), 12, now_tick())
+    }
+
+    pub(crate) fn cleared() -> crate::secure_input::KeystrokeClearance {
+        use crate::secure_input::{check, FixedProbe, SecureInputReading};
+        check(&FixedProbe(SecureInputReading::Inactive), None).expect("an inactive reading")
     }
 
     fn wait_until(what: &str, mut done: impl FnMut() -> bool) {
@@ -958,12 +1029,7 @@ pub(crate) mod tests {
     }
 
     fn keystroke(app: &str) -> Packet {
-        Packet {
-            kind: Modality::Keystroke,
-            app: Some(app.to_string()),
-            byte_len: 2,
-            tick: now_tick(),
-        }
+        Packet::keystroke(cleared(), Some(app.to_string()), 2, now_tick())
     }
 
     fn wait_for(mut done: impl FnMut() -> bool) {
@@ -1395,12 +1461,7 @@ pub(crate) mod tests {
     fn an_event_carries_the_time_of_its_os_event() {
         let (sink, writer) = crate::sink::channel(4);
         let before = std::time::SystemTime::now();
-        let packet = Packet {
-            kind: Modality::Keystroke,
-            app: None,
-            byte_len: 2,
-            tick: now_tick().wrapping_sub(250),
-        };
+        let packet = Packet::keystroke(cleared(), None, 2, now_tick().wrapping_sub(250));
         assert!(forward_one(&sink, packet).is_ok());
         let after = std::time::SystemTime::now();
         let received = writer.try_recv().expect("the event is queued");

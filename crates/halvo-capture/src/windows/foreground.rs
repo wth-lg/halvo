@@ -2,12 +2,11 @@
 
 use std::sync::{Arc, Mutex};
 
-use crate::event::Modality;
 use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
 };
 
-use super::{Lifecycle, Packet, Producer, PumpReady};
+use super::{Lifecycle, Observed, Packet, Producer, PumpReady};
 
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::{CloseHandle, HWND, MAX_PATH};
@@ -46,12 +45,7 @@ pub(crate) fn set_win_event_hook(event: u32, callback: WINEVENTPROC) -> HWINEVEN
 }
 
 pub(crate) fn foreground_packet(exe_path: Option<String>, tick: u32) -> Packet {
-    Packet {
-        kind: Modality::ForegroundApp,
-        app: exe_path,
-        byte_len: 0,
-        tick,
-    }
+    Packet::observed(Observed::ForegroundApp, exe_path, 0, tick)
 }
 
 /// The executable path of the current foreground window's process, or `None` when
@@ -78,7 +72,7 @@ pub(crate) fn foreground_app_for(hwnd: HWND) -> Option<String> {
 }
 
 #[cfg(target_os = "windows")]
-fn process_path(pid: u32) -> Option<String> {
+pub(crate) fn process_path(pid: u32) -> Option<String> {
     use windows::core::PWSTR;
     // SAFETY: OpenProcess takes plain values; the handle that it returns is
     // closed once, after the queries.
@@ -440,11 +434,12 @@ fn run_foreground_hook(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::event::Modality;
 
     #[test]
     fn a_foreground_change_maps_to_a_foreground_app_packet() {
         let packet = foreground_packet(Some("C:\\Windows\\explorer.exe".to_string()), 5);
-        assert_eq!(packet.kind, Modality::ForegroundApp);
+        assert_eq!(packet.kind(), Modality::ForegroundApp);
         assert_eq!(packet.app.as_deref(), Some("C:\\Windows\\explorer.exe"));
         assert_eq!(packet.tick, 5);
     }
