@@ -752,9 +752,10 @@ fn the_committed_names_file_holds_no_line_role() {
 
 #[test]
 fn names_file_is_byte_for_byte_the_same_when_the_later_lists_leave_out_the_registry_names() {
-    let registry: BTreeSet<&str> = kinds::registry()
+    let handed: Vec<&str> = kinds::registry()
         .flat_map(|kind| [kind.name, kind.family])
         .collect();
+    let registry: BTreeSet<&str> = handed.iter().copied().collect();
     let left: Vec<Vec<&str>> = export_names::LATER
         .iter()
         .map(|list| {
@@ -787,11 +788,11 @@ fn names_file_is_byte_for_byte_the_same_when_the_later_lists_leave_out_the_regis
         "every kind and family name of the registry stands in a list without it"
     );
     assert!(
-        export_names::names_with(&later).as_bytes() == committed("names.txt").as_bytes(),
+        export_names::names_with(&later, &handed).as_bytes() == committed("names.txt").as_bytes(),
         "the names file differs from tests/golden/names.txt when the later lists leave out the registry's names"
     );
-    assert!(export_names::names_file() == export_names::names_with(export_names::LATER));
-    assert!(export_names::names_with(&[]) != export_names::names_file());
+    assert!(export_names::names_file() == export_names::names_with(export_names::LATER, &handed));
+    assert!(export_names::names_with(&[], &handed) != export_names::names_file());
     let source = std::fs::read_to_string(
         Path::new(env!("CARGO_MANIFEST_DIR")).join("src/bin/export-names.rs"),
     )
@@ -801,6 +802,37 @@ fn names_file_is_byte_for_byte_the_same_when_the_later_lists_leave_out_the_regis
             && !source.contains("KINDS"),
         "src/bin/export-names.rs takes the kind and family names from halvo_schema::kinds::registry() and names no KINDS list"
     );
+}
+
+#[test]
+fn names_with_writes_each_kind_and_family_name_that_it_is_handed_and_no_other() {
+    let made_up = ["zz_made_up_kind", "zz_made_up_family"];
+    let handed = export_names::names_with(export_names::LATER, &made_up);
+    for name in made_up {
+        assert!(
+            handed.lines().any(|line| line == name),
+            "names_with does not write {name}, which it was handed as a kind or family name"
+        );
+    }
+    let bare = export_names::names_with(export_names::LATER, &[]);
+    assert!(
+        !bare.lines().any(|line| made_up.contains(&line)),
+        "names_with writes a made-up kind or family name that it was not handed"
+    );
+}
+
+#[test]
+fn every_kind_and_family_name_of_the_registry_is_a_line_of_the_names_file() {
+    let file = export_names::names_file();
+    let lines: BTreeSet<&str> = file.lines().collect();
+    for kind in kinds::registry() {
+        for name in [kind.name, kind.family] {
+            assert!(
+                lines.contains(name),
+                "{name} of halvo_schema::kinds::registry() is no line of names_file(); this test holds the tie to the registry for the kinds that it holds, so a names_file() that hands names_with a literal list equal to today's registry passes until a kind is added"
+            );
+        }
+    }
 }
 
 #[test]

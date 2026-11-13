@@ -19,16 +19,18 @@ pub(crate) const LATER: &[&[&str]] = &[
 ];
 
 pub(crate) fn names_file() -> String {
-    names_with(LATER)
+    let kinds: Vec<&str> = halvo_schema::kinds::registry()
+        .flat_map(|kind| [kind.name, kind.family])
+        .collect();
+    names_with(LATER, &kinds)
 }
 
-pub(crate) fn names_with(later: &[&[&str]]) -> String {
-    let registry = halvo_schema::kinds::registry().flat_map(|kind| [kind.name, kind.family]);
+pub(crate) fn names_with(later: &[&[&str]], kinds: &[&str]) -> String {
     let mut names: Vec<&str> = LOCKED
         .iter()
         .chain(later)
         .flat_map(|list| list.iter().copied())
-        .chain(registry)
+        .chain(kinds.iter().copied())
         .collect();
     names.sort_unstable();
     names.dedup();
