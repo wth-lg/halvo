@@ -146,7 +146,7 @@ pub(crate) fn recovered_step(served: &ExecutableStep, repaired: &Control) -> Res
     Ok(step)
 }
 
-/// The edits of the family `learn` in the state `reverted`, as (edit id, first locator of its list).
+/// The edits of the family `learn` in the state `reverted`, as (edit id, first locator of its list, step number).
 fn reverted(rows: &dyn RowRead) -> Result<Vec<(String, Option<Locator>, u32)>, String> {
     let mut out = Vec::new();
     let mut failed = None;
@@ -334,8 +334,9 @@ impl<'c> Play<'c> {
     }
 
     /// Plays one occurrence as one replay run of the stub runner (L10.3): `start_run`, `load`, `load_steps`, the
-    /// steps against the page with the case's repairer, one `log`, at most one `put_playbook` and `finish`.
-    /// Answers whether the repairer was asked, whether a step acted on a control that is not its intended
+    /// steps against the page with the case's repairer, one `log`, at most one `put_playbook` and `finish`. The
+    /// `put_playbook` names the number that the run loaded plus 1, in every arm, and holds the playbook's steps from
+    /// step 1, the recovered ones with the repaired control's locator first. Answers whether the repairer was asked, whether a step acted on a control that is not its intended
     /// control, whether the run completed, and the reverts of the run whose first locator resolves on the page to
     /// the step's intended control or to nothing.
     pub fn occurrence(
