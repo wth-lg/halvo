@@ -447,13 +447,14 @@ pub fn print(verb: &Verb, result: Result<Reply, ClientError>, data_dir: &DataDir
                     f.capture.as_str()
                 ));
             }
-            if status.fields().state_file == StateFile::WriteFailed {
+            let written = f.state_file == StateFile::Ok;
+            if !written {
                 stderr.push_str(&format!(
                     "halvo-capture: the state file was not written: {}\n",
                     data_dir.state_file().display()
                 ));
             }
-            let status = if reached && f.state_file != StateFile::WriteFailed {
+            let status = if reached && written {
                 crate::exit::CLEAN
             } else {
                 crate::exit::ERROR
