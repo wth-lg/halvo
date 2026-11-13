@@ -1378,7 +1378,18 @@ own_self_test() {
   own_case default-check-jobs-of-one-without-number-of-processors 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
   new_repo && track_file && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; w changed; $check_passes" &&
     add_script r1 20-b.sh "$free" "$prelude_any; meet || $check_alone; printf 'x\\n' >>\"\$CI_D_REPO/tracked.txt\"; : >\"\$CI_D_REPO/changed\"; $check_passes"
+  case_first='PASS 10-a'
+  case_then='FAIL run-ci-d (one of 10-a, 20-b changed a tracked file: tracked.txt)'
   own_case tracked-file-changed-beside-another-check-names-both 1 'FAIL run-ci-d (one of 10-a, 20-b changed a tracked file: tracked.txt)' macos
+  new_repo && track_file && add_script r1 10-a.sh "$good" "$pass_a" &&
+    add_script r1 20-b.sh "$good" 'printf "x\n" >>"$CI_D_REPO/tracked.txt"; printf "PASS 20-b\n"'
+  case_absent='FAIL run-ci-d (one of 10-a, 20-b changed a tracked file: tracked.txt)'
+  own_case tracked-file-changed-by-the-second-check-of-the-cargo-lane-names-it-alone 1 'FAIL run-ci-d (20-b changed a tracked file: tracked.txt)' macos
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b" &&
+    mkdir -p "$fixture/target/ci-artifacts" && printf 'a file\n' >"$fixture/target/ci-artifacts/10-a"
+  case_first='FAIL 10-a (its artifacts directory cannot be made)'
+  case_then='PASS 20-b'
+  own_case check-that-cannot-start-leaves-the-cargo-lane-to-the-next 1 'FAIL 10-a (its artifacts directory cannot be made)' macos
   new_repo && add_script r1 10-a.sh "$good" "$prelude_any; meet || $check_alone; $check_passes" &&
     add_script r1 20-b.sh "$free" "$prelude_any; meet || $check_alone; trap '' TERM; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; wait; $check_passes"
   case_limit=2
