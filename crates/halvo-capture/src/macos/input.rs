@@ -794,7 +794,7 @@ mod tests {
     use core_foundation::date::CFDate;
     use core_foundation::runloop::{CFRunLoopTimer, CFRunLoopTimerRef};
     use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
     use std::sync::atomic::AtomicUsize;
     use std::sync::mpsc::RecvTimeoutError;
     use std::sync::{Mutex, PoisonError};
@@ -995,16 +995,185 @@ mod tests {
 
     #[test]
     fn the_reader_that_the_tap_gets_asks_the_system_once_for_each_call() {
+        const CALLS: u64 = 1024;
         let reader = tap_settings().secure;
         let before = crate::secure_input_macos::system_reads_on_this_thread();
-        for _ in 0..6 {
+        for _ in 0..CALLS {
             let _ = reader();
         }
         assert_eq!(
             crate::secure_input_macos::system_reads_on_this_thread() - before,
-            6,
-            "calls that reached the system from this thread for 6 reads"
+            CALLS,
+            "calls that reached the system from this thread for {CALLS} reads"
         );
+    }
+
+    thread_local! {
+        static STAND_IN_ANSWER: Cell<SecureInputState> =
+            const { Cell::new(SecureInputState::Inactive) };
+        static STAND_IN_ASKED: Cell<usize> = const { Cell::new(0) };
+    }
+
+    fn stand_in_reader() -> SecureInputState {
+        STAND_IN_ASKED.with(|asked| asked.set(asked.get() + 1));
+        STAND_IN_ANSWER.with(Cell::get)
+    }
+
+    struct EventOutcome {
+        recorded: Vec<Modality>,
+        suppressed: u64,
+        asked: usize,
+    }
+
+    /// Hands each event, with the answer that the stand-in reader gives for it,
+    /// to one closure from `tap_callback`, and reads what that event alone came to.
+    fn through_one_callback(events: &[(CGEventType, SecureInputState)]) -> Vec<EventOutcome> {
+        let (ctx, writer) = context(stand_in_reader);
+        let counters = ctx.counters.clone();
+        let callback = tap_callback(ctx);
+        let source =
+            CGEventSource::new(CGEventSourceStateID::Private).expect("a private event source");
+        let event = CGEvent::new(source).expect("an event object of type null, never posted");
+        events
+            .iter()
+            .map(|&(etype, answer)| {
+                STAND_IN_ANSWER.with(|cell| cell.set(answer));
+                STAND_IN_ASKED.with(|cell| cell.set(0));
+                let suppressed_before = counters.suppressed_keys();
+                let _ = callback(std::ptr::null(), etype, &event);
+                let mut recorded = Vec::new();
+                while let Ok(received) = writer.try_recv() {
+                    recorded.push(received.event().modality);
+                }
+                EventOutcome {
+                    recorded,
+                    suppressed: counters.suppressed_keys() - suppressed_before,
+                    asked: STAND_IN_ASKED.with(Cell::get),
+                }
+            })
+            .collect()
+    }
+
+    fn holds_for_its_own_answer(
+        etype: CGEventType,
+        answer: SecureInputState,
+        outcome: &EventOutcome,
+    ) -> Result<(), String> {
+        let EventOutcome {
+            recorded,
+            suppressed,
+            asked,
+        } = outcome;
+        match tap_class(etype) {
+            Some(TapClass::KeyPress | TapClass::OtherKey) => {
+                let (want_recorded, want_suppressed) = match answer {
+                    SecureInputState::Inactive => (vec![Modality::Keystroke], 0),
+                    SecureInputState::Active => (vec![], 1),
+                };
+                if (recorded, *suppressed) != (&want_recorded, want_suppressed) {
+                    return Err(format!(
+                        "(a) {etype:?} answered {answer:?}: recorded {recorded:?} and suppressed \
+                         {suppressed}, not {want_recorded:?} and {want_suppressed}"
+                    ));
+                }
+                if *asked != 1 {
+                    return Err(format!(
+                        "(b) {etype:?} answered {answer:?}: the reader was asked {asked} times, \
+                         not once"
+                    ));
+                }
+            }
+            Some(TapClass::DiscretePointer | TapClass::ContinuousPointer) => {
+                if (recorded.as_slice(), *suppressed) != ([Modality::Pointer].as_slice(), 0) {
+                    return Err(format!(
+                        "(c) {etype:?} answered {answer:?}: recorded {recorded:?} and suppressed \
+                         {suppressed}, not one pointer event and 0"
+                    ));
+                }
+                if *asked > 1 {
+                    return Err(format!(
+                        "(c) {etype:?} answered {answer:?}: the reader was asked {asked} times, \
+                         more than once"
+                    ));
+                }
+            }
+            None => return Err(format!("{etype:?} is not a type of TAP_EVENTS")),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn each_event_of_every_pair_through_the_callback_is_decided_by_its_own_reading() {
+        let answers = [SecureInputState::Inactive, SecureInputState::Active];
+        for &(first, _) in &TAP_EVENTS {
+            for &(second, _) in &TAP_EVENTS {
+                for first_answer in answers {
+                    for second_answer in answers {
+                        let events = [(first, first_answer), (second, second_answer)];
+                        let outcomes = through_one_callback(&events);
+                        for (place, (&(etype, answer), outcome)) in
+                            events.iter().zip(&outcomes).enumerate()
+                        {
+                            if let Err(failure) = holds_for_its_own_answer(etype, answer, outcome) {
+                                panic!(
+                                    "the pair {first:?} answered {first_answer:?}, then \
+                                     {second:?} answered {second_answer:?}: event {} of 2: \
+                                     {failure}",
+                                    place + 1
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn each_event_of_a_drawn_sequence_through_the_callback_is_decided_by_its_own_reading() {
+        const SEED: u64 = 0x5EC0_4E1D_2026_1113;
+        const LENGTH: usize = 256;
+        let mut state = SEED;
+        let mut draw = || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            state >> 33
+        };
+        let events: Vec<(CGEventType, SecureInputState)> = (0..LENGTH)
+            .map(|_| {
+                let etype = TAP_EVENTS[(draw() % TAP_EVENTS.len() as u64) as usize].0;
+                let answer = if draw() % 2 == 0 {
+                    SecureInputState::Inactive
+                } else {
+                    SecureInputState::Active
+                };
+                (etype, answer)
+            })
+            .collect();
+        let is_key = |etype| {
+            matches!(
+                tap_class(etype),
+                Some(TapClass::KeyPress | TapClass::OtherKey)
+            )
+        };
+        let key_after_a_pointer_answered_otherwise = events
+            .windows(2)
+            .filter(|two| !is_key(two[0].0) && is_key(two[1].0) && two[0].1 != two[1].1)
+            .count();
+        assert!(
+            key_after_a_pointer_answered_otherwise > 0,
+            "the seed {SEED:#x} draws no key event right after a pointer event answered otherwise"
+        );
+        let outcomes = through_one_callback(&events);
+        for (place, (&(etype, answer), outcome)) in events.iter().zip(&outcomes).enumerate() {
+            if let Err(failure) = holds_for_its_own_answer(etype, answer, outcome) {
+                panic!(
+                    "the sequence of {LENGTH} events from the seed {SEED:#x}: the first event \
+                     that fails is at place {place} (from 0): {failure}"
+                );
+            }
+        }
     }
 
     static TIMED_TAP_ENABLED: Mutex<Option<Instant>> = Mutex::new(None);
