@@ -341,9 +341,11 @@ fn two_streams_that_share_a_site_through_episode_items_alone_are_one_group() {
         linked_stream(&dir, "x1", ("x1-a", "hub-x.test", "Alpha ledger"), None),
         linked_stream(&dir, "x2", ("x2-a", "hub-x.test", "Beta folder"), None),
         linked_stream(&dir, "y1", ("y1-a", "far-y.test", "Gamma board"), None),
+        linked_stream(&dir, "y2", ("y2-a", "far-y.test", "Delta sheet"), None),
     ];
-    let sides = sides_of(&dir, &files, &["x1", "x2", "y1"]);
+    let sides = sides_of(&dir, &files, &["x1", "x2", "y1", "y2"]);
     assert_eq!(sides[0], sides[1]);
+    assert_eq!(sides[2], sides[3]);
     assert_ne!(sides[0], sides[2]);
 }
 
@@ -355,8 +357,10 @@ fn two_streams_that_share_only_the_site_of_a_noise_item_are_one_group() {
         linked_stream(&dir, "z1", ("z1-a", "own-one.test", "Alpha ledger"), noise),
         linked_stream(&dir, "z2", ("z2-a", "own-two.test", "Beta folder"), noise),
         linked_stream(&dir, "y1", ("y1-a", "far-y.test", "Gamma board"), None),
+        linked_stream(&dir, "y2", ("y2-a", "far-y.test", "Delta sheet"), None),
     ];
-    let sides = sides_of(&dir, &files, &["z1", "z2", "y1"]);
+    let sides = sides_of(&dir, &files, &["z1", "z2", "y1", "y2"]);
     assert_eq!(sides[0], sides[1]);
+    assert_eq!(sides[2], sides[3]);
     assert_ne!(sides[0], sides[2]);
 }
