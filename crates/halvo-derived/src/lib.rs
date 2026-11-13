@@ -71,7 +71,7 @@ use halvo_schema_core::kinds::KindEntry;
 use halvo_schema_core::record::RecurrenceStep;
 
 pub use batch::{CommitOutcome, ProposalOutcome};
-pub use error::{Error, Fault, OpenError};
+pub use error::{Error, Fault, OpenError, StoredFault};
 pub use handler::{Cause, Committed, Handler, HandlerCx, Refusal, Takes};
 pub use host::{Clock, DbKey, Host, IdSource, ReportSink};
 pub use read::ReadHandle;
@@ -97,7 +97,11 @@ impl Store {
     /// one of the four kinds of the workflow run, when another store holds the writer lock or the database, when
     /// `key` does not open the database, when a setting that the store makes (secure delete, exclusive locking, the
     /// write-ahead log, foreign keys, the page-cache cap) is not in effect after it, and when an existing database
-    /// holds another schema. The tables and their indexes are created only in a database that holds no table. At
+    /// holds another schema. It also fails, with `OpenError::Stored`, before it writes anything, where rows of a kind
+    /// are stored that the kind's entry cannot follow: rows stored under another retention class than the entry gives,
+    /// or rows that the store deletes with one workflow while their record names another, or none, under the entry's
+    /// workflow key; an open with the earlier entry then works as before. The tables and their indexes are created
+    /// only in a database that holds no table. At
     /// every open the store reconciles: it runs the truncating checkpoint, adds a revision of 0 for each family of
     /// `entries` that has none, fills the workflow column of each row of a kind whose entry gives a `workflow_key`
     /// from the value under that key where the row holds none, removes every evidence or support row whose summary

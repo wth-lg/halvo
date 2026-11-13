@@ -259,7 +259,8 @@ fn delete_removes_every_row_that_names_the_workflow_and_every_summary_of_its_key
         .clone();
     raw(&scratch)
         .execute(
-            "INSERT INTO rows (kind, family, class, day, workflow, body) VALUES ('agent_run', 'agent', 1, ?1, ?2, '{}')",
+            "INSERT INTO rows (kind, family, class, day, workflow, body) VALUES ('agent_run', 'agent', 1, ?1, ?2, \
+             json_object('workflow', ?2))",
             (DAY, w_id.as_str()),
         )
         .unwrap();

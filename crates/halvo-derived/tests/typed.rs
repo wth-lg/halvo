@@ -8,9 +8,10 @@ use common::{
     TestClock, FRONT, NOTE, NOTE_UNKEYED, OWN, TRACE,
 };
 use halvo_derived::{
-    Cause, Committed, Error, Handler, HandlerCx, Host, OpenError, Refusal, Store, Takes,
+    Cause, Committed, Error, Handler, HandlerCx, Host, OpenError, Refusal, Store, StoredFault,
+    Takes,
 };
-use halvo_schema_core::kinds::KindEntry;
+use halvo_schema_core::kinds::{FieldType, KindEntry, Origin, RetentionClass};
 use halvo_schema_core::record::{
     Ordinal, RecurrenceStep, RowRead, SummaryRead, TypedRecord, WriterStep,
 };
@@ -586,4 +587,266 @@ fn a_row_stored_before_its_entry_gave_a_workflow_key_goes_with_its_workflow() {
         .unwrap();
     drop(store);
     assert_eq!(kind_rows(&scratch, "test_note").len(), 0);
+}
+
+static CLS_WINDOW: KindEntry = KindEntry {
+    name: "test_cls",
+    class: RetentionClass::Window,
+    origin: Origin::Capture,
+    family: "test",
+    workflow_key: None,
+    fields: &[
+        ("v", FieldType::Version),
+        ("segments", FieldType::Ordinal),
+        ("expires", FieldType::Instant),
+    ],
+    example: r#"{"v":1,"segments":[4410],"expires":1795478400000000000}"#,
+};
+
+static CLS_BOUNDED: KindEntry = KindEntry {
+    class: RetentionClass::Bounded { days: 93 },
+    fields: &[("v", FieldType::Version), ("day", FieldType::Day)],
+    example: r#"{"v":1,"day":20767}"#,
+    ..CLS_WINDOW
+};
+
+static CLS_KEPT: KindEntry = KindEntry {
+    class: RetentionClass::Kept,
+    fields: &[("v", FieldType::Version), ("n", FieldType::Count)],
+    example: r#"{"v":1,"n":1}"#,
+    ..CLS_WINDOW
+};
+
+fn cls_record(entry: &KindEntry) -> TypedRecord {
+    let json = match entry.class {
+        RetentionClass::Window => format!(r#"{{"v":1,"segments":[5],"expires":{FAR}}}"#),
+        RetentionClass::Bounded { .. } => format!(r#"{{"v":1,"day":{DAY}}}"#),
+        RetentionClass::Kept => r#"{"v":1,"n":1}"#.to_owned(),
+    };
+    TypedRecord {
+        kind: "test_cls",
+        json,
+    }
+}
+
+/// Stores one row of `first` through a step and returns the scratch directory, the clock and what an open with
+/// `later` answers.
+fn stored_then_opened(
+    name: &str,
+    first: &'static KindEntry,
+    later: &'static KindEntry,
+    record: TypedRecord,
+) -> (Scratch, TestClock, Result<(), OpenError>) {
+    let scratch = Scratch::new(name);
+    let clock = TestClock::at_day(DAY);
+    let records: Records = Rc::new(RefCell::new(vec![record]));
+    let mut store = open_entries(&scratch, with_step(&clock, &records, vec![]), &[first]).unwrap();
+    let outcome = store
+        .commit_batch(
+            &store_id(1),
+            &[episode(1, DAY, None)],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    assert!(
+        matches!(&outcome.steps[..], [Ok(c)] if c.stored == 1),
+        "{name}: {:?}",
+        outcome.steps
+    );
+    drop(store);
+    let later_open = open_entries(&scratch, base(&clock, Grouping { min: 1 }), &[later]).map(drop);
+    (scratch, clock, later_open)
+}
+
+#[test]
+fn an_open_refuses_an_entry_that_gives_a_stored_kind_another_class() {
+    let classes: [(&str, &'static KindEntry); 3] = [
+        ("window", &CLS_WINDOW),
+        ("bounded", &CLS_BOUNDED),
+        ("kept", &CLS_KEPT),
+    ];
+    let mut seen = Vec::new();
+    for (from, first) in classes {
+        for (to, later) in classes {
+            if from == to {
+                continue;
+            }
+            let name = format!("class-{from}-{to}");
+            let (scratch, clock, opened) =
+                stored_then_opened(&name, first, later, cls_record(first));
+            seen.push((name.clone(), opened.clone()));
+            if from == "kept" && to == "bounded" {
+                assert_eq!(kind_rows(&scratch, "test_cls").len(), 1);
+                let rows = Rc::new(RefCell::new(Vec::new()));
+                let host = base(&clock, Grouping { min: 1 }).step(
+                    "test",
+                    Box::new(Returning {
+                        records: Rc::new(RefCell::new(Vec::new())),
+                        seen: Rc::clone(&rows),
+                        read: vec!["test_cls"],
+                    }),
+                );
+                let mut store = open_entries(&scratch, host, &[&CLS_KEPT]).unwrap();
+                store
+                    .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(200))
+                    .unwrap();
+                drop(store);
+                assert_eq!(rows.borrow().len(), 1, "the kept entry reads the row");
+            }
+        }
+    }
+    let want: Vec<_> = seen
+        .iter()
+        .map(|(name, _)| {
+            (
+                name.clone(),
+                Err(OpenError::Stored {
+                    kind: "test_cls",
+                    fault: StoredFault::Class,
+                }),
+            )
+        })
+        .collect();
+    assert_eq!(seen, want);
+}
+
+static PAIR_A: KindEntry = KindEntry {
+    name: "test_pair",
+    class: RetentionClass::Kept,
+    origin: Origin::Capture,
+    family: "test",
+    workflow_key: Some("workflow"),
+    fields: &[
+        ("v", FieldType::Version),
+        ("workflow", FieldType::Id),
+        ("target", FieldType::Id),
+    ],
+    example: r#"{"v":1,"workflow":"10000000000000000000000000000001","target":"10000000000000000000000000000002"}"#,
+};
+
+static PAIR_B: KindEntry = KindEntry {
+    workflow_key: Some("target"),
+    ..PAIR_A
+};
+
+/// Two workflows of two keys, and their ids.
+fn two_workflows(scratch: &Scratch, clock: &TestClock) -> (String, String) {
+    let mut store = open_entries(scratch, base(clock, Grouping { min: 1 }), &[]).unwrap();
+    store
+        .commit_batch(
+            &store_id(1),
+            &[
+                episode(1, DAY, None),
+                episode(2, DAY, common::domain("northwind-power.test")),
+            ],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    drop(store);
+    let ids: Vec<String> = bodies(scratch, "workflow")
+        .iter()
+        .map(|b| {
+            serde_json::from_str::<halvo_schema_core::record::Workflow>(b)
+                .unwrap()
+                .id()
+                .as_str()
+                .to_owned()
+        })
+        .collect();
+    (ids[0].clone(), ids[1].clone())
+}
+
+fn pair(scratch: &Scratch, clock: &TestClock, workflow: &str, target: &str) {
+    let records: Records = Rc::new(RefCell::new(vec![TypedRecord {
+        kind: "test_pair",
+        json: format!(r#"{{"v":1,"workflow":"{workflow}","target":"{target}"}}"#),
+    }]));
+    let mut store = open_entries(scratch, with_step(clock, &records, vec![]), &[&PAIR_A]).unwrap();
+    let outcome = store
+        .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(200))
+        .unwrap();
+    assert!(
+        matches!(&outcome.steps[..], [Ok(c)] if c.stored == 1),
+        "{:?}",
+        outcome.steps
+    );
+}
+
+fn delete_workflow(store: &mut Store, id: &str) {
+    store
+        .decide(&halvo_schema_core::request::InterfaceDecision::delete(
+            &halvo_schema_core::request::InterfaceRole::claim(),
+            halvo_schema_core::ids::RequestId::from_random([1; 16]),
+            halvo_schema_core::ids::WorkflowId::parse(id).unwrap(),
+        ))
+        .unwrap();
+}
+
+#[test]
+fn an_open_refuses_an_entry_whose_workflow_key_names_another_id_than_a_stored_row() {
+    let scratch = Scratch::new("pair-moved-key");
+    let clock = TestClock::at_day(DAY);
+    let (first, second) = two_workflows(&scratch, &clock);
+    pair(&scratch, &clock, &first, &second);
+    let opened = open_entries(&scratch, base(&clock, Grouping { min: 1 }), &[&PAIR_B]).map(drop);
+    assert_eq!(
+        opened,
+        Err(OpenError::Stored {
+            kind: "test_pair",
+            fault: StoredFault::WorkflowKey,
+        })
+    );
+    for (entry, name) in [(&PAIR_A, "pair-same-id-a"), (&PAIR_B, "pair-same-id-b")] {
+        let scratch = Scratch::new(name);
+        let (first, _) = two_workflows(&scratch, &clock);
+        pair(&scratch, &clock, &first, &first);
+        let mut store =
+            open_entries(&scratch, base(&clock, Grouping { min: 1 }), &[entry]).unwrap();
+        delete_workflow(&mut store, &first);
+        drop(store);
+        assert_eq!(kind_rows(&scratch, "test_pair").len(), 0, "{name}");
+    }
+}
+
+fn table(scratch: &Scratch, sql: &str) -> Vec<String> {
+    let conn = common::raw(scratch);
+    let mut statement = conn.prepare(sql).unwrap();
+    statement
+        .query_map([], |r| r.get::<_, String>(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+}
+
+fn tables(scratch: &Scratch) -> Vec<Vec<String>> {
+    vec![
+        table(
+            scratch,
+            "SELECT id || '|' || kind || '|' || class || '|' || ifnull(day, '') || '|' || ifnull(gone, '') || '|' \
+             || ifnull(expires, '') || '|' || ifnull(workflow, '') || '|' || body FROM rows ORDER BY id",
+        ),
+        table(scratch, "SELECT family || '|' || n FROM revisions ORDER BY family"),
+        table(
+            scratch,
+            "SELECT ifnull(store, '') || '|' || ifnull(seg, '') || '|' || ifnull(idx, '') || '|' || mark FROM meta",
+        ),
+    ]
+}
+
+#[test]
+fn a_refused_open_changes_no_row_no_revision_and_no_value_of_meta() {
+    let scratch = Scratch::new("refused-open-writes-nothing");
+    let clock = TestClock::at_day(DAY);
+    let (first, second) = two_workflows(&scratch, &clock);
+    pair(&scratch, &clock, &first, &second);
+    let before = tables(&scratch);
+    clock.set_day(DAY + 400);
+    let refused = open_entries(&scratch, base(&clock, Grouping { min: 1 }), &[&PAIR_B]).map(drop);
+    assert!(refused.is_err());
+    assert_eq!(tables(&scratch), before);
+    clock.set_day(DAY);
+    drop(open_entries(&scratch, base(&clock, Grouping { min: 1 }), &[&PAIR_A]).unwrap());
+    assert_eq!(kind_rows(&scratch, "test_pair").len(), 1);
 }

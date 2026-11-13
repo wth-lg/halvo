@@ -12,7 +12,7 @@ use halvo_schema_core::kinds::{self, KindEntry, RetentionClass};
 use halvo_schema_core::record::Instant;
 use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, Params, Row};
 
-use crate::error::{db_fault, io_fault, Fault, OpenError};
+use crate::error::{db_fault, io_fault, Fault, OpenError, StoredFault};
 use crate::host::{Clock, DbKey, IdSource, ReportSink};
 use crate::report::{Counts, Report};
 use crate::sql::{self, Sql};
@@ -398,6 +398,7 @@ impl Db {
         let site_key: Vec<u8> =
             one(&db.conn, sql::META_SITE_KEY, [], |r| r.get(0))?.unwrap_or_default();
         db.site_key = site_key.try_into().map_err(|_| OpenError::Schema)?;
+        db.check_stored()?;
         db.reconcile()?;
         Ok(db)
     }
@@ -463,6 +464,42 @@ impl Db {
             Some(sql::SCHEMA_VERSION) => Ok(()),
             _ => Err(OpenError::Schema),
         }
+    }
+
+    /// Refuses the open, before anything is written, where stored rows of a kind cannot follow its entry: a row stored
+    /// under another retention class than the entry gives, or a row whose workflow column holds an id while its
+    /// record holds no id, or another one, under the entry's workflow key. A row whose workflow column is null is no
+    /// fault: reconcile fills it from the entry. It reads every entry, the four kinds of the workflow run among them.
+    fn check_stored(&self) -> Result<(), OpenError> {
+        for entry in &self.entries {
+            let class = one(
+                &self.conn,
+                sql::STORED_OTHER_CLASS,
+                rusqlite::params![entry.name, class_code(entry.class)],
+                |r| r.get::<_, i64>(0),
+            )?;
+            if class.is_some() {
+                return Err(OpenError::Stored {
+                    kind: entry.name,
+                    fault: StoredFault::Class,
+                });
+            }
+            if let Some(key) = entry.workflow_key {
+                let other = one(
+                    &self.conn,
+                    sql::STORED_OTHER_WORKFLOW,
+                    rusqlite::params![entry.name, format!("$.{key}")],
+                    |r| r.get::<_, i64>(0),
+                )?;
+                if other.is_some() {
+                    return Err(OpenError::Stored {
+                        kind: entry.name,
+                        fault: StoredFault::WorkflowKey,
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 
     fn reconcile(&self) -> Result<(), Fault> {

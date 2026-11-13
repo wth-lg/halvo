@@ -60,8 +60,25 @@ pub enum OpenError {
     Setting(&'static str),
     /// The database holds a schema that is not this library's, or a schema with a table or an index missing.
     Schema,
+    /// Rows of this kind are stored that its entry cannot follow: the entry gives another retention class than they
+    /// were stored under, or a workflow key under which a row's record holds no id, or another id than the row is
+    /// deleted with. It names the kind and which of the two it is, and no id and no value of a record.
+    Stored {
+        kind: &'static str,
+        fault: StoredFault,
+    },
     /// A fault of the database or of a file.
     Fault(Fault),
+}
+
+/// Which of the two ways an entry cannot follow the rows of its kind that are stored.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StoredFault {
+    /// The entry gives another retention class than a stored row of the kind was stored under.
+    Class,
+    /// The entry gives a workflow key under which a stored row's record holds no id, or another id than the row is
+    /// deleted with.
+    WorkflowKey,
 }
 
 impl fmt::Display for OpenError {
@@ -83,6 +100,20 @@ impl fmt::Display for OpenError {
             }
             OpenError::Setting(name) => write!(f, "the setting {name} is not in effect"),
             OpenError::Schema => f.write_str("the database holds another schema"),
+            OpenError::Stored {
+                kind,
+                fault: StoredFault::Class,
+            } => write!(
+                f,
+                "rows of the kind {kind} are stored under another retention class than its entry gives"
+            ),
+            OpenError::Stored {
+                kind,
+                fault: StoredFault::WorkflowKey,
+            } => write!(
+                f,
+                "rows of the kind {kind} name another workflow, or none, under the workflow key of its entry"
+            ),
             OpenError::Fault(fault) => fault.fmt(f),
         }
     }

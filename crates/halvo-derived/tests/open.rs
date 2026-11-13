@@ -166,7 +166,8 @@ fn open_removes_rows_that_name_a_summary_or_a_workflow_that_is_not_stored() {
             "INSERT INTO rows (kind, family, class, expires, summary, body) VALUES \
              ('evidence', 'workflow', 0, 9000000000000000000, '20000000000000000000000000000001', '{}');\
              INSERT INTO rows (kind, family, class, day, workflow, body) VALUES \
-             ('agent_run', 'agent', 1, 20000, '30000000000000000000000000000001', '{}');\
+             ('agent_run', 'agent', 1, 20000, '30000000000000000000000000000001', \
+             json_object('workflow', '30000000000000000000000000000001'));\
              INSERT INTO rows (kind, family, class, day, body) VALUES ('test_kept', 'test', 1, 20000, '{}');",
         )
         .unwrap();
