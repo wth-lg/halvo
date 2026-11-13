@@ -8,7 +8,7 @@ use common::{
     store_id, summary_id, token, Grouping, NoProposals, OwnNote, Scratch, Seq, TestClock, DAY_NS,
     FAR, NOTE, OWN, TRACE,
 };
-use halvo_derived::test_host::open_keyless;
+use halvo_derived::test_host::{delete_all, open_keyless};
 use halvo_derived::{Committed, Counts, Host, Report, Store, Takes};
 use halvo_schema_core::category::SeedCategory;
 use halvo_schema_core::ids::{RequestId, WorkflowId};
@@ -746,5 +746,91 @@ fn privacy_listed() {
         (own.counts.kept, own.support.len()),
         (4, 5),
         "(workflows, support rows) that the count finds"
+    );
+}
+
+/// The delete of everything, through the test host: with a stored workflow and a key file of the test's own making
+/// in `derived/`, it leaves no database file, no log, no shared-memory file, no writer lock and no key file, and no
+/// directory `derived/`; a file outside `derived/` stays; and an open after it makes an empty store.
+#[test]
+fn delete_all_leaves_no_database_file_and_no_key_file() {
+    let scratch = Scratch::new("delete-all");
+    let clock = TestClock::at_day(DAY);
+    let mut store = open_host(
+        &scratch,
+        Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 2 })),
+    )
+    .unwrap();
+    let outcome = store
+        .commit_batch(
+            &store_id(1),
+            &[episode(1, DAY, None), episode(2, DAY, None)],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    assert_eq!(outcome.proposals.stored, 1);
+    let derived = scratch.path().join("derived");
+    std::fs::write(derived.join("master.key"), [9u8; 48]).unwrap();
+    let outside = scratch.path().join("store");
+    std::fs::create_dir_all(&outside).unwrap();
+    std::fs::write(outside.join("segment"), b"segment").unwrap();
+    let files = ["derived.db", "derived.db-wal", "derived.db-shm", "writer.lock", "master.key"];
+    for name in ["derived.db", "writer.lock", "master.key"] {
+        assert!(derived.join(name).exists(), "{name} before the delete of everything");
+    }
+    delete_all(store).unwrap();
+    for name in files {
+        assert!(!derived.join(name).exists(), "{name} after the delete of everything");
+    }
+    assert!(!derived.exists(), "derived/ after the delete of everything");
+    assert!(outside.join("segment").exists(), "a file outside derived/");
+    let store = open_host(
+        &scratch,
+        Host::new(Box::new(clock.clone()), Box::new(NoProposals)),
+    )
+    .unwrap();
+    assert_eq!(listed(&store).len(), 0);
+    assert_eq!(store.report().unwrap().counts, Counts::default());
+}
+
+const CIPHER_MARKER: &str = "qzcipher77001";
+
+/// The files of a store, keyed or keyless, in which a search finds the marker that the test planted as a routine's
+/// title token and in its titles, searched while the store is open and again after it is closed.
+fn planted(scratch: &Scratch, keyed: bool) -> Vec<&'static str> {
+    let clock = TestClock::at_day(DAY);
+    let host = Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 2 }));
+    let mut store = open_store(scratch, keyed, &registry(), host);
+    let batch: Vec<Episode> = (1..=2)
+        .map(|n| {
+            let mut e = titled(n, DAY, "com.example.browser", &format!("Pay {CIPHER_MARKER}"));
+            e.site = token(CIPHER_MARKER);
+            e
+        })
+        .collect();
+    let outcome = store
+        .commit_batch(&store_id(1), &batch, position(1, 0), &mut Seq(100))
+        .unwrap();
+    assert_eq!((outcome.evidence, outcome.proposals.stored), (2, 1));
+    let mut found = holding(scratch, CIPHER_MARKER);
+    drop(store);
+    found.extend(holding(scratch, CIPHER_MARKER));
+    found
+}
+
+/// The ciphertext check: a marker that the test planted in stored rows, as a title token and in the titles, is in no
+/// byte of the raw files of the store, while the store is open and after it is closed; the control, the same rows in
+/// the keyless test build, shows that the search finds it where the bytes are not encrypted.
+#[test]
+fn the_ciphertext_check_finds_no_planted_marker_in_the_raw_file_bytes() {
+    assert_eq!(
+        planted(&Scratch::new("cipher-keyed"), true),
+        Vec::<&str>::new(),
+        "the encrypted files that hold the marker"
+    );
+    assert!(
+        !planted(&Scratch::new("cipher-keyless"), false).is_empty(),
+        "the control: the keyless files hold the marker"
     );
 }

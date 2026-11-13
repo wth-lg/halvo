@@ -143,6 +143,8 @@ esac
 #= tests/privacy.rs privacy_kept
 #= tests/privacy.rs privacy_redact
 #= tests/privacy.rs privacy_listed
+#= tests/privacy.rs delete_all_leaves_no_database_file_and_no_key_file
+#= tests/privacy.rs the_ciphertext_check_finds_no_planted_marker_in_the_raw_file_bytes
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
