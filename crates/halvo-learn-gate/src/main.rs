@@ -19,6 +19,7 @@ mod privacy;
 mod routine;
 mod soak;
 mod store;
+mod stub;
 mod targets;
 
 #[cfg(test)]
