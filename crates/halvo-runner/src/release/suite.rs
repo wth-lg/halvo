@@ -23,12 +23,12 @@ use halvo_schema::executable::frame::{
     StoreReplyFrame,
 };
 use halvo_schema::executable::names::{
-    AllowedClass, Answer, Autonomy, FieldName, HandbackOutcome, HandbackReason, YesNo,
+    AllowedClass, Answer, Autonomy, FieldName, HandbackOutcome, HandbackReason, LogEvent, YesNo,
 };
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::{Name, OwnValue, V1};
 use halvo_schema::executable::{
-    AgentConfig, AgentEffect, AgentLog, AgentRun, ApprovalId, Digest, EffectId, EffectState,
+    AgentConfig, AgentEffect, AgentLog, AgentRun, ApprovalId, Cause, Digest, EffectId, EffectState,
     FromRunner, HandbackResult, Outcome, RunId, RunnerCall, RunnerReply, ToRunner, WebOrigin,
 };
 use halvo_schema::{AgentId, Category, WorkflowId};
@@ -336,8 +336,8 @@ pub(crate) type SlotsAt = Box<dyn FnMut(usize, &mut Vec<Slot>) + Send>;
 /// count `observe_from_load` on, the configuration's autonomy is `observe`, and from the load of the count
 /// `wall_zero_from_load` on its `wall_s` is 0; with `one_approval_id` every approval has the same id; with
 /// `other_digest` every approval names a digest that is not its effect's; and the loads for whose count `runs_at`
-/// holds give a configuration under which `decide` gives `run` for `delete` (`unattended`, `allow` `delete`,
-/// `untrusted` no); `slots_at` changes the slots of the bindings that the load of a count gives; the supervisor
+/// holds give a configuration under which `decide` gives `run` for `delete` and `submit` (`unattended`, `allow`
+/// `delete` and `submit`, `untrusted` no); `slots_at` changes the slots of the bindings that the load of a count gives; the supervisor
 /// writes one `cancel` before its reply to the first frame for which `cancel_before` holds; `wall_s` is the
 /// `wall_s` of every load; and `clock` is the run's clock of the test's own, in milliseconds added to its time.
 pub(crate) struct Plan {
@@ -420,7 +420,7 @@ fn supervise(
                             }
                             if plan.runs_at.is_some_and(|runs| runs(loads)) {
                                 config.autonomy = Autonomy::Unattended;
-                                config.allow = vec![AllowedClass::Delete];
+                                config.allow = vec![AllowedClass::Delete, AllowedClass::Submit];
                                 config.caps.untrusted = YesNo::No;
                             }
                             config
@@ -609,6 +609,22 @@ pub(crate) fn run_many_path(
     }
 }
 
+/// The correction of CP-157 E1, case 4: every payment that the fixture recorded is to the payee of the card that
+/// was allowed.
+fn paid_to_the_allowed_payee(state: &serde_json::Value, allowed: &ConfirmRequest) {
+    let payee = field(allowed, FieldName::Payee);
+    for p in state["utility"]["payments"]
+        .as_array()
+        .expect("the payments")
+    {
+        assert_eq!(
+            p["payee"].as_str(),
+            Some(payee.as_str()),
+            "paid to the payee of the allowed card"
+        );
+    }
+}
+
 /// The value of the kept field `name` of an effect row.
 fn kept(row: &AgentEffect, name: FieldName) -> String {
     row.kept
@@ -754,6 +770,7 @@ pub(crate) fn changed_on_page(maker: &mut dyn Maker) {
         .map(|p| p["amount"].as_u64().expect("an amount"))
         .collect();
     assert_eq!(paid, [due + 100], "one payment, with the confirmed amount");
+    paid_to_the_allowed_payee(&after, &confirms[1]);
     assert_eq!(
         count(&after, "state_changing") - count(&before, "state_changing"),
         1,
@@ -867,5 +884,60 @@ pub(crate) fn slot_changed_at_the_load_before_the_begin(maker: &mut dyn Maker) {
         .map(|p| p["instrument"].as_str().expect("an instrument").to_string())
         .collect();
     assert_eq!(paid, [second], "one payment, with the new instrument");
+    paid_to_the_allowed_payee(&after, &confirms[1]);
     assert_eq!(record.done(), Some(Outcome::Completed));
+}
+
+/// The correction of CP-157 E1, case 2: the slot `payee` names another payee at the load before the `begin`. The
+/// object built again has another digest, and the payment's request does not carry the payee, so the maker's
+/// `renew` answers `changed`: no `rebind` row and no second card; the effect is ended, nothing leaves, and the run
+/// ends `failed` with `changed`.
+pub(crate) fn payee_changed_at_the_load_before_the_begin(maker: &mut dyn Maker) {
+    let fixture = Fixture::start();
+    fixture.reset(&["amount_changes"]);
+    let request = maker.paused(&fixture, Case::AmountChanges);
+    let before = fixture.state();
+    let record = run_path(
+        maker.category(Case::AmountChanges),
+        maker.bindings(&fixture, Case::AmountChanges),
+        request,
+        Plan {
+            slots_at: Some(Box::new(|load, slots| {
+                if load >= 2 {
+                    for s in slots.iter_mut() {
+                        if s.name.as_str() == "payee" {
+                            *s = slot("payee", "Another Fixture Payee");
+                        }
+                    }
+                }
+            })),
+            ..Plan::plain()
+        },
+    );
+    let after = fixture.state();
+    assert_eq!(record.confirms().len(), 1, "one card in all");
+    assert_eq!(
+        record.states(),
+        [
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Rejected
+        ],
+        "no rebind row; the effect is ended"
+    );
+    assert_eq!(record.effects()[2].cause, Some(Cause::Ended));
+    assert!(after["utility"]["payments"]
+        .as_array()
+        .expect("payments")
+        .is_empty());
+    assert_eq!(
+        count(&after, "state_changing"),
+        count(&before, "state_changing"),
+        "no state-changing request"
+    );
+    assert_eq!(record.done(), Some(Outcome::Failed));
+    assert_eq!(
+        record.logs().last().map(|l| (l.event, l.cause)),
+        Some((LogEvent::Stopped, Some(Cause::Changed)))
+    );
 }

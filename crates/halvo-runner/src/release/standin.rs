@@ -12,7 +12,8 @@ use halvo_schema::executable::{ActionClass, Bound, BoundField, Cause, WebOrigin}
 use halvo_schema::Category;
 
 use super::suite::{
-    answer_of, changed_on_page, commit_without_reply, http, request_bytes, send_bytes, slot,
+    answer_of, changed_on_page, commit_without_reply, http,
+    payee_changed_at_the_load_before_the_begin, request_bytes, send_bytes, slot,
     slot_changed_at_the_load_before_the_begin, stopped_between_begin_and_commit, Case, Fixture,
     Maker,
 };
@@ -102,7 +103,7 @@ fn slot_value(slots: &[Slot], name: &str) -> Result<String, Cause> {
         .iter()
         .find(|s| s.name.as_str() == name)
         .map(|s| s.value.joined())
-        .ok_or(Cause::StepFailed)
+        .ok_or(Cause::Changed)
 }
 
 /// The payment of the bill in the payment frame: `POST /charge` with the frame's one-time token.
@@ -110,6 +111,7 @@ struct Pay {
     port: u16,
     pay: WebOrigin,
     token: String,
+    payee: String,
     instrument: String,
 }
 
@@ -162,6 +164,9 @@ impl Paused for Pay {
     }
 
     fn renew(self: Box<Self>, slots: &[Slot]) -> Result<Box<dyn Paused>, Cause> {
+        if slot_value(slots, "payee")? != self.payee {
+            return Err(Cause::Changed);
+        }
         Ok(Box::new(Pay {
             instrument: slot_value(slots, "instrument")?,
             ..*self
@@ -263,6 +268,7 @@ impl Maker for Standin {
                     port,
                     pay: fixture.origin("pay"),
                     token,
+                    payee: text(&seed["utility"]["payee"]),
                     instrument: text(&seed["utility"]["instruments"][0]),
                 })
             }
@@ -288,4 +294,9 @@ fn a_runner_stopped_between_begin_and_commit_leaves_its_effect_unknown_after_the
 #[test]
 fn a_slot_changed_at_the_load_before_the_begin_is_asked_again_and_leaves() {
     slot_changed_at_the_load_before_the_begin(&mut Standin);
+}
+
+#[test]
+fn a_payee_changed_at_the_load_before_the_begin_ends_the_effect_with_no_second_card() {
+    payee_changed_at_the_load_before_the_begin(&mut Standin);
 }

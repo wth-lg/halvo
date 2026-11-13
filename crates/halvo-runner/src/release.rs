@@ -5,7 +5,7 @@ use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::frame::{
     Approval, Confirm, ConfirmEffect, ConfirmReply, ConfirmRequest,
 };
-use halvo_schema::executable::names::{Answer, Autonomy, LogEvent};
+use halvo_schema::executable::names::{Answer, Autonomy, FieldName, LogEvent};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
@@ -28,8 +28,9 @@ pub(crate) mod suite;
 pub(crate) trait Paused {
     /// The class of the effect, a confirm class of A9.3.
     fn class(&self) -> ActionClass;
-    /// The bound object built again from `slots`, the slots of the bindings of the load that the runner has just
-    /// made, and from the request's own source read again while the request is paused (A5.1, A9.3, A6.3).
+    /// The bound object built again from `slots`, the slots of the request's class in the bindings of the load
+    /// that the runner has just made, and from the request's own source read again while the request is paused
+    /// (A5.1, A9.3, A6.3); the cause `changed` where a slot of the class is no longer in `slots`.
     fn bound(&mut self, slots: &[Slot]) -> Result<Bound, Cause>;
     /// The facts of A9.3 that the maker knows from this run and not from a page's text: the origin of the paused
     /// request, the ids and the senders that its own list calls returned. The runner adds the origins of the
@@ -37,8 +38,10 @@ pub(crate) trait Paused {
     fn facts(&self) -> Facts;
     /// Lets the paused request leave, once, and gives the request that left.
     fn release(self: Box<Self>) -> Box<dyn Left>;
-    /// Fails the paused request, so that no byte of it leaves, and makes the same request again from `slots`, the
-    /// slots of the load that the runner has just made, paused, for an effect that is asked again with new values.
+    /// Fails the paused request, so that no byte of it leaves, and then either makes the request again, paused, so
+    /// that the new request carries the value in `slots` of every bound slot of its class that a request of its
+    /// kind carries, or answers `changed` when a bound slot of the class changed whose value its request does not
+    /// carry (the coordinator's correction of CP-157 E1).
     fn renew(self: Box<Self>, slots: &[Slot]) -> Result<Box<dyn Paused>, Cause>;
 }
 
@@ -69,13 +72,35 @@ fn failed(cause: Cause) -> Stop {
     Stop::End(Outcome::Failed, Some(cause))
 }
 
-/// The slots of the bindings of `loaded`.
-fn slots_of(loaded: &LoadReply) -> &[Slot] {
+/// The bound fields that a slot of the same name gives, the slots of a class (A5.1, A9.3, A9.4).
+const SLOT_FIELDS: [FieldName; 6] = [
+    FieldName::Payee,
+    FieldName::Instrument,
+    FieldName::Seller,
+    FieldName::Document,
+    FieldName::Party,
+    FieldName::Fields,
+];
+
+/// The slots of the class `class` in the bindings of `loaded`, and no other slot; null bindings give none.
+fn class_slots(loaded: &LoadReply, class: ActionClass) -> Vec<Slot> {
+    let names: Vec<&str> = class
+        .bound_fields()
+        .iter()
+        .filter(|f| SLOT_FIELDS.contains(f))
+        .map(|f| f.as_str())
+        .collect();
     loaded
         .bindings
         .as_ref()
-        .map(|b| b.slots.as_slice())
-        .unwrap_or(&[])
+        .map(|b| {
+            b.slots
+                .iter()
+                .filter(|s| names.contains(&s.name.as_str()))
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// The facts of a paused request with the origins of the bindings of `loaded`.
@@ -120,7 +145,9 @@ impl Runner {
         for mut request in requests {
             self.check()?;
             self.within_wall()?;
-            let bound = request.bound(slots_of(&loaded)).map_err(failed)?;
+            let bound = request
+                .bound(&class_slots(&loaded, request.class()))
+                .map_err(failed)?;
             let class = request.class();
             admit(class, &bound, &facts_of(request.as_ref(), &loaded))
                 .map_err(|refusal| failed(refusal.cause()))?;
@@ -159,8 +186,14 @@ impl Runner {
             for mut o in batch {
                 self.advance(o.at, EffectMove::End)?;
                 let class = o.request.class();
-                o.request = o.request.renew(slots_of(&again)).map_err(failed)?;
-                o.bound = o.request.bound(slots_of(&again)).map_err(failed)?;
+                o.request = o
+                    .request
+                    .renew(&class_slots(&again, class))
+                    .map_err(failed)?;
+                o.bound = o
+                    .request
+                    .bound(&class_slots(&again, class))
+                    .map_err(failed)?;
                 admit(class, &o.bound, &facts_of(o.request.as_ref(), &again))
                     .map_err(|refusal| failed(refusal.cause()))?;
                 self.check()?;
@@ -216,7 +249,7 @@ impl Runner {
             if decision == Decision::Confirm && self.effects[one.at].state == EffectState::Cleared {
                 return Ok(Some((one, again)));
             }
-            let now = match one.request.bound(slots_of(&again)) {
+            let now = match one.request.bound(&class_slots(&again, class)) {
                 Ok(now) => now,
                 Err(cause) => {
                     self.advance(one.at, EffectMove::End)?;
@@ -254,7 +287,10 @@ impl Runner {
             if cleared {
                 self.advance(one.at, EffectMove::End)?;
                 *renewed += 1;
-                one.request = one.request.renew(slots_of(&again)).map_err(failed)?;
+                one.request = one
+                    .request
+                    .renew(&class_slots(&again, class))
+                    .map_err(failed)?;
                 self.check()?;
                 self.within_wall()?;
                 one.at = self.propose(decide(&again.config, class, Checkpoint::No), &now)?;
@@ -272,8 +308,14 @@ impl Runner {
                     _ => return Err(failed(Cause::Effect)),
                 }
             }
+            one.request = match one.request.renew(&class_slots(&again, class)) {
+                Ok(request) => request,
+                Err(cause) => {
+                    self.advance(one.at, EffectMove::End)?;
+                    return Err(failed(cause));
+                }
+            };
             self.rebind(one.at, &now)?;
-            one.request = one.request.renew(slots_of(&again)).map_err(failed)?;
             one.bound = now;
             self.confirm(&[(one.at, &one.bound)])?;
             if self.effects[one.at].state == EffectState::Rejected {

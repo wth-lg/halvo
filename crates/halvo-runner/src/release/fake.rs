@@ -9,7 +9,7 @@ use halvo_schema::executable::names::{Answer, FieldName, HandbackReason, LogEven
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::OwnValue;
 use halvo_schema::executable::{
-    ActionClass, Bound, BoundField, Cause, EffectState, FromRunner, Outcome, RunnerCall,
+    ActionClass, Bound, BoundField, Cause, EffectState, FromRunner, Outcome, RunnerCall, WebOrigin,
 };
 use halvo_schema::Category;
 
@@ -26,6 +26,9 @@ struct Fake {
     generation: u32,
     last: Option<Bound>,
     left: Arc<Mutex<Vec<(u32, Bound)>>>,
+    submit: bool,
+    renew_fails: Option<Cause>,
+    slots_seen: Arc<Mutex<Vec<Vec<String>>>>,
 }
 
 struct Answers;
@@ -38,10 +41,28 @@ impl Left for Answers {
 
 impl Paused for Fake {
     fn class(&self) -> ActionClass {
-        ActionClass::Delete
+        if self.submit {
+            ActionClass::Submit
+        } else {
+            ActionClass::Delete
+        }
     }
 
     fn bound(&mut self, slots: &[Slot]) -> Result<Bound, Cause> {
+        self.slots_seen
+            .lock()
+            .expect("the record of slots")
+            .push(slots.iter().map(|s| s.name.as_str().to_string()).collect());
+        if self.submit {
+            let value = slots
+                .iter()
+                .find(|s| s.name.as_str() == "fields")
+                .map(|s| s.value.joined())
+                .ok_or(Cause::Changed)?;
+            let read = submit(&value);
+            self.last = Some(read.clone());
+            return Ok(read);
+        }
         if self.from_slot {
             let item = slots
                 .iter()
@@ -59,6 +80,12 @@ impl Paused for Fake {
     }
 
     fn facts(&self) -> Facts {
+        if self.submit {
+            return Facts {
+                request_origin: Some(form_origin()),
+                ..Facts::default()
+            };
+        }
         Facts {
             ids: ["a", "b", "c", "d"].map(String::from).to_vec(),
             ..Facts::default()
@@ -77,12 +104,43 @@ impl Paused for Fake {
     }
 
     fn renew(mut self: Box<Self>, _slots: &[Slot]) -> Result<Box<dyn Paused>, Cause> {
+        if let Some(cause) = self.renew_fails {
+            return Err(cause);
+        }
         if let Some((clock, ms)) = &self.clock {
             clock.fetch_add(*ms, Ordering::SeqCst);
         }
         self.generation += 1;
         Ok(self)
     }
+}
+
+/// The origin of the fake's form.
+fn form_origin() -> WebOrigin {
+    WebOrigin::parse("http://form.agent.test:8080").expect("an origin")
+}
+
+/// The bound object of a `submit` of the form with `fields` from its slot.
+fn submit(fields: &str) -> Bound {
+    let origin = form_origin();
+    Bound::new(
+        ActionClass::Submit,
+        vec![
+            BoundField {
+                name: FieldName::Origin,
+                from: Source::Const,
+                origin: None,
+                value: OwnValue::new(origin.as_str()),
+            },
+            BoundField {
+                name: FieldName::Fields,
+                from: Source::Slot,
+                origin: None,
+                value: OwnValue::new(fields),
+            },
+        ],
+    )
+    .expect("a bound object")
 }
 
 fn delete(id: &str, from: Source) -> Bound {
@@ -405,34 +463,30 @@ fn the_times_that_one_step_proposes_again_are_at_most_two() {
     );
 }
 
-/// A5.1, A5.2, the ruling CP-157 E1: a `cleared` effect whose slot changes at the load before its `begin` is
+/// A5.1, A5.2, CP-157 E1: a `cleared` `submit` effect whose slot `fields` changes at the load before its `begin` is
 /// ended and proposed again from that load's slot, and its request leaves with the new value.
 #[test]
 fn a_cleared_effect_whose_slot_changes_at_the_load_before_the_begin_is_proposed_again() {
-    let released = Arc::new(AtomicU32::new(0));
+    let left = Arc::new(Mutex::new(Vec::new()));
     let fake = Fake {
-        reads: Vec::new(),
-        at: 0,
-        released: Arc::clone(&released),
-        from_slot: true,
-        clock: None,
+        submit: true,
+        left: Arc::clone(&left),
         ..Fake::default()
     };
     let plan = Plan {
         runs_at: Some(|_| true),
         slots_at: Some(Box::new(|load, slots| {
             let value = if load >= 2 { "b" } else { "a" };
-            slots.push(super::suite::slot("item", value));
+            slots.push(super::suite::slot("fields", value));
         })),
         ..Plan::plain()
     };
     let record = run_path(
         Category::CalendarCleanup,
-        (Vec::new(), Vec::new()),
+        (vec![form_origin()], Vec::new()),
         Box::new(fake),
         plan,
     );
-    assert_eq!(released.load(Ordering::SeqCst), 1);
     assert_eq!(
         record.states(),
         [
@@ -443,13 +497,18 @@ fn a_cleared_effect_whose_slot_changes_at_the_load_before_the_begin_is_proposed_
             EffectState::Committed
         ]
     );
-    let digest_b = halvo_policy::digest(&delete("b", Source::Extract)).expect("a digest");
+    let digest_b = halvo_policy::digest(&submit("b")).expect("a digest");
     assert_eq!(
         record.effects()[2].digest,
         digest_b,
         "proposed again with the new slot"
     );
-    assert_eq!(record.effects()[3].digest, digest_b);
+    let left = left.lock().expect("the record of what left").clone();
+    assert_eq!(
+        left,
+        [(1, submit("b"))],
+        "the renewed request leaves with the new slot"
+    );
     assert_eq!(record.done(), Some(Outcome::Completed));
 }
 
@@ -813,4 +872,95 @@ fn the_batch_is_proposed_with_the_values_read_again() {
     assert_eq!(shown, ["a", "c"], "the batch shows the values read again");
     assert_eq!(released, 2);
     assert_eq!(record.done(), Some(Outcome::Completed));
+}
+
+/// The correction of CP-157 E1, case 3: a `renew` that fails with another cause than `changed` after an approval
+/// ends the effect with its `ended` row and writes no `rebind` row, so that no effect is left `held` with a card
+/// that is never shown.
+#[test]
+fn a_renew_that_fails_after_an_approval_ends_the_effect_without_a_rebind_row() {
+    let fake = Fake {
+        reads: vec![delete("a", Source::Extract), delete("b", Source::Extract)],
+        renew_fails: Some(Cause::StepFailed),
+        ..Fake::default()
+    };
+    let record = run_path(
+        Category::CalendarCleanup,
+        (Vec::new(), Vec::new()),
+        Box::new(fake),
+        Plan::plain(),
+    );
+    assert_eq!(
+        record.states(),
+        [
+            EffectState::Held,
+            EffectState::Approved,
+            EffectState::Rejected
+        ]
+    );
+    assert_eq!(record.effects()[2].cause, Some(Cause::Ended));
+    assert_eq!(record.confirms().len(), 1);
+    assert_eq!(record.done(), Some(Outcome::Failed));
+    assert_eq!(
+        stopped(&record),
+        Some((LogEvent::Stopped, Some(Cause::StepFailed)))
+    );
+}
+
+/// The correction of CP-157 E1, (a): the port hands a maker the slots of its request's class alone: a `submit`
+/// gets `fields` and no other slot of the load, at its first read and at its `begin`, and a `delete` gets none.
+#[test]
+fn the_port_hands_a_maker_the_slots_of_its_class_alone() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let fake = Fake {
+        submit: true,
+        slots_seen: Arc::clone(&seen),
+        ..Fake::default()
+    };
+    let plan = Plan {
+        runs_at: Some(|_| true),
+        slots_at: Some(Box::new(|_, slots| {
+            slots.push(super::suite::slot("fields", "a"));
+            slots.push(super::suite::slot("payee", "Someone Else"));
+            slots.push(super::suite::slot("reply_senders", "a@agent.test"));
+        })),
+        ..Plan::plain()
+    };
+    let record = run_path(
+        Category::CalendarCleanup,
+        (vec![form_origin()], Vec::new()),
+        Box::new(fake),
+        plan,
+    );
+    assert_eq!(record.done(), Some(Outcome::Completed));
+    let seen = seen.lock().expect("the record of slots").clone();
+    assert_eq!(
+        seen,
+        [vec!["fields".to_string()], vec!["fields".to_string()]]
+    );
+
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let fake = Fake {
+        reads: vec![delete("a", Source::Extract)],
+        slots_seen: Arc::clone(&seen),
+        ..Fake::default()
+    };
+    let plan = Plan {
+        slots_at: Some(Box::new(|_, slots| {
+            slots.push(super::suite::slot("payee", "Someone Else"));
+        })),
+        ..Plan::plain()
+    };
+    let record = run_path(
+        Category::CalendarCleanup,
+        (Vec::new(), Vec::new()),
+        Box::new(fake),
+        plan,
+    );
+    assert_eq!(record.done(), Some(Outcome::Completed));
+    let seen = seen.lock().expect("the record of slots").clone();
+    assert!(
+        seen.iter().all(|s| s.is_empty()),
+        "a delete gets no slot: {seen:?}"
+    );
 }
