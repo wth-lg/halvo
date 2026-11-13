@@ -812,6 +812,13 @@ cases() {
   row numeric/scripts/r1-gate/mutants.rows 1 code/a.sh 's/one/1/' leak transitional X-1
   row numeric/code/mutants.rows 1.0 a.sh 's/one/uno/' leak required X-2
   t transitional-row-not-taken-over-by-a-name-of-the-same-number FAIL fixture_run numeric yes
+  fixture_tree malformed-alone
+  row malformed-alone/scripts/r1-gate/mutants.rows malformed b.sh 's/two/three/' leak required X-1
+  t row-named-malformed-runs-as-a-row PASS fixture_says malformed-alone 'PASS mutation:malformed (applies and builds)' yes
+  fixture_tree takeover-gate
+  row takeover-gate/scripts/r1-gate/mutants.rows inner scripts/r1-gate/b.sh 's/two/2/' leak transitional X-1
+  row takeover-gate/scripts/r1-gate/mutants.rows inner b.sh 's/two/3/' leak required X-2
+  t transitional-row-on-a-file-beside-the-gate-file-is-refused FAIL with_list fixture_run takeover-gate
   fixture_tree target-dir
   mkdir -p "$gate_scratch/target-dir/code/target"
   row target-dir/scripts/r1-gate/mutants.rows same b.sh 's/two/2/' leak required X-1
@@ -822,6 +829,9 @@ cases() {
   row build-dir/scripts/r1-gate/mutants.rows same b.sh 's/two/2/' leak required X-1
   row build-dir/target/mutants.rows same c.sh 's/x/y/' leak required X-2
   t rows-file-in-the-build-directory-of-the-copy-is-not-read PASS with_list fixture_run build-dir
+  fixture_tree numeric-only
+  row numeric-only/scripts/r1-gate/mutants.rows 1.0 b.sh 's/two/2/' leak required X-1
+  t only-a-name-that-reads-as-the-number-of-another-names-no-row FAIL with_only 1 fixture_run numeric-only yes
   fixture_tree five
   printf 'five\tb.sh\ts/two/2/\tleak\trequired\n' >> "$gate_scratch/five/scripts/r1-gate/mutants.rows"
   t row-with-five-fields FAIL fixture_run five yes
@@ -878,6 +888,10 @@ cases() {
   row no-list-counted/scripts/r1-gate/mutants.rows counted b.sh 's/two/three/' leak required X-1
   mv "$gate_scratch/no-list-counted/scripts/r1-gate/mutants.expected" "$gate_scratch/no-list-counted/expected-moved-away"
   t required-row-is-counted-when-mutants-expected-is-missing PASS fixture_says no-list-counted ', 1 required rows with no expected name' yes
+  fixture_tree numeric-expected
+  row numeric-expected/scripts/r1-gate/mutants.rows 1.0 b.sh 's/two/2/' leak required X-1
+  printf '1.0\n1\n' > "$gate_scratch/numeric-expected/scripts/r1-gate/mutants.expected"
+  t expected-name-that-reads-as-the-number-of-a-row-fails-strict FAIL fixture_run numeric-expected yes yes
   fixture_tree empty
   t no-row-at-all FAIL fixture_run empty yes
   fixture_tree missing-file
@@ -938,6 +952,61 @@ cases() {
   stub_cargo stop-unmutated 30
   row stop-unmutated/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
   t stop-by-term-to-the-group-during-the-unmutated-build-reports-no-build-failure PASS with_cargo_home stop-unmutated stopped_by stop-unmutated TERM group 60 apply-only 143 left none 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  fixture_tree stop-gate
+  stub_gate_hold stop-gate
+  row stop-gate/scripts/r1-gate/mutants.rows held b.sh 's/two/three/' 'measured rows' required X-1
+  t stop-by-term-to-the-group-during-a-gate-check-reports-no-failure PASS stopped_by stop-gate TERM group 60 run 143 left none 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  fixture_tree stop-gate-unmutated
+  mkdir -p "$gate_scratch/stop-gate-unmutated/crates/x/src"
+  printf 'pub fn f() -> i32 { 1 }\n' > "$gate_scratch/stop-gate-unmutated/crates/x/src/lib.rs"
+  cp "$DIR/lib.sh" "$gate_scratch/stop-gate-unmutated/scripts/r1-gate/lib.sh"
+  stub_cargo stop-gate-unmutated 0
+  stub_gate_hold stop-gate-unmutated
+  row stop-gate-unmutated/crates/x/mutants.rows held src/lib.rs 's/1 }/2 }/' 'test stand::in' required X-1
+  t stop-by-term-to-the-group-during-an-unmutated-gate-check-reports-no-failure PASS with_cargo_home stop-gate-unmutated stopped_by stop-gate-unmutated TERM group 60 run 143 left itself 2 'STOPPED mutation:held (signal TERM; no test was running)'
+  for stop_fixture_name in stop-restore stop-restore-last; do
+    fixture_tree "$stop_fixture_name"
+    stub_cp "$stop_fixture_name"
+    row "$stop_fixture_name/scripts/r1-gate/mutants.rows" held b.sh 's/two/three/' leak required X-1
+    [ "$stop_fixture_name" = stop-restore-last ] || row "$stop_fixture_name/scripts/r1-gate/mutants.rows" after b.sh 's/echo two/echo 2/' leak required X-1
+  done
+  t stop-while-a-row-ends-starts-no-new-row PASS stopped_by stop-restore TERM runner 60 apply-only 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  t stop-while-the-last-row-ends-prints-no-count PASS stopped_by stop-restore-last TERM runner 60 apply-only 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
+}
+
+stub_cp() {
+  mkdir -p "$gate_scratch/$1/bin"
+  cat > "$gate_scratch/$1/bin/cp" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+case $1 in
+  *pristine)
+    printf 'cp\n' >> "$here/starts"
+    : > "$here/marker"
+    sleep 2
+    mv "$here/marker" "$here/marker.released"
+    printf 'itself\n' > "$here/ended" ;;
+esac
+exec /bin/cp "$@"
+STUB
+  chmod +x "$gate_scratch/$1/bin/cp"
+}
+
+stub_gate_hold() {
+  mkdir -p "$gate_scratch/$1/bin"
+  for stub in deletion no-ll-hook; do
+    printf '#!/bin/sh\nprintf "PASS %s\\n"\n' "$stub" > "$gate_scratch/$1/scripts/r1-gate/check-$stub.sh"
+  done
+  cat > "$gate_scratch/$1/scripts/r1-gate/check-store.sh" <<'STUB'
+#!/bin/sh
+here=${0%/*}/../../bin
+printf 'store\n' >> "$here/starts"
+: > "$here/marker"
+sleep 2
+mv "$here/marker" "$here/marker.released"
+printf 'itself\n' > "$here/ended"
+printf 'PASS store\n'
+STUB
 }
 
 with_cargo_home() {
