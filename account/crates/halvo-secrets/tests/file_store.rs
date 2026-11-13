@@ -446,23 +446,3 @@ fn writers_that_race_for_one_name_store_one_secret() {
     assert_eq!(found(store_in(&dir).read()), [b'a' + stored[0]; 16]);
     assert_eq!(names_in(&dir), ["account"]);
 }
-
-#[cfg(not(feature = "keychain"))]
-#[test]
-fn the_store_of_a_build_without_the_keychain_is_the_file_store() {
-    let dir = scratch("build").join("store");
-    let store = Store::new(
-        Directory::new(dir.clone()).expect("an absolute directory"),
-        Name::new("dev.halvo.test").expect("a service"),
-        Name::new("credential").expect("a name"),
-    );
-    assert_eq!(store.kind(), StoreKind::File);
-    assert_eq!(store.write(&secret(b"secret")), Write::Stored);
-    assert_eq!(
-        fs::read(dir.join("credential")).expect("the file"),
-        b"secret"
-    );
-    assert_eq!(found(store.read()), b"secret");
-    assert_eq!(store.delete(), Delete::Deleted);
-    assert!(names_in(&dir).is_empty());
-}

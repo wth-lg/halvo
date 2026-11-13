@@ -85,23 +85,23 @@ test("the ledger keeps the cap as last set and answers the same calls as contrac
   db.close();
 });
 
-test("the metering stub does nothing, names no call and is settled", () => {
+test("the metering module answers every call of contract 3.2 on test-kit/sql (P5 replaced the stub)", () => {
   const db = openSql();
   const metering = makeMetering({ intervalSeconds: 3600, marginSeconds: 300 });
   db.step((sql) => {
     metering.init(sql);
     metering.begin(sql, ACCOUNT, 1);
-    metering.billingPeriod(sql, { start: 0, end: 1 }, 1);
-    metering.cut(sql, "cancel", 1, 1);
-    metering.seal(sql, 0, 0, 1);
-    expect(metering.intervalAt(sql, 7_199_999)).toBe(3_600_000);
-    expect(metering.intervalAt(sql, 7_200_000)).toBe(7_200_000);
-    expect(metering.oldestUnsealed(sql)).toBeNull();
-    expect(metering.nextSend(sql)).toBeNull();
-    expect(metering.send(sql, 1)).toEqual({ call: null, notBillable: 0 });
-    expect(metering.record(sql, { kind: "read", interval: 0, from: 0, to: 1 }, { kind: "failed" }, 1)).toEqual({ call: null, notBillable: 0 });
+    metering.billingPeriod(sql, { start: 0, end: 7_200_000 }, 1);
+    expect(metering.intervalAt(sql, 1_000)).toBe(0);
+    expect(metering.oldestUnsealed(sql)).toEqual({ interval: 0, end: 3_600_000 });
+    metering.seal(sql, 0, 25_000, 3_600_000);
+    expect(metering.nextSend(sql)).toBe(3_600_000);
+    const next = metering.send(sql, 3_600_000);
+    expect(next).toEqual({ call: { kind: "send", interval: 0, identifier: `${ACCOUNT}:0`, amountMinor: 2, timestamp: 3_599 }, notBillable: 0 });
+    if (next.call === null) throw new Error("the module named no call");
+    expect(metering.record(sql, next.call, { kind: "recorded" }, 3_600_000)).toEqual({ call: null, notBillable: 0 });
+    metering.cut(sql, "cancel", 3_600_000, 3_600_000);
     expect(metering.settled(sql)).toBe(true);
-    expect(sql.exec("SELECT name FROM sqlite_master WHERE type = ?", "table")).toEqual([]);
   });
   db.close();
 });

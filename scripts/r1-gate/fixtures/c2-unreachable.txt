@@ -1,0 +1,1 @@
+halvo-capture: capture service not running at /Users/example/Library/Application Support/Halvo/run/control.sock

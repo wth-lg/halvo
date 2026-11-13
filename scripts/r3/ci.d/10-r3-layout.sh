@@ -1,12 +1,13 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every tracked file under a root of the agent-setup run matches a pattern of scripts/r3/layout.txt, and with --all every pattern of that file matches a tracked file.
+# rule: Every tracked file under a root of the agent-setup run matches a pattern of scripts/r3/layout.txt, with --all every pattern of that file matches a tracked file, and webpki-root-certs, whose licence is not on the list of A0.8, is in no graph that cargo resolves for the workspace on aarch64-apple-darwin, x86_64-apple-darwin, x86_64-pc-windows-msvc or aarch64-pc-windows-msvc (CP-102).
 set -u
 LC_ALL=C
 export LC_ALL
 name=10-r3-layout
 layout=scripts/r3/layout.txt
 roots='docs/r3/ scripts/r3/ scripts/r3-gate/ formal/r3-confirm/ tools/r3-trials/ tools/fixture-server/variants/ crates/halvo-policy/ crates/halvo-web/ crates/halvo-connect/ crates/halvo-sheet/ crates/halvo-agent-store/ crates/halvo-agent-gate/ crates/halvo-runner/ crates/halvo-agent-client/ crates/halvo-model/'
+built_targets='aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc aarch64-pc-windows-msvc'
 case $0 in
   /*) self=$0 ;;
   *) self=$(pwd)/$0 ;;
@@ -122,6 +123,27 @@ fail() {
   exit 1
 }
 
+tree_check() {
+  started=$(date +%s)
+  found=
+  counted=0
+  for target in $built_targets; do
+    counted=$((counted + 1))
+    if ! cargo tree --workspace --all-features -e all --target "$target" --prefix none --locked >"$artifacts/tree-$target.txt" 2>&1; then
+      printf 'tree target=%s cargo=failed\n' "$target"
+      fail tree
+    fi
+    if grep -q '^webpki-root-certs v' "$artifacts/tree-$target.txt"; then
+      printf 'tree target=%s webpki-root-certs=yes\n' "$target"
+      found=yes
+    else
+      printf 'tree target=%s webpki-root-certs=no\n' "$target"
+    fi
+  done
+  printf 'tree targets=%s seconds=%s\n' "$counted" "$(($(date +%s) - started))"
+  [ -z "$found" ] || fail tree
+}
+
 measure() {
   if [ -n "${CI_D_REPO:-}" ]; then
     repo=$CI_D_REPO
@@ -151,10 +173,12 @@ measure() {
   result=
   read -r result <"$scratch/result"
   case $result in
-    pass) printf 'PASS %s\n' "$name" ;;
+    pass) ;;
     layout | outside | empty) fail "$result" ;;
     *) fail awk ;;
   esac
+  tree_check
+  printf 'PASS %s\n' "$name"
 }
 
 broken() {
@@ -229,6 +253,24 @@ self_test() {
   printf '%s\n' '#!/bin/sh' "\"\$R3_REAL_GIT\" \"\$@\" >\"\$R3_STUB_OUT\" || exit 1" \
     "awk '{ printf \"%s\\r\\n\", \$0 }' \"\$R3_STUB_OUT\"" >"$work/stub-crlf-git/git" || broken stub
   chmod +x "$work/stub-git/git" "$work/stub-awk/awk" "$work/stub-crlf-git/git" || broken chmod
+  mkdir -p "$work/stub-cargo" || broken mkdir
+  cat >"$work/stub-cargo/cargo" <<'EOF' || broken stub
+#!/bin/sh
+case " $* " in
+  *" tree --workspace --all-features -e all --target "*" --prefix none --locked "*) ;;
+  *) exit 97 ;;
+esac
+[ "${R3_CARGO_FAILS:-}" != yes ] || exit 101
+printf 'halvo-connect v0.0.0\nrustls v0.23.46\n'
+case " $* " in
+  *" --target ${R3_WEBPKI_TARGET:-none} "*) printf 'webpki-root-certs v1.0.11\n' ;;
+esac
+EOF
+  chmod +x "$work/stub-cargo/cargo" || broken chmod
+  PATH=$work/stub-cargo:$PATH
+  R3_WEBPKI_TARGET=
+  R3_CARGO_FAILS=
+  export PATH R3_WEBPKI_TARGET R3_CARGO_FAILS
   mode=driver
   rejected=0
   wrong=
@@ -343,6 +385,19 @@ self_test() {
     "1:FAIL $name (usage)") rejected=$((rejected + 1)) && printf 'case %s/two-arguments want=usage got=usage\n' "$name" ;;
     *) printf 'case %s/two-arguments want=usage got=other\n' "$name" && wrong="$wrong two-arguments" ;;
   esac
+
+  lay a "$a_good"
+  check tree-reads-the-four-targets a PASS 'tree target=aarch64-pc-windows-msvc webpki-root-certs=no'
+  R3_WEBPKI_TARGET=aarch64-apple-darwin
+  check tree-holds-webpki-on-the-first-target a tree 'tree target=aarch64-apple-darwin webpki-root-certs=yes'
+  R3_WEBPKI_TARGET=aarch64-pc-windows-msvc
+  check tree-holds-webpki-on-the-last-target a tree 'tree target=aarch64-pc-windows-msvc webpki-root-certs=yes'
+  R3_WEBPKI_TARGET=wasm32-unknown-unknown
+  check tree-holds-webpki-on-wasm32-alone a PASS 'tree targets=4'
+  R3_WEBPKI_TARGET=
+  R3_CARGO_FAILS=yes
+  check tree-cargo-fails a tree 'tree target=aarch64-apple-darwin cargo=failed'
+  R3_CARGO_FAILS=
 
   make_repo b docs/r3/README.md.bak docs/r3/notes docs/r3/.md docs/r3/log-xyz docs/r3/a docs/r3/READMEXmd
   b_rest='docs/r3/notes** U1.4\ndocs/r3/*.md U1.4\ndocs/r3/log-* U1.4\n'

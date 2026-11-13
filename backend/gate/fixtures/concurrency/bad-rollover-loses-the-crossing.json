@@ -1,0 +1,11 @@
+{
+  "edits": [
+    {
+      "file": "stress/driver.mjs",
+      "find": "setAt + cfg.rolloverAfterMs",
+      "replace": "setAt - cfg.rolloverAfterMs"
+    }
+  ],
+  "cells": "^rollover@20$",
+  "line": ["FAIL concurrency: ", "rollover-uncrossed=", "first failure: ", "lacked the crossing, which the driver builds before any kill (ruling B-15)"]
+}

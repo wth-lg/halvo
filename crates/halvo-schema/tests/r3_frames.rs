@@ -110,7 +110,7 @@ fn to_runner() -> Vec<String> {
         format!(r#"{{"t":"handback_reply","result":{RESULT}}}"#),
         r#"{"t":"handback_reply","result":{"v":1,"outcome":"timeout","secret":null}}"#.to_owned(),
         r#"{"t":"secret_reply","answer":"stored","value":"tok_fixture"}"#.to_owned(),
-        r#"{"t":"secret_reply","answer":"stored","value":""}"#.to_owned(),
+        r#"{"t":"secret_reply","answer":"stored","value":"t"}"#.to_owned(),
         r#"{"t":"secret_reply","answer":"none"}"#.to_owned(),
         r#"{"t":"secret_reply","answer":"unreadable","member":"locked"}"#.to_owned(),
         r#"{"t":"secret_reply","answer":"unreadable","member":"fault"}"#.to_owned(),
@@ -292,9 +292,9 @@ fn a_frame_is_refused_by_its_tag_its_keys_and_its_length() {
     else {
         panic!()
     };
-    let frame = SecretReply::Stored(halvo_schema::executable::text::SecretText::new(
-        &"s".repeat(65_536 - shell + 1),
-    ));
+    let frame = SecretReply::Stored(
+        halvo_schema::executable::text::SecretText::parse(&"s".repeat(65_536 - shell + 1)).unwrap(),
+    );
     let refusal = ToRunner::SecretReply(frame).to_json().unwrap_err();
     assert_eq!(
         (refusal.cause(), refusal.rule()),
@@ -1293,9 +1293,9 @@ fn a_secret_reply_tells_the_secret_none_stored_and_a_store_that_could_not_be_rea
         secret_reply(r#""answer":"stored","value":"tok_fixture""#)
     );
     let written: Vec<String> = [
-        SecretReply::Stored(halvo_schema::executable::text::SecretText::new(
-            "tok_fixture",
-        )),
+        SecretReply::Stored(
+            halvo_schema::executable::text::SecretText::parse("tok_fixture").unwrap(),
+        ),
         SecretReply::None,
         SecretReply::Unreadable(Unreadable::Locked),
         SecretReply::Unreadable(Unreadable::Fault),
@@ -1351,6 +1351,34 @@ fn a_secret_reply_with_a_member_and_an_answer_other_than_unreadable_is_refused()
             "member",
         );
     }
+}
+
+#[test]
+fn a_secret_reply_whose_stored_value_is_empty_is_refused_and_one_byte_is_taken() {
+    let empty = secret_reply(r#""answer":"stored","value":"""#);
+    expect(
+        ToRunner::parse(empty.as_bytes()),
+        "SecretText",
+        "empty_secret",
+        "value",
+    );
+    expect(
+        SecretReply::parse(empty.as_bytes()),
+        "SecretText",
+        "empty_secret",
+        "value",
+    );
+    let one = secret_reply(r#""answer":"stored","value":"t""#);
+    assert_eq!(
+        ToRunner::parse(one.as_bytes()).unwrap().to_json().unwrap(),
+        one
+    );
+    let ToRunner::SecretReply(SecretReply::Stored(value)) =
+        ToRunner::parse(one.as_bytes()).unwrap()
+    else {
+        panic!("{one}")
+    };
+    assert_eq!(value.expose(), "t");
 }
 
 #[test]
