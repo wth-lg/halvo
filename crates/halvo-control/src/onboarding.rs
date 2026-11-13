@@ -719,6 +719,42 @@ mod tests {
     }
 
     #[test]
+    fn a_fresh_accessibility_asks_the_system_first_and_opens_the_pane_second() {
+        for grant in [GrantState::NotDetermined, GrantState::NotGranted] {
+            let state = assess(&input(&Permission::R1_MACOS, &[(Accessibility, grant)]));
+            let steps: Vec<WalkbackAction> = state
+                .walkback
+                .iter()
+                .filter(|s| s.permission == Accessibility)
+                .map(|s| s.action)
+                .collect();
+            assert_eq!(
+                steps,
+                [
+                    WalkbackAction::RequestFromSystem,
+                    WalkbackAction::OpenSettingsPane
+                ],
+                "{grant:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_opener_opens_only_a_system_settings_url_of_its_own_table() {
+        for &permission in Permission::ALL {
+            let url = permission.settings_url();
+            assert!(
+                url.starts_with("x-apple.systempreferences:com.apple.preference.security?Privacy_"),
+                "{url}"
+            );
+            assert!(!url.contains(char::is_whitespace), "{url}");
+        }
+        let urls: std::collections::BTreeSet<&str> =
+            Permission::ALL.iter().map(|p| p.settings_url()).collect();
+        assert_eq!(urls.len(), Permission::ALL.len());
+    }
+
+    #[test]
     fn in_every_state_one_restart_step_at_most_comes_last_and_no_text_says_quit() {
         let mut states = 0;
         every_state(|input, state| {
