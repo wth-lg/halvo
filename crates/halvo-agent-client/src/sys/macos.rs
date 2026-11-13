@@ -278,6 +278,17 @@ mod tests {
     }
 
     #[test]
+    fn a_list_of_descriptors_that_fills_its_room_fails_the_start() {
+        let mut room = [ProcFdInfo::default(); 1];
+        let refused = close_at_exec_beyond_three(&mut room);
+        assert_eq!(
+            refused.map_err(|e| e.raw_os_error()),
+            Err(Some(EMFILE)),
+            "a process holds at least its three standard descriptors, which do not fit one entry"
+        );
+    }
+
+    #[test]
     fn a_child_reads_running_then_exited_while_unreaped_then_gone() {
         let mut child = std::process::Command::new("/bin/sleep")
             .arg("0.3")
