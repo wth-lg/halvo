@@ -1097,7 +1097,11 @@ it in the plan before weakening an assertion.
   `Reopen` widens.
 - The order of a durable write and of a durable removal: the sync of the
   file, the rename, the sync of the directory (`write_durably`,
-  `remove_durably`). Check 1 reads what a write and a shred leave in a
+  `remove_durably`). Both syncs are std's `File::sync_all`, the file's on
+  its own descriptor and the directory's on a duplicate of the handle's
+  descriptor, never by a name; on macOS that call is `fcntl(F_FULLFSYNC)`,
+  tried again when a signal interrupts it. No test can see which system
+  call a sync makes. Check 1 reads what a write and a shred leave in a
   process that keeps running, and makes no power loss. The tests of
   `store::durable` read the order over a recording file system, and
   `store::hardening_tests::a_shred_clears_the_key_durably_before_it_removes_the_file_and_syncs_the_shard_after`

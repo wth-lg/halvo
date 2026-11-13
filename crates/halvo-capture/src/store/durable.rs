@@ -367,7 +367,7 @@ mod unix_dir {
         }
 
         pub(crate) fn sync(&self) -> io::Result<()> {
-            checked(unsafe { libc::fsync(self.fd.as_raw_fd()) })
+            File::from(self.fd.try_clone()?).sync_all()
         }
 
         pub(crate) fn names(&self, name: &OsStr, child: &Dir) -> io::Result<bool> {
