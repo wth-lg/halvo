@@ -966,7 +966,7 @@ fn length(result: Result<impl std::fmt::Debug, Refusal>, type_name: &str, rule: 
 fn the_constant_of_a_runner_reply_s_value_is_what_fills_a_store_reply_frame_exactly() {
     assert_eq!(RUNNER_REPLY_VALUE_MAX, 65_455);
     assert_eq!(FRAME_JSON_MAX - RUNNER_REPLY_VALUE_MAX, 28 + 53);
-    assert!(RUNNER_REPLY_VALUE_MAX < CHECKPOINTS_REPLY_MAX);
+    assert_eq!(CHECKPOINTS_REPLY_MAX - RUNNER_REPLY_VALUE_MAX, 195_612);
     let exact = reply_of_length(RUNNER_REPLY_VALUE_MAX);
     let read = LoadRepliesReply::parse(exact.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(read.to_json().unwrap(), exact);
@@ -1239,7 +1239,7 @@ fn the_names_of_the_run_s_list_stand_in_names_and_in_the_names_file() {
     let lines: Vec<&str> = file.lines().collect();
     for key in RUN_LIST_KEYS {
         assert!(executable::NAMES.contains(key), "{key}");
-        assert!(lines.contains(&key), "{key}");
+        assert!(lines.contains(key), "{key}");
     }
 }
 

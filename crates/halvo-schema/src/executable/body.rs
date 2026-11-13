@@ -101,6 +101,7 @@ macro_rules! reply_enum {
     ) => {
         $(#[$meta])*
         #[derive(Clone, Debug, PartialEq, Eq)]
+        #[allow(clippy::large_enum_variant)]
         pub enum $name {
             $( $variant($ty), )+
         }
