@@ -75,34 +75,80 @@ names_of() {
 
 read_results() {
   awk -v crate="$1" -v names="$2" -v present="$3" '
+    function target_of(line,    paren, bin) {
+      sub(/^ *Running /, "", line)
+      gsub(/\\/, "/", line)
+      paren = index(line, " (")
+      if (paren == 0 || line !~ /\)$/) return ""
+      bin = substr(line, paren + 2, length(line) - paren - 2)
+      sub(/.*\//, "", bin)
+      sub(/\.exe$/, "", bin)
+      sub(/-[0-9a-f]+$/, "", bin)
+      return bin " " substr(line, 1, paren - 1)
+    }
+    function key_of(source,    bin) {
+      if (source == "src/lib.rs") {
+        bin = crate
+        gsub(/-/, "_", bin)
+        return bin " unittests src/lib.rs"
+      }
+      bin = source
+      sub(/^tests\//, "", bin)
+      sub(/\.rs$/, "", bin)
+      return bin " " source
+    }
     BEGIN {
       n = split(names, list, " ")
       for (i = 1; i <= n; i++) {
         split(list[i], part, "|")
         name = part[2]
         sub(/^.*::/, "", name)
-        list[i] = name
-        mark[name] = part[3]
-        state[name] = "pending"
+        test[i] = name
+        mark[i] = part[3]
+        if (part[3] == "pending") want[i] = "name " name
+        else want[i] = key_of(part[1]) " " part[2]
+        state[i] = "pending"
+        index_of[want[i]] = i
       }
     }
     present == "yes" {
       sub(/\r$/, "")
+      if ($0 ~ /^ *Doc-tests /) {
+        target = ""
+        next
+      }
+      if ($0 ~ /^ *Running /) {
+        target = target_of($0)
+        next
+      }
       if ($0 !~ /^test [^ ]+ \.\.\. /) next
       path = $2
-      sub(/^.*::/, "", path)
-      if (!(path in state)) next
       result = substr($0, index($0, " ... ") + 5)
-      if (result != "ok") state[path] = "miss"
-      else if (state[path] == "pending") state[path] = "ok"
+      name = path
+      sub(/^.*::/, "", name)
+      for (k = 0; k < 2; k++) {
+        found = k == 0 ? target " " path : "name " name
+        if (!(found in index_of)) continue
+        i = index_of[found]
+        if (result != "ok") state[i] = "miss"
+        else if (state[i] == "pending") state[i] = "ok"
+      }
     }
     END {
       for (i = 1; i <= n; i++) {
-        test = list[i]
-        if (state[test] == "pending" && mark[test] != "pending") state[test] = "miss"
-        print crate, test, state[test]
+        if (state[i] == "pending" && mark[i] != "pending") state[i] = "miss"
+        print crate, test[i], state[i]
       }
     }
+  '
+}
+
+list_form() {
+  printf '%s\n' "$closed" | awk '
+    NF == 4 && $4 == "built" && ($2 == "src/lib.rs" || $2 ~ /^tests\/[a-z0-9_]+\.rs$/) { next }
+    NF == 3 && $3 == "pending" { next }
+    { bad = 1 }
+    END { exit bad }
   '
 }
 
@@ -170,6 +216,10 @@ measure() {
   mkdir -p "$dir" || finish artifacts
   tree_start
   closed=$(closed_list) || finish read
+  if ! list_form; then
+    printf 'list form=bad\n'
+    finish list
+  fi
   meta=$(cargo metadata --format-version 1 --no-deps --locked 2>"$dir/metadata.err") || finish metadata
   tree_same metadata
   printf '%s\n' "$meta" >"$dir/metadata.json" || finish artifacts
