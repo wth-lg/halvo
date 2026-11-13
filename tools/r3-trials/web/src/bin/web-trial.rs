@@ -3422,6 +3422,8 @@ mod driver {
         watched: bool,
         version: String,
         left: bool,
+        /// What the end of the run's own processes found after the watch and left (CP-126 E1).
+        ended: checks::Ended,
     }
 
     /// Whether another socket can bind 127.0.0.1:`port` now, as a process that wants the port
@@ -3535,6 +3537,19 @@ mod driver {
             form.step,
             if let_through { "control" } else { "kill" }
         ));
+        // the run's own processes are the browser's that name this profile (CP-126 E1): the
+        // killed driver runs no end of its own, so the row ends them after its watch
+        let mark = StartOptions {
+            browser: ctx.browser.clone(),
+            profile: profile.clone(),
+            headless: true,
+            flags: Vec::new(),
+            channel: Channel::Pipe,
+            relay: None,
+            local_state: None,
+            program: None,
+        }
+        .mark_now();
         let exe = std::env::current_exe().map_err(|e| NotRun::new("driver", e.to_string()))?;
         let mut cmd = std::process::Command::new(exe);
         cmd.arg("--driver-child")
@@ -3676,6 +3691,7 @@ mod driver {
                 left = !close_browser(r).await;
             }
         }
+        let ended = checks::end_runs_own(&mark);
         let mut temp = profile.clone().into_os_string();
         temp.push("-tmp");
         let removed = remove_made_dir(&profile) && remove_made_dir(Path::new(&temp));
@@ -3695,6 +3711,7 @@ mod driver {
             watched: watch_port.is_some(),
             version,
             left,
+            ended,
         })
     }
 
@@ -3716,6 +3733,7 @@ mod driver {
                 }
             };
             let first = k.watched
+                && k.ended.after == 0
                 && match (k.gone_ms, k.free_ms) {
                     (Some(g), Some(f)) => g <= f,
                     (Some(_), None) => true,
@@ -3731,13 +3749,15 @@ mod driver {
                 majors.push(m);
             }
             out(&format!(
-                "run {head} step={name} i={i} result={} watched={} gone_ms={} free_ms={} version={} left={}",
+                "run {head} step={name} i={i} result={} watched={} gone_ms={} free_ms={} version={} left={} left_before={} left_after={}",
                 if first { "ok" } else { "miss" },
                 if k.watched { "yes" } else { "no" },
                 k.gone_ms.map(|v| v.to_string()).unwrap_or("-".into()),
                 k.free_ms.map(|v| v.to_string()).unwrap_or("-".into()),
                 k.version,
-                if k.left { "yes" } else { "no" }
+                if k.left { "yes" } else { "no" },
+                k.ended.before,
+                k.ended.after
             ));
         }
         majors.sort_unstable();
@@ -3791,7 +3811,7 @@ mod driver {
                     return false;
                 }
             };
-            let clean = k.bytes == 0;
+            let clean = k.bytes == 0 && k.ended.after == 0;
             if clean {
                 ok += 1;
             }
@@ -3803,14 +3823,16 @@ mod driver {
                 majors.push(m);
             }
             out(&format!(
-                "run {head} step={name} i={i} result={} ms={} version={} browser_after={} connections={} bytes={} left={}",
+                "run {head} step={name} i={i} result={} ms={} version={} browser_after={} connections={} bytes={} left={} left_before={} left_after={}",
                 if clean { "ok" } else { "miss" },
                 k.gone_ms.unwrap_or(0),
                 k.version,
                 if k.gone_ms.is_some() { "gone" } else { "alive" },
                 k.connections,
                 k.bytes,
-                if k.left { "yes" } else { "no" }
+                if k.left { "yes" } else { "no" },
+                k.ended.before,
+                k.ended.after
             ));
         }
         majors.sort_unstable();

@@ -112,7 +112,11 @@ fn entry() {
             if let Some(out) = args.first() {
                 let mut text = String::new();
                 for (k, v) in std::env::vars_os() {
-                    text.push_str(&format!("{}={}\n", k.to_string_lossy(), v.to_string_lossy()));
+                    text.push_str(&format!(
+                        "{}={}\n",
+                        k.to_string_lossy(),
+                        v.to_string_lossy()
+                    ));
                 }
                 let _ = std::fs::write(out, text);
             }

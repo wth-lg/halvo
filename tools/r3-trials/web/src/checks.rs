@@ -207,6 +207,21 @@ pub fn end_runs_own_with(
         let n = found.as_ref().map_or(1, Vec::len);
         if pass == 0 {
             out.before = n;
+            if let Some(f) = found.as_ref().filter(|f| !f.is_empty()) {
+                // which programs the run left: the file names of their executables
+                let mut names: Vec<String> = f
+                    .iter()
+                    .filter_map(|p| {
+                        p.exe
+                            .as_ref()?
+                            .file_name()
+                            .map(|n| n.to_string_lossy().replace(' ', "_"))
+                    })
+                    .collect();
+                names.sort();
+                names.dedup();
+                eprintln!("left_found n={n} programs={}", names.join(","));
+            }
         }
         out.after = n;
         if n == 0 {
