@@ -80,19 +80,12 @@ sha() {
 
 # Prints `same` when the two directories hold the same files with the same bytes, `differ` otherwise.
 same_tree() {
-  (cd "$1" && find . -type f) | LC_ALL=C sort >"$work/left.txt" || return 1
-  (cd "$2" && find . -type f) | LC_ALL=C sort >"$work/right.txt" || return 1
-  if ! cmp -s "$work/left.txt" "$work/right.txt"; then
-    echo differ
-    return 0
-  fi
-  while IFS= read -r f; do
-    if ! cmp -s "$1/$f" "$2/$f"; then
-      echo differ
-      return 0
-    fi
-  done <"$work/left.txt"
-  echo same
+  diff -r -q "$1" "$2" >"$work/diff.txt" 2>&1
+  case $? in
+    0) echo same ;;
+    1) echo differ ;;
+    *) return 1 ;;
+  esac
 }
 
 measure() {
