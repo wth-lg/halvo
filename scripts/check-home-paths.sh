@@ -1579,7 +1579,11 @@ self_test_commits() {
   case_scan live-entries-pass-the-stale-check 0 'entries read 3, stale 0.' --allow "$work/list-live" --stale
   case_scan stale-check-of-a-malformed-list 2 'cannot use the list' --allow "$work/list-bad" --stale
   case $(uname -s) in
-    MINGW* | MSYS* | CYGWIN*) printf 'case %s/stale-check-of-a-file-listed-by-its-quoted-name not run: this system has no such file name\n' "$NAME" ;;
+    MINGW* | MSYS* | CYGWIN*)
+      for not_run in stale-check-of-a-file-listed-by-its-quoted-name stale-check-of-a-file-named-with-a-double-quote stale-check-names-a-quoted-file-that-lost-its-path; do
+        printf 'case %s/%s not run: this system has no such file name\n' "$NAME" "$not_run"
+      done
+      ;;
     *)
       expand_fixture 'see /{U}/una' >"$case_repo/a${tab}b.txt"
       commit_case 'a file whose name holds a tab' >/dev/null || die 'commit failed'
