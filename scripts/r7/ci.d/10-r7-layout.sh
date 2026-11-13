@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: Every tracked file under a root of scripts/r7/layout.txt (backend/ and formal/r7-ledger/) matches one of its patterns, which names the owner of each, and every pattern there matches a tracked file.
+# lane: free
 set -u
 name=10-r7-layout
 layout=scripts/r7/layout.txt

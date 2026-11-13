@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: Every tracked file under a root of scripts/r5/layout.txt matches one of its patterns, the files that docs/r5/freeze.toml freezes have its hashes, and docs/r5/heldout.txt names the tree of the drift harness at HEAD.
+# lane: free
 set -u
 LC_ALL=C
 export LC_ALL

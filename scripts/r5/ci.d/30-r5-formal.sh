@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: Admit.cfg and Small.cfg of formal/r5-admit have the one fixed form of the model's bound and formulas, TLC finds none of Q1 to Q14 violated at the small bound, the model exports the committed table and traces byte for byte, each of two control copies breaks its property, and record.txt holds the full bound, the small run's count of states and every run of runs.txt at the stamp of the model's files.
+# lane: free
 set -u
 LC_ALL=C
 export LC_ALL

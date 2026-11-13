@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: Every sentence of the words table, of the state fixtures and of the two view headings matches no pattern of scripts/r4/words/never-read.txt, holds at most 20 words and holds no reserved term of another run in docs/r4/words.md.
+# lane: free
 set -u
 name=45-r4-words
 nested=self-test-of-$name

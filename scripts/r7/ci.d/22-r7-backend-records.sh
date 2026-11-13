@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
 # rule: Each check of the backend's gate, backend/gate/checks/NN-name.sh, has one stamped record docs/r7/gate/NN-name.txt of the line that the gate printed for it, its UTC stamp, the 1-minute load, and the trees of backend/ and of the model formal/r7-ledger/ that it ran on, which are their trees at HEAD; docs/r7/gate/ holds no other file.
+# lane: free
 set -u
 name=22-r7-backend-records
 records=docs/r7/gate
