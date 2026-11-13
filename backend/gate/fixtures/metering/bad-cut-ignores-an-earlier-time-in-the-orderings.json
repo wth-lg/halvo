@@ -1,0 +1,22 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "if (a.cutAt !== null && second >= a.cutAt) return;",
+      "replace": "if (a.cutAt !== null) return;"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "5",
+    "--orderings",
+    "29",
+    "--settings",
+    ""
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: seed 5 of the generated orderings, ordering 29 (",
+    "): the equation with a remainder under one minor unit ("
+  ]
+}
