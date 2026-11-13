@@ -108,8 +108,9 @@ impl Runner {
     /// `approved` effect. The bound values are read again while the request is paused, and when their digest is not
     /// the row's an `approved` effect takes a `rebind` after `admit`, its request is failed and made again, and the
     /// person is asked again with the new values, at most `LIMITS.rebinds` times, then the effect is ended and the
-    /// run ends `failed` with `changed`; a `cleared` one is ended and proposed again. The new effects of one step
-    /// are at most `LIMITS.rebinds`, after which the run ends `failed` with `changed`. `begin` carries the digest of
+    /// run ends `failed` with `changed`; a `cleared` one is ended and proposed again. The times that one step
+    /// proposes effects again are at most `LIMITS.rebinds`, a batch of case (iv) counting once, after which every
+    /// open effect of the step is ended and the run ends `failed` with `changed`. `begin` carries the digest of
     /// the values read again; the request is let through once under the lock of the link, where a held `cancel`
     /// lets nothing through, and `commit` is stored only after its reply. A request with no reply leaves its effect
     /// `releasing`, and the run ends `effect_unknown`.
@@ -195,8 +196,8 @@ impl Runner {
 
     /// Lets the request of one `cleared` or `approved` effect leave, or ends the effect, or gives the effect back
     /// with the later load when that load gives `confirm` for a `cleared` effect. A `cleared` effect whose values
-    /// changed is ended and a new effect is proposed from the load's values; `renewed` counts the new effects of the
-    /// step (A5.2).
+    /// changed is ended and a new effect is proposed from the load's values; `renewed` counts the times that the
+    /// step proposes effects again (A5.2, CP-157 E4).
     fn let_through(
         &mut self,
         mut one: Open,

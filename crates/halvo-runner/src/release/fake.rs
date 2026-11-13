@@ -358,11 +358,11 @@ fn a_later_load_that_asks_a_confirmation_for_a_cleared_effect_is_answered_before
     assert_eq!(record.done(), Some(Outcome::Completed));
 }
 
-/// A5.1, A5.2, CP-143 (4) (iv): the new effects of one step are at most `LIMITS.rebinds`, whether a `cleared`
-/// effect's values changed or a later load asks a confirmation; two value changes and then a load that asks more
-/// end the run `failed` with `changed`, with nothing let through.
+/// A5.1, A5.2, CP-143 (4) (iv), CP-157 E4: the times that one step proposes effects again are at most
+/// `LIMITS.rebinds`, whether a `cleared` effect's values changed or a later load asks a confirmation; two value
+/// changes and then a load that asks more end the run `failed` with `changed`, with nothing let through.
 #[test]
-fn the_new_effects_of_one_step_are_at_most_two_in_all() {
+fn the_times_that_one_step_proposes_again_are_at_most_two() {
     let plan = Plan {
         runs_at: Some(|load| load <= 3),
         ..Plan::plain()
@@ -553,5 +553,92 @@ fn the_wall_is_read_before_each_propose_of_the_batch() {
     assert_eq!(
         stopped(&record),
         Some((LogEvent::Stopped, Some(Cause::Wall)))
+    );
+}
+
+fn count_of(record: &Record, state: EffectState) -> usize {
+    record.states().iter().filter(|s| **s == state).count()
+}
+
+/// CP-157 E4 (a), adversary 1's case adv_c1_change_then_confirm: one change of a `cleared` effect's value, then a
+/// load that gives `confirm` for the three `cleared` effects. That is two times: one new effect, then the batch of
+/// three proposed again all together in one confirmation request; the run goes on and all three leave.
+#[test]
+fn one_change_and_a_batch_of_three_are_two_times_and_the_run_goes_on() {
+    let reads = vec![
+        vec![delete("a", Source::Extract), delete("d", Source::Extract)],
+        vec![delete("b", Source::Extract)],
+        vec![delete("c", Source::Extract)],
+    ];
+    let plan = Plan {
+        runs_at: Some(|load| load <= 2),
+        ..Plan::plain()
+    };
+    let (record, released) = run_many(reads, 0, plan);
+    let confirms = record.confirms();
+    assert_eq!(confirms.len(), 1, "one confirmation request");
+    assert_eq!(confirms[0].effects.len(), 3, "with all three effects");
+    let ids: std::collections::BTreeSet<_> =
+        record.effects().iter().map(|e| e.effect.clone()).collect();
+    assert_eq!(
+        ids.len(),
+        7,
+        "three effects, one new effect, then three new effects"
+    );
+    assert_eq!(
+        count_of(&record, EffectState::Cleared),
+        4,
+        "the first three and the one new effect"
+    );
+    assert_eq!(
+        count_of(&record, EffectState::Held),
+        3,
+        "the batch, proposed once"
+    );
+    assert_eq!(released, 3);
+    assert_eq!(record.done(), Some(Outcome::Completed));
+}
+
+/// CP-157 E4 (b), adversary 1's case adv_c1_three_cleared_then_confirm widened: two changes of a `cleared`
+/// effect's value and then a load that gives `confirm` would be a third time; every open effect of the step is
+/// ended with `ended`, and the run ends `failed` with `changed`.
+#[test]
+fn a_third_time_ends_every_open_effect_and_the_run_fails_changed() {
+    let reads = vec![
+        vec![
+            delete("a", Source::Extract),
+            delete("d", Source::Extract),
+            delete("b", Source::Extract),
+        ],
+        vec![delete("c", Source::Extract)],
+        vec![delete("d", Source::Extract)],
+    ];
+    let plan = Plan {
+        runs_at: Some(|load| load <= 3),
+        ..Plan::plain()
+    };
+    let (record, released) = run_many(reads, 0, plan);
+    assert_eq!(released, 0);
+    assert!(record.confirms().is_empty());
+    let effects = record.effects();
+    let ids: std::collections::BTreeSet<_> = effects.iter().map(|e| e.effect.clone()).collect();
+    for id in &ids {
+        let last = effects
+            .iter()
+            .rev()
+            .find(|e| &e.effect == id)
+            .expect("a row");
+        assert_eq!(
+            (last.state, last.cause),
+            (EffectState::Rejected, Some(Cause::Ended)),
+            "every effect ended: {:?}",
+            record.states()
+        );
+    }
+    assert_eq!(ids.len(), 5, "three effects and two new ones");
+    assert_eq!(record.done(), Some(Outcome::Failed));
+    assert_eq!(
+        stopped(&record),
+        Some((LogEvent::Stopped, Some(Cause::Changed)))
     );
 }
