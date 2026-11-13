@@ -2,186 +2,182 @@ name: ci
 
 on:
   push:
-  pull_request:
 
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
+      - name: U0.7c-8 build of the web trial (scratch branch, never merged; counts only)
         shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
+        timeout-minutes: 14
         run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
+          set +e
+          host=$(rustc -vV | sed -n 's/^host: //p')
+          s0=$(date +%s)
+          cargo build --release --locked --quiet --target "$host" --target-dir "$PWD/tools/r3-trials/web/target" \
+            --manifest-path "$PWD/tools/r3-trials/web/Cargo.toml"
+          b=$?
+          echo "build exit=$b seconds=$(( $(date +%s) - s0 ))"
+          exit $b
+      - name: U0.7c-8 org_policy cells of hosted-mac (scratch branch, never merged; counts only)
         shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
+        timeout-minutes: 10
         run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
+          set +e
+          code=0
+          dir="/Library/Managed Preferences"
+          work="$RUNNER_TEMP/org8"
+          mkdir -p "$work"
+          echo "runner macos=$(sw_vers -productVersion) sip_enabled=$(csrutil status 2>/dev/null | grep -c enabled)"
+          [ -d "$dir" ] && echo "managed_dir existed=yes" || echo "managed_dir existed=no"
+          cat >"$work/pdf-policy.swift" <<'SWIFT'
+          import Foundation
+          import PDFKit
 
-  windows:
-    runs-on: windows-2025
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 2
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-      - name: Scripts and hook in a core.autocrlf=true clone
-        shell: bash
-        run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
-          echo "$line_endings"
-          test -n "$line_endings"
-          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
-          if [ -n "$crlf_files" ]; then
-            echo "git checked out these files with CRLF:"
-            echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf', and no later line may take eol=lf from these files."
-            exit 1
-          fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
-          fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
-          esac
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+          // The reader's rule of the eighth run (U0.7c): the page is the policy page when its text holds
+          // "policy name" in any case; the name counts when the text holds it, also across line breaks;
+          // the words of the name's line and the five lines after it are printed from a closed list.
+          let args = CommandLine.arguments
+          guard args.count == 4, let doc = PDFDocument(url: URL(fileURLWithPath: args[1])) else {
+              print("policy_page=no readable=no named=no value_seen=no platform_count=0 near=-")
+              exit(2)
+          }
+          let name = args[2]
+          let value = args[3]
+          let text = doc.string ?? ""
+          let lines = text.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }
+          let page = text.lowercased().contains("policy name")
+          let joined = lines.joined()
+          let inText = text.contains(name)
+          let named = inText || joined.contains(name)
+          let known: Set<String> = ["false", "direct", "Platform", "Machine", "Mandatory", "OK"]
+          var near: [String] = []
+          if let i = lines.firstIndex(where: { $0.contains(name) }) ?? lines.indices.first(where: { k in
+              lines[k..<min(lines.count, k + 4)].joined().contains(name) }) {
+              for l in lines[i..<min(lines.count, i + 6)] {
+                  for w in l.split(separator: " ").map(String.init) where !name.contains(w) && !w.contains(name) {
+                      let t = known.contains(w) ? w : "other"
+                      if !(t == "other" && near.last == "other") { near.append(t) }
+                  }
+              }
+          }
+          let platform = text.components(separatedBy: "Platform").count - 1
+          print("policy_page=\(page ? "yes" : "no") readable=yes named=\(named ? "yes" : "no") named_across_lines=\(named && !inText ? "yes" : "no") value_seen=\(near.contains(value) ? "yes" : "no") platform_count=\(platform) near=\(near.isEmpty ? "-" : near.joined(separator: ","))")
+          SWIFT
+          s0=$(date +%s)
+          swiftc -O "$work/pdf-policy.swift" -o "$work/pdf-policy" >"$work/swiftc.log" 2>&1
+          echo "swiftc exit=$? seconds=$(( $(date +%s) - s0 )) error_lines=$(grep -c 'error:' "$work/swiftc.log")"
+          lim() { perl -e 'alarm shift @ARGV; exec @ARGV or exit 127' "$@"; }
+          listing() {
+            if [ -d "$dir" ]; then
+              echo "listing at=$1 entries=$(sudo ls -A "$dir" | wc -l | tr -d ' ')"
+              sudo ls -la "$dir" | awk -v at="$1" 'NR > 1 && $NF != "." && $NF != ".." {
+                n = $NF; if (n != "com.google.Chrome.plist" && n != "com.microsoft.Edge.plist") n = "other";
+                print "listing at=" at " mode=" $1 " owner=" $3 ":" $4 " bytes=" $5 " name=" n }'
+            else
+              echo "listing at=$1 dir=absent"
+            fi
+          }
+          page() {
+            p=$(mktemp -d "$work/page.XXXXXX")
+            "$1" --headless=new --use-mock-keychain --user-data-dir="$p" --allow-chrome-scheme-url --no-pdf-header-footer \
+              --timeout=4000 --print-to-pdf="$p.pdf" "$2" >/dev/null 2>&1 &
+            bp=$!
+            i=0
+            while [ "$i" -lt 45 ]; do
+              [ -s "$p.pdf" ] && tail -c 64 "$p.pdf" | grep -q EOF && break
+              sleep 1
+              i=$((i + 1))
+            done
+            kill -9 "$bp" 2>/dev/null
+            pkill -9 -f -- "$p" 2>/dev/null
+            wait "$bp" 2>/dev/null
+            sleep 1
+            r=$("$work/pdf-policy" "$p.pdf" "$3" "$4" 2>/dev/null)
+            [ -n "$r" ] || r="policy_page=no readable=no"
+            echo "$r waited_s=$i pdf=$(basename "$p").pdf left=$(pgrep -f -- "$p" | wc -l | tr -d ' ')"
+          }
+          readback() {
+            r=$(page "$1" chrome://policy/ "$3" "$4")
+            u=chrome
+            case "$r" in *"policy_page=yes"*) ;; *) r=$(page "$1" edge://policy/ "$3" "$4"); u=edge ;; esac
+            echo "policy read browser=$2 at=$5 name=$3 url=$u $r"
+            pc=$(printf '%s\n' "$r" | sed -n 's/.* platform_count=\([0-9]*\).*/\1/p')
+            named=$(printf '%s\n' "$r" | sed -n 's/.* named=\([a-z]*\).*/\1/p')
+          }
+          t() {
+            b=$1
+            shift
+            s0=$(date +%s)
+            lim 300 sh tools/r3-trials/web/run.sh --candidate cdp --browser "$b" --port 18190 "$@"
+            e=$?
+            echo "call_end exit=$e seconds=$(( $(date +%s) - s0 )) args=$(echo "$*" | tr ' ' '_')"
+            [ "$e" -eq 0 ] || code=1
+          }
+          o() {
+            b=$1; k=$2; dom=$3; step=$4; name=$5; dtype=$6; dval=$7; xml=$8; readv=$9; pagev=${10}
+            plist="$dir/$dom.plist"
+            hadf=no; [ -e "$plist" ] && hadf=yes
+            sudo mkdir -p "$dir"
+            out=$(sudo defaults write "$dir/$dom" "$name" "$dtype" "$dval" 2>&1)
+            rc=$?
+            echo "policy old_way browser=$k name=$name exit=$rc output_bytes=${#out} file_after=$([ -e "$plist" ] && echo yes || echo no)"
+            [ -n "$out" ] && printf '%s\n' "$out" | head -3 | cut -c1-200 | sed 's/^/policy old_way_output /'
+            listing old_way
+            sudo killall cfprefsd 2>/dev/null
+            sleep 1
+            echo "policy old_way_after_cfprefsd browser=$k name=$name file_after=$([ -e "$plist" ] && echo yes || echo no)"
+            listing old_way_after_cfprefsd
+            [ -e "$plist" ] && sudo mv "$plist" "$work/old-way-$k-$name.plist"
+            printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n\t<key>%s</key>\n\t%s\n</dict>\n</plist>\n' "$name" "$xml" >"$work/$dom.plist"
+            lint=$(plutil -lint "$work/$dom.plist" >/dev/null 2>&1 && echo ok || echo bad)
+            sudo install -o root -g wheel -m 644 "$work/$dom.plist" "$plist"
+            irc=$?
+            sudo killall cfprefsd 2>/dev/null
+            sleep 1
+            listing plist_install
+            back=$(defaults read "$dir/$dom" "$name" 2>/dev/null)
+            echo "policy file browser=$k name=$name lint=$lint install_exit=$irc defaults_read_matches=$([ "$back" = "$readv" ] && echo yes || echo no)"
+            seen=no
+            readback "$b" "$k" "$name" "$pagev" before_cell
+            [ "$named" = yes ] && [ -n "$pc" ] && [ "$pc" -eq $((ctl + 1)) ] && seen=yes
+            echo "policy set browser=$k name=$name file_existed=$hadf owner=$(stat -f %Su:%Sg "$plist" 2>/dev/null) mode=$(stat -f %Sp "$plist" 2>/dev/null) value=$back page_named=$named page_platform=$pc control_platform=$ctl seen=$seen way=plist_install"
+            if [ "$seen" = yes ]; then
+              t "$b" --runs 10 --rows org --round 3 --relay --step "$step"
+            else
+              echo "notrun candidate=cdp machine=hosted-mac browser=$k step=$step cause=policy_not_seen"
+            fi
+            sudo mv "$plist" "$work/removed-$k-$name.plist" 2>/dev/null
+            sudo killall cfprefsd 2>/dev/null
+            sleep 1
+            [ -e "$plist" ] && echo "policy removed=no name=$name" || echo "policy removed=yes name=$name"
+          }
+          for pair in "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome|chrome|com.google.Chrome" \
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge|edge|com.microsoft.Edge"; do
+            b=${pair%%|*}
+            rest=${pair#*|}
+            k=${rest%%|*}
+            dom=${rest#*|}
+            [ -f "$b" ] || { echo "browser missing $k"; code=1; continue; }
+            echo "browser $k"
+            readback "$b" "$k" RemoteDebuggingAllowed false control_no_policy
+            ctl=${pc:-0}
+            [ "$named" = yes ] && { echo "policy control browser=$k named_with_no_file=yes"; code=1; }
+            o "$b" "$k" "$dom" org_debugging RemoteDebuggingAllowed -bool false '<false/>' 0 false
+            o "$b" "$k" "$dom" org_proxy ProxyMode -string direct '<string>direct</string>' direct direct
+          done
+          echo "scan pages_left=$(pgrep -f -- "$work/page." | wc -l | tr -d ' ')"
+          exit $code
+      - name: U0.7c-8 policy pages (scratch branch, never merged)
         if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ci-artifacts-windows
-          path: target/ci-artifacts/
+          name: u07c-8-policy-pages
+          path: ${{ runner.temp }}/org8/page.*.pdf
+          retention-days: 7
+          if-no-files-found: warn
