@@ -47,7 +47,6 @@ built_route_gate() {
       gsub(/\\\\/, "/", value)
       return value
     }
-    { sub(/\r$/, "") }
     index($0, "{\"reason\":\"compiler-artifact\",") != 1 { next }
     {
       if (index($0, "\"fresh\":true") == 0) stale = 1
@@ -342,6 +341,10 @@ EOF
     cat "$work/good.json"
   } >"$work/other-package.json" || setup_failed
   sed 's|/|\\\\|g' "$work/good.json" >"$work/windows.json"
+  {
+    sed -n -e "3s|\"$work/repo/target/debug/route-gate\"|\"$work/elsewhere/route-gate\"|" -e '3s/^/warning: /p' "$work/good.json"
+    cat "$work/good.json"
+  } >"$work/after-text.json" || setup_failed
 
   probe="probe rounds=$rounds ok=yes"
   printf '%s\n%s\n%s\n%s\n%s\n' "$probe" "$probe" "$probe" "$probe" "$probe" >"$work/good.err"
@@ -395,7 +398,7 @@ EOF
       setup_failed
     fi
   done
-  for each in k-alt stale no-line two-lines no-executable not-a-file other-package windows; do
+  for each in k-alt stale no-line two-lines no-executable not-a-file other-package windows after-text; do
     if cmp -s "$work/good.json" "$work/$each.json"; then
       setup_failed
     fi
@@ -439,6 +442,8 @@ PASS $name"
   check artifact-in-another-directory PASS "PASS $name"
   STUB_JSON=$work/other-package.json
   check binary-of-another-package-not-taken PASS "PASS $name"
+  STUB_JSON=$work/after-text.json
+  check artifact-after-other-text-not-taken PASS "PASS $name"
   STUB_BUILD_EXIT=101
   check build-fails FAIL "FAIL $name (run)"
   STUB_JSON_EXIT=101
