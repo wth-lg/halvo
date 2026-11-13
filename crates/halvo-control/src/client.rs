@@ -990,6 +990,81 @@ mod tests {
         assert_eq!(ctl_delete(None, Ok(reply)), refused_by_ctl());
     }
 
+    /// A reply frame of `kind` whose status has the fields of the sample after `edit`, with no
+    /// check of the status rule.
+    fn unchecked_status_frame(
+        kind: &str,
+        edit: impl FnOnce(&mut crate::proto::StatusFields),
+    ) -> Vec<u8> {
+        let mut fields = sample_status(Platform::Macos).into_fields();
+        edit(&mut fields);
+        let mut body = serde_json::to_value(&fields).unwrap();
+        body.as_object_mut()
+            .unwrap()
+            .insert("kind".into(), serde_json::Value::from(kind));
+        let frame = serde_json::json!({"v": 1, "body": body});
+        framed(frame.to_string().as_bytes())
+    }
+
+    fn paused_beside_running(f: &mut crate::proto::StatusFields) {
+        f.capture = crate::proto::Capture::Paused;
+        stop_all(f);
+    }
+
+    fn faulted_beside_a_lapsed_lease(f: &mut crate::proto::StatusFields) {
+        f.capture = crate::proto::Capture::Faulted;
+        f.capture_reason = Some(crate::proto::CaptureReason::NoSource);
+        f.lease = crate::proto::Lease::Lapsed;
+        stop_all(f);
+    }
+
+    const NOT_TOGETHER: &str = "the capture service reported a state that does not hold together: ";
+
+    #[test]
+    fn a_reply_whose_status_breaks_a_rule_of_the_type_is_its_own_error_through_status_and_pause() {
+        for (edit, rule) in [
+            (
+                paused_beside_running as fn(&mut crate::proto::StatusFields),
+                "paused has desired paused",
+            ),
+            (
+                faulted_beside_a_lapsed_lease,
+                "faulted has desired running and a fresh lease",
+            ),
+        ] {
+            let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+            daemon.set_raw_reply(unchecked_status_frame("status", edit));
+            let (read, _) = client(daemon);
+            let error = read.status().unwrap_err();
+            assert_eq!(error.to_string(), format!("{NOT_TOGETHER}{rule}"));
+            let printed = crate::ctl_text::print(
+                &crate::ctl_text::Verb::Status { indicator: false },
+                Err(error),
+                &crate::paths::DataDir::from_flag("/halvo-data").unwrap(),
+            );
+            assert_eq!(
+                (printed.stdout.as_str(), printed.stderr, printed.status),
+                ("", format!("halvo-capture: {NOT_TOGETHER}{rule}\n"), 1)
+            );
+
+            let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+            daemon.set_raw_reply(unchecked_status_frame("capture_changed", edit));
+            let (paused, _) = client(daemon);
+            assert_eq!(
+                paused.pause().unwrap_err().to_string(),
+                format!("{NOT_TOGETHER}{rule}")
+            );
+        }
+    }
+
+    #[test]
+    fn a_reply_frame_that_cannot_be_read_stays_a_protocol_error() {
+        let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));
+        daemon.set_raw_reply(framed(br#"{"v":1,"body":{"kind":"status","pid":1}}"#));
+        let (client, _) = client(daemon);
+        assert!(matches!(client.status(), Err(ClientError::Protocol(_))));
+    }
+
     #[test]
     fn t18_c_a_deleted_reply_with_no_new_store_reaches_the_caller() {
         let mut daemon = ScriptedDaemon::new(sample_status(Platform::Macos));

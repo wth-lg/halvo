@@ -158,6 +158,58 @@ mod tests {
             .collect()
     }
 
+    #[test]
+    fn g1_the_view_says_screen_activity_is_recorded_while_the_screen_source_runs_with_its_switch_off(
+    ) {
+        use crate::proto::{SourceName, SourceState};
+        let mut f = sample_status(Platform::Macos).into_fields();
+        let screen = f
+            .sources
+            .iter()
+            .position(|s| s.name == SourceName::Screen)
+            .unwrap();
+        f.sources[screen].state = SourceState::Running;
+        f.enabled_sources = vec![
+            SourceName::Foreground,
+            SourceName::Screen,
+            SourceName::Input,
+        ];
+        let status = DaemonStatus::new(f).unwrap();
+        let told = texts_of(&texts(&status).recorded);
+        assert!(!told.contains(&SCREEN_ACTIVITY_NOT_RECORDED), "{told:?}");
+        assert!(
+            told.contains(
+                &"Screen activity is being recorded although the setting is off. Pause capture to stop it."
+            ),
+            "{told:?}"
+        );
+    }
+
+    #[test]
+    fn g2_the_view_says_typing_is_observed_while_the_windows_keyboard_source_runs() {
+        use crate::proto::{SourceName, SourceState};
+        let mut f = sample_status(Platform::Windows).into_fields();
+        let keyboard = f
+            .sources
+            .iter()
+            .position(|s| s.name == SourceName::Keyboard)
+            .unwrap();
+        f.sources[keyboard].state = SourceState::Running;
+        f.enabled_sources = vec![
+            SourceName::Foreground,
+            SourceName::Keyboard,
+            SourceName::Pointer,
+            SourceName::WindowTitle,
+        ];
+        let status = DaemonStatus::new(f).unwrap();
+        let told = texts_of(&texts(&status).recorded);
+        assert!(!told.contains(&TYPING_NOT_OBSERVED_ON_WINDOWS), "{told:?}");
+        assert!(
+            told.contains(&"Typing is being observed. Pause capture to stop it."),
+            "{told:?}"
+        );
+    }
+
     fn texts_of(recorded: &[Recorded]) -> Vec<&'static str> {
         recorded.iter().map(|r| r.text).collect()
     }

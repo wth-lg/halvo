@@ -2062,6 +2062,27 @@ mod tests {
     }
 
     #[test]
+    fn a1_capture_paused_beside_a_desired_state_that_is_not_paused_is_refused() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let mut f = sample_status(platform).into_fields();
+            f.capture = Capture::Paused;
+            for line in &mut f.sources {
+                if line.state != SourceState::Off {
+                    line.state = SourceState::Stopped { by_user: false };
+                }
+            }
+            assert_eq!(f.desired, CaptureState::Running);
+            let refused = DaemonStatus::new(f.clone()).unwrap_err();
+            assert_eq!(
+                refused.to_string(),
+                "the status does not hold together: paused has desired paused"
+            );
+            f.desired = CaptureState::Paused;
+            assert!(DaemonStatus::new(f).is_ok(), "{platform:?}");
+        }
+    }
+
+    #[test]
     fn a1_a_version_is_an_integer_from_0_to_18446744073709551615_and_one_other_than_1_is_unsupported_whatever_the_frame_holds(
     ) {
         for text in [
