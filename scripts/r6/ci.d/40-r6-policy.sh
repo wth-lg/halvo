@@ -11,7 +11,7 @@ bar=docs/r6/bar.md
 recorded=docs/r6/outcomes/recorded.tsv
 freeze=docs/r6/outcomes/freeze.txt
 pinned_path=scripts/r6/ci.d/80-r6-absent.sh
-pinned_blob=3f99b8da3932aae8ccfe4efe84a27d333fec39a0
+pinned_blob=d45f644cd3d127050a28baecbd6710bddaeac9df
 specimen=crates/halvo-route-gate/tests/data/specimen.tsv
 cap_line='default_cap amount=2000 period=month status=provisional'
 case $0 in

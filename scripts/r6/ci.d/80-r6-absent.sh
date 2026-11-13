@@ -151,10 +151,6 @@ data_plan() {
         else odd(subject[path])
         next
       }
-      if (path in step) {
-        odd(step[path])
-        next
-      }
       if (index(path, egress) == 1) {
         if (regular) print "entries", "blob", field[3]
         else odd("entries")
@@ -886,6 +882,7 @@ EOF
   data_case name-outside-ascii-beside-docs ruling "$base\n100644 $o_header${t}d\0303\0266cs/r6/outcomes/recorded.tsv"
   data_case ruling-as-a-link ruling "120000 $o_ruling_link${t}crates/halvo-route/data/ruling.txt\n$policy_line"
   data_case ruling-twin-in-another-letter-case ruling "$base\n100644 $o_ruling${t}crates/halvo-route/data/Ruling.txt"
+  data_case policy-twin-in-another-letter-case picks "$base\n100644 $o_policy${t}crates/halvo-route/data/Policy.tsv"
   data_case policy-as-a-link picks "$ruling_line\n120000 $o_policy_link${t}crates/halvo-route/data/policy.tsv\n100644 $o_policy${t}crates/halvo-route/data/policy-target.tsv"
   data_case no-policy picks "$ruling_line"
   data_case outcomes-as-a-submodule rows "$base\n160000 2222222222222222222222222222222222222222${t}$outcomes"
@@ -894,6 +891,7 @@ EOF
   data_case recorded-executable-on-the-device PASS "$base\n100755 $o_device${t}$outcomes/recorded.tsv"
   data_case listing-fails setup "$base" ls-tree
   data_case policy-read-fails setup "$base" "$o_policy"
+  data_case ruling-read-fails setup "$base" "$o_ruling"
   data_case egress-read-fails setup "$base\n100644 $o_entry${t}$egress_dir/gate.txt" "$o_entry"
   data_case recorded-read-fails setup "$base\n100644 $o_device${t}$outcomes/recorded.tsv" "$o_device"
 }
