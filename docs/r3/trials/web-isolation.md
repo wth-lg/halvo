@@ -518,7 +518,7 @@ verdict executor=cdp version=0.9.1 product=yes relay=open open_ways=peer_connect
 
 ## Third round (U0.7c)
 
-Unit U0.7c runs A13.7's third round under the rulings up to CP-148: the trial program starts the
+Unit U0.7c runs A13.7's third round under the rulings up to CP-158: the trial program starts the
 browser on its debugging pipe as its one client, the relay its only route, in all five cells.
 
 What ran: each row set (`round3`, the nine rows, `isolation`, `relay`, `reach`, `ways --step
@@ -526,10 +526,10 @@ frame_doc` with a port control, `driver`, `org`) with `run.sh ... --round 3 --re
 without `--relay`), 10 runs per cell, 20 kills per driver form. `mac` (Chrome 153.0.8010.48) ran on
 an untimed helper lane inside no load bound, so its `median_ms` is no timed measure. hosted-mac
 (Chrome 157.0.8103.39, Edge 156.0.4314.58) ran in run 43369346664 and its pipe-form cells and
-`relay_port_free` again in run 43407107710; hosted-win (Chrome 156.0.8078.80, Edge 156.0.4314.58) in
-run 43368925419 and later runs for single cells. Every way out of a run ends the processes that the
-run left (CP-126 E1); each run line prints `left_before` and `left_after`, and no line of the block
-has `left_after` above 0.
+`relay_port_free` again in run 43407107710, Edge's `start_probe` in run 43416830488; hosted-win
+(Chrome 156.0.8078.80, Edge 156.0.4314.58) in run 43368925419 and later runs for single cells. Every
+way out of a run ends the processes that the run left (CP-126 E1); each run line prints
+`left_before` and `left_after`, and no line of the block has `left_after` above 0.
 
 Choices (reasons in the README): `FIRST_REPLY_WAIT` 30 s, `PROBE_WAIT` 10 s, `MAX_OPEN` 512,
 `MAX_RECORD` 4096; a `check` line sums A11.1's rules over a cell's runs and three reads, five of
@@ -546,21 +546,22 @@ key; `defaults read` of the property list), and the browser's policy page, print
 debugging channel and read as text, naming the setting (`r3_web::policy`): a whole word, whole-word
 pieces, or letters from a line's start ended by the value that the job wrote (CP-145 (6)).
 
-The verdict line reads `product=open relay=yes` by one cell, and no line shows the product failing:
-hosted-mac Edge's `start_probe` is `notrun cause=browser_start`: the third start of its call got no
-reply on the pipe within 30 s.
+The verdict line reads `product=yes relay=yes`. Run 43407107710's call of hosted-mac Edge's
+`start_probe` was cut short at its third run, whose start gave no reply within 30 s; the cell was
+run once more (run 43416830488, `ok=10 of=10`), whose lines replace it (A13.7, CP-158).
 
 CP-93's open facts. (1) On Windows the policy key grants `Authenticated Users` `ReadKey`. On macOS
 the property list is root:wheel with mode -rw-r--r--, and the page named the policy when the job's
 own account, which can use sudo, read it; no line reads the page as an account without administrator
 rights. (2) Windows' exclusive bind holds: `relay_port_free` 20 of 20 on hosted-win. (3) UDP beyond
 loopback: 0 in every pipe `check` line of the block. (4) Edge: every deciding pipe cell of Edge is
-ok but hosted-mac's `start_probe`, which is notrun.
+ok.
 
 ```text
 hosted machine=hosted-mac run=43369346664 sha=583e198338bbeab60fc3a2ed526e3c4405bd16fd
 hosted machine=hosted-win run=43368925419 sha=f09e0d99ee779bc2d0b01a59f487eb4381a49921
 hosted machine=hosted-mac run=43407107710 sha=8e16631c61cb67970f658c84bc075dd4c10cafc3 steps=signin_form,table_read,form_fill,payment_frame,file_upload,session_expiry,changed_page_1,block_request,credential_mark,pipe_inherit,relay_foreign,start_probe,same_site_pref,same_site_rule,payment_frame_isolated,changed_page_1_isolated,block_popup,block_frame_post,block_websocket,cert_error,list_refuse,list_hops,list_close,reach_page,reach_opened,reach_frame,reach_worker,reach_shared,reach_service,frame_doc,relay_port_free
+hosted machine=hosted-mac run=43416830488 sha=f9ee2878123c4c80440a0d30d7fc8ffc78f4488e steps=edge:start_probe
 hosted machine=hosted-win run=43374121394 sha=873749da0de0b0d1880702d13968a7f5ce900114 steps=driver_killed_pipe,driver_killed_pipe_relay,driver_killed_port,driver_killed_port_relay
 hosted machine=hosted-win run=43384012622 sha=d684140639bb245bb34c4b6558dcf88fafcf1727 steps=chrome:org_debugging
 hosted machine=hosted-win run=43389541875 sha=7b8bc2d9ab71c84752a7a1228a856dad11a8ba45 steps=edge:org_debugging,edge:org_proxy
@@ -933,7 +934,6 @@ check machine=hosted-mac browser=edge form=pipe_relay step=pipe_inherit ok=10 of
 cell candidate=cdp machine=hosted-mac browser=edge major=156 step=pipe_inherit ok=10 of=10 median_ms=6 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=relay_foreign ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0 port_flag_passing=0 port_flag_open=0 pipe_holder_passing=0 pipe_holder_open=0 table_unread=0
 cell candidate=cdp machine=hosted-mac browser=edge major=156 step=relay_foreign ok=10 of=10 median_ms=6 relay=pipe_relay
-notrun candidate=cdp machine=hosted-mac browser=edge step=start_probe cause=browser_start
 check machine=hosted-mac browser=edge form=pipe_relay step=same_site_pref ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0 port_flag_passing=0 port_flag_open=0 pipe_holder_passing=0 pipe_holder_open=0 table_unread=0
 cell candidate=cdp machine=hosted-mac browser=edge major=156 step=same_site_pref ok=10 of=10 median_ms=851 relay=pipe_relay
 check machine=hosted-mac browser=edge form=pipe_relay step=same_site_rule ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0 port_flag_passing=0 port_flag_open=0 pipe_holder_passing=0 pipe_holder_open=0 table_unread=0
@@ -1007,6 +1007,8 @@ run candidate=cdp machine=hosted-mac browser=edge step=relay_port_free i=8 resul
 run candidate=cdp machine=hosted-mac browser=edge step=relay_port_free i=9 result=ok cause=- watched=yes gone_ms=275 free_ms=1400 max_gap_ms=28 version=Edg/156.0.4314.58 left=no left_before=0 left_after=0 ended_by=self
 run candidate=cdp machine=hosted-mac browser=edge step=relay_port_free i=10 result=ok cause=- watched=yes gone_ms=239 free_ms=1317 max_gap_ms=30 version=Edg/156.0.4314.58 left=no left_before=0 left_after=0 ended_by=self
 cell candidate=cdp machine=hosted-mac browser=edge major=156 step=relay_port_free ok=10 of=10 median_ms=243 relay=pipe_relay
+check machine=hosted-mac browser=edge form=pipe_relay step=start_probe ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0 port_flag_passing=0 port_flag_open=0 pipe_holder_passing=0 pipe_holder_open=0 table_unread=0
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=start_probe ok=10 of=10 median_ms=584 relay=pipe_relay
 control candidate=cdp machine=hosted-win browser=chrome step=driver_killed_pipe let_through=yes browser_after=gone connections=1 bytes=452 seen=yes
 cell candidate=cdp machine=hosted-win browser=chrome major=156 step=driver_killed_pipe ok=20 of=20 median_ms=278
 control candidate=cdp machine=hosted-win browser=chrome step=driver_killed_port let_through=yes browser_after=alive connections=1 bytes=452 seen=yes
@@ -1049,7 +1051,7 @@ run candidate=cdp machine=hosted-win browser=edge step=relay_port_free i=9 resul
 run candidate=cdp machine=hosted-win browser=edge step=relay_port_free i=10 result=ok cause=- watched=yes gone_ms=306 free_ms=1335 max_gap_ms=6 version=Edg/156.0.4314.58 left=no left_before=0 left_after=0 ended_by=self
 cell candidate=cdp machine=hosted-win browser=edge major=156 step=relay_port_free ok=10 of=10 median_ms=323 relay=pipe_relay
 same_site pref=yes rule=yes start_writes_setting=yes
-verdict executor=cdp version=0.9.1 form=pipe product=open relay=yes library=protocol_types
+verdict executor=cdp version=0.9.1 form=pipe product=yes relay=yes library=protocol_types
 ```
 
 Which code each set of lines ran at (CP-126 E8 (b)). The final code is that of 39165925: the
@@ -1069,7 +1071,8 @@ the run when its executor is gone.
 | hosted-win: `relay_port_free` | 699bd411 (run 43398919479) | the guard's record and the line's `ended_by` | no: what the guard does is the same; only its record and the label changed |
 | hosted-win: Chrome's `org_debugging` | 2f85bed0 (run 43384012622) | the page rule's third form; the row; the check's classes; an unread table; the guard's rule; a test | no: its page named the setting by the first form |
 | hosted-win: Edge's `org_debugging` and `org_proxy` | 2dc61025 (run 43389541875) | the row; the check's classes; an unread table; the guard's rule (it acts only when its executor is gone); tests | no: no check reads in an `org_` cell |
-| hosted-mac: every pipe-form cell and `relay_port_free` | 39165925 (run 43407107710) | none | none |
+| hosted-mac: every pipe-form cell and `relay_port_free` but Edge's `start_probe` | 39165925 (run 43407107710) | none | none |
+| hosted-mac: Edge's `start_probe` | 42f1526a (run 43416830488, the cell alone) | none: 42f1526a changes this file alone | none |
 | hosted-mac: the four `driver_killed_*` forms, frame_doc on the port, the four `org_` cells | 5ad984ae (run 43369346664) | the kill rows' end; the page rule's third form; the row; the check's classes and keys; an unread table; the guard; tests | no for the `org_` cells (each page named its setting) and the port-form control; the kill rows rest on the job's scan at its end, ruled before |
 | the hosted rows of runs 43313951706 and 43381911741, the `org_` cells of run 43347520562 | e72f0835, 590a306d, 037b242c | earlier code | no line of the block comes from them |
 
@@ -1140,12 +1143,20 @@ setting (`how=joined`); on the nine pages of run 43347520562 it gives the answer
 forms. Run 43389541875, Edge's two `org_` cells alone: both controls replied, the key read back 0 and
 `direct`, the page named each setting, and each cell is `ok=10 of=10`.
 
-The verdict. The block reads `product=open relay=yes` by one cell: hosted-mac Edge's `start_probe`
-is `notrun cause=browser_start`, because the third start of its call in run 43407107710 got no reply
-on the pipe within `FIRST_REPLY_WAIT` (30 s; the failed start's own end found and ended one Edge
-process), after two ok runs; no line shows the product failing. Every other deciding cell of the
-five holds, the check lines count 0 in every rule that decides, and no run line has `left_after`
-above 0.
+The verdict (CP-158). The block reads `product=yes relay=yes`. Hosted-mac Edge's `start_probe` was
+run twice. Run 43407107710 printed `notrun candidate=cdp machine=hosted-mac browser=edge
+step=start_probe cause=browser_start`: its runs 1 and 2 were ok, their starts answered in 0.9 and
+1.0 s; at run 3 the start gave no reply on the pipe within the 30 s of `FIRST_REPLY_WAIT`, and one
+Edge process was found left at that failed start's end and ended. Run 43416830488, the cell alone at
+42f1526a, printed `ok=10 of=10`, its starts answered in 0.9 to 5.7 s (5.7 s for the call's first,
+its setup included). The first call was cut short by a fault of its start step, so by A13.7's
+sentence the cell was run once more, and the later call's lines replace the cell's lines in the
+block while the earlier ones stand here (E9, I4; CP-145 (1) (e)). Two points go to the planner and
+are not built in this unit: what the product's executor does with a start that gives no reply
+within its bound (the tree of that start ended by the rule of CP-148, the person told, whether one
+more start is tried), and whether 30 s is the right bound for a first start on a slow machine, with
+these two runs' start times as the first numbers. Every other deciding cell of the five holds, the
+check lines count 0 in every rule that decides, and no run line has `left_after` above 0.
 
 What the third round did not measure (CP-126 E8 (c)). No cell ran on an organisation's managed
 machine: the job wrote each `org_` policy itself on a hosted runner, and no management profile or
