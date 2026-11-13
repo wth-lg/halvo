@@ -109,7 +109,7 @@ impl Drop for Prepared {
             return;
         };
         if let Ok(file) = open_regular(&copy) {
-            if holds(&file, &self.changed) {
+            if same_bytes(&file, &self.changed) {
                 let _ = remove_made(&file, &copy);
             }
         }
@@ -170,9 +170,7 @@ pub(crate) fn prepare(
     if fs::metadata(&workbook)?.len() > parts::FILE_MAX {
         return Err(parts::size());
     }
-    let book = open_regular(&workbook)?;
-    let meta = book.metadata()?;
-    let original = parts::package_of(&book)?;
+    let original = parts::package_of(&open_regular(&workbook)?)?;
     let entries = parts::entries(&original)?;
     let inventory = parts::inventory(&entries)?;
     let refused = inventory.refused();
@@ -198,9 +196,11 @@ pub(crate) fn prepare(
     if root.file(&workbook)? != workbook {
         return Err(Error::Path(PathRefusal::Link));
     }
-    if !same_entry(&book, &workbook) {
+    let book = open_regular(&workbook)?;
+    if !same_bytes(&book, &original) {
         return Err(Error::Io(io::ErrorKind::Interrupted));
     }
+    let meta = book.metadata()?;
     let made = Made {
         book: &book,
         workbook: &workbook,
@@ -253,11 +253,25 @@ fn read_back(file: &mut File) -> io::Result<Vec<u8>> {
     Ok(bytes)
 }
 
-fn holds(file: &File, bytes: &[u8]) -> bool {
-    let mut read = Vec::new();
-    file.take(parts::FILE_MAX + 1)
-        .read_to_end(&mut read)
-        .is_ok_and(|_| read == bytes)
+/// Whether the file that `file` has open, read from where the handle stands, holds `bytes` and
+/// nothing more, read in chunks under the bound of a file.
+fn same_bytes(file: &File, bytes: &[u8]) -> bool {
+    let mut reader = file.take(parts::FILE_MAX + 1);
+    let mut chunk = vec![0u8; 1 << 16];
+    let mut at = 0;
+    loop {
+        match reader.read(&mut chunk) {
+            Ok(0) => return at == bytes.len(),
+            Ok(count) => {
+                if bytes.get(at..at + count) != Some(&chunk[..count]) {
+                    return false;
+                }
+                at += count;
+            }
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(_) => return false,
+        }
+    }
 }
 
 /// The workbook that `prepare` read, through the handle that read it, and the permissions that

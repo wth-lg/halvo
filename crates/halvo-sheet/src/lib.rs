@@ -32,8 +32,10 @@ pub use write::Prepared;
 /// that starts with the directory as the runner gave it or with its canonical form (on Windows
 /// also that form without its `\\?\` prefix); any other absolute path is refused as outside.
 /// A call refuses a path that is a link, holds a link on its way, is a directory or is not a
-/// regular file. It opens the workbook without following a link and reads, checks and copies
-/// from that one handle; it gives each file that it makes its permissions, attributes, access
+/// regular file. It reads the workbook through a handle that follows no link and closes it
+/// before it waits for the lock; under the lock it opens the workbook again the same way,
+/// checks that it holds the bytes that it read, and copies from that handle; it gives each
+/// file that it makes its permissions, attributes, access
 /// list and streams through the handle that made it, never through a path; and it removes only
 /// a file that it opened without following a link. What stays open: between the walk and an
 /// open or a rename by path, a directory of the way can become a link; the walk is done again
@@ -166,8 +168,9 @@ impl Folder {
     /// call of the same data directory removes the copy; when the copy cannot be made, the mark
     /// goes. No handle of the call stays open on a file of the person's folder. Under the lock
     /// of the directory it walks the workbook's path again (a directory that became a link
-    /// while it waited is [`PathRefusal::Link`]; another file in the workbook's place is
-    /// [`Error::Io`] with the kind `Interrupted`) and, before it writes, sweeps the prepared
+    /// while it waited is [`PathRefusal::Link`]; a workbook that no longer holds the bytes
+    /// that it read is [`Error::Io`] with the kind `Interrupted`) and, before it writes, sweeps
+    /// the prepared
     /// copies of this workbook that a killed run left: it removes an entry only when its own
     /// name is such a name of this workbook byte for byte, it is a regular file and no link,
     /// `agents/locks/` holds a mark of this directory and this name that no live call holds,
