@@ -422,3 +422,15 @@ fn f4_a_load_that_a_store_fault_refuses_drops_nothing() {
     assert!(holds(&w, 2));
     assert!(w.handlers.facts.contains_key(&id(2)));
 }
+
+#[test]
+fn f4_a_refused_load_of_a_run_that_has_only_a_start_drops_the_start() {
+    let mut w = active_world();
+    w.start(2, "replay");
+    assert!(holds(&w, 2));
+    delete_workflow(&mut w, 1);
+    assert!(w
+        .runner(json!({"op": "load", "agent": agent(1), "run": run(2)}))
+        .is_err());
+    assert!(!holds(&w, 2));
+}
