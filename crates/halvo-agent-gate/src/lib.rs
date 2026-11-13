@@ -5,8 +5,15 @@
 //! `set_bindings` and its origins with `add_origin`. It is no product binary and has no packaging file.
 //!
 //! The store is the memory store of halvo-agent-store while the derived store has not landed (requirements W2 and
-//! W3 of plan.md); the crate builds with the feature `memory-store` alone until then, and every line that it
-//! prints names the store with `store=memory`.
+//! W3 of plan.md); the crate builds with the feature `memory-store` alone until then, and the count line of
+//! `configs` names the store with `store=memory`.
+//!
+//! The check scripts/r3/ci.d/20-r3-policy.sh starts this crate's binary and every test binary of this crate,
+//! halvo-policy and halvo-agent-store itself, from the paths in cargo's messages of a build that compiles nothing. It
+//! does not hold against code of the job that writes a test binary or a tool on the PATH before the check reads them,
+//! a test that keeps its name with another body, a required target with its test harness switched off, code that
+//! runs before main in a required test file, or a compiler wrapper or a cargo configuration that changes what is
+//! built (ruling S-53).
 
 #[cfg(not(feature = "memory-store"))]
 compile_error!(
