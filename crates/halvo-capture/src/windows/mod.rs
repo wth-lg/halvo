@@ -391,7 +391,10 @@ fn deadline_ms(deadline: Duration) -> u64 {
     u64::try_from(deadline.as_millis()).unwrap_or(u64::MAX)
 }
 
-pub(crate) struct StopSignal(windows::Win32::Foundation::HANDLE);
+pub(crate) struct StopSignal(
+    windows::Win32::Foundation::HANDLE,
+    Mutex<Option<CaptureError>>,
+);
 
 // SAFETY: an event handle names a kernel object of the process, which any of
 // its threads may set and wait on.
@@ -407,7 +410,24 @@ impl StopSignal {
         // unnamed manual-reset event, initially unset.
         let event = unsafe { CreateEventW(None, true, false, windows::core::PCWSTR::null()) }
             .map_err(|e| os_error("CreateEventW", &e))?;
-        Ok(Self(event))
+        Ok(Self(event, Mutex::new(None)))
+    }
+
+    /// Keeps the first failed removal call of the pump, which its stop answers.
+    pub(crate) fn report_removal(&self, stage: &'static str, removed: windows::core::Result<()>) {
+        if let Err(error) = removed {
+            self.1
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .get_or_insert_with(|| os_error(stage, &error));
+        }
+    }
+
+    fn removal_failure(&self) -> Option<CaptureError> {
+        self.1
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     fn set(&self) {
@@ -467,7 +487,10 @@ impl PumpHandle {
         if join.join().is_err() || ended_before {
             return Err(CaptureError::ThreadEnded);
         }
-        Ok(())
+        match self.signal.removal_failure() {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
     }
 
     fn has_ended(&self) -> bool {
@@ -501,6 +524,7 @@ pub(crate) struct Lifecycle {
     handoff: Option<HandOff>,
     counts: Arc<LossCounts>,
     timed_out: Option<CaptureError>,
+    removal_failed: Option<CaptureError>,
     stopped: bool,
 }
 
@@ -511,7 +535,7 @@ impl Lifecycle {
         forwarder: &str,
         spawn: impl FnOnce(Producer) -> Result<PumpHandle, CaptureError>,
     ) -> Result<Started, CaptureError> {
-        if self.pump.is_some() {
+        if self.pump.is_some() || self.removal_failed.is_some() {
             return Err(CaptureError::AlreadyStarted);
         }
         let handoff = HandOff::start(ctx.sink().clone(), forwarder, Arc::clone(&self.counts))?;
@@ -527,6 +551,9 @@ impl Lifecycle {
     }
 
     pub(crate) fn shutdown(&mut self) -> Result<(), CaptureError> {
+        if let Some(error) = &self.removal_failed {
+            return Err(error.clone());
+        }
         let Some(pump) = self.pump.as_mut() else {
             return Ok(());
         };
@@ -540,12 +567,25 @@ impl Lifecycle {
         }
         self.pump = None;
         self.timed_out = None;
+        if let Err(error @ CaptureError::Os { .. }) = &stopped {
+            self.removal_failed = Some(error.clone());
+            return stopped;
+        }
         self.stopped = true;
         stopped
     }
 
     pub(crate) fn health(&self, counters: SourceCounters) -> SourceHealth {
         let writer_gone = self.handoff.as_ref().is_some_and(HandOff::writer_gone);
+        if let Some(error) = &self.removal_failed {
+            return SourceHealth {
+                state: SourceState::Failed {
+                    reason: HealthReason::OsError,
+                    error: error.clone(),
+                },
+                counters,
+            };
+        }
         let state = match (&self.pump, &self.timed_out) {
             (Some(_), Some(timeout)) => SourceState::Failed {
                 reason: HealthReason::Timeout,

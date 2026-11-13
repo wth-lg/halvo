@@ -252,8 +252,8 @@ fn run_title_hook(
     // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
     emit_front_title(unsafe { GetForegroundWindow() }, super::now_tick());
     super::pump_messages(signal);
-    let _ = remover(front_hook);
-    let _ = remover(hook);
+    signal.report_removal("UnhookWinEvent", remover(front_hook));
+    signal.report_removal("UnhookWinEvent", remover(hook));
     TITLE_CTX.with(|cell| *cell.borrow_mut() = None);
 }
 

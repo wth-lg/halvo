@@ -263,6 +263,18 @@ measure() {
     printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
   done <"$work/names"
 
+  for source in keyboard pointer window_title foreground screen; do
+    not_ok=0
+    for log in "$work"/test-*.log; do
+      [ -f "$log" ] || continue
+      found=$(tr -d '\r' <"$log" | grep -c "TF shutdown source=$source ok=false")
+      not_ok=$((not_ok + found))
+    done
+    line="shutdown_not_ok source=$source count=$not_ok"
+    printf '%s\n' "$line"
+    printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
+  done
+
   line="WF total=$total pass=$passed known_defect=$known fail=$((failed + fixed))"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
@@ -509,10 +521,13 @@ fixtures() {
     "${nl}WF known_defect::x1_password result=known-defect id=RR-windows-01${nl}" \
     "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}PASS $name"
   real=$(expected_tests | awk '{ if (NF == 2) print $1 "|defect|" $2; else print $1 "|pass" }')
+  real_total=$(expected_tests | grep -c '')
+  real_known=$(expected_tests | awk 'NF == 2' | grep -c '')
   expected=real
   check every-test-of-the-real-list-right PASS "$real" \
-    "${nl}WF known_defect::x1_keystrokes_typed_into_a_password_field result=known-defect id=RR-windows-01${nl}" \
-    "${nl}WF total=29 pass=21 known_defect=8 fail=0${nl}PASS $name"
+    "${nl}WF known_defect::c5_watch_armed_while_the_per_user_key_is_absent result=known-defect id=RR-windows-12${nl}" \
+    "${nl}shutdown_not_ok source=keyboard count=0${nl}" \
+    "${nl}WF total=$real_total pass=$((real_total - real_known)) known_defect=$real_known fail=0${nl}PASS $name"
   check a-test-prints-the-lines-of-the-script PASS "c1_raw_input|fakes${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}    | WF ghost_test_not_in_the_file result=pass${nl}" \
     "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}PASS $name" \

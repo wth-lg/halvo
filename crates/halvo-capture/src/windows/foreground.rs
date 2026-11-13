@@ -421,14 +421,19 @@ fn run_foreground_hook(
             Some(foreground_poll),
         )
     };
+    if poll == 0 {
+        let error = super::last_os_error("SetTimer");
+        let _ = remover(hook);
+        FOREGROUND_CTX.with(|cell| *cell.borrow_mut() = None);
+        ready.report(Err(error));
+        return;
+    }
     ready.report(Ok(()));
     super::pump_messages(signal);
-    // SAFETY: `poll` is the timer of this thread made above, or 0, which
-    // names no timer; `hook` is the valid handle that this thread installed.
-    unsafe {
-        let _ = windows::Win32::UI::WindowsAndMessaging::KillTimer(None, poll);
-    }
-    let _ = remover(hook);
+    // SAFETY: `poll` is the timer of this thread made above.
+    let killed = unsafe { windows::Win32::UI::WindowsAndMessaging::KillTimer(None, poll) };
+    signal.report_removal("KillTimer", killed);
+    signal.report_removal("UnhookWinEvent", remover(hook));
     FOREGROUND_CTX.with(|cell| *cell.borrow_mut() = None);
 }
 

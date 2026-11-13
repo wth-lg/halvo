@@ -390,6 +390,14 @@ fn app_class(app: &str, own_exe: &str) -> &'static str {
     }
 }
 
+/// The source's `shutdown`, with one line that the runner counts for T14:
+/// `TF shutdown source=<name> ok=<true|false>`.
+fn stop_counted<S: CaptureSource>(source: &mut S, name: &str) -> Result<(), CaptureError> {
+    let stopped = source.shutdown();
+    println!("TF shutdown source={name} ok={}", stopped.is_ok());
+    stopped
+}
+
 fn source_built_by_test(test: &str, source: &str) {
     say(test, format!("source_built_by_test={source}"));
 }
@@ -1158,8 +1166,8 @@ fn window_scenario(test: &'static str) -> WindowScenario {
         }
     };
     child_events.extend(events.drain_for(Duration::from_secs(1)));
-    let _ = foreground.shutdown();
-    let _ = title.shutdown();
+    let _ = stop_counted(&mut foreground, "foreground");
+    let _ = stop_counted(&mut title, "window_title");
     child.print_output();
     say(
         test,
@@ -1218,8 +1226,8 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
         let after_moves = events.drain_for(Duration::from_millis(1500));
         summarize("c1", "after-pointer-moves", &after_moves);
 
-        let _ = keyboard.shutdown();
-        let _ = pointer.shutdown();
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        let _ = stop_counted(&mut pointer, "pointer");
         press_keys(3);
         move_pointer(3);
         let after_stop = events.drain_for(Duration::from_millis(700));
@@ -1310,7 +1318,7 @@ fn c2_screen_source_delivers_a_frame() {
         let moving = events.drain_for(Duration::from_millis(700));
         summarize("c2", "moving-window-5s", &moving);
 
-        let _ = screen.shutdown();
+        let _ = stop_counted(&mut screen, "screen");
         let after_stop = events.drain_for(Duration::from_millis(1500));
         let frames: Vec<&CaptureStreamEvent> = idle
             .iter()
@@ -1758,11 +1766,11 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
         let end = memory();
         say("c9", memory_line("after-60s-before-stop", &end));
 
-        let _ = foreground.shutdown();
-        let _ = title.shutdown();
-        let _ = keyboard.shutdown();
-        let _ = pointer.shutdown();
-        let _ = screen.shutdown();
+        let _ = stop_counted(&mut foreground, "foreground");
+        let _ = stop_counted(&mut title, "window_title");
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        let _ = stop_counted(&mut pointer, "pointer");
+        let _ = stop_counted(&mut screen, "screen");
         let child_exit = child.wait();
         child.print_output();
         for event in events.drain_for(Duration::from_millis(500)) {
@@ -2050,7 +2058,7 @@ fn helper_limited_listener() {
             }
         }
     }
-    let _ = keyboard.shutdown();
+    let _ = stop_counted(&mut keyboard, "keyboard");
     let report = format!(
         "keyboard_start={} window_created={} integrity_is_medium={}\n{started_ms}\n{}",
         show(&start),
@@ -2239,7 +2247,7 @@ fn x7_capture_border_on_the_screen() {
                 Modality::ScreenFrame,
             );
         let during = yellow_edge_pixels();
-        let _ = screen.shutdown();
+        let _ = stop_counted(&mut screen, "screen");
         std::thread::sleep(Duration::from_secs(1));
         let after = yellow_edge_pixels();
         say(
@@ -2305,7 +2313,7 @@ fn x9_screen_source_across_a_display_mode_change() {
         drop(window);
         let after = events.drain_for(Duration::from_secs(2));
         summarize("x9", "after-mode-change", &after);
-        let _ = screen.shutdown();
+        let _ = stop_counted(&mut screen, "screen");
         let restored = set_resolution(start_w, start_h);
         let with_new_size = after
             .iter()
@@ -2367,7 +2375,7 @@ fn x13_frames_on_a_static_screen() {
             &events.drain_for(Duration::from_secs(2)),
             Modality::ScreenFrame,
         );
-        let _ = screen.shutdown();
+        let _ = stop_counted(&mut screen, "screen");
         say(
             "x13",
             format!(
@@ -2409,7 +2417,7 @@ fn pointer_moves_coalesce() {
             Modality::Pointer,
         );
         let segment_coalesced = pointer.handoff_counts().coalesced - coalesced_before;
-        let _ = pointer.shutdown();
+        let _ = stop_counted(&mut pointer, "pointer");
         let counts = pointer.handoff_counts();
         let accepted = first + second;
         say(
@@ -2478,8 +2486,8 @@ fn capture_times_follow_the_input_order() {
         }
         std::thread::sleep(Duration::from_millis(1500));
         let events = forward(writer).drain_for(Duration::from_secs(2));
-        let _ = keyboard.shutdown();
-        let _ = pointer.shutdown();
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        let _ = stop_counted(&mut pointer, "pointer");
         let mut stamped: Vec<(Modality, SystemTime)> = events
             .iter()
             .map(|e| (e.modality, e.captured_at.wall_clock))
@@ -2544,7 +2552,7 @@ fn stop_with_a_full_sink() {
         std::thread::Builder::new()
             .name("tf-full-sink-stop".to_string())
             .spawn(move || {
-                let _ = done.send(keyboard.shutdown());
+                let _ = done.send(stop_counted(&mut keyboard, "keyboard"));
             })
             .expect("spawn the stop thread");
         let stopped = returned.recv_timeout(FULL_SINK_STOP_LIMIT);
@@ -2607,7 +2615,7 @@ fn a_dropped_keyboard_source_stops_capturing() {
             &events.drain_for(Duration::from_millis(700)),
             Modality::Keystroke,
         );
-        let next_stop = next.shutdown();
+        let next_stop = stop_counted(&mut next, "keyboard");
         say(
             "dropped",
             format!(
@@ -2658,7 +2666,7 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
         std::thread::Builder::new()
             .name("tf-queued-at-stop-stop".to_string())
             .spawn(move || {
-                let stopped = keyboard.shutdown();
+                let stopped = stop_counted(&mut keyboard, "keyboard");
                 let lost = keyboard.handoff_counts().lost;
                 let _ = done.send((stopped, lost));
             })
@@ -2734,7 +2742,7 @@ fn a_timed_out_stop_reads_no_input_posted_after_its_answer() {
         let stopper = std::thread::Builder::new()
             .name("tf-after-timeout-stop".to_string())
             .spawn(move || {
-                let stopped = keyboard.shutdown();
+                let stopped = stop_counted(&mut keyboard, "keyboard");
                 let _ = done.send(stopped);
                 keyboard
             })
@@ -2795,11 +2803,11 @@ fn x5_screen_source_stop_and_start_again() {
         let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
         let first = screen.begin(SourceContext::new(sink.clone()));
         let first_frame = events.first_within(FIRST_FRAME_WAIT).is_some();
-        let first_stop = screen.shutdown();
+        let first_stop = stop_counted(&mut screen, "screen");
         let _ = events.drain_for(Duration::from_millis(500));
         let second = screen.begin(SourceContext::new(sink.clone()));
         let second_frame = events.first_within(FIRST_FRAME_WAIT).is_some();
-        let second_stop = screen.shutdown();
+        let second_stop = stop_counted(&mut screen, "screen");
         say(
             "x5",
             format!(
@@ -2842,7 +2850,7 @@ fn x12_screen_source_fifteen_start_stop_cycles() {
                 started += 1;
             }
             frames += screen_frames_within(&events, Duration::from_millis(700));
-            if screen.shutdown().is_ok() {
+            if stop_counted(&mut screen, "screen").is_ok() {
                 stopped += 1;
             }
         }
@@ -2880,7 +2888,7 @@ fn c8b_window_destroyed_after_the_last_capture_session() {
                 pump_thread(Duration::from_millis(50));
                 frames += screen_frames_within(&events, Duration::from_millis(50));
             }
-            let stop = screen.shutdown();
+            let stop = stop_counted(&mut screen, "screen");
             say(
                 "c8b",
                 format!(
@@ -2953,8 +2961,8 @@ fn x3_attribution_before_the_first_foreground_change() {
         press_keys(5);
         let after = events.drain_for(Duration::from_millis(700));
         let exit = child.wait();
-        let _ = foreground.shutdown();
-        let _ = keyboard.shutdown();
+        let _ = stop_counted(&mut foreground, "foreground");
+        let _ = stop_counted(&mut keyboard, "keyboard");
         child.print_output();
 
         let keys = |events: &[CaptureStreamEvent]| count(events, Modality::Keystroke);
@@ -3056,7 +3064,7 @@ fn x14_foreground_app_of_a_hosted_app() {
         }
         let settings_processes = processes_named("SystemSettings.exe");
         let foreground_now = current_foreground_app().unwrap_or_default();
-        let _ = foreground.shutdown();
+        let _ = stop_counted(&mut foreground, "foreground");
         let _ = Command::new("taskkill.exe")
             .args(["/IM", "SystemSettings.exe", "/F"])
             .output();
@@ -3112,7 +3120,7 @@ fn x2_window_title_events_for_other_windows_and_controls() {
             }
         };
         seen.extend(events.drain_for(Duration::from_secs(1)));
-        let _ = title.shutdown();
+        let _ = stop_counted(&mut title, "window_title");
         child.print_output();
         summarize("x2", "scope", &seen);
         let with_size = |len: u64| {
@@ -3179,7 +3187,7 @@ fn title_event_on_a_switch_to_a_window_with_a_fixed_title() {
             }
         };
         seen.extend(events.drain_for(Duration::from_secs(1)));
-        let _ = title.shutdown();
+        let _ = stop_counted(&mut title, "window_title");
         child.print_output();
         summarize("fixed-title", "cycle", &seen);
         let titles_of = |wanted: &dyn Fn(u64) -> bool| {
@@ -3242,7 +3250,7 @@ fn x15_a_held_key() {
         }
         accepted += send(&[key_input(VK_F15, true)]);
         let seen = events.drain_for(Duration::from_secs(1));
-        let _ = keyboard.shutdown();
+        let _ = stop_counted(&mut keyboard, "keyboard");
         let keystrokes = count(&seen, Modality::Keystroke);
         say(
             "x15",
@@ -3394,7 +3402,7 @@ mod known_defect {
             pump_thread(Duration::from_millis(300));
             let characters = title_len(password);
             let during = events.drain_for(Duration::from_secs(1));
-            let _ = keyboard.shutdown();
+            let _ = stop_counted(&mut keyboard, "keyboard");
             let typed = count(&during, Modality::Keystroke);
             say(
                 "x1",

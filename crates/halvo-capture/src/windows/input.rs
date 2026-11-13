@@ -253,7 +253,7 @@ struct StartCalls {
     register_class: fn(&WNDCLASSW) -> u16,
     create_window: fn(RawDevice, HINSTANCE) -> windows::core::Result<HWND>,
     register_device: fn(&RAWINPUTDEVICE) -> windows::core::Result<()>,
-    remove_device: fn(&RAWINPUTDEVICE) -> windows::core::Result<()>,
+    remove_device: RemoveCall,
 }
 
 const SYSTEM_CALLS: StartCalls = StartCalls {
@@ -263,6 +263,38 @@ const SYSTEM_CALLS: StartCalls = StartCalls {
     register_device: register_raw_input_device,
     remove_device: register_raw_input_device,
 };
+
+/// The stage of the call that removes a device's Raw Input registration.
+pub(crate) const REMOVE_STAGE: &str = "RegisterRawInputDevices(RIDEV_REMOVE)";
+
+/// The removal of a device's registration for the whole process: no target
+/// window, so that any thread of the process may make it.
+fn removal_of(device: RawDevice) -> RAWINPUTDEVICE {
+    RAWINPUTDEVICE {
+        usUsagePage: HID_USAGE_PAGE_GENERIC,
+        usUsage: device.hid_usage(),
+        dwFlags: RIDEV_REMOVE,
+        hwndTarget: HWND(core::ptr::null_mut()),
+    }
+}
+
+/// Whether a run's registration was removed; the first of the pump and the
+/// stopping thread to take it makes the one removal call.
+type Removed = Arc<Mutex<bool>>;
+
+fn remove_once(
+    removed: &Removed,
+    device: RawDevice,
+    remove: RemoveCall,
+) -> windows::core::Result<()> {
+    let mut done = removed.lock().unwrap_or_else(PoisonError::into_inner);
+    if std::mem::replace(&mut *done, true) {
+        return Ok(());
+    }
+    remove(&removal_of(device))
+}
+
+type RemoveCall = fn(&RAWINPUTDEVICE) -> windows::core::Result<()>;
 
 fn module_of_the_process() -> windows::core::Result<HINSTANCE> {
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -341,6 +373,7 @@ pub struct RawInputSource {
     last_app: Arc<Mutex<Option<String>>>,
     life: Lifecycle,
     calls: StartCalls,
+    removed: Removed,
 }
 
 impl RawInputSource {
@@ -361,6 +394,7 @@ impl RawInputSource {
             last_app,
             life: Lifecycle::default(),
             calls: SYSTEM_CALLS,
+            removed: Removed::default(),
         }
     }
 
@@ -536,6 +570,8 @@ impl CaptureSource for RawInputSource {
         let device = self.device;
         let last_app = Arc::clone(&self.last_app);
         let calls = self.calls;
+        let removed = Removed::default();
+        self.removed = Arc::clone(&removed);
         self.life
             .begin(&ctx, "halvo-rawinput-forward", move |producer| {
                 let state = InputState {
@@ -546,13 +582,17 @@ impl CaptureSource for RawInputSource {
                 };
                 let name = format!("halvo-rawinput-{device:?}");
                 super::spawn_pump(name, move |ready, signal| {
-                    run_raw_input(state, claim, calls, ready, &signal)
+                    run_raw_input(state, (claim, removed), calls, ready, &signal)
                 })
             })
     }
 
     fn shutdown(&mut self) -> Result<(), CaptureError> {
-        self.life.shutdown()
+        let stopped = self.life.shutdown();
+        if let Err(CaptureError::Timeout { .. }) = stopped {
+            let _ = remove_once(&self.removed, self.device, self.calls.remove_device);
+        }
+        stopped
     }
 
     fn health(&self) -> SourceHealth {
@@ -567,22 +607,18 @@ impl CaptureSource for RawInputSource {
     }
 }
 
-struct DeviceGuard {
-    usage_page: u16,
-    usage: u16,
-    remove: fn(&RAWINPUTDEVICE) -> windows::core::Result<()>,
+struct DeviceGuard<'a> {
+    device: RawDevice,
+    removed: Removed,
+    remove: RemoveCall,
+    signal: &'a super::StopSignal,
     _claim: DeviceClaim,
 }
 
-impl Drop for DeviceGuard {
+impl Drop for DeviceGuard<'_> {
     fn drop(&mut self) {
-        let remove = RAWINPUTDEVICE {
-            usUsagePage: self.usage_page,
-            usUsage: self.usage,
-            dwFlags: RIDEV_REMOVE,
-            hwndTarget: HWND(core::ptr::null_mut()),
-        };
-        let _ = (self.remove)(&remove);
+        let removed = remove_once(&self.removed, self.device, self.remove);
+        self.signal.report_removal(REMOVE_STAGE, removed);
     }
 }
 
@@ -610,7 +646,7 @@ impl Drop for WindowGuard {
 
 fn run_raw_input(
     state: InputState,
-    claim: DeviceClaim,
+    (claim, removed): (DeviceClaim, Removed),
     calls: StartCalls,
     ready: PumpReady,
     signal: &super::StopSignal,
@@ -637,7 +673,7 @@ fn run_raw_input(
     let _window_guard = WindowGuard { hwnd };
 
     INPUT_CTX.with(|cell| *cell.borrow_mut() = Some(state));
-    let _ctx_guard = CtxGuard;
+    let ctx_guard = CtxGuard;
 
     let dev = RAWINPUTDEVICE {
         usUsagePage: HID_USAGE_PAGE_GENERIC,
@@ -650,16 +686,19 @@ fn run_raw_input(
         ready.report(Err(super::os_error("RegisterRawInputDevices", &error)));
         return;
     }
-    let _device_guard = DeviceGuard {
-        usage_page: HID_USAGE_PAGE_GENERIC,
-        usage: device.hid_usage(),
+    let device_guard = DeviceGuard {
+        device,
+        removed,
         remove: calls.remove_device,
+        signal,
         _claim: claim,
     };
 
     super::ensure_message_queue();
     ready.report(Ok(()));
     super::pump_messages(signal);
+    drop(device_guard);
+    drop(ctx_guard);
 }
 
 #[cfg(test)]
@@ -1057,8 +1096,6 @@ mod tests {
     fn a_later_start_is_taken() -> bool {
         start_with(SYSTEM_CALLS).is_ok()
     }
-
-    const REMOVE_STAGE: &str = "RegisterRawInputDevices(RIDEV_REMOVE)";
 
     fn removal_refused(_device: &RAWINPUTDEVICE) -> windows::core::Result<()> {
         Err(refusal(ERROR_ACCESS_DENIED))

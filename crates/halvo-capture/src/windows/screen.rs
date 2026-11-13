@@ -327,7 +327,13 @@ impl Session for Control {
     }
 
     fn end(self) -> Result<(), CaptureError> {
-        self.stop().map_err(|_| CaptureError::ThreadEnded)
+        use windows_capture::capture::CaptureControlError;
+        self.stop().map_err(|error| match error {
+            CaptureControlError::FailedToPostThreadMessage => {
+                super::last_os_error("PostThreadMessageW")
+            }
+            _ => CaptureError::ThreadEnded,
+        })
     }
 
     fn ask_to_end(self) {
@@ -398,6 +404,7 @@ impl Stopping {
     fn wait(&self, deadline: Duration) -> Option<Result<(), CaptureError>> {
         match self.done.recv_timeout(deadline) {
             Ok(Ok(())) if !self.ended_before => Some(Ok(())),
+            Ok(Err(error @ CaptureError::Os { .. })) => Some(Err(error)),
             Ok(_) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                 Some(Err(CaptureError::ThreadEnded))
             }
@@ -411,6 +418,7 @@ struct ScreenLife<S> {
     stopping: Option<Stopping>,
     timed_out: Option<CaptureError>,
     stop_failed: Option<CaptureError>,
+    end_refused: Option<CaptureError>,
     stopped: bool,
     spawn: StopSpawner,
 }
@@ -422,6 +430,7 @@ impl<S> Default for ScreenLife<S> {
             stopping: None,
             timed_out: None,
             stop_failed: None,
+            end_refused: None,
             stopped: false,
             spawn: spawn_stop_thread,
         }
@@ -440,7 +449,7 @@ impl<S> ScreenLife<S> {
 
 impl<S: Session> ScreenLife<S> {
     fn is_busy(&self) -> bool {
-        self.session.is_some() || self.stopping.is_some()
+        self.session.is_some() || self.stopping.is_some() || self.end_refused.is_some()
     }
 
     fn started(&mut self, session: S) {
@@ -449,6 +458,9 @@ impl<S: Session> ScreenLife<S> {
     }
 
     fn shutdown(&mut self, deadline: Duration) -> Result<(), CaptureError> {
+        if let Some(error) = &self.end_refused {
+            return Err(error.clone());
+        }
         if let Some(session) = self.session.take() {
             match Stopping::start(session, self.spawn) {
                 Ok(stopping) => {
@@ -475,6 +487,10 @@ impl<S: Session> ScreenLife<S> {
         };
         self.stopping = None;
         self.timed_out = None;
+        if let Err(error @ CaptureError::Os { .. }) = &stopped {
+            self.end_refused = Some(error.clone());
+            return stopped;
+        }
         self.stopped = true;
         stopped
     }
@@ -491,6 +507,12 @@ impl<S: Session> ScreenLife<S> {
     }
 
     fn state(&self, item_closed: bool, writer_gone: bool) -> SourceState {
+        if let Some(error) = &self.end_refused {
+            return SourceState::Failed {
+                reason: HealthReason::OsError,
+                error: error.clone(),
+            };
+        }
         if let (Some(_), Some(timeout)) = (&self.stopping, &self.timed_out) {
             return SourceState::Failed {
                 reason: HealthReason::Timeout,
