@@ -1118,7 +1118,7 @@ mod tests {
     }
 
     #[test]
-    fn a_title_read_that_blocks_1500_ms_delays_no_change_and_shutdown_waits_for_it_up_to_its_deadline(
+    fn a_title_read_that_blocks_past_the_deadline_delays_no_change_and_shutdown_waits_for_it_up_to_its_deadline(
     ) {
         let (handle, writer) = sink::channel(64);
         let switched = Arc::new(AtomicBool::new(false));
@@ -1132,10 +1132,11 @@ mod tests {
             }
         });
         let title_reading = reading.clone();
+        let (release, released) = channel::<()>();
         let read_title: TitleReader = Box::new(move |pid| {
             if pid == 1 {
                 title_reading.store(true, Ordering::SeqCst);
-                std::thread::sleep(Duration::from_millis(1500));
+                let _ = released.recv_timeout(Duration::from_secs(10));
             }
             Ok(None)
         });
@@ -1162,6 +1163,7 @@ mod tests {
         let called = Instant::now();
         let shut = source.shutdown();
         let stopped_in = called.elapsed();
+        let _ = release.send(());
         let again = source.shutdown();
         assert_eq!(next, Ok("b".to_string()));
         assert!(
