@@ -45,8 +45,8 @@ pub const CASES: [&str; 4] = ["resume", "shredded", "filters", "store_changed"];
 /// `replace_live` names the store that a null-store open serves next; after `load(B)`, three opens with the
 /// old id, at a non-zero position, at the zero position, and at the non-zero position with the kinds filter
 /// `keystroke` and a range, each get a `store-changed` that names the new store's id and not the old one.
-/// `open_while_open`, in the cases `resume` after its restart, `filters` on the connection of the reference
-/// read, whose first open had a null store, and on a second connection, and `store_changed`: with a cursor
+/// `open_while_open`, in the cases `resume` after its restart and `filters` on the connection of the reference
+/// read, whose first open had a null store, and on a second connection: with a cursor
 /// open at the zero position, four `open_cursor` messages sent without the `close` that C5.6 asks for each get
 /// `bad-request`: S at another position with the kinds filter `keystroke` and a range after every record,
 /// another store id with that range, a null store at the zero position with that range, and S at a position
