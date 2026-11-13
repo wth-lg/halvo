@@ -108,9 +108,10 @@ the messages of the reply rule of A1 and asks the model for one body each with t
 On `hosted-win` every cell of the three candidates ran in one job of a scratch run, its cells
 one after another; on `mac` each cell was one call of the timed-run helper on a lane of the
 unit's own, in the order minicpm5_2b, granite_4_2_3b, ministral_3_3b and within a model
-`bill`, `order`, `reply` and seeds 1 to 3. The helper calls of the cells ran at heads
+`bill`, `order`, `reply` and seeds 1 to 3. The cells ran in two rounds: round 1 at heads
 2f4b8bf and decb7e2, which differ in one test of `src/body.rs` and give the same release
-binary. Two earlier calls at an uncommitted state, which refused every field that an action
+binary, and round 2 at c882c15, which fails a request whose extracts are not kept; the result
+file holds round 2. Two earlier calls at an uncommitted state, which refused every field that an action
 does not take, are in the builder's evidence and in no line of the result file. A single
 model request on `mac` took from 10 s to 650 s at 1-minute loads of about 100 to 240, so the
 `wall_s` of a `mac` run says nothing of the trial's speed.
@@ -119,6 +120,7 @@ What the models did, from the traces of the runs: minicpm5_2b gave `handback` on
 page and then a `select` of the slot `payee` on a heading, which the page did not take, until
 it repeated itself; granite_4_2_3b filled the `Email` box from a slot that the task does not
 have and then clicked `Sign in`, which ends the compile with `provenance`; ministral_3_3b went
-furthest. Its reply bodies held no marker and no address; granite_4_2_3b repeated the page
-marker of the first message in one body of each seed, and MiniCPM5's bodies are its thinking,
-which quotes the sender's address.
+furthest. Its reply bodies held no marker and no address on `hosted-win`, but on `mac` one
+body of seed 3 repeated the page marker of its message, in both rounds; granite_4_2_3b repeated
+the page marker of the first message in one body of each seed, and MiniCPM5's bodies are its
+thinking, which quotes the sender's address.
