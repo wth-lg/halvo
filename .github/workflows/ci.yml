@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -47,6 +36,30 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
+      - name: Fixture self-test (scratch, U0.1b)
+        shell: bash
+        run: |
+          node --version
+          start=$(date +%s)
+          node tools/fixture-server/variants/selftest.mjs
+          echo "fixture self-test seconds: $(( $(date +%s) - start ))"
+          control="$RUNNER_TEMP/u01b-control"
+          mkdir -p "$control/variants"
+          cp -R tools/fixture-server/variants/. "$control/variants/"
+          sed '/^if (process.stdin instanceof Socket/,$d' tools/fixture-server/variants/server.mjs > "$control/variants/server.mjs"
+          echo "control server lines: $(wc -l < "$control/variants/server.mjs") of $(wc -l < tools/fixture-server/variants/server.mjs)"
+          start=$(date +%s)
+          code=0
+          node "$control/variants/selftest.mjs" > "$control/out.txt" 2>&1 || code=$?
+          echo "control (no input read, head self-test) exit=$code seconds: $(( $(date +%s) - start ))"
+          grep -E '^(miss case=lifetime|fixture self-test)' "$control/out.txt"
+          test "$code" = 1
+          grep -v '^  detached: true,' tools/fixture-server/variants/parent.mjs > "$control/variants/parent.mjs"
+          echo "M29 parent lines: $(wc -l < "$control/variants/parent.mjs") of $(wc -l < tools/fixture-server/variants/parent.mjs)"
+          code=0
+          node "$control/variants/selftest.mjs" > "$control/m29.txt" 2>&1 || code=$?
+          echo "M29 (control server, stand-in parent starts the server attached) exit=$code"
+          grep -E '^(miss case=lifetime|fixture self-test)' "$control/m29.txt"
       - name: Changelog
         shell: bash
         run: |
@@ -82,28 +95,9 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -127,34 +121,39 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
+      - name: Fixture self-test (scratch, U0.1b)
+        shell: bash
+        run: |
+          node --version
+          start=$(date +%s)
+          node tools/fixture-server/variants/selftest.mjs
+          echo "fixture self-test seconds: $(( $(date +%s) - start ))"
+          control="$RUNNER_TEMP/u01b-control"
+          mkdir -p "$control/variants"
+          cp -R tools/fixture-server/variants/. "$control/variants/"
+          sed '/^if (process.stdin instanceof Socket/,$d' tools/fixture-server/variants/server.mjs > "$control/variants/server.mjs"
+          echo "control server lines: $(wc -l < "$control/variants/server.mjs") of $(wc -l < tools/fixture-server/variants/server.mjs)"
+          start=$(date +%s)
+          code=0
+          node "$control/variants/selftest.mjs" > "$control/out.txt" 2>&1 || code=$?
+          echo "control (no input read, head self-test) exit=$code seconds: $(( $(date +%s) - start ))"
+          grep -E '^(miss case=lifetime|fixture self-test)' "$control/out.txt"
+          test "$code" = 1
+          grep -v '^  detached: true,' tools/fixture-server/variants/parent.mjs > "$control/variants/parent.mjs"
+          echo "M29 parent lines: $(wc -l < "$control/variants/parent.mjs") of $(wc -l < tools/fixture-server/variants/parent.mjs)"
+          code=0
+          node "$control/variants/selftest.mjs" > "$control/m29.txt" 2>&1 || code=$?
+          echo "M29 (control server, stand-in parent starts the server attached) exit=$code"
+          grep -E '^(miss case=lifetime|fixture self-test)' "$control/m29.txt"
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
