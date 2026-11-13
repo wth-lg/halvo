@@ -269,3 +269,9 @@ test('a sync result file needs its object reading line before the cells and hold
   const lines = made.text.trimEnd().split('\n');
   assert.equal(checkFile('sync', [...lines.slice(0, -1), 'figure trial=sync machine=hosted-mac arm=b median_bytes=1 range_bytes=0 runs=1', lines.at(-1)].join('\n')).ok, false);
 });
+
+test('make refuses what the check of its own file refuses: a reading set without the line of TA-5', () => {
+  const made = makeFile('window', RW.split('\n').filter((l) => !l.includes(' expect=same_as_a ')).join('\n'), [windowLog('hosted-mac', machineCells('hosted-mac'))]);
+  assert.equal(made.ok, false);
+  assert.match(made.why, /no reading line/);
+});

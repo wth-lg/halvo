@@ -65,6 +65,8 @@ test('E1: with the logs, a macOS counted that its load and the processor count d
 
 const TAMPER = {
   'W03 a cell of another machine': () => rebuild('window', [...lines(WINDOW), set(lines(WINDOW).find((l) => l.startsWith('cell ')), 'machine', 'hosted-linux')]),
+  'W03b a Windows cell of another machine': () => rebuild('window', [...lines(WINDOW), set(lines(WINDOW).find((l) => l.includes(' machine=hosted-win ')), 'machine', 'hosted-linux')]),
+  'W24 a macOS cell with a use in place of no use': () => edit(WINDOW, (l) => l.includes(' machine=hosted-mac arm=main run=1 '), (l) => set(l, 'cpu_pct', '5')),
   'W04 a cell of another arm': () => rebuild('window', [...lines(WINDOW), set(set(lines(WINDOW).find((l) => l.startsWith('cell ')), 'arm', 'c'), 'run', '1')]),
   'W08 a Windows cell with cpu_pct - and counted yes': () => edit(WINDOW, (l) => l.includes(' machine=hosted-win arm=a run=1 '), (l) => set(l, 'cpu_pct', '-')),
   'W14 a file of the verdict line alone': () => ['verdict window hosted_mac=inconclusive hosted_win=inconclusive quiet_mac=- quiet_win=-'],
