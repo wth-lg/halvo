@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/ledger/ledger.ts",
+      "find": "\"UPDATE ledger_holds SET state = ?, ended_at = ?, ended_seq = ?, ended_by = ?, input_tokens = ?, output_tokens = ?, cost = ?, overrun = ? WHERE request_id = ?\",",
+      "replace": "\"UPDATE ledger_holds SET state = ?, ended_at = ?, ended_seq = ?, ended_by = ?, input_tokens = ?, output_tokens = ?, cost = ? + 1, overrun = ? WHERE request_id = ?\","
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "25"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 25, faults [",
+    "]: a hold ends as the ledger's rule says ("
+  ]
+}

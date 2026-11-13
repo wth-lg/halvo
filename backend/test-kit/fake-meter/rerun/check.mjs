@@ -288,7 +288,22 @@ async function memory() {
   process.exit(1);
 }
 
+async function ownCases() {
+  const { modelCases } = await import("./property.ts");
+  const cases = await modelCases();
+  for (const each of cases) note(`model case: ${each.name}: expected ${each.expected}, got ${each.got}`);
+  const held = cases.filter((each) => each.got === each.expected).length;
+  const wrong = cases.find((each) => each.got !== each.expected);
+  if (wrong === undefined) {
+    console.log(`PASS metering-model-cases: ${held} of ${cases.length}`);
+    process.exit(0);
+  }
+  console.log(`FAIL metering-model-cases: ${held} of ${cases.length}; first failure: the model case "${wrong.name}" read ${wrong.got}, not ${wrong.expected}`);
+  process.exit(1);
+}
+
 if (args.includes("--plan")) await plan();
+if (args.includes("--model-cases")) await ownCases();
 if (args.includes("--memory-self-check")) await memory();
 
 const before = trackedChanges("before");

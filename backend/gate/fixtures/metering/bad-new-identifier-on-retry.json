@@ -7,7 +7,8 @@
     }
   ],
   "line": [
-    "FAIL metering: "
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 0, faults [{\"kind\":\"request-lost\"},{\"kind\":\"request-lost\"},{\"kind\":\"request-lost\"},{\"kind\":\"response-lost\"}]: the provider-side total passes the reported total"
   ],
   "args": [
     "--seeds",

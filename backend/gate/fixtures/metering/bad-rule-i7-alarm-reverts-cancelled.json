@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "return old.length;",
+      "replace": "sql.exec(\"UPDATE account SET state = ? WHERE state = ?\", \"active\", \"cancelled\"); return old.length;"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "30"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 30, faults [",
+    "]: the stored state disagrees with the cancel ("
+  ]
+}

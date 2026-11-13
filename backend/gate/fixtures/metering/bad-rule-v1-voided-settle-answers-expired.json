@@ -1,0 +1,22 @@
+{
+  "edits": [
+    {
+      "file": "src/ledger/ledger.ts",
+      "find": "          case \"voided\":\n            return { outcome: \"refused\", reason: \"already-ended\" };",
+      "replace": "          case \"voided\":\n            return { outcome: \"expired\", cost: 0, overrun: 0 };"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "1",
+    "--orderings",
+    "2",
+    "--settings",
+    ""
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: seed ",
+    "): a settle after a voided hold's expiry ("
+  ]
+}

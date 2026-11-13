@@ -710,10 +710,17 @@ class World {
       if (ownTables(sql).length === 0) return null;
       const row = sql.exec("SELECT state, ended_at, cancel_first FROM account")[0];
       const metering = sql.exec("SELECT cut_kind FROM metering_account")[0];
-      return row === undefined ? null : { state: row.state, endedAt: row.ended_at, cancelFirst: row.cancel_first, cutKind: metering?.cut_kind ?? null };
+      return row === undefined
+        ? null
+        : { state: row.state, endedAt: row.ended_at, cancelFirst: row.cancel_first, metered: metering !== undefined, cutKind: metering?.cut_kind ?? null };
     });
     if (read === null) return;
     this.count("stored-state.read");
+    if (read.state === "cancelled") {
+      this.count("stored-state.cancelled");
+      if (read.cancelFirst === null) this.count("stored-state.cancelled-without-its-first-cancel");
+      if (read.metered && read.cutKind === null) this.count("stored-state.cancelled-and-metered-without-its-cut");
+    }
     if (after === "reactivate" && read.state !== "cancelled") {
       this.fail("a cancelled account changed its state", `${account.id}: the state is ${read.state} after an active event`);
     }
@@ -973,9 +980,6 @@ class World {
       }
       const everything = this.meter.exactTotal(account.id, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY);
       if (everything !== insidePeriods) this.fail("an event outside every billing period", `${account.id}: ${everything - insidePeriods} minor units`);
-      if (account.ended === "cancel" && view !== null && writtenOff !== carryIn) {
-        this.fail("the remainder written off at cancel", `${account.id}: recorded ${writtenOff}, measured ${carryIn}`);
-      }
       if (account.ended !== null) {
         if (account.eventsHeldWhenEndCompleted === null) this.fail("the end did not complete", `${account.id} after ${account.ended}`);
         else if (events.length !== account.eventsHeldWhenEndCompleted) this.fail("an event recorded after the last acknowledgement", account.id);

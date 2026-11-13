@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "return event.state === \"cancelled\";",
+      "replace": "return event.state !== \"cancelled\";"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "29"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 29, faults [",
+    "]: the stored state disagrees with the cancel ("
+  ]
+}

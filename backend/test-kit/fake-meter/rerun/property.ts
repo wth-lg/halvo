@@ -1,5 +1,5 @@
 import fc from "fast-check";
-import { DOCUMENTED, type FakeMeterConfig } from "../fake-meter.ts";
+import { DOCUMENTED, FakeMeter, type FakeMeterConfig, type RecordedEvent } from "../fake-meter.ts";
 import {
   BILLING_PERIOD,
   type CancelForm,
@@ -19,6 +19,7 @@ import {
 } from "./world.ts";
 
 export const RULE_DOWNTIME_BUDGET = 20 * DAY;
+export const READ_WIDTH_SECONDS = 60;
 if (!(RULE_DOWNTIME_BUDGET < DOCUMENTED.maxTimestampAgeSeconds)) {
   throw new RangeError("the downtime budget of the rule is under the oldest timestamp that the provider takes");
 }
@@ -101,7 +102,7 @@ const meter: fc.Arbitrary<MeterSettings> = fc.record({
   duplicateAnswer: fc.constantFrom("error" as const, "same-as-recorded" as const),
   graceSeconds: fc.constantFrom(HOUR, 72 * HOUR),
   readLagSeconds: fc.constantFrom(0, 60, HOUR, 23 * HOUR),
-  readGranularitySeconds: fc.constant(60),
+  readGranularitySeconds: fc.constant(READ_WIDTH_SECONDS),
 });
 
 const oneOrTwoAccountsAtAnySubscribeTimes = fc.array(fc.integer({ min: 0, max: 3 * DAY }), { minLength: 1, maxLength: 2 });
@@ -283,17 +284,17 @@ export function searchCases(): SearchCase[] {
     for (const readLagSeconds of [0, 23 * HOUR]) {
       const base = { uniquenessWindowSeconds, readLagSeconds, graceSeconds: HOUR };
       for (const duplicateAnswer of ["error", "same-as-recorded"] as const) {
-        const narrow = { ...base, duplicateAnswer, readGranularitySeconds: 60 };
+        const narrow = { ...base, duplicateAnswer, readGranularitySeconds: READ_WIDTH_SECONDS };
         cases.push({ scenario: scenario(narrow, oneIntervalOnAnAccountThatStays), faultsOfEarlierCalls: [] });
         cases.push({ scenario: scenario(narrow, oneIntervalOnAnAccountDeletedWithItUnsent), faultsOfEarlierCalls: [] });
       }
-      const minute = { ...base, duplicateAnswer: "error" as const, readGranularitySeconds: 60 };
+      const minute = { ...base, duplicateAnswer: "error" as const, readGranularitySeconds: READ_WIDTH_SECONDS };
       cases.push({ scenario: scenario(minute, inOneMinute(ONE_MINOR_UNIT_AND_A_REMAINDER, RULE_MICRO_PER_MINOR)), faultsOfEarlierCalls: theFirstIntervalIsAcknowledgedAtOnce });
     }
   }
   cases.push({
     scenario: scenario(
-      { uniquenessWindowSeconds: DAY, readLagSeconds: 0, graceSeconds: HOUR, duplicateAnswer: "error", readGranularitySeconds: 60 },
+      { uniquenessWindowSeconds: DAY, readLagSeconds: 0, graceSeconds: HOUR, duplicateAnswer: "error", readGranularitySeconds: READ_WIDTH_SECONDS },
       aHoldSettlesAfterItsPeriodEndWhenALaterIntervalCutByACancelHasEnded,
     ),
     faultsOfEarlierCalls: [],
@@ -315,7 +316,7 @@ export function searchCases(): SearchCase[] {
   for (const readLagSeconds of [0, 23 * HOUR]) {
     cases.push({
       scenario: scenario(
-        { uniquenessWindowSeconds: DAY, readLagSeconds, graceSeconds: HOUR, duplicateAnswer: "error", readGranularitySeconds: 60 },
+        { uniquenessWindowSeconds: DAY, readLagSeconds, graceSeconds: HOUR, duplicateAnswer: "error", readGranularitySeconds: READ_WIDTH_SECONDS },
         oneIntervalOnAnAccountThatStays,
       ),
       faultsOfEarlierCalls: [],
@@ -329,13 +330,13 @@ export function searchCases(): SearchCase[] {
     { kind: "late-delivery" },
     ...crashes([JUST_OUTSIDE_THE_SYNC_WINDOW, PAST_THE_FAKES_WINDOW]),
   ];
-  const minuteAndLagging = { uniquenessWindowSeconds: DAY, readLagSeconds: 23 * HOUR, graceSeconds: HOUR, duplicateAnswer: "error" as const, readGranularitySeconds: 60 };
+  const minuteAndLagging = { uniquenessWindowSeconds: DAY, readLagSeconds: 23 * HOUR, graceSeconds: HOUR, duplicateAnswer: "error" as const, readGranularitySeconds: READ_WIDTH_SECONDS };
   const recordedThenRefusedToTheLimit: Fault[] = [{ kind: "response-lost" }, { kind: "refused" }, { kind: "none" }, { kind: "refused" }, { kind: "refused" }];
   const refusedToTheLimit: Fault[] = [{ kind: "refused" }, { kind: "refused" }, { kind: "refused" }];
   cases.push({ scenario: scenario(minuteAndLagging, inOneMinute(ONE_MINOR_UNIT_AND_A_REMAINDER, 3 * RULE_MICRO_PER_MINOR)), faultsOfEarlierCalls: recordedThenRefusedToTheLimit, faults: rangeFaults });
   cases.push({ scenario: scenario(minuteAndLagging, inOneMinute(2 * RULE_MICRO_PER_MINOR, 2 * RULE_MICRO_PER_MINOR)), faultsOfEarlierCalls: refusedToTheLimit, faults: rangeFaults });
   const fewFaults: Fault[] = [{ kind: "none" }, { kind: "request-lost" }, { kind: "response-lost" }, { kind: "crash-after-call", downSeconds: 0 }];
-  const exact = { uniquenessWindowSeconds: DAY, readLagSeconds: 0, graceSeconds: HOUR, duplicateAnswer: "error" as const, readGranularitySeconds: 60 };
+  const exact = { uniquenessWindowSeconds: DAY, readLagSeconds: 0, graceSeconds: HOUR, duplicateAnswer: "error" as const, readGranularitySeconds: READ_WIDTH_SECONDS };
   const twoHoursPass: Command = { kind: "advance", seconds: 2 * HOUR };
   const lateCancel = (form: CancelForm, lateAfterSeconds: number): Command[] => [
     ...usageWithARemainder,
@@ -371,7 +372,7 @@ export function searchCases(): SearchCase[] {
   }
   cases.push({
     scenario: scenario(
-      { uniquenessWindowSeconds: DAY, readLagSeconds: 23 * HOUR, graceSeconds: HOUR, duplicateAnswer: "error", readGranularitySeconds: 60 },
+      { uniquenessWindowSeconds: DAY, readLagSeconds: 23 * HOUR, graceSeconds: HOUR, duplicateAnswer: "error", readGranularitySeconds: READ_WIDTH_SECONDS },
       oneIntervalOnAnAccountThatStays,
     ),
     faultsOfEarlierCalls: [{ kind: "response-lost" }],
@@ -387,7 +388,11 @@ export function searchCases(): SearchCase[] {
   const fs = node.process.getBuiltinModule("node:fs") as { readFileSync(path: URL, encoding: "utf8"): string };
   const here = (import.meta as unknown as { url: string }).url;
   const ordering = JSON.parse(fs.readFileSync(new URL("../../../gate/fixtures/metering/ordering-seed3-5701.json", here), "utf8")) as Scenario;
-  cases.push({ scenario: { ...ordering, faultsByProviderCall: [] }, faultsOfEarlierCalls: ordering.faultsByProviderCall, faults: [{ kind: "none" }] });
+  cases.push({
+    scenario: { ...ordering, meter: { ...ordering.meter, readGranularitySeconds: READ_WIDTH_SECONDS }, faultsByProviderCall: [] },
+    faultsOfEarlierCalls: ordering.faultsByProviderCall,
+    faults: [{ kind: "none" }],
+  });
   const searchedAfterTheSequence: Fault[] = [{ kind: "none" }, { kind: "refused" }, { kind: "request-lost" }, { kind: "response-lost" }];
   const recordedLateInTheWindowThenRefused: Fault[] = [
     { kind: "crash-before-call", downSeconds: 80_000 },
@@ -416,4 +421,72 @@ export function searchCases(): SearchCase[] {
     faults: [...searchedAfterTheSequence, ...crashes([HALF_A_WINDOW])],
   });
   return cases;
+}
+
+const OBJECT_ENDED_QUERY = "SELECT start FROM metering_interval WHERE outcome IS NULL";
+
+type Statement = { all(...bindings: unknown[]): unknown[] };
+type Prepare = (this: unknown, query: string) => Statement;
+
+async function withObjectEndedRows<T>(rows: unknown[], run: () => Promise<T>): Promise<T> {
+  const node = globalThis as unknown as { process: { getBuiltinModule(id: string): unknown } };
+  const sqlite = node.process.getBuiltinModule("node:sqlite") as { DatabaseSync: { prototype: { prepare: Prepare } } };
+  const proto = sqlite.DatabaseSync.prototype;
+  const prepare = proto.prepare;
+  proto.prepare = function handOver(this: unknown, query: string): Statement {
+    return query === OBJECT_ENDED_QUERY ? { all: () => rows.map((row) => ({ ...(row as object) })) } : prepare.call(this, query);
+  };
+  try {
+    return await run();
+  } finally {
+    proto.prepare = prepare;
+  }
+}
+
+async function withAnEventBeforeTheFirstPeriod<T>(run: () => Promise<T>): Promise<T> {
+  const periods = FakeMeter.prototype.periods;
+  let handedOver = false;
+  FakeMeter.prototype.periods = function handOver(this: FakeMeter, account: string, now: number) {
+    const list = periods.call(this, account, now);
+    const first = list[0];
+    if (!handedOver && first !== undefined) {
+      handedOver = true;
+      (this as unknown as { events: RecordedEvent[] }).events.push({ account, identifier: "outside-every-period", amountMinor: 1, timestamp: first.start - 1, receivedAt: now });
+    }
+    return list;
+  };
+  try {
+    return await run();
+  } finally {
+    FakeMeter.prototype.periods = periods;
+  }
+}
+
+export type ModelCase = { readonly name: string; readonly expected: string; readonly got: string };
+
+export async function modelCases(): Promise<ModelCase[]> {
+  const settings = searchCases();
+  const firstFinding = (report: Report) => report.findings[0]?.check ?? "no finding";
+  const scenarioOf = (index: number, faults: Fault[]): Scenario => {
+    const searchCase = settings[index];
+    if (searchCase === undefined) throw new RangeError(`no search setting ${index}`);
+    return { ...searchCase.scenario, faultsByProviderCall: [...searchCase.faultsOfEarlierCalls, ...faults] };
+  };
+  return [
+    {
+      name: "an event at the meter stamped one second before the first period, setting 0 with no fault",
+      expected: "an event outside every billing period",
+      got: firstFinding(await withAnEventBeforeTheFirstPeriod(() => runScenario(scenarioOf(0, []), ruleOptions))),
+    },
+    {
+      name: "the object reads as ended while its last send is lost, setting 29 with a lost request",
+      expected: "an event recorded after the last acknowledgement",
+      got: firstFinding(await withObjectEndedRows([], () => runScenario(scenarioOf(29, [{ kind: "request-lost" }]), ruleOptions))),
+    },
+    {
+      name: "the object never reads as ended, setting 29 with no fault",
+      expected: "the end did not complete",
+      got: firstFinding(await withObjectEndedRows([{ start: 0 }], () => runScenario(scenarioOf(29, []), ruleOptions))),
+    },
+  ];
 }

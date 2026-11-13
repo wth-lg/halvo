@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "export const UNIQUENESS_WINDOW_MS = 86_400_000;",
+      "replace": "export const UNIQUENESS_WINDOW_MS = 172_800_000;"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "24"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 24, faults [",
+    "]: one identifier recorded twice ("
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "return interval === null ? null : { interval: interval.start, end: interval.end };",
+      "replace": "return null;"
+    }
+  ],
+  "args": [
+    "--seeds",
+    "",
+    "--settings",
+    "25"
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search, setting 25, faults [",
+    "]: an ended interval is not acknowledged ("
+  ]
+}
