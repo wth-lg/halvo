@@ -292,23 +292,28 @@ pub fn model_lock_path() -> Result<PathBuf, LockError> {
     Err(LockError::Unsupported)
 }
 
+#[cfg(windows)]
 fn lock_file_options() -> OpenOptions {
+    use std::os::windows::fs::OpenOptionsExt;
+    use windows_sys::Win32::Storage::FileSystem::{FILE_SHARE_READ, FILE_SHARE_WRITE};
     let mut options = OpenOptions::new();
-    options.read(true).write(true).create(true).truncate(false);
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::OpenOptionsExt;
-        use windows_sys::Win32::Storage::FileSystem::{FILE_SHARE_READ, FILE_SHARE_WRITE};
-        options.share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE);
-    }
+    options.share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE);
     options
+}
+
+#[cfg(not(windows))]
+fn lock_file_options() -> OpenOptions {
+    OpenOptions::new()
 }
 
 /// Takes the model lock at [`model_lock_path`] without waiting.
 ///
 /// Creates the directory and the empty lock file where they are missing, writes nothing
-/// into the file and never removes it. Returns [`LockError::Held`] at once when the lock is
-/// held, by another process or by this one.
+/// into the file and never removes it. An existing lock file is opened for reading alone,
+/// so a home that can no longer be written still gives the lock; a directory or a file
+/// that cannot be made, and a lock call that the system refuses, give [`LockError::Io`]
+/// with the call. Returns [`LockError::Held`] at once when the lock is held, by another
+/// process or by this one.
 ///
 /// The lock is an exclusive lock of the operating system on the open lock file, and it
 /// belongs to the process that took it. On both systems that is the process that loads the
@@ -352,7 +357,7 @@ fn take_lock_from(found: Result<Option<OsString>, LockError>) -> Result<ModelLoc
 }
 
 #[cfg(any(target_os = "macos", windows))]
-fn take_lock_at(path: PathBuf) -> Result<ModelLock, LockError> {
+fn create_lock_file(path: &Path) -> Result<(), LockError> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|source| LockError::Io {
             call: "create_dir_all",
@@ -360,13 +365,34 @@ fn take_lock_at(path: PathBuf) -> Result<ModelLock, LockError> {
             source,
         })?;
     }
-    let file = lock_file_options()
-        .open(&path)
+    lock_file_options()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(path)
         .map_err(|source| LockError::Io {
-            call: "open",
-            path: path.clone(),
+            call: "create",
+            path: path.to_path_buf(),
             source,
         })?;
+    Ok(())
+}
+
+#[cfg(any(target_os = "macos", windows))]
+fn take_lock_at(path: PathBuf) -> Result<ModelLock, LockError> {
+    let open = || lock_file_options().read(true).open(&path);
+    let file = match open() {
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            create_lock_file(&path)?;
+            open()
+        }
+        opened => opened,
+    }
+    .map_err(|source| LockError::Io {
+        call: "open",
+        path: path.clone(),
+        source,
+    })?;
     match file.try_lock() {
         Ok(()) => Ok(ModelLock { _file: file, path }),
         Err(TryLockError::WouldBlock) => Err(LockError::Held(path)),
@@ -807,6 +833,110 @@ mod tests {
             "the directory of the held lock file was renamed"
         );
         assert_eq!(code, 3, "a second loader got: {line}");
+    }
+
+    struct Unwritable(Vec<PathBuf>);
+
+    impl Unwritable {
+        fn make(paths: &[PathBuf]) -> Self {
+            let made = Unwritable(paths.to_vec());
+            for path in paths {
+                set_writable(path, false).unwrap();
+            }
+            made
+        }
+    }
+
+    impl Drop for Unwritable {
+        fn drop(&mut self) {
+            for path in &self.0 {
+                let _ = set_writable(path, true);
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    fn set_writable(path: &Path, writable: bool) -> io::Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = match (path.is_dir(), writable) {
+            (true, true) => 0o755,
+            (true, false) => 0o555,
+            (false, true) => 0o644,
+            (false, false) => 0o444,
+        };
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+    }
+
+    #[cfg(windows)]
+    fn set_writable(path: &Path, writable: bool) -> io::Result<()> {
+        if path.is_dir() {
+            let mut icacls = Command::new("icacls");
+            icacls.arg(path);
+            if writable {
+                icacls.args(["/remove:d", "*S-1-1-0"]);
+            } else {
+                icacls.args(["/deny", "*S-1-1-0:(WD,AD)"]);
+            }
+            let status = icacls
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()?;
+            if status.success() {
+                Ok(())
+            } else {
+                Err(io::Error::other(format!("icacls exited {status}")))
+            }
+        } else {
+            let mut permissions = std::fs::metadata(path)?.permissions();
+            permissions.set_readonly(!writable);
+            std::fs::set_permissions(path, permissions)
+        }
+    }
+
+    #[test]
+    fn an_existing_lock_file_that_cannot_be_written_is_taken_and_held() {
+        let dir = fresh_dir("read-only");
+        let lock = lock_path_in(&dir);
+        let parent = lock.parent().unwrap().to_path_buf();
+        std::fs::create_dir_all(&parent).unwrap();
+        std::fs::write(&lock, "").unwrap();
+        let _unwritable = Unwritable::make(&[lock.clone(), parent.clone()]);
+        assert!(
+            File::create(parent.join("probe")).is_err(),
+            "the test could not make the directory unwritable"
+        );
+        let _holder = start_holder_as("hold", &dir);
+        let (code, line) = loader_line("try", &dir);
+        assert_eq!(code, 3, "a second loader got: {line}");
+    }
+
+    #[test]
+    fn a_directory_that_cannot_be_written_gives_io_and_no_lock() {
+        let base = fresh_dir("unwritable-base");
+        let _base_unwritable = Unwritable::make(std::slice::from_ref(&base));
+        assert!(
+            File::create(base.join("probe")).is_err(),
+            "the test could not make the directory unwritable"
+        );
+        match take_lock_from(Ok(Some(base.clone().into_os_string()))) {
+            Err(LockError::Io {
+                call: "create_dir_all",
+                ..
+            }) => {}
+            other => panic!("a base that cannot be written: {other:?}"),
+        }
+        assert_eq!(std::fs::read_dir(&base).unwrap().count(), 0);
+
+        let dir = fresh_dir("unwritable-dir");
+        let lock = lock_path_in(&dir);
+        let parent = lock.parent().unwrap().to_path_buf();
+        std::fs::create_dir_all(&parent).unwrap();
+        let _dir_unwritable = Unwritable::make(std::slice::from_ref(&parent));
+        match take_lock_from(Ok(Some(dir.into_os_string()))) {
+            Err(LockError::Io { call: "create", .. }) => {}
+            other => panic!("a lock directory that cannot be written: {other:?}"),
+        }
+        assert!(!lock.exists());
     }
 
     #[test]
