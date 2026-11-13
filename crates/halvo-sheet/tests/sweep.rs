@@ -121,7 +121,8 @@ fn a_copy_that_a_live_call_holds_is_not_swept_and_still_replaces() {
 }
 
 #[test]
-fn a_file_with_a_prepared_name_that_is_changed_a_link_a_directory_or_another_workbooks_stays() {
+fn a_file_with_a_prepared_name_and_a_left_mark_that_is_changed_a_link_a_directory_or_another_workbooks_stays(
+) {
     let scratch = Scratch::new("sweep-kept");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
     let bytes = b"a copy that a killed run left".as_slice();
@@ -138,10 +139,16 @@ fn a_file_with_a_prepared_name_that_is_changed_a_link_a_directory_or_another_wor
     scratch.write(&other_book, bytes);
     let short = format!("values.halvo-prepared-{OTHER}-00ff.xlsx");
     scratch.write(&short, bytes);
-    let folder = Folder::new(&scratch.dir, locks()).expect("the folder opens");
+    let locks = locks();
+    for name in [&orphan, &changed, &link, &directory, &other_book, &short] {
+        let mark = locks.mark(&scratch.dir, std::ffi::OsStr::new(name));
+        mark.expect("a mark that a killed call left").keep();
+    }
+    let folder = Folder::new(&scratch.dir, locks).expect("the folder opens");
     let held = prepare(&folder, RUN, "B5");
     let names = scratch.names("");
     assert!(!names.contains(&orphan), "the orphan is swept: {names:?}");
+    assert_eq!(held.unmarked(), 0, "no entry without a mark");
     for kept in [&changed, &link, &directory, &other_book, &short] {
         assert!(names.contains(kept), "{kept} stays: {names:?}");
     }

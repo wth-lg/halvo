@@ -148,7 +148,15 @@ pub(crate) fn package_file(path: &Path) -> Result<Vec<u8>, Error> {
     if std::fs::metadata(path)?.len() > FILE_MAX {
         return Err(size());
     }
-    let file = File::open(path)?;
+    package_of(&File::open(path)?)
+}
+
+/// The bytes of the workbook that `file` has open, read through that handle under the bound
+/// of a file.
+pub(crate) fn package_of(file: &File) -> Result<Vec<u8>, Error> {
+    if file.metadata()?.len() > FILE_MAX {
+        return Err(size());
+    }
     let mut bytes = Vec::new();
     file.take(FILE_MAX + 1).read_to_end(&mut bytes)?;
     if bytes.len() as u64 > FILE_MAX {

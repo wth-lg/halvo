@@ -4,8 +4,9 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::walk::{is_loop, no_follow, open_regular, same_file, Root, Walk};
-use crate::{checkpoint_name, digest, LockError, Locks, RunId, Sha256, FILE_MAX};
+use crate::at::Dir;
+use crate::walk::{is_loop, same_file, Root, Walk};
+use crate::{checkpoint_name, digest, removing_name, LockError, Locks, RunId, Sha256, FILE_MAX};
 
 /// What a row of the list of checkpoints names (contracts.md A7.4): the folder that `prepare`
 /// was given, the workbook's path as given to `prepare` (absolute, or relative to the folder),
@@ -99,22 +100,33 @@ impl Left {
 pub enum Undecided {
     /// The lock of the workbook's directory could not be taken.
     Lock(LockError),
-    /// Every check held, and the system refused the removal with an error of this kind (an
-    /// application holds the copy open, the directory cannot be written).
+    /// Every check held, and the system refused a step of the removal with an error of this
+    /// kind: the move of the copy aside to its removing name (`AlreadyExists` only when an
+    /// entry stands at that name; `PermissionDenied` when an application holds the copy open
+    /// or the directory cannot be written; on Windows a sharing violation while another
+    /// process holds a directory of the way open for deletion), or the removal of the moved
+    /// copy, after which the copy is put back under its own name.
     Remove(io::ErrorKind),
 }
 
 /// Removes the checkpoint of `row.run` beside `row.workbook`, inside `row.folder` alone
-/// (contracts.md A11.3, A6.6; the coordinator's rulings CP-96 (e) and CP-98 (3)). It builds the
-/// copy's name with [`checkpoint_name`] and never searches a folder for another; it walks from
-/// the folder, which may itself be reached through a link, to the workbook's directory, takes
-/// the lock of that directory and walks the way again under it, and holds the lock from its
-/// first look at the copy to the removal, so that it never overlaps a `prepare` or a `replace`
-/// of the sheet executor. It removes the copy only
-/// when all of these hold: no directory on the way below the folder is a link, and the copy is a
-/// regular file and no link; the directory holds an entry whose own name is the built name byte
-/// for byte; and the copy's length and SHA-256, read under the bound of a file, are the row's
-/// ([`Expect::Made`]) or the workbook's as it stands ([`Expect::Planned`]). A copy that is
+/// (contracts.md A11.3, A6.6; the coordinator's rulings CP-96 (e), CP-98 (3) and CP-124). It
+/// builds the copy's name with [`checkpoint_name`] and never searches a folder for another; it
+/// walks from the folder, which may itself be reached through a link, to the workbook's
+/// directory, takes the lock of that directory, and holds it from its first look at the copy
+/// to the removal, so that it never overlaps a `prepare` or a `replace` of the sheet executor.
+/// Under the lock it walks the way again part by part, each directory opened without following
+/// a link (on macOS by descriptors, each opened relative to the one before; on Windows by
+/// handles that it holds open and shares with no deletion, so no directory of the way can be
+/// moved or replaced until the call ends), and acts only on entries of the directory that it
+/// opened, so a directory of the way that becomes a link is never followed out of the folder.
+/// It removes the copy only when all of these hold: no directory on the way below the folder
+/// is a link, and the copy is a regular file and no link; the directory holds an entry whose
+/// own name is the built name byte for byte; and the copy's length and SHA-256, read under the
+/// bound of a file, are the row's ([`Expect::Made`]) or the workbook's as it stands
+/// ([`Expect::Planned`]). It then moves the copy aside under [`removing_name`], checks that the
+/// moved entry is the file that it read with the same SHA-256, and removes it; when that check
+/// misses or the removal fails, it puts the file back under its own name. A copy that is
 /// absent counts as removed. Every other miss leaves the file and answers its reason, which is
 /// never a run's failure. It removes no checkpoint of a run that has not ended: the caller
 /// calls it only for a run whose end is stored.
@@ -127,16 +139,14 @@ pub fn remove(locks: &Locks, row: &Row<'_>) -> Result<Removal, Undecided> {
         return Ok(Removal::Left(Left::NotFile));
     };
     let held = locks.hold(&dir).map_err(Undecided::Lock)?;
-    let walked_again = match place(row.folder, row.workbook) {
-        Ok((again, _)) if again == dir => Ok(()),
-        Ok(_) => Err(Removal::Left(Left::Link)),
-        Err(answer) => Err(answer),
-    };
-    let answer = match walked_again.and_then(|()| checked(&dir, &name, last, row.expect)) {
-        Ok((file, seen, held)) => {
-            drop(file);
-            aside(&dir, &name, &seen, held)
-        }
+    let answer = match opened_dir(row, &dir) {
+        Ok(at) => match checked(&at, &name, last, row.expect) {
+            Ok((file, seen, read)) => {
+                drop(file);
+                aside(&at, &name, &seen, read)
+            }
+            Err(answer) => Ok(answer),
+        },
         Err(answer) => Ok(answer),
     };
     drop(held);
@@ -146,6 +156,42 @@ pub fn remove(locks: &Locks, row: &Row<'_>) -> Result<Removal, Undecided> {
 fn place<'a>(folder: &Path, workbook: &'a Path) -> Result<(PathBuf, &'a OsStr), Removal> {
     let root = Root::new(folder).map_err(walked)?;
     root.parent(workbook).map_err(walked)
+}
+
+/// The workbook's directory walked again under the lock, part by part, and checked to be the
+/// directory whose lock the call holds.
+fn opened_dir(row: &Row<'_>, dir: &Path) -> Result<Dir, Removal> {
+    match place(row.folder, row.workbook) {
+        Ok((again, _)) if again == dir => {}
+        Ok(_) => return Err(Removal::Left(Left::Link)),
+        Err(answer) => return Err(answer),
+    }
+    let root = Root::new(row.folder).map_err(walked)?;
+    let names = root.names(row.workbook).map_err(walked)?;
+    let (_, parts) = names.split_last().ok_or(Removal::Left(Left::NotFile))?;
+    let at = Dir::walk(root.dir(), parts).map_err(|error| match error.kind() {
+        io::ErrorKind::NotFound => Removal::Absent,
+        io::ErrorKind::NotADirectory => Removal::Left(Left::Link),
+        _ if is_loop(&error) => Removal::Left(Left::Link),
+        _ => Removal::Left(Left::Unreadable),
+    })?;
+    let opened = at.meta().map_err(|_| Removal::Left(Left::Unreadable))?;
+    let named = fs::metadata(dir).map_err(|_| Removal::Left(Left::Link))?;
+    if !same_dir(&opened, &named) {
+        return Err(Removal::Left(Left::Link));
+    }
+    Ok(at)
+}
+
+#[cfg(unix)]
+fn same_dir(a: &Metadata, b: &Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    (a.dev(), a.ino()) == (b.dev(), b.ino())
+}
+
+#[cfg(not(unix))]
+fn same_dir(a: &Metadata, b: &Metadata) -> bool {
+    a.is_dir() && b.is_dir()
 }
 
 fn walked(walk: Walk) -> Removal {
@@ -161,21 +207,19 @@ fn walked(walk: Walk) -> Removal {
 }
 
 fn checked(
-    dir: &Path,
+    at: &Dir,
     name: &OsStr,
     workbook: &OsStr,
     expect: Expect,
 ) -> Result<(File, Metadata, (Sha256, u64)), Removal> {
-    let path = dir.join(name);
-    let (file, seen) = opened(&path)?;
-    if !own_entry(dir, name)? {
+    let (file, seen) = opened(at, name)?;
+    if !own_entry(at, name)? {
         return Err(Removal::Left(Left::Name));
     }
     let (sha256, bytes) = match expect {
         Expect::Made { sha256, bytes } => (sha256, bytes),
         Expect::Planned => {
-            let (book, _) =
-                opened(&dir.join(workbook)).map_err(|_| Removal::Left(Left::Changed))?;
+            let (book, _) = opened(at, workbook).map_err(|_| Removal::Left(Left::Changed))?;
             let (sha256, bytes) =
                 digest::read(&book, FILE_MAX).map_err(|_| Removal::Left(Left::Changed))?;
             if bytes > FILE_MAX {
@@ -195,7 +239,7 @@ fn checked(
     if count != bytes || held != sha256 {
         return Err(Removal::Left(Left::Changed));
     }
-    let now = fs::symlink_metadata(&path).map_err(|_| Removal::Left(Left::Changed))?;
+    let (_, now) = opened(at, name).map_err(|_| Removal::Left(Left::Changed))?;
     if !same_file(&seen, &now) {
         return Err(Removal::Left(Left::Changed));
     }
@@ -205,94 +249,140 @@ fn checked(
 static ASIDE: AtomicU64 = AtomicU64::new(0);
 
 fn aside(
-    dir: &Path,
+    at: &Dir,
     name: &OsStr,
     seen: &Metadata,
     held: (Sha256, u64),
 ) -> Result<Removal, Undecided> {
-    let path = dir.join(name);
-    let mut moved = name.to_os_string();
-    let count = ASIDE.fetch_add(1, Ordering::Relaxed);
-    moved.push(format!(
-        ".halvo-removing-{:08x}{count:08x}",
-        std::process::id()
-    ));
-    let moved = dir.join(moved);
-    match fs::symlink_metadata(&moved) {
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        _ => return Err(Undecided::Remove(io::ErrorKind::AlreadyExists)),
-    }
-    match fs::rename(&path, &moved) {
+    let count = ASIDE.fetch_add(1, Ordering::Relaxed) & 0xffff_ffff;
+    let own = (u64::from(std::process::id()) << 32) | count;
+    let moved = removing_name(name, own);
+    match at.rename_new(name, &moved) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Removal::Absent),
         Err(error) => return Err(Undecided::Remove(error.kind())),
     }
-    let still = fs::symlink_metadata(&moved)
-        .is_ok_and(|now| !now.file_type().is_symlink() && now.is_file() && same_file(seen, &now))
-        && open_regular(&moved)
-            .ok()
-            .and_then(|file| digest::read(&file, FILE_MAX).ok())
-            .is_some_and(|read| read == held);
+    let still = opened(at, &moved).is_ok_and(|(file, now)| {
+        same_file(seen, &now) && digest::read(&file, FILE_MAX).is_ok_and(|read| read == held)
+    });
     if !still {
-        put_back(&moved, &path);
+        put_back(at, &moved, name);
         return Ok(Removal::Left(Left::Changed));
     }
-    match fs::remove_file(&moved) {
+    match at.unlink(&moved) {
         Ok(()) => Ok(Removal::Removed),
         Err(error) => {
-            put_back(&moved, &path);
+            put_back(at, &moved, name);
             Err(Undecided::Remove(error.kind()))
         }
     }
 }
 
-fn put_back(moved: &Path, path: &Path) {
-    if fs::hard_link(moved, path).is_ok() {
-        let _ = fs::remove_file(moved);
-    } else if fs::symlink_metadata(path).is_err() {
-        let _ = fs::rename(moved, path);
+/// Puts the moved file back under its own name: a second name and then the removal of the
+/// moved one, or, where the system makes no second name, a rename that replaces no entry.
+fn put_back(at: &Dir, moved: &OsStr, name: &OsStr) {
+    if at.link(moved, name).is_ok() {
+        let _ = at.unlink(moved);
+    } else {
+        let _ = at.rename_new(moved, name);
     }
 }
 
-fn opened(path: &Path) -> Result<(File, Metadata), Removal> {
-    let named = match fs::symlink_metadata(path) {
-        Ok(meta) => meta,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Err(Removal::Absent),
-        Err(_) => return Err(Removal::Left(Left::Unreadable)),
-    };
-    if named.file_type().is_symlink() {
-        return Err(Removal::Left(Left::Link));
-    }
-    if !named.is_file() {
-        return Err(Removal::Left(Left::NotFile));
-    }
-    let file = no_follow(path).map_err(|error| match error.kind() {
-        io::ErrorKind::NotFound => Removal::Absent,
-        _ if is_loop(&error) => Removal::Left(Left::Link),
-        _ => Removal::Left(Left::Unreadable),
-    })?;
-    let seen = file
-        .metadata()
-        .map_err(|_| Removal::Left(Left::Unreadable))?;
+fn opened(at: &Dir, name: &OsStr) -> Result<(File, Metadata), Removal> {
+    let (file, seen) = at
+        .open(name)
+        .map_err(|error| match (error.kind(), at.look(name)) {
+            (io::ErrorKind::NotFound, _) => Removal::Absent,
+            _ if is_loop(&error) => Removal::Left(Left::Link),
+            (_, Some(meta)) if meta.file_type().is_symlink() => Removal::Left(Left::Link),
+            (_, Some(meta)) if !meta.is_file() => Removal::Left(Left::NotFile),
+            _ => Removal::Left(Left::Unreadable),
+        })?;
     if seen.file_type().is_symlink() {
         return Err(Removal::Left(Left::Link));
     }
     if !seen.is_file() {
         return Err(Removal::Left(Left::NotFile));
     }
-    if !same_file(&named, &seen) {
-        return Err(Removal::Left(Left::Changed));
-    }
     Ok((file, seen))
 }
 
-fn own_entry(dir: &Path, name: &OsStr) -> Result<bool, Removal> {
-    let entries = fs::read_dir(dir).map_err(|_| Removal::Left(Left::Unreadable))?;
-    for entry in entries {
-        let entry = entry.map_err(|_| Removal::Left(Left::Unreadable))?;
-        if entry.file_name() == name {
-            return Ok(true);
-        }
+fn own_entry(at: &Dir, name: &OsStr) -> Result<bool, Removal> {
+    let names = at.names().map_err(|_| Removal::Left(Left::Unreadable))?;
+    Ok(names.iter().any(|entry| entry == name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn scratch(name: &str) -> PathBuf {
+        let exe = std::env::current_exe().expect("the test binary");
+        let target = exe.ancestors().nth(3).expect("the target directory");
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        let dir = target
+            .join("tmp")
+            .join("halvo-checkpoint-unit")
+            .join(format!("{name}-{}-{nanos}", std::process::id()));
+        fs::create_dir_all(&dir).expect("make the scratch directory");
+        dir.canonicalize().expect("the canonical directory")
     }
-    Ok(false)
+
+    /// The review's patch aside-no-same-file: a file with the same bytes that took the copy's
+    /// place after the checks is not the checked file; `aside` puts it back and leaves it.
+    #[test]
+    fn aside_removes_only_the_checked_file_and_a_same_bytes_swap_stays() {
+        let dir = scratch("aside-swap");
+        let bytes = b"the workbook as prepare read it";
+        let name = OsStr::new("values.halvo-checkpoint-x.xlsx");
+        fs::write(dir.join(name), bytes).expect("the checked copy");
+        let at = Dir::walk(&dir, &[]).expect("the directory");
+        let (file, seen) = opened(&at, name).expect("opened");
+        drop(file);
+        fs::write(dir.join("person.xlsx"), bytes).expect("a file of the same bytes");
+        fs::rename(dir.join("person.xlsx"), dir.join(name)).expect("swap it in");
+        let held = (Sha256::of(bytes), bytes.len() as u64);
+        let answer = aside(&at, name, &seen, held);
+        assert_eq!(answer, Ok(Removal::Left(Left::Changed)));
+        assert_eq!(
+            fs::read(dir.join(name)).expect("the swapped file stays"),
+            bytes
+        );
+        let names: Vec<_> = fs::read_dir(&dir).expect("list").flatten().collect();
+        assert_eq!(names.len(), 1, "no file under a removing name");
+    }
+
+    /// B2 of CP-124 in a forced order: the workbook's directory becomes a link to a directory
+    /// outside the folder after the call opened it; every step acts on the directory that it
+    /// opened, and the file outside with the copy's name and bytes stays.
+    #[cfg(unix)]
+    #[test]
+    fn a_directory_that_becomes_a_link_after_the_walk_is_never_followed() {
+        let base = scratch("forced-flip");
+        let folder = base.join("folder");
+        let outside = base.join("outside");
+        fs::create_dir_all(folder.join("sub")).expect("the sub directory");
+        fs::create_dir_all(&outside).expect("the outside directory");
+        let bytes = b"the workbook as prepare read it";
+        let name = OsStr::new("values.halvo-checkpoint-x.xlsx");
+        fs::write(folder.join("sub").join(name), bytes).expect("the checkpoint");
+        fs::write(outside.join(name), bytes).expect("the person's copy outside");
+        let at = Dir::walk(&folder, &[OsStr::new("sub")]).expect("the directory");
+        fs::rename(folder.join("sub"), folder.join("sub-real")).expect("move the directory");
+        std::os::unix::fs::symlink(&outside, folder.join("sub")).expect("the link");
+        let (file, seen) = opened(&at, name).expect("opened");
+        drop(file);
+        let held = (Sha256::of(bytes), bytes.len() as u64);
+        assert_eq!(aside(&at, name, &seen, held), Ok(Removal::Removed));
+        assert_eq!(
+            fs::read(outside.join(name)).expect("the outside file stays"),
+            bytes
+        );
+        assert!(
+            !folder.join("sub-real").join(name).exists(),
+            "the checkpoint is removed"
+        );
+    }
 }

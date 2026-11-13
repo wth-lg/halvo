@@ -53,13 +53,21 @@ impl fmt::Debug for Locks {
 }
 
 /// A lock of a workbook's directory, held until it is dropped.
-#[derive(Debug)]
 pub struct Held {
     _file: File,
 }
 
-/// The mark of a file that a live call made beside a workbook, held until it is dropped; then
-/// its file in `agents/locks/` goes too.
+impl fmt::Debug for Held {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Held").finish_non_exhaustive()
+    }
+}
+
+/// The mark of a file that a call made beside a workbook: `agents/locks/<64 hex>.live`, an
+/// empty file of mode 0600, named by the SHA-256 of what names the file's directory on the
+/// system and the file's name. A live call holds a shared lock of the system on it from before
+/// it makes the file until the mark is dropped, and the drop removes it. A killed call's mark
+/// stays until a later sweep takes it ([`Marked::Left`]).
 pub struct Mark {
     file: Option<File>,
     path: PathBuf,
@@ -71,17 +79,47 @@ impl fmt::Debug for Mark {
     }
 }
 
+impl Mark {
+    /// Lets go of the mark and leaves its file in `agents/locks/`, as a sweep does for a file
+    /// that it leaves.
+    pub fn keep(mut self) {
+        drop(self.file.take());
+        self.path = PathBuf::new();
+    }
+}
+
 impl Drop for Mark {
     fn drop(&mut self) {
-        let _ = fs::remove_file(&self.path);
+        if self.file.is_some() {
+            let _ = fs::remove_file(&self.path);
+        }
         drop(self.file.take());
     }
+}
+
+/// What [`Locks::marked`] found for a file beside a workbook.
+#[derive(Debug)]
+pub enum Marked {
+    /// A live call holds the file's mark.
+    Live,
+    /// No mark of the file stands in `agents/locks/`: no call of this data directory made it,
+    /// or a call made it before marks were made.
+    Unmarked,
+    /// A mark that no live call holds, which a killed call left, now held by this call alone;
+    /// dropping it removes its file, [`Mark::keep`] leaves it.
+    Left(Mark),
 }
 
 impl Locks {
     /// Opens `agents/locks/` under the data directory `data`, making `agents/` and
     /// `agents/locks/` where they are missing. A call that takes a lock waits up to `wait` for
     /// another holder to release it, and then answers [`LockError::Busy`].
+    ///
+    /// Two calls exclude each other, and a sweep sees the marks of a call, only when both
+    /// opened the same data directory: the sheet executor and the supervisor library open the
+    /// one data directory of Halvo. The [`Locks`] remember the directory `agents/locks/` that
+    /// they opened; when `agents/` or `agents/locks/` is deleted or replaced while they are
+    /// kept, every later call answers [`LockError::Link`], and a new [`Locks`] must be opened.
     pub fn open(data: &Path, wait: Duration) -> Result<Locks, LockError> {
         if !fs::metadata(data)?.is_dir() {
             return Err(LockError::Io(io::ErrorKind::NotADirectory));
@@ -138,24 +176,25 @@ impl Locks {
         }
     }
 
-    /// Whether a live call holds the mark of the file `name` of the directory `dir`. A mark
-    /// that no live call holds, which a killed call left, is removed here.
-    pub fn marked(&self, dir: &Path, name: &OsStr) -> Result<bool, LockError> {
+    /// Whether a live call holds the mark of the file `name` of the directory `dir`, no mark
+    /// stands, or a killed call left one, which the answer then holds. It checks first that
+    /// `agents/locks/` is still the directory that [`Locks::open`] opened.
+    pub fn marked(&self, dir: &Path, name: &OsStr) -> Result<Marked, LockError> {
         self.places()?;
         let path = self.dir.join(mark_name(dir, name)?);
         match fs::symlink_metadata(&path) {
             Ok(meta) if meta.file_type().is_symlink() => return Err(LockError::Link),
             Ok(_) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Marked::Unmarked),
             Err(error) => return Err(error.into()),
         }
         let file = open(&path, false)?;
         match file.try_lock() {
-            Ok(()) => {
-                let _ = fs::remove_file(&path);
-                Ok(false)
-            }
-            Err(TryLockError::WouldBlock) => Ok(true),
+            Ok(()) => Ok(Marked::Left(Mark {
+                file: Some(file),
+                path,
+            })),
+            Err(TryLockError::WouldBlock) => Ok(Marked::Live),
             Err(TryLockError::Error(error)) => Err(error.into()),
         }
     }

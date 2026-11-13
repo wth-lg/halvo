@@ -165,6 +165,18 @@ pub fn open_regular(full: &Path) -> Result<File, Walk> {
     Ok(file)
 }
 
+/// Whether the entry at `full`, read without following a link, is a regular file and the file
+/// that `file` has open: on macOS the same device and inode, on Windows the same length,
+/// creation time and time of the last write.
+pub fn same_entry(file: &File, full: &Path) -> bool {
+    match (file.metadata(), fs::symlink_metadata(full)) {
+        (Ok(opened), Ok(named)) => {
+            !named.file_type().is_symlink() && named.is_file() && same_file(&opened, &named)
+        }
+        _ => false,
+    }
+}
+
 pub(crate) fn no_follow(path: &Path) -> io::Result<File> {
     let mut options = OpenOptions::new();
     options.read(true);

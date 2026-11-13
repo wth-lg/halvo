@@ -4,6 +4,7 @@
 //! `replace` hold. The sheet executor and the supervisor library both use it, so that the app
 //! links no reader of workbooks (the coordinator's ruling CP-98 (2)).
 
+mod at;
 mod digest;
 mod lock;
 mod name;
@@ -12,11 +13,11 @@ mod run;
 mod walk;
 
 pub use digest::Sha256;
-pub use lock::{Held, LockError, Locks, Mark};
-pub use name::{checkpoint_name, own_name};
+pub use lock::{Held, LockError, Locks, Mark, Marked};
+pub use name::{checkpoint_name, name_units, names_fit, own_name, removing_name, NAME_MAX};
 pub use remove::{remove, Expect, Left, Removal, Row, Undecided};
 pub use run::RunId;
-pub use walk::{open_regular, regular, Root, Walk};
+pub use walk::{open_regular, regular, same_entry, Root, Walk};
 
 /// The bound of a workbook file and so of a checkpoint, 64 MiB (contracts.md A11.3): a file is
 /// read up to it and no further.

@@ -1,10 +1,21 @@
+//! What a file that `prepare` makes takes from the workbook besides its bytes. Every step acts
+//! through the handle that read the workbook and the handle that made the file, never through
+//! a path that a link could turn to another file.
+
+use std::fs::File;
 use std::io;
 use std::path::Path;
 
+/// The access that `prepare` asks for when it makes a file on Windows: read and write, and the
+/// reading and writing of its access list.
+#[cfg(windows)]
+pub(crate) const MADE_ACCESS: u32 = 0x8000_0000 | 0x4000_0000 | 0x0002_0000 | 0x0004_0000;
+
+/// Gives the file that `made` has open the extended attributes and the access list of the
+/// workbook that `book` has open, through those two descriptors alone.
 #[cfg(target_os = "macos")]
-pub(crate) fn carry(workbook: &Path, made: &Path) -> io::Result<()> {
+pub(crate) fn carry(book: &File, _: &Path, made: &File, _: &Path) -> io::Result<()> {
     use std::ffi::c_void;
-    use std::fs::{File, OpenOptions};
     use std::os::fd::AsRawFd;
 
     extern "C" {
@@ -13,12 +24,13 @@ pub(crate) fn carry(workbook: &Path, made: &Path) -> io::Result<()> {
     const COPYFILE_ACL: u32 = 1 << 0;
     const COPYFILE_XATTR: u32 = 1 << 2;
 
-    let from = File::open(workbook)?;
-    let to = OpenOptions::new().write(true).open(made)?;
+    // SAFETY: both descriptors are open for the whole call, as the borrowed files live across
+    // it; a null state is the documented way to ask for no state; `made` is open for writing,
+    // which fcopyfile needs of its destination.
     let done = unsafe {
         fcopyfile(
-            from.as_raw_fd(),
-            to.as_raw_fd(),
+            book.as_raw_fd(),
+            made.as_raw_fd(),
             std::ptr::null_mut(),
             COPYFILE_ACL | COPYFILE_XATTR,
         )
@@ -30,10 +42,10 @@ pub(crate) fn carry(workbook: &Path, made: &Path) -> io::Result<()> {
     }
 }
 
+/// Empties the access list of the file that `made` has open, through that descriptor.
 #[cfg(target_os = "macos")]
-pub(crate) fn uncarry(made: &Path) -> io::Result<()> {
+pub(crate) fn uncarry(made: &File) -> io::Result<()> {
     use std::ffi::c_void;
-    use std::fs::File;
     use std::os::fd::AsRawFd;
 
     extern "C" {
@@ -42,30 +54,37 @@ pub(crate) fn uncarry(made: &Path) -> io::Result<()> {
         fn acl_free(object: *mut c_void) -> i32;
     }
 
-    let file = File::open(made)?;
+    // SAFETY: acl_init takes a count and returns a new list or null, which is checked below.
     let empty = unsafe { acl_init(0) };
     if empty.is_null() {
         return Err(io::Error::last_os_error());
     }
-    let done = unsafe { acl_set_fd(file.as_raw_fd(), empty) };
+    // SAFETY: `empty` is the valid list that acl_init returned, and the descriptor is open for
+    // the whole call.
+    let done = unsafe { acl_set_fd(made.as_raw_fd(), empty) };
     let error = (done < 0).then(io::Error::last_os_error);
+    // SAFETY: `empty` came from acl_init, is freed once here and not used after.
     unsafe { acl_free(empty) };
     error.map_or(Ok(()), Err)
 }
 
 #[cfg(not(target_os = "macos"))]
-pub(crate) fn uncarry(_: &Path) -> io::Result<()> {
+pub(crate) fn uncarry(_: &File) -> io::Result<()> {
     Err(io::Error::from(io::ErrorKind::Unsupported))
 }
 
+/// Gives the file that `made` has open the named streams and the access list of the workbook
+/// that `book` has open. The streams are listed through `book`; each is opened under the
+/// paths with no reparse point followed, and used only when its handle is of the file that
+/// `book` or `made` has open.
 #[cfg(windows)]
-pub(crate) fn carry(workbook: &Path, made: &Path) -> io::Result<()> {
-    windows::streams(workbook, made)?;
-    windows::access_list(workbook, made)
+pub(crate) fn carry(book: &File, workbook: &Path, made: &File, path: &Path) -> io::Result<()> {
+    windows::streams(book, workbook, made, path)?;
+    windows::access_list(book, made)
 }
 
 #[cfg(not(any(target_os = "macos", windows)))]
-pub(crate) fn carry(_: &Path, _: &Path) -> io::Result<()> {
+pub(crate) fn carry(_: &File, _: &Path, _: &File, _: &Path) -> io::Result<()> {
     Ok(())
 }
 
@@ -74,7 +93,7 @@ mod windows {
     use std::ffi::{c_void, OsString};
     use std::fs::{File, OpenOptions};
     use std::io::{self, Read, Write};
-    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    use std::os::windows::ffi::OsStringExt;
     use std::os::windows::fs::OpenOptionsExt;
     use std::os::windows::io::AsRawHandle;
     use std::path::Path;
@@ -83,17 +102,15 @@ mod windows {
 
     type Handle = *mut c_void;
 
-    #[repr(C)]
-    struct FindStreamData {
-        size: i64,
-        name: [u16; 296],
-    }
-
     #[link(name = "kernel32")]
     extern "system" {
-        fn FindFirstStreamW(name: *const u16, level: i32, data: *mut c_void, flags: u32) -> Handle;
-        fn FindNextStreamW(find: Handle, data: *mut c_void) -> i32;
-        fn FindClose(find: Handle) -> i32;
+        fn GetFileInformationByHandleEx(
+            file: Handle,
+            class: i32,
+            info: *mut c_void,
+            size: u32,
+        ) -> i32;
+        fn GetFileInformationByHandle(file: Handle, info: *mut [u32; 13]) -> i32;
         fn LocalFree(memory: *mut c_void) -> *mut c_void;
     }
 
@@ -125,88 +142,135 @@ mod windows {
         ) -> i32;
     }
 
+    const FILE_STREAM_INFO: i32 = 7;
     const ERROR_HANDLE_EOF: i32 = 38;
+    const ERROR_MORE_DATA: i32 = 234;
+    const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
     const SE_FILE_OBJECT: u32 = 1;
     const DACL_SECURITY_INFORMATION: u32 = 0x0000_0004;
     const PROTECTED_DACL_SECURITY_INFORMATION: u32 = 0x8000_0000;
     const UNPROTECTED_DACL_SECURITY_INFORMATION: u32 = 0x2000_0000;
     const SE_DACL_PROTECTED: u16 = 0x1000;
-    const READ_CONTROL: u32 = 0x0002_0000;
-    const WRITE_DAC: u32 = 0x0004_0000;
 
-    fn wide(path: &Path) -> Vec<u16> {
-        path.as_os_str().encode_wide().chain(Some(0)).collect()
+    /// The volume serial number and the file index of the file that `file` has open.
+    fn identity(file: &File) -> io::Result<(u32, u32, u32)> {
+        let mut info = [0u32; 13];
+        // SAFETY: the handle is open for the whole call, and `info` has the 52 bytes of
+        // BY_HANDLE_FILE_INFORMATION, thirteen 32-bit fields.
+        let done = unsafe { GetFileInformationByHandle(file.as_raw_handle(), &mut info) };
+        if done == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok((info[7], info[11], info[12]))
     }
 
-    fn stream_names(workbook: &Path) -> io::Result<Vec<OsString>> {
-        let name = wide(workbook);
-        let mut data = FindStreamData {
-            size: 0,
-            name: [0; 296],
-        };
-        let find = unsafe {
-            FindFirstStreamW(
-                name.as_ptr(),
-                0,
-                (&mut data as *mut FindStreamData).cast(),
-                0,
-            )
-        };
-        if find as isize == -1 {
-            let error = io::Error::last_os_error();
-            return match error.raw_os_error() {
-                Some(ERROR_HANDLE_EOF) => Ok(Vec::new()),
-                _ => Err(error),
+    fn same(a: &File, b: &File) -> io::Result<()> {
+        if identity(a)? == identity(b)? {
+            Ok(())
+        } else {
+            Err(io::Error::from(io::ErrorKind::NotFound))
+        }
+    }
+
+    /// The names of the named streams of the file that `book` has open, `:name:$DATA` each,
+    /// listed through that handle.
+    fn stream_names(book: &File) -> io::Result<Vec<OsString>> {
+        let mut room = 16 * 1024;
+        let buffer = loop {
+            let mut buffer = vec![0u64; room / 8];
+            // SAFETY: the handle is open for the whole call, and the buffer holds `room` bytes,
+            // aligned to 8 as FILE_STREAM_INFO needs.
+            let done = unsafe {
+                GetFileInformationByHandleEx(
+                    book.as_raw_handle(),
+                    FILE_STREAM_INFO,
+                    buffer.as_mut_ptr().cast(),
+                    room as u32,
+                )
             };
-        }
+            if done != 0 {
+                break buffer;
+            }
+            let error = io::Error::last_os_error();
+            match error.raw_os_error() {
+                Some(ERROR_HANDLE_EOF) => return Ok(Vec::new()),
+                Some(ERROR_MORE_DATA) if room < 1 << 24 => room *= 4,
+                _ => return Err(error),
+            }
+        };
+        let bytes: Vec<u8> = buffer.iter().flat_map(|word| word.to_le_bytes()).collect();
+        let field = |at: usize| -> usize {
+            bytes
+                .get(at..at + 4)
+                .map_or(0, |b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize)
+        };
         let mut names = Vec::new();
+        let mut at = 0;
         loop {
-            let len = data.name.iter().position(|&unit| unit == 0).unwrap_or(296);
-            let stream = OsString::from_wide(&data.name[..len]);
-            if stream != "::$DATA" {
-                names.push(stream);
+            let (next, length) = (field(at), field(at + 4));
+            let units: Vec<u16> = bytes
+                .get(at + 24..at + 24 + length)
+                .unwrap_or_default()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u16::from_le_bytes(*pair))
+                .collect();
+            let name = OsString::from_wide(&units);
+            if !name.is_empty() && name != "::$DATA" {
+                names.push(name);
             }
-            if unsafe { FindNextStreamW(find, (&mut data as *mut FindStreamData).cast()) } == 0 {
-                let error = io::Error::last_os_error();
-                unsafe { FindClose(find) };
-                return match error.raw_os_error() {
-                    Some(ERROR_HANDLE_EOF) => Ok(names),
-                    _ => Err(error),
-                };
+            if next == 0 {
+                return Ok(names);
             }
+            at += next;
         }
     }
 
-    pub(super) fn streams(workbook: &Path, made: &Path) -> io::Result<()> {
+    pub(super) fn streams(
+        book: &File,
+        workbook: &Path,
+        made: &File,
+        path: &Path,
+    ) -> io::Result<()> {
         let mut room = FILE_MAX;
-        for stream in stream_names(workbook)? {
+        for stream in stream_names(book)? {
             let mut from = workbook.as_os_str().to_os_string();
             from.push(&stream);
-            let mut to = made.as_os_str().to_os_string();
+            let mut to = path.as_os_str().to_os_string();
             to.push(&stream);
+            let source = OpenOptions::new()
+                .read(true)
+                .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+                .open(&from)?;
+            same(&source, book)?;
             let mut bytes = Vec::new();
-            File::open(&from)?.take(room + 1).read_to_end(&mut bytes)?;
+            (&source).take(room + 1).read_to_end(&mut bytes)?;
             if bytes.len() as u64 > room {
                 return Err(io::Error::from(io::ErrorKind::FileTooLarge));
             }
             room -= bytes.len() as u64;
-            let mut out = OpenOptions::new().write(true).create_new(true).open(&to)?;
+            let mut out = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+                .open(&to)?;
+            same(&out, made)?;
             out.write_all(&bytes)?;
             out.sync_all()?;
         }
         Ok(())
     }
 
-    pub(super) fn access_list(workbook: &Path, made: &Path) -> io::Result<()> {
-        let from = File::open(workbook)?;
-        let to = OpenOptions::new()
-            .access_mode(READ_CONTROL | WRITE_DAC)
-            .open(made)?;
+    pub(super) fn access_list(book: &File, made: &File) -> io::Result<()> {
         let mut dacl: *mut c_void = std::ptr::null_mut();
         let mut descriptor: *mut c_void = std::ptr::null_mut();
+        // SAFETY: the handle is open for the whole call and was opened for reading, which
+        // holds READ_CONTROL; the out pointers point at locals that live across the call, and
+        // the null ones are fields that the call is asked not to return.
         let read = unsafe {
             GetSecurityInfo(
-                from.as_raw_handle(),
+                book.as_raw_handle(),
                 SE_FILE_OBJECT,
                 DACL_SECURITY_INFORMATION,
                 std::ptr::null_mut(),
@@ -221,6 +285,8 @@ mod windows {
         }
         let mut control = 0u16;
         let mut revision = 0u32;
+        // SAFETY: `descriptor` is the descriptor that GetSecurityInfo returned, valid until
+        // LocalFree below; the out pointers point at locals.
         let known =
             unsafe { GetSecurityDescriptorControl(descriptor, &mut control, &mut revision) };
         let unknown = (known == 0).then(io::Error::last_os_error);
@@ -231,9 +297,12 @@ mod windows {
         };
         let written = match unknown {
             Some(_) => 0,
+            // SAFETY: the handle of `made` is open for the whole call with WRITE_DAC
+            // ([`super::MADE_ACCESS`]); `dacl` points into `descriptor`, which is still
+            // allocated; the null pointers are the parts that the call is asked not to set.
             None => unsafe {
                 SetSecurityInfo(
-                    to.as_raw_handle(),
+                    made.as_raw_handle(),
                     SE_FILE_OBJECT,
                     DACL_SECURITY_INFORMATION | protection,
                     std::ptr::null_mut(),
@@ -243,6 +312,8 @@ mod windows {
                 )
             },
         };
+        // SAFETY: `descriptor` came from GetSecurityInfo, is freed once here, and neither it
+        // nor `dacl`, which points into it, is used after.
         unsafe { LocalFree(descriptor) };
         if let Some(error) = unknown {
             return Err(error);

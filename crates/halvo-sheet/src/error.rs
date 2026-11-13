@@ -48,6 +48,11 @@ pub enum PathRefusal {
     /// case answers for such a name with a copy of the crate's. `prepare` takes no such file
     /// as a workbook.
     OwnFile,
+    /// The file name is so long that a name that `prepare` or the removal of a checkpoint
+    /// builds for it would hold more than [`halvo_checkpoint::NAME_MAX`] units of the system
+    /// (bytes on macOS, UTF-16 code units on Windows). `prepare` refuses it before it writes
+    /// anything.
+    TooLong,
 }
 
 /// Why a source file is not of the form of contracts.md A1.2: one row per line, ended by LF,

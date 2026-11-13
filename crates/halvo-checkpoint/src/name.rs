@@ -1,4 +1,4 @@
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::Path;
 
 use crate::RunId;
@@ -26,4 +26,43 @@ pub fn own_name(workbook: &Path, tag: &str) -> Option<OsString> {
 /// and [`crate::remove`] removes no file of another name. `None` when the path has no file name.
 pub fn checkpoint_name(workbook: &Path, run: &RunId) -> Option<OsString> {
     own_name(workbook, &format!("checkpoint-{}", run.as_str()))
+}
+
+/// The most units that one file name may hold: 255 bytes of UTF-8 on macOS (APFS and HFS+
+/// count bytes) and 255 UTF-16 code units on Windows (NTFS counts code units). `prepare`
+/// refuses a workbook when a name that it or [`crate::remove`] builds for it would hold more
+/// ([`names_fit`]). A volume whose names are shorter, such as a share whose server takes fewer
+/// units, refuses such a name with an error of the system, which `prepare` answers as it
+/// answers any error of a write.
+pub const NAME_MAX: usize = 255;
+
+/// The length of the file name `name` in the unit of [`NAME_MAX`]: its bytes on Unix, its
+/// UTF-16 code units on Windows.
+pub fn name_units(name: &OsStr) -> usize {
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        name.encode_wide().count()
+    }
+    #[cfg(not(windows))]
+    {
+        name.as_encoded_bytes().len()
+    }
+}
+
+/// The name that [`crate::remove`] moves the checkpoint `checkpoint` to before it removes it:
+/// `<checkpoint>.halvo-removing-<16 hex digits of own>`, the longest name that the crate builds.
+pub fn removing_name(checkpoint: &OsStr, own: u64) -> OsString {
+    let mut name = checkpoint.to_os_string();
+    name.push(format!(".halvo-removing-{own:016x}"));
+    name
+}
+
+/// Whether each name that the crate builds for the checkpoint of `run` beside `workbook`, the
+/// checkpoint's own ([`checkpoint_name`]) and the one that [`crate::remove`] moves it to
+/// ([`removing_name`]), holds at most [`NAME_MAX`] units. `false` when the path has no file
+/// name.
+pub fn names_fit(workbook: &Path, run: &RunId) -> bool {
+    checkpoint_name(workbook, run)
+        .is_some_and(|name| name_units(&removing_name(&name, u64::MAX)) <= NAME_MAX)
 }
