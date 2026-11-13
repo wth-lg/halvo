@@ -370,6 +370,52 @@ fn an_address_of_the_app_host_with_a_password_and_no_user_name_is_refused() {
 }
 
 #[test]
+fn the_web_view_main_moved_into_another_window_gets_no_command_of_the_unit_and_deletes_nothing() {
+    let test = Guarded::new("moved-web-view", widened_by_the_macro());
+    let main = test.main();
+    let page = main.as_ref();
+    let window_main = page.window();
+    let helper = test.window(OTHER_LABELS[0]);
+    page.reparent(&helper.as_ref().window())
+        .expect("the mock runtime moves the web view main into the window helper");
+    assert_eq!(page.label(), "main");
+    assert_eq!(page.window().label(), OTHER_LABELS[0]);
+    assert!(
+        page.url().is_ok_and(|url| app::is_app_url(&url)),
+        "the moved web view's own address is of the app's origin: {:?}",
+        page.url()
+    );
+    assert_eq!(
+        call(page, "plugin:app|version", app_origin()),
+        Ok(Value::String(app::VERSION.to_string())),
+        "the capability handed to the context macro reaches the window helper"
+    );
+    for command in unit_commands() {
+        for origin in [app_origin(), None] {
+            assert_eq!(
+                call(page, command, origin.clone()),
+                refused(),
+                "{command} from the web view main in the window helper, Origin header {origin:?}"
+            );
+        }
+    }
+    assert_eq!(
+        test.shreds(),
+        0,
+        "a call of the moved web view deleted the data"
+    );
+    page.reparent(&window_main)
+        .expect("the mock runtime moves the web view main back");
+    assert_eq!(page.window().label(), "main");
+    assert!(call(page, "delete_all", app_origin()).is_ok());
+    assert_eq!(
+        test.shreds(),
+        1,
+        "the web view main in the window main deletes the data"
+    );
+}
+
+#[test]
 fn a_capability_handed_to_the_context_macro_reaches_no_command_of_the_unit_from_another_window() {
     let plain = Guarded::new("macro-plain", app::context());
     let widened = Guarded::new("macro-widened", widened_by_the_macro());
