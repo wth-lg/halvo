@@ -368,40 +368,42 @@ fn broken_status_rule(body: &serde_json::Value) -> Option<StatusError> {
     DaemonStatus::new(fields).err()
 }
 
-fn outside<T: FromStr<Err = UnknownSpelling>>() -> Option<UnknownSpelling> {
+type UnknownSpellingOf = fn() -> Option<UnknownSpelling>;
+
+fn unknown_spelling_of<T: FromStr<Err = UnknownSpelling>>() -> Option<UnknownSpelling> {
     "".parse::<T>().err()
 }
 
-const REPLY_LISTS: &[fn() -> Option<UnknownSpelling>] = &[
-    outside::<ErrorCode>,
-    outside::<RootDestroyed>,
-    outside::<IntentState>,
-    outside::<Platform>,
-    outside::<Parent>,
-    outside::<CaptureState>,
-    outside::<Capture>,
-    outside::<CaptureReason>,
-    outside::<Lease>,
-    outside::<StoreState>,
-    outside::<StoreErrorKind>,
-    outside::<Health>,
-    outside::<DrainError>,
-    outside::<ExpiryError>,
-    outside::<LastStop>,
-    outside::<StopKind>,
-    outside::<StateFile>,
-    outside::<SourceName>,
-    outside::<SourceStateName>,
-    outside::<Reason>,
-    outside::<SwitchName>,
-    outside::<OnOff>,
-    outside::<PasswordGuard>,
-    outside::<Custody>,
-    outside::<Modality>,
-    outside::<Permission>,
-    outside::<GrantState>,
-    outside::<RequestOutcome>,
-    outside::<crate::onboarding::WalkbackAction>,
+const REPLY_LISTS: &[UnknownSpellingOf] = &[
+    unknown_spelling_of::<ErrorCode>,
+    unknown_spelling_of::<RootDestroyed>,
+    unknown_spelling_of::<IntentState>,
+    unknown_spelling_of::<Platform>,
+    unknown_spelling_of::<Parent>,
+    unknown_spelling_of::<CaptureState>,
+    unknown_spelling_of::<Capture>,
+    unknown_spelling_of::<CaptureReason>,
+    unknown_spelling_of::<Lease>,
+    unknown_spelling_of::<StoreState>,
+    unknown_spelling_of::<StoreErrorKind>,
+    unknown_spelling_of::<Health>,
+    unknown_spelling_of::<DrainError>,
+    unknown_spelling_of::<ExpiryError>,
+    unknown_spelling_of::<LastStop>,
+    unknown_spelling_of::<StopKind>,
+    unknown_spelling_of::<StateFile>,
+    unknown_spelling_of::<SourceName>,
+    unknown_spelling_of::<SourceStateName>,
+    unknown_spelling_of::<Reason>,
+    unknown_spelling_of::<SwitchName>,
+    unknown_spelling_of::<OnOff>,
+    unknown_spelling_of::<PasswordGuard>,
+    unknown_spelling_of::<Custody>,
+    unknown_spelling_of::<Modality>,
+    unknown_spelling_of::<Permission>,
+    unknown_spelling_of::<GrantState>,
+    unknown_spelling_of::<RequestOutcome>,
+    unknown_spelling_of::<crate::onboarding::WalkbackAction>,
 ];
 
 fn outside_a_list(error: &serde_json::Error) -> Option<UnknownSpelling> {
