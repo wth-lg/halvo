@@ -1,0 +1,1 @@
+deleted segments_shredded=2 keys_destroyed=3 root_destroyed=yes root_id=- files_left=0 database_left=no entries_removed=4 entries_left=0 unknown_entries=0 intent=written store_id=fedcba9876543210fedcba9876543210
