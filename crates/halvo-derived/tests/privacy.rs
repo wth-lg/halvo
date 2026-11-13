@@ -1,17 +1,25 @@
 mod common;
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use common::{
-    episode, listed, own_note_body, position, raw_request, registry, store_id, Grouping, OwnNote,
-    Scratch, Seq, TestClock, DAY_NS, FAR, OWN,
+    episode, key, listed, own_note_body, position, raw, raw_request, registry, store_id, token,
+    Grouping, OwnNote, Scratch, Seq, TestClock, DAY_NS, FAR, OWN, TRACE,
 };
 use halvo_derived::test_host::open_keyless;
-use halvo_derived::{Host, Store, Takes};
+use halvo_derived::{Committed, Host, Store, Takes};
 use halvo_schema_core::category::SeedCategory;
 use halvo_schema_core::ids::RequestId;
 use halvo_schema_core::kinds::KindEntry;
-use halvo_schema_core::record::{Episode, FloorLayer, Instant, Ordinal, Tagged, Text};
+use halvo_schema_core::record::{
+    Episode, FloorLayer, Instant, Ordinal, RowRead, SummaryRead, Tagged, Text, TypedRecord,
+    WriterStep,
+};
 use halvo_schema_core::request::{InterfaceDecision, InterfaceRole};
 use halvo_schema_core::site::AppId;
+use halvo_sqlcipher::rusqlite::Connection;
+use sha2::{Digest, Sha256};
 
 const DAY: u32 = 20_767;
 
@@ -150,4 +158,193 @@ fn privacy_scrub() {
             "after the store is closed, the files that hold {marker}"
         );
     }
+}
+
+/// A connection of the test's own to the database of a keyless store.
+fn plain(scratch: &Scratch) -> Connection {
+    let conn = Connection::open(scratch.db()).unwrap();
+    conn.busy_timeout(std::time::Duration::ZERO).unwrap();
+    conn
+}
+
+/// A connection of the test's own to the database, with the store's key or with none.
+fn own(scratch: &Scratch, keyed: bool) -> Connection {
+    if keyed {
+        raw(scratch)
+    } else {
+        plain(scratch)
+    }
+}
+
+fn open_store(scratch: &Scratch, keyed: bool, entries: &[&'static KindEntry], host: Host) -> Store {
+    if keyed {
+        Store::open(scratch.path(), &key(), entries, host, &mut Seq(1 << 40)).unwrap()
+    } else {
+        keyless(scratch, entries, host)
+    }
+}
+
+fn count(conn: &Connection, sql: &str) -> i64 {
+    conn.query_row(sql, [], |r| r.get(0)).unwrap()
+}
+
+fn hmac(key: &[u8], message: &[u8]) -> String {
+    let pad = |byte: u8| -> Vec<u8> { key.iter().map(|b| b ^ byte).chain(vec![byte; 64 - key.len()]).collect() };
+    let mut inner = Sha256::new();
+    inner.update(pad(0x36));
+    inner.update(message);
+    let mut outer = Sha256::new();
+    outer.update(pad(0x5c));
+    outer.update(inner.finalize());
+    outer.finalize().iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Marker A of privacy_window: the title's site token, 64 lower-case hex digits, which the site token and the site
+/// hash both take, so that a store that kept the token unhashed would hold it as the site key of a summary.
+const MARKER_A: &str = "a11ce0de5ca1ab1ea11ce0de5ca1ab1ea11ce0de5ca1ab1ea11ce0de5ca1ab1e";
+/// Marker B of privacy_window: a word of the title that is not its site token.
+const MARKER_B: &str = "qzwindowb40417";
+
+/// The second test step of privacy_window: after each commit it returns one record of the window kind `test_trace`
+/// for the workflow and the segment that the test put in its cell, and nothing while the cell is empty.
+struct TraceStep(Rc<RefCell<Option<(String, u64)>>>);
+
+impl WriterStep for TraceStep {
+    fn after_commit(&self, _summaries: &dyn SummaryRead, _rows: &dyn RowRead) -> Vec<TypedRecord> {
+        match &*self.0.borrow() {
+            None => Vec::new(),
+            Some((workflow, segment)) => vec![TypedRecord {
+                kind: "test_trace",
+                json: format!(
+                    r#"{{"v":1,"workflow":"{workflow}","segments":[{segment}],"expires":{FAR}}}"#
+                ),
+            }],
+        }
+    }
+}
+
+fn window_case(keyed: bool) {
+    let scratch = Scratch::new(if keyed { "window-keyed" } else { "window-keyless" });
+    let clock = TestClock::at_day(DAY + 2);
+    let trace = Rc::new(RefCell::new(None));
+    let host = Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 3 }))
+        .step("test", Box::new(TraceStep(Rc::clone(&trace))));
+    let mut store = open_store(&scratch, keyed, &with(&[&TRACE]), host);
+    let routine: Vec<Episode> = (0..3u32)
+        .map(|i| {
+            let mut e = episode(101 + u64::from(i), DAY + i, token(MARKER_A));
+            e.expires = Instant(i64::from(DAY + i + 14) * DAY_NS);
+            e.steps[0].title = Some(Tagged {
+                value: Text::parse(&format!("Pay bill {MARKER_A} {MARKER_B}")).unwrap(),
+                layer: FloorLayer::Floor,
+            });
+            e
+        })
+        .collect();
+    let first = store
+        .commit_batch(&store_id(1), &routine, position(1, 0), &mut Seq(100))
+        .unwrap();
+    assert_eq!(
+        (first.summaries, first.evidence, first.proposals.stored),
+        (3, 3, 1)
+    );
+    for marker in [MARKER_A, MARKER_B] {
+        let found = holding(&scratch, marker);
+        if keyed {
+            assert_eq!(found, Vec::<&str>::new(), "the encrypted files hold {marker}");
+        } else {
+            assert!(
+                !found.is_empty(),
+                "the search finds {marker} while its evidence is stored"
+            );
+        }
+    }
+    clock.set_day(DAY + 2 + 15);
+    assert_eq!(
+        store.expire().unwrap(),
+        3,
+        "the expiry, with no request, removes the three evidence rows"
+    );
+    assert_eq!(store.purge(&[ord(101), ord(102), ord(103)]).unwrap(), 0);
+    for marker in [MARKER_A, MARKER_B] {
+        assert_eq!(
+            holding(&scratch, marker),
+            Vec::<&str>::new(),
+            "after the window, the files that hold {marker}"
+        );
+    }
+    let workflow = listed(&store)[0].workflow.id().as_str().to_owned();
+    store.purge(&[ord(200)]).unwrap();
+    *trace.borrow_mut() = Some((workflow, 200));
+    let mut late = episode(104, DAY + 17, None);
+    late.segments = vec![ord(200)];
+    let other_order = store
+        .commit_batch(&store_id(1), &[late], position(2, 0), &mut Seq(200))
+        .unwrap();
+    assert_eq!(
+        (
+            other_order.summaries,
+            other_order.evidence,
+            other_order.dropped
+        ),
+        (1, 0, 1),
+        "(summaries, evidence rows, dropped) of an episode that names a purged ordinal"
+    );
+    assert_eq!(
+        other_order.steps,
+        vec![Ok(Committed {
+            stored: 0,
+            dropped: 1
+        })],
+        "the window record of the second step that names the purged ordinal"
+    );
+    drop(store);
+    let conn = own(&scratch, keyed);
+    assert_eq!(
+        count(
+            &conn,
+            "SELECT count(*) FROM rows WHERE kind IN ('evidence', 'test_trace') OR class = 0"
+        ),
+        0,
+        "window rows"
+    );
+    assert_eq!(count(&conn, "SELECT count(*) FROM sources"), 0, "rows that name an ordinal");
+    let site_key: Vec<u8> = conn
+        .query_row("SELECT site_key FROM meta", [], |r| r.get(0))
+        .unwrap();
+    let hash_b = hmac(&site_key, MARKER_B.as_bytes());
+    let naming_b: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM rows WHERE instr(body, ?1) > 0",
+            [&hash_b],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(naming_b, 0, "rows that hold the keyed hash of marker B");
+    assert_eq!(
+        count(
+            &conn,
+            "SELECT count(*) FROM rows WHERE kind = 'summary' AND summary IN \
+             ('00000000000000000000000000000065', '00000000000000000000000000000066', '00000000000000000000000000000067')"
+        ),
+        3,
+        "the summaries of the routine"
+    );
+    assert_eq!(
+        count(&conn, "SELECT count(*) FROM rows WHERE kind = 'workflow'"),
+        1,
+        "the workflow of the routine"
+    );
+}
+
+/// privacy_window: a routine of three episodes holds marker A as the site token of its title and marker B elsewhere
+/// in the title. After its observation window has passed on the injected clock and the expiry has run with no request,
+/// neither marker is in any byte of the store's files, the encrypted ones and those of the keyless test build, where
+/// the search reads the rows and both markers stood before; no row names a shredded ordinal, the keyed hash of B is in
+/// no row, and the routine's summaries and its workflow stand. In the other order, an ordinal purged and then a commit
+/// that names it, neither the evidence nor a window row of a registered kind is stored, and the summary is.
+#[test]
+fn privacy_window() {
+    window_case(true);
+    window_case(false);
 }
