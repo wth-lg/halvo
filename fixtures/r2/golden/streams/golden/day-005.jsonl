@@ -1,0 +1,10 @@
+{"v":1,"id":"019b8d99-6900-76c0-87ec-9fcb68fceff6","at":1767607200000000000,"seq":20,"kind":"foreground_app","app":"org.chromium.Chromium","p":{}}
+{"v":1,"id":"019b8d99-6900-7ee7-a597-46b0ae425153","at":1767607200000000000,"seq":21,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Sign in - Goldfinch Power","cut":false,"why":"app_change","site":{"domain":"goldfinch-power.test","source":"address_field"}}}
+{"v":1,"id":"019b8d99-78a0-7dbb-80aa-9e1015b98efd","at":1767607204000000000,"seq":22,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d99-b720-7272-bf8d-b95fba9879d3","at":1767607220000000000,"seq":23,"kind":"window_title","app":"org.chromium.Chromium","p":{"text":"Pay your bill - Goldfinch Power","cut":false,"why":"title_change","site":{"domain":"goldfinch-power.test","source":"address_field"}}}
+{"v":1,"id":"019b8d99-c6c0-716d-9b22-d3bf7a30df64","at":1767607224000000000,"seq":24,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"scroll","count":10}}
+{"v":1,"id":"019b8d99-de30-777f-95e2-53d111cbb6b1","at":1767607230000000000,"seq":25,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
+{"v":1,"id":"019b8d9a-2c50-7286-9ca4-64f7a311772f","at":1767607250000000000,"seq":26,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d9a-3038-78da-b0cd-8e5ea0d9415c","at":1767607251000000000,"seq":27,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"other"}}
+{"v":1,"id":"019b8d9a-47a8-7a42-ac6f-86c18508fd5d","at":1767607257000000000,"seq":28,"kind":"pointer","app":"org.chromium.Chromium","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b8d9a-66e8-769f-93a4-90b90ed88515","at":1767607265000000000,"seq":29,"kind":"keystroke","app":"org.chromium.Chromium","p":{"class":"printable"}}
