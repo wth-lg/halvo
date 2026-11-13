@@ -571,7 +571,9 @@ fn a_workbook_changed_while_prepare_waits_for_the_lock_is_refused_and_nothing_is
     let held = locks.hold(&scratch.dir).expect("the lock");
     let worker =
         thread::spawn(move || prepare_at(&folder, Path::new("values.xlsx"), RUN, "B5").map(drop));
-    thread::sleep(Duration::from_millis(800));
+    let waited = waiting_for_the_lock(&data.dir);
+    println!("cp124 changed-while-waiting event={waited}");
+    assert!(waited, "prepare did not wait for the lock within the bound");
     let mut saved = fs::read(corpus("values.xlsx")).expect("read");
     saved.extend_from_slice(b"saved again by another program");
     fs::write(scratch.path("values.xlsx"), &saved).expect("save the workbook");
@@ -636,4 +638,46 @@ fn prepare_holds_no_descriptor_on_the_workbook_while_it_waits_for_the_lock() {
         scratch.names("folder/sub-moved"),
         vec!["values.xlsx".to_string()]
     );
+}
+
+/// Waits until `prepare` waits for the lock of the folder, which it takes only after its first
+/// read of the workbook. On macOS the event is the code's own: `lsof` of the process names the
+/// lock file of the data directory twice, the test's holder and the `hold` of `prepare`; the
+/// wait has a bound of 30 s. Windows has no such list of a process's handles at hand, so there
+/// the test waits 800 ms, a named limit: a `prepare` that has not made its first read by then
+/// reads the new bytes and the test fails, never passes, for that reason.
+fn waiting_for_the_lock(data: &Path) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let data_name = data
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+        let deadline = std::time::Instant::now() + Duration::from_secs(30);
+        while std::time::Instant::now() < deadline {
+            let listed = Command::new("lsof")
+                .args(["-n", "-P", "-Fn", "-p", &std::process::id().to_string()])
+                .output()
+                .expect("lsof runs");
+            let names = String::from_utf8_lossy(&listed.stdout);
+            let opens = names
+                .lines()
+                .filter(|line| {
+                    line.starts_with('n') && line.ends_with(".lock") && line.contains(&data_name)
+                })
+                .count();
+            if opens >= 2 {
+                return true;
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
+        false
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = data;
+        thread::sleep(Duration::from_millis(800));
+        true
+    }
 }

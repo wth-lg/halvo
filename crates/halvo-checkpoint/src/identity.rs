@@ -173,3 +173,50 @@ mod system {
         Err(io::Error::from(io::ErrorKind::Unsupported))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, UNIX_EPOCH};
+
+    fn id(stable: bool, index: u128, written: u64) -> FileId {
+        FileId {
+            volume: 1,
+            index,
+            stable,
+            len: 10,
+            times: (
+                Some(UNIX_EPOCH),
+                Some(UNIX_EPOCH + Duration::from_secs(written)),
+            ),
+        }
+    }
+
+    /// CP-134 H1 (the verifier's L15): on a volume whose file ids are not stable, one id with
+    /// other times is not the same file, so the check refuses rather than takes; on a volume
+    /// whose ids are stable the id decides alone; another id is never the same file.
+    #[test]
+    fn on_a_volume_without_stable_ids_one_id_with_other_times_is_not_the_same_file() {
+        assert!(
+            same_file(&id(true, 7, 1), &id(true, 7, 2)),
+            "a stable id decides alone"
+        );
+        assert!(
+            !same_file(&id(false, 7, 1), &id(false, 7, 2)),
+            "other times refuse"
+        );
+        assert!(
+            !same_file(&id(true, 7, 1), &id(false, 7, 2)),
+            "one unstable side refuses"
+        );
+        assert!(
+            same_file(&id(false, 7, 1), &id(false, 7, 1)),
+            "same id and times"
+        );
+        assert!(!same_file(&id(true, 7, 1), &id(true, 8, 1)), "another id");
+        assert!(
+            !same_file(&id(false, 7, 1), &id(false, 8, 1)),
+            "another id, same times"
+        );
+    }
+}

@@ -6,21 +6,56 @@
 use std::fs;
 use std::path::Path;
 
-/// The words that read or compare what names a file: the inode and the device, the times that
-/// the old check compared, the Windows file id and its calls, and a function of the old name.
-const WORDS: [&str; 11] = [
-    ".ino()",
-    ".dev()",
-    "creation_time()",
-    "last_write_time()",
-    ".mtime()",
+/// The functions and fields that read what names a file on the system, matched by their own
+/// name wherever it is called or named: as a method (`meta.ino()`), through the trait's path
+/// (`MetadataExt::ino(&meta)`) or as a value (`.map(MetadataExt::ino)`).
+const READS: [&str; 10] = [
+    "ino",
+    "dev",
+    "mtime",
+    "mtime_nsec",
+    "creation_time",
+    "last_write_time",
     "file_index",
     "volume_serial_number",
+    "st_ino",
+    "st_dev",
+];
+
+/// The Windows call and type of the file id, and a compare under the old name.
+const WORDS: [&str; 4] = [
     "GetFileInformationByHandle(",
     "FileIdInfo",
     "FILE_ID_INFO",
     "fn same_file",
 ];
+
+/// The names of `READS` that `text` calls or names: an identifier of the list that follows a
+/// `.` or a `::`, or that a `(` follows.
+fn reads(text: &str) -> Vec<&'static str> {
+    let bytes = text.as_bytes();
+    let word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+    let mut found = Vec::new();
+    let mut at = 0;
+    while at < bytes.len() {
+        if !word(bytes[at]) || (at > 0 && word(bytes[at - 1])) {
+            at += 1;
+            continue;
+        }
+        let end = (at..bytes.len())
+            .find(|&i| !word(bytes[i]))
+            .unwrap_or(bytes.len());
+        if let Some(name) = READS.iter().find(|name| **name == &text[at..end]) {
+            let before = text[..at].trim_end();
+            let after = text[end..].trim_start();
+            if before.ends_with('.') || before.ends_with("::") || after.starts_with('(') {
+                found.push(*name);
+            }
+        }
+        at = end;
+    }
+    found
+}
 
 fn sources(dir: &Path) -> Vec<(String, String)> {
     let mut found = Vec::new();
@@ -44,11 +79,15 @@ pub fn around(roots: &[&Path]) -> Vec<String> {
             if path.ends_with("identity.rs") {
                 continue;
             }
+            let name = Path::new(&path).file_name().unwrap_or_default();
+            let name = name.to_string_lossy();
             for word in WORDS {
                 if text.contains(word) {
-                    let name = Path::new(&path).file_name().unwrap_or_default();
-                    places.push(format!("{}: {word}", name.to_string_lossy()));
+                    places.push(format!("{name}: {word}"));
                 }
+            }
+            for read in reads(&text) {
+                places.push(format!("{name}: {read}"));
             }
         }
     }
@@ -74,4 +113,22 @@ fn no_source_of_either_crate_compares_two_files_outside_the_identity_module() {
     );
     let module = fs::read_to_string(here.join("src/identity.rs")).expect("read identity.rs");
     assert!(module.contains("pub fn same_file(a: &FileId, b: &FileId) -> bool"));
+}
+
+/// CP-134 H1: the scan sees a read written through the trait's path or named as a value, not
+/// only as a method, and passes a word of the list used as a plain name.
+#[test]
+fn the_scan_sees_a_read_through_the_traits_path_or_as_a_value() {
+    assert_eq!(reads("let a = meta.ino();"), vec!["ino"]);
+    assert_eq!(
+        reads("MetadataExt::ino(&a) == MetadataExt::ino(&b)"),
+        vec!["ino", "ino"]
+    );
+    assert_eq!(reads("metas.iter().map(MetadataExt::dev)"), vec!["dev"]);
+    assert_eq!(reads("creation_time (&m)"), vec!["creation_time"]);
+    assert_eq!(
+        reads("let (dev, inode) = id.numbers(); let ino = 3;"),
+        Vec::<&str>::new()
+    );
+    assert_eq!(reads("casino(1); device(2); stat.st_ino"), vec!["st_ino"]);
 }

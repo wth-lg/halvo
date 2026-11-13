@@ -548,6 +548,41 @@ mod tests {
     const SHEET: &str = "xl/worksheets/sheet1.xml";
     const RUN: &str = "0123456789abcdef0123456789abcdef";
 
+    /// CP-134 H1: the bound of the names holds both markers. For each length of the workbook's
+    /// name around the bound, `names_fit_for` answers as the longest name that the two crates
+    /// build: the checkpoint, the name that `remove` moves it to, and the prepared copy with the
+    /// longest part of its own. A marker that grows while the bound does not read its name makes
+    /// the two answers differ.
+    #[test]
+    fn the_bound_of_the_names_holds_the_checkpoint_the_removing_and_the_prepared_marker() {
+        let run = RunId::parse(RUN).expect("a run id");
+        let mut flips = Vec::new();
+        for units in 168..=180usize {
+            let workbook = PathBuf::from(format!("dir/{}.xlsx", "a".repeat(units - 5)));
+            let checkpoint = checkpoint_name(&workbook, &run).expect("a checkpoint name");
+            let removing = halvo_checkpoint::removing_name(&checkpoint, u64::MAX);
+            let prepared = prepared_name(&workbook, &run, &own_part(u64::MAX), &Sha256::of(&[]));
+            let longest = [
+                name_units(&checkpoint),
+                name_units(&removing),
+                name_units(prepared.file_name().expect("a name")),
+            ]
+            .into_iter()
+            .max()
+            .unwrap_or_default();
+            let fits = names_fit_for(&workbook, &run);
+            assert_eq!(
+                fits,
+                longest <= NAME_MAX,
+                "{units} units: longest {longest}"
+            );
+            if !fits {
+                flips.push(units);
+            }
+        }
+        assert_eq!(flips.first(), Some(&174), "the first length refused");
+    }
+
     fn names(dir: &Path) -> Vec<String> {
         let mut names: Vec<String> = fs::read_dir(dir)
             .expect("list")
