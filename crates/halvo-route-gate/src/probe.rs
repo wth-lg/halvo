@@ -247,18 +247,35 @@ mod tests {
         (after.0 - before.0, after.1 - before.1)
     }
 
+    struct Apart(());
+
+    const ON_THE_FIRST_THREAD: &str =
+        "the test runs on the process's first thread, whose calls the windows leave out";
+    const NO_FIRST_THREAD: &str = "no thread made a call of the allocator before the test began";
+
+    fn apart(first: usize, me: usize, first_calls: u64) -> Result<Apart, &'static str> {
+        if first_calls == 0 {
+            return Err(NO_FIRST_THREAD);
+        }
+        if me == first {
+            return Err(ON_THE_FIRST_THREAD);
+        }
+        Ok(Apart(()))
+    }
+
+    fn apart_from_the_harness(start: (u64, u64)) -> Apart {
+        match apart(FIRST_THREAD.load(Ordering::SeqCst), this_thread(), start.0) {
+            Ok(apart) => apart,
+            Err(why) => panic!("{why}"),
+        }
+    }
+
     struct Window {
         first: (u64, u64),
         others: (u64, u64),
     }
 
-    impl Window {
-        fn all(&self) -> (u64, u64) {
-            (self.first.0 + self.others.0, self.first.1 + self.others.1)
-        }
-    }
-
-    fn allocations<T>(work: impl FnOnce() -> T) -> (Window, T) {
+    fn allocations<T>(_: &Apart, work: impl FnOnce() -> T) -> (Window, T) {
         let before = (first_thread(), other_threads());
         let held = work();
         let after = (first_thread(), other_threads());
@@ -348,10 +365,11 @@ mod tests {
         if !in_a_child_alone("probe::tests::probe_allocates_nothing_per_round") {
             return;
         }
+        let apart = apart_from_the_harness(start);
         let data = Data::release();
         assert!(run(&data, 1).ok);
-        let one = allocations(|| run(&data, 1));
-        let many = allocations(|| run(&data, CHECK_ROUNDS));
+        let one = allocations(&apart, || run(&data, 1));
+        let many = allocations(&apart, || run(&data, CHECK_ROUNDS));
         print_windows(start, [("rounds=1", &one.0), ("rounds=many", &many.0)]);
         assert_eq!(
             (one.1, many.1),
@@ -366,7 +384,7 @@ mod tests {
                 }
             )
         );
-        assert_eq!(many.0.all(), one.0.all());
+        assert_eq!(many.0.others, one.0.others);
     }
 
     #[test]
@@ -440,8 +458,11 @@ mod tests {
         if !in_a_child_alone("probe::tests::the_count_sees_allocations_of_every_thread") {
             return;
         }
-        let (boxes, _) = allocations(|| std::hint::black_box(Box::new(1_u64)) == Box::new(1));
-        let (started, _) = allocations(|| {
+        let apart = apart_from_the_harness(start);
+        let (boxes, _) = allocations(&apart, || {
+            std::hint::black_box(Box::new(1_u64)) == Box::new(1)
+        });
+        let (started, _) = allocations(&apart, || {
             std::thread::scope(|scope| {
                 scope
                     .spawn(|| std::hint::black_box(vec![0_u8; 4096]))
@@ -449,9 +470,17 @@ mod tests {
             })
         });
         print_windows(start, [("boxes", &boxes), ("started", &started)]);
-        assert_eq!(boxes.all(), (2, 16));
-        let count = started.all();
+        assert_eq!(boxes.others, (2, 16));
+        let count = started.others;
         assert!(count.0 >= 1 && count.1 >= 4096, "{count:?}");
+    }
+
+    #[test]
+    fn a_window_leaves_out_only_a_first_thread_that_is_not_the_test() {
+        assert!(apart(7, 8, 1).is_ok());
+        assert_eq!(apart(7, 7, 1).err(), Some(ON_THE_FIRST_THREAD));
+        assert_eq!(apart(7, 8, 0).err(), Some(NO_FIRST_THREAD));
+        assert_eq!(apart(0, 8, 0).err(), Some(NO_FIRST_THREAD));
     }
 
     #[test]
