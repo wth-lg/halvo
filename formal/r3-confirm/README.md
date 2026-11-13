@@ -181,6 +181,12 @@ What the check does not see:
   change it; the check reads the file of the commit.
 - Each job fetches the jar twice, once for the check and once for its self-test.
 
+One trap of the two systems, which the check avoids: in the windows job's shell a failed
+redirection of the special built-in `:` (as in `: >file`) ends the shell itself, while on
+macOS it returns an error. The check truncates and creates files with `printf ''` and no
+special built-in of it takes a redirection, so a file that cannot be written ends it with a
+cause on both systems.
+
 ## The decision
 
 `Decide(aut, cls, allow, caps, ck)` is `decide_row(autonomy, class, allow, caps,
