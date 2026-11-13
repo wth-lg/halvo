@@ -1137,3 +1137,27 @@ fn reject_once_for_one_effect_and_allow_once_for_the_other_lets_the_allowed_one_
         "today's end of a run with a rejected effect; the end waits for a ruling (the review's D1)"
     );
 }
+
+fn is_confirm(frame: &FromRunner) -> bool {
+    matches!(frame, FromRunner::Confirm(_))
+}
+
+/// CP-166 E7: a cancel written before the person's `reject_once` reply is read when the answer has come, before the
+/// answer is applied: nothing leaves and the answer is not stored. The rule waits for a ruling: A6.2 names no read
+/// here and A5.1 (i) has the person's answer applied before any later load.
+#[test]
+fn a_cancel_before_a_reject_once_reply_is_read_before_the_answer_is_stored() {
+    let plan = Plan {
+        answer: Answer::RejectOnce,
+        cancel_before: Some(is_confirm),
+        ..Plan::plain()
+    };
+    let (record, released) = run(vec![delete("a", Source::Extract)], plan);
+    assert_eq!(released, 0);
+    assert_eq!(
+        record.states(),
+        [EffectState::Held],
+        "the answer is not stored; this rule waits for a ruling (A6.2, A5.1 (i))"
+    );
+    assert_eq!(record.done(), Some(Outcome::Declined));
+}
