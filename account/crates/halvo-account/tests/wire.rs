@@ -8,7 +8,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::io::{Seek, Write};
 use std::process::Stdio;
-use support::{helper, helper_with_stdin, keep_sign_in, scratch, store_at, Listener, Ran, Seen};
+use support::{helper, keep_sign_in, scratch, store_at, Listener, Ran, Seen};
 
 const TRANSPORT: &str = include_str!("../transport-headers.txt");
 
@@ -51,7 +51,11 @@ fn exchange(
     }
     let answering = Listener::new().answer(status, "", body);
     let origin = answering.origin.clone();
-    let ran = helper(words, &backend_and_store(&answering.origin, &dir));
+    let ran = helper(
+        words,
+        &backend_and_store(&answering.origin, &dir),
+        Stdio::null(),
+    );
     let seen = answering
         .seen()
         .unwrap_or_else(|| panic!("{words:?} sent nothing: {}", ran.stderr));
@@ -184,7 +188,11 @@ fn delete_removes_the_stored_sign_in_after_the_backend_deleted_the_account() {
     let dir = scratch("delete").join("store");
     keep_sign_in(&dir, &kept());
     let answering = Listener::new().answer(200, "", r#"{"result":"deleted"}"#);
-    let ran = helper(&["delete"], &backend_and_store(&answering.origin, &dir));
+    let ran = helper(
+        &["delete"],
+        &backend_and_store(&answering.origin, &dir),
+        Stdio::null(),
+    );
     assert!(answering.seen().is_some());
     assert_eq!(
         (ran.code, ran.stdout.as_str()),
@@ -202,6 +210,7 @@ fn subscribe_on_an_empty_store_stores_the_sign_in_that_it_sends() {
         let ran = helper(
             &["--print-url", "subscribe", "3", "week"],
             &backend_and_store(&answering.origin, &dir),
+            Stdio::null(),
         );
         let seen = answering.seen().expect("checkout start");
         assert_eq!((ran.code, ran.stdout.as_str()), (0, "result=unavailable\n"));
@@ -227,8 +236,8 @@ fn an_argument_outside_the_grammar_sends_nothing_and_stores_nothing() {
     for words in [
         &["status", "x"][..],
         &["--help"],
-        &["subscribe", "0", "week"],
-        &["subscribe", "5", "fortnight"],
+        &["--print-url", "subscribe", "0", "week"],
+        &["--print-url", "subscribe", "5", "fortnight"],
         &["canary-1f2e3d4c"],
         &["--print-url", "--print-url", "status"],
         &["delete", "--print-url"],
@@ -236,7 +245,11 @@ fn an_argument_outside_the_grammar_sends_nothing_and_stores_nothing() {
     ] {
         let dir = scratch("usage").join("store");
         let listener = Listener::new();
-        let ran = helper(words, &backend_and_store(&listener.origin(), &dir));
+        let ran = helper(
+            words,
+            &backend_and_store(&listener.origin(), &dir),
+            Stdio::null(),
+        );
         assert_eq!(
             (ran.code, ran.stdout.as_str()),
             (64, "error=usage\n"),
@@ -251,13 +264,18 @@ fn an_argument_outside_the_grammar_sends_nothing_and_stores_nothing() {
 fn without_the_store_directory_nothing_is_stored_read_or_sent() {
     let home = scratch("home");
     let listener = Listener::new();
-    for words in [&["subscribe", "5", "week"][..], &["status"], &["delete"]] {
+    for words in [
+        &["--print-url", "subscribe", "5", "week"][..],
+        &["status"],
+        &["delete"],
+    ] {
         let ran = helper(
             words,
             &[
                 ("HALVO_ACCOUNT_BACKEND", OsString::from(listener.origin())),
                 ("HOME", home.as_os_str().to_owned()),
             ],
+            Stdio::null(),
         );
         assert_eq!(
             (ran.code, ran.stdout.as_str()),
@@ -277,6 +295,7 @@ fn without_a_backend_by_address_nothing_is_sent() {
     let ran = helper(
         &["status"],
         &[("HALVO_ACCOUNT_STORE_DIR", dir.as_os_str().to_owned())],
+        Stdio::null(),
     );
     assert_eq!((ran.code, ran.stdout.as_str()), (5, "error=no-backend\n"));
     for origin in [
@@ -284,7 +303,11 @@ fn without_a_backend_by_address_nothing_is_sent() {
         format!("http://127.0.0.1:{}/", listener.port),
         format!("http://127.0.0.1:{}/v1", listener.port),
     ] {
-        let ran = helper(&["status"], &backend_and_store(&origin, &dir));
+        let ran = helper(
+            &["status"],
+            &backend_and_store(&origin, &dir),
+            Stdio::null(),
+        );
         assert_eq!(
             (ran.code, ran.stdout.as_str()),
             (5, "error=bad-backend\n"),
@@ -302,10 +325,14 @@ fn with_an_empty_store_the_binary_sends_nothing() {
         &["status"][..],
         &["cap"],
         &["set-cap", "1", "week"],
-        &["manage"],
+        &["--print-url", "manage"],
         &["delete"],
     ] {
-        let ran = helper(words, &backend_and_store(&listener.origin(), &dir));
+        let ran = helper(
+            words,
+            &backend_and_store(&listener.origin(), &dir),
+            Stdio::null(),
+        );
         assert_eq!(
             (ran.code, ran.stdout.as_str()),
             (3, "error=no-credential\n"),
@@ -325,7 +352,7 @@ fn standard_input_is_not_read() {
         .expect("an input file");
     let mut input = fs::File::open(&input_path).expect("the input file");
     let answering = Listener::new().answer(200, "", r#"{"result":"active"}"#);
-    let ran = helper_with_stdin(
+    let ran = helper(
         &["status"],
         &backend_and_store(&answering.origin, &dir),
         Stdio::from(input.try_clone().expect("a second handle")),
@@ -352,7 +379,7 @@ fn the_proxy_variables_are_not_read() {
     ] {
         set.push((name, OsString::from(proxy.origin())));
     }
-    let ran = helper(&["status"], &set);
+    let ran = helper(&["status"], &set, Stdio::null());
     assert!(answering.seen().is_some());
     assert_eq!((ran.code, ran.stdout.as_str()), (0, "result=active\n"));
     assert!(!proxy.was_reached());
@@ -365,7 +392,11 @@ fn a_redirect_is_not_followed() {
     let elsewhere = Listener::new();
     let location = format!("location: {}/v1/subscription\r\n", elsewhere.origin());
     let answering = Listener::new().answer(302, &location, r#"{"result":"active"}"#);
-    let ran = helper(&["status"], &backend_and_store(&answering.origin, &dir));
+    let ran = helper(
+        &["status"],
+        &backend_and_store(&answering.origin, &dir),
+        Stdio::null(),
+    );
     assert!(answering.seen().is_some());
     assert_eq!((ran.code, ran.stdout.as_str()), (1, "error=failed-call\n"));
     assert!(!elsewhere.was_reached());
@@ -382,7 +413,11 @@ fn a_body_longer_than_the_limit_is_no_answer() {
         keep_sign_in(&dir, &kept());
         let body = format!("{answer}{}", " ".repeat(length - answer.len()));
         let answering = Listener::new().answer(200, "", &body);
-        let ran = helper(&["status"], &backend_and_store(&answering.origin, &dir));
+        let ran = helper(
+            &["status"],
+            &backend_and_store(&answering.origin, &dir),
+            Stdio::null(),
+        );
         assert!(answering.seen().is_some());
         assert_eq!((ran.code, ran.stdout.as_str()), (code, line), "{length}");
     }
@@ -393,7 +428,11 @@ fn a_failed_call_says_so_on_standard_error_and_keeps_the_sign_in() {
     let dir = scratch("failed").join("store");
     keep_sign_in(&dir, &kept());
     let answering = Listener::new().answer(500, "", "");
-    let ran = helper(&["delete"], &backend_and_store(&answering.origin, &dir));
+    let ran = helper(
+        &["delete"],
+        &backend_and_store(&answering.origin, &dir),
+        Stdio::null(),
+    );
     assert!(answering.seen().is_some());
     assert_eq!((ran.code, ran.stdout.as_str()), (1, "error=failed-call\n"));
     assert!(ran.stderr.starts_with("halvo-account: the call failed"));
@@ -415,7 +454,11 @@ fn a_run_sends_one_request_also_after_a_redirect_to_the_same_origin_or_a_server_
             .map(|path| format!("location: {}{path}\r\n", listener.origin()))
             .unwrap_or_default();
         let counting = listener.answer_each(status, &extra, r#"{"result":"active"}"#);
-        let ran = helper(&["status"], &backend_and_store(&counting.origin, &dir));
+        let ran = helper(
+            &["status"],
+            &backend_and_store(&counting.origin, &dir),
+            Stdio::null(),
+        );
         let seen = counting.seen_all();
         assert_eq!(
             (ran.code, ran.stdout.as_str()),
@@ -459,7 +502,11 @@ fn the_client_offers_tls_1_3_alone() {
     let listener = Listener::new();
     let origin = format!("https://127.0.0.1:{}", listener.port);
     let hello = listener.first_record();
-    let ran = helper(&["status"], &backend_and_store(&origin, &dir));
+    let ran = helper(
+        &["status"],
+        &backend_and_store(&origin, &dir),
+        Stdio::null(),
+    );
     let record = hello
         .join()
         .expect("the listener thread")

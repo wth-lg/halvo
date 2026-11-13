@@ -227,11 +227,19 @@ pub struct Ran {
     pub stderr: String,
 }
 
-pub fn helper(args: &[&str], set: &[(&str, OsString)]) -> Ran {
-    helper_with_stdin(args, set, Stdio::null())
-}
-
-pub fn helper_with_stdin(args: &[&str], set: &[(&str, OsString)], stdin: Stdio) -> Ran {
+/// Starts the built binary with `args`, the variables of `CLEARED` removed, `set` set and
+/// `stdin` as its standard input: the one function of the tests that starts it. It refuses
+/// words that name `subscribe` or `manage` unless `--print-url` comes first, so that no test
+/// run can open a page in the browser of the machine that runs the tests: no test hands a
+/// page to the built binary.
+pub fn helper(args: &[&str], set: &[(&str, OsString)], stdin: Stdio) -> Ran {
+    let opens = args
+        .iter()
+        .any(|word| *word == "subscribe" || *word == "manage");
+    assert!(
+        !opens || args.first() == Some(&"--print-url"),
+        "a test run of the built binary names subscribe or manage without --print-url first: {args:?}"
+    );
     let mut command = Command::new(env!("CARGO_BIN_EXE_halvo-account"));
     command.args(args).stdin(stdin);
     for name in CLEARED {
