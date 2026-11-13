@@ -636,6 +636,9 @@ class World {
       if (account.reactivateEventsSent > 0) account.cancelsAfterAReactivation += 1;
       const endedAt = this.meter.endSubscription(account.id, this.now);
       const first = Math.max(endedAt * 1000, account.lastProviderTime + 1000);
+      if (first <= account.lastProviderTime) {
+        this.fail("the provider stamps a cancel before an event it sent earlier", `${account.id}: cancel at ${first}, an earlier event at ${account.lastProviderTime}`);
+      }
       const stated = this.subscriptionEvent(account, { state: "cancelled", providerTime: first, endedAt: endedAt * 1000 });
       if (form === "stated" || lagSeconds <= 0) {
         this.cancelArrives(account, stated);
