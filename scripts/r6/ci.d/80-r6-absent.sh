@@ -123,19 +123,14 @@ data_plan() {
       n = split(subjects, word, " ")
       for (i = 1; i <= n; i++) print word[i], "odd", "-"
     }
-    function quoted(name,    plain, place, rest, part) {
-      plain = name
-      gsub(/\\\\|\\"/, "", plain)
-      if (index(plain, "\\") == 0) return
+    function quoted(name,    place, rest, part) {
       for (place in watched) {
         if (place == "") rest = name
         else if (index(name, place "/") == 1) rest = substr(name, length(place) + 2)
         else continue
         part = rest
         if (place != "scripts/r6/egress") sub(/\/.*/, "", part)
-        plain = part
-        gsub(/\\\\|\\"/, "", plain)
-        if (index(plain, "\\") > 0) odd(watched[place])
+        if (index(part, "\\") > 0) odd(watched[place])
       }
     }
     {
@@ -143,8 +138,9 @@ data_plan() {
       regular = (field[1] == "100644" || field[1] == "100755") && field[2] == "blob"
       path = $2
       if (path ~ /^"/) {
-        quoted(substr(path, 2, length(path) - 2))
-        next
+        path = substr(path, 2, length(path) - 2)
+        quoted(path)
+        regular = 0
       }
       if (path in subject) {
         if (regular) print subject[path], "blob", field[3]
@@ -788,12 +784,52 @@ fixture_fail() {
   exit 1
 }
 
+data_tree() {
+  awk -F "$tab" '
+    {
+      split($1, field, " ")
+      n = split($2, part, "/")
+      parent = "."
+      for (i = 1; i < n; i++) {
+        child = (parent == "." ? part[i] : parent "/" part[i])
+        if (!(child in seen)) {
+          seen[child] = 1
+          print i, child, parent, part[i] > dirs
+        }
+        parent = child
+      }
+      print parent "\t" field[1] " " (field[1] == "160000" ? "commit" : "blob") " " field[2] "\t" part[n]
+    }
+  ' dirs="$work/d/dirs-$label" "$1" >"$work/d/children-$label" || return 1
+  sort -rn "$work/d/dirs-$label" >"$work/d/order-$label" || return 1
+  printf '0 . - -\n' >>"$work/d/order-$label" || return 1
+  while read -r _ dir parent base; do
+    : >"$work/d/records-$label" || return 1
+    while IFS= read -r child; do
+      [ "${child%%"$tab"*}" = "$dir" ] || continue
+      printf '%s\000' "${child#*"$tab"}" >>"$work/d/records-$label" || return 1
+    done <"$work/d/children-$label"
+    built=$(git -C "$data" mktree -z <"$work/d/records-$label") || return 1
+    [ "$dir" = . ] || printf '%s\t040000 tree %s\t%s\n' "$parent" "$built" "$base" >>"$work/d/children-$label" || return 1
+  done <"$work/d/order-$label"
+  printf '%s\n' "$built"
+}
+
 data_case() {
   label=$1
   want=$2
-  printf '%b\n' "$3" >"$work/d/lines-$label" || fixture_fail
-  GIT_INDEX_FILE=$work/d/index-$label git -C "$data" update-index --add --index-info <"$work/d/lines-$label" || fixture_fail
-  tree=$(GIT_INDEX_FILE=$work/d/index-$label git -C "$data" write-tree) || fixture_fail
+  printf '%b\n' "$3" >"$work/d/text-$label" || fixture_fail
+  : >"$work/d/lines-$label" || fixture_fail
+  while IFS= read -r entry; do
+    printf '%s\000' "$entry" >>"$work/d/lines-$label" || fixture_fail
+  done <"$work/d/text-$label"
+  if GIT_INDEX_FILE=$work/d/index-$label git -C "$data" update-index -z --add --index-info <"$work/d/lines-$label" 2>"$work/d/refused-$label"; then
+    tree=$(GIT_INDEX_FILE=$work/d/index-$label git -C "$data" write-tree) || fixture_fail
+  else
+    IFS= read -r refused <"$work/d/refused-$label" || refused=
+    printf 'case %s/data-%s git refused the index: %s\n' "$name" "$label" "$refused"
+    tree=$(data_tree "$work/d/text-$label") || fixture_fail
+  fi
   out=$(
     cd "$data" || exit 2
     commit=$tree
@@ -805,6 +841,15 @@ data_case() {
       export R6_FAIL_ON PATH
     fi
     count_data
+    case $label in
+      (quoted-*)
+        while IFS= read -r listed_line; do
+          case $listed_line in
+            (*"$tab\""*) printf 'listing %s\n' "$listed_line" ;;
+          esac
+        done <"$scratch/listing.txt"
+        ;;
+    esac
     cause=
     [ "$ruling" = none ] || cause=ruling
     [ "$picks" = 0 ] || cause=${cause:-picks}
@@ -816,6 +861,17 @@ data_case() {
   got=${out##*"$newline"}
   case $got in
     "FAIL $name (setup)") got=setup ;;
+  esac
+  case $label in
+    quoted-*)
+      while IFS= read -r shown; do
+        case $shown in
+          listing*) printf 'case %s/data-%s %s\n' "$name" "$label" "$shown" ;;
+        esac
+      done <<EOF
+$out
+EOF
+      ;;
   esac
   if [ "$want" = PASS ]; then
     verdict "data-$label" "$want" "$got" passing
@@ -878,6 +934,11 @@ EOF
   data_case c3-scripts-r6-as-a-link entries "$base\n120000 $o_other_link${t}scripts/r6\n100644 $o_entry${t}scripts/other/egress/gate.txt"
   data_case d5-egress-in-another-letter-case entries "$base\n100644 $o_entry${t}scripts/r6/Egress/gate.txt"
   data_case h41-headings-in-another-letter-case entries "$base\n100644 $o_headings${t}scripts/r6/Egress/extra.txt"
+  data_case quoted-a-egress-name-with-a-double-quote entries "$base\n100644 $o_entry${t}$egress_dir/list\"2.txt"
+  data_case quoted-b-egress-name-with-a-backslash entries "$base\n100644 $o_entry${t}$egress_dir/back\\\\slash.txt"
+  data_case quoted-c-egress-in-another-letter-case entries "$base\n100644 $o_entry${t}scripts/r6/Egress/a\"b.txt"
+  data_case quoted-d-only-list-starts-with-a-double-quote entries "$base\n100644 $o_entry${t}$egress_dir/\"gate.txt"
+  data_case quoted-e-headings-alone-under-a-quoted-name entries "$base\n100644 $o_headings${t}$egress_dir/list\"2.txt"
   data_case name-outside-ascii-in-outcomes rows "$base\n100644 $o_header${t}$outcomes/record\0303\0251d.tsv"
   data_case name-outside-ascii-beside-docs ruling "$base\n100644 $o_header${t}d\0303\0266cs/r6/outcomes/recorded.tsv"
   data_case ruling-as-a-link ruling "120000 $o_ruling_link${t}crates/halvo-route/data/ruling.txt\n$policy_line"
