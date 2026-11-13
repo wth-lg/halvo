@@ -150,6 +150,8 @@ function stopServer(s) {
 
 const GONE_MS = 5000;
 const UNIX = process.platform !== 'win32';
+const CASES_UNIX = 187;
+const CASES_WINDOWS = 185;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -312,7 +314,7 @@ async function lifetimeCases() {
   });
 
   if (process.platform !== 'win32') {
-    await run('lifetime-fifo-input', async (c) => {
+    await run('lifetime-anonymous-pipe-behind-sh', async (c) => {
       const s = await startServer(HERE, ['--port', '0'], { throughShellPipe: true });
       try {
         if (!c.ok(s.child !== null, 'server_started')) return;
@@ -1477,9 +1479,11 @@ async function main() {
     if (c.misses.length === 0) ok += 1;
     else for (const m of c.misses) process.stdout.write(`miss case=${c.name} check=${m}\n`);
   }
+  const named = UNIX ? CASES_UNIX : CASES_WINDOWS;
+  if (cases.length !== named) process.stdout.write(`miss case=harness check=cases_ran_${cases.length}_named_${named}\n`);
   process.stdout.write(`fixture self-test: ${ok} of ${cases.length} ok\n`);
   process.stdout.write(`fixture state_changing_by_get=${getChanges}\n`);
-  process.exit(ok === cases.length && getChanges === 0 ? 0 : 1);
+  process.exit(ok === cases.length && cases.length === named && getChanges === 0 ? 0 : 1);
 }
 
 main();
