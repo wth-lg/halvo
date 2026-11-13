@@ -56,6 +56,30 @@ pub struct EngineSite {
 
 pub type GuardInstall<R> = fn(&WebviewWindow<R>, EngineSite, Sender<GuardAnswer>);
 
+/// Installs every engine means of the window main and answers once on `answer`:
+/// `GuardInstalled` only when each means answered Ok, an error otherwise, and no
+/// answer when the runtime drops the closure of with_webview, which the receiver
+/// reads as a closed channel. On Windows the means are a handler of every resource
+/// request that refuses each address but the two of `REQUEST_HOSTS`, and the two
+/// navigation handlers, beside `app::ENGINE_ARGS` at creation; on macOS the
+/// navigation delegate in front of wry's, the data store's proxy at no address,
+/// and the content rule list `RULE_LIST`, compiled into `site.rules_dir`.
+///
+/// Hosted run 43512109011, with every means in: on Windows (job 132184675643)
+/// the window opened 0 connections, sent 0 requests and made 0 lookups for every
+/// step of ruling AP-9's list whose control reached the job's listeners, but a
+/// peer connection to an address in numbers sent 5 datagrams (log line 6158;
+/// with no layer 5). On macOS (job 132184676476) the same held, but a link
+/// clicked by script, a link with a target and a download link, each to an
+/// address in numbers, opened 1 connection with 0 requests and 0 lookups (log
+/// lines 7339, 7354 and 7444; with no layer 1 each), and a peer connection sent
+/// 4 datagrams to an address in numbers, 4 to a hosts-file name and 3 to a
+/// resolver name after 2 lookups of that name (log lines 7534, 7539 and 7544;
+/// with no layer the same). Of frames on macOS the run shows this alone: a
+/// frame of each of the three addresses opened 0 connections with these means in
+/// and the content policy and the runtime's rule out (log lines 7416, 7421 and
+/// 7426; with no layer 1 each), and 0 with these means out and the content
+/// policy in (log lines 7415, 7420 and 7425).
 pub fn guard<R: Runtime>(window: &WebviewWindow<R>, site: EngineSite, answer: Sender<GuardAnswer>) {
     let unreached = answer.clone();
     let asked = window.with_webview(move |webview| platform::install(&webview, &site, answer));
