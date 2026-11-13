@@ -12,7 +12,8 @@ use halvo_coord::types::{
 use halvo_coord::Coordinator;
 use serde::{Serialize, Serializer};
 use serde_json::Value;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
 /// A reply of a command (I8.1), written as the page's fixtures write it (I8.3).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -50,6 +51,27 @@ impl From<Result<(), Cause>> for Reply {
     }
 }
 
+/// The waits of the waiting call (I8.2): the longest wait of one `agents_next`, after which it
+/// answers the old `seq` with empty lists, and the time inside which changes reach the page as
+/// one reply, which is also the least time between two replies that carry a state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Waits {
+    /// `next_wait_s`.
+    pub next: Duration,
+    /// `coalesce_ms`.
+    pub coalesce: Duration,
+}
+
+impl Waits {
+    /// The waits of `limits`.
+    pub fn of(limits: &Limits) -> Waits {
+        Waits {
+            next: Duration::from_secs(limits.next_wait_s),
+            coalesce: Duration::from_millis(limits.coalesce_ms),
+        }
+    }
+}
+
 /// The hub's side that the app, the shell and the Tauri handler call, with no type of the
 /// ports in it.
 pub trait Core: Send + Sync {
@@ -57,6 +79,16 @@ pub trait Core: Send + Sync {
     /// none when the call's body is no JSON; the reply of every refusal is
     /// `{"error":"<cause>"}`, so the call never fails.
     fn call(&self, command: &str, args: Option<&Value>) -> Reply;
+
+    /// The hook of the window `main` shown: from now on `agents_next` waits again.
+    fn shown(&self);
+
+    /// The hook of the window `main` hidden: every waiting `agents_next` answers
+    /// `{"closed":"yes"}`, and so does each one until the window is shown again.
+    fn hidden(&self);
+
+    /// The hook of the window `main` destroyed, which answers as `hidden` does.
+    fn destroyed(&self);
 }
 
 /// The value that the app manages for the handler: the hub behind `Core`.
@@ -69,6 +101,9 @@ type Cfg<P> = <P as Owner>::Config;
 /// of the waiting call.
 pub struct Hub<P: Owner> {
     coord: Coordinator<Wired<P>>,
+    bell: Arc<Bell>,
+    waits: Waits,
+    replied: Mutex<Option<Instant>>,
 }
 
 impl<P> Hub<P>
@@ -77,11 +112,24 @@ where
     Cfg<P>: ConfigView + Clone + Send + 'static,
 {
     /// A hub of a new life over `ports` and `limits`, whose count of agents under `needs_you`
-    /// goes to `tray`.
+    /// goes to `tray`, with the waits of `limits`.
     pub fn new(ports: P, limits: Limits, tray: Box<dyn Fn(u32) + Send + Sync>) -> Arc<Hub<P>> {
+        Hub::with_waits(ports, limits, tray, Waits::of(&limits))
+    }
+
+    /// The same with other waits.
+    pub fn with_waits(
+        ports: P,
+        limits: Limits,
+        tray: Box<dyn Fn(u32) + Send + Sync>,
+        waits: Waits,
+    ) -> Arc<Hub<P>> {
         let bell = Arc::new(Bell::new(tray));
         Arc::new(Hub {
-            coord: Coordinator::new(Wired::new(ports, bell), limits),
+            coord: Coordinator::new(Wired::new(ports, bell.clone()), limits),
+            bell,
+            waits,
+            replied: Mutex::new(None),
         })
     }
 
@@ -136,10 +184,43 @@ where
     }
 
     fn next(&self, after: u32) -> Reply {
-        match self.coord.next(after) {
-            Next::Changed(state) => Reply::Snapshot(state),
-            Next::Same => Reply::Snapshot(self.coord.same()),
+        let entry = self.bell.mark();
+        let deadline = Instant::now() + self.waits.next;
+        let mut seen = entry;
+        let mut due: Option<Instant> = None;
+        let mut first = true;
+        loop {
+            if !seen.shown || seen.closes != entry.closes {
+                return Reply::Closed;
+            }
+            let now = Instant::now();
+            if due.is_none() && self.coord.next(after) != Next::Same {
+                let from = if first {
+                    now
+                } else {
+                    now + self.waits.coalesce
+                };
+                let rest = self.last_reply().map(|t| t + self.waits.coalesce);
+                due = Some(rest.map_or(from, |r| r.max(from)));
+            }
+            first = false;
+            match due {
+                Some(at) if now >= at => {
+                    if let Next::Changed(state) = self.coord.next(after) {
+                        *self.replied.lock().unwrap_or_else(PoisonError::into_inner) = Some(now);
+                        return Reply::Snapshot(state);
+                    }
+                    due = None;
+                }
+                None if now >= deadline => return Reply::Snapshot(self.coord.same()),
+                _ => {}
+            }
+            seen = self.bell.wait(seen, due.unwrap_or(deadline));
         }
+    }
+
+    fn last_reply(&self) -> Option<Instant> {
+        *self.replied.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
@@ -158,5 +239,17 @@ where
                 .unwrap_or(Reply::Error(Cause::Malformed)),
             Err(cause) => Reply::Error(cause),
         }
+    }
+
+    fn shown(&self) {
+        self.bell.show();
+    }
+
+    fn hidden(&self) {
+        self.bell.close();
+    }
+
+    fn destroyed(&self) {
+        self.bell.close();
     }
 }

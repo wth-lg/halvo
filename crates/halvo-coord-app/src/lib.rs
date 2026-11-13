@@ -8,9 +8,11 @@ mod args;
 mod bell;
 mod handler;
 mod hub;
+mod window;
 mod wired;
 
 pub use bell::Bell;
 pub use handler::{handler, MAIN, REFUSED};
-pub use hub::{Agents, Core, Hub, Reply};
+pub use hub::{Agents, Core, Hub, Reply, Waits};
+pub use window::{on_window_event, Close, CLOSE};
 pub use wired::Wired;
