@@ -89,6 +89,7 @@ function capOf(row: Row): Cap {
 
 function isNewer(event: Standing, stored: Standing): boolean {
   if (event.providerTime === null) return broken();
+  if ((event.state === "cancelled") !== (stored.state === "cancelled")) return event.state === "cancelled";
   if (stored.providerTime === null) return true;
   if (event.providerTime !== stored.providerTime) return event.providerTime > stored.providerTime;
   if (event.state !== stored.state) return RANK[event.state] > RANK[stored.state];

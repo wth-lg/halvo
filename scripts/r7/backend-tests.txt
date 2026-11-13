@@ -57,3 +57,4 @@ test/metering/stripe-meter-load.node.test.ts	2
 test/metering/stripe-meter.node.test.ts	31
 test/metering/sync.node.test.ts	21
 test/placeholder.test.ts	1
+test/metering/cancel-final.node.test.ts	16
