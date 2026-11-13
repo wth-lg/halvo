@@ -1,7 +1,7 @@
 use halvo_account::answer::{Fault, Unread};
 use halvo_account::grammar::Usage;
 use halvo_account::origin::{page_url, Pages};
-use halvo_account::outcome::{Answer, EnvironmentFault, Failure, Outcome, StoreFault};
+use halvo_account::outcome::{Answer, EnvironmentFault, Failure, KeptFault, Outcome, StoreFault};
 use halvo_wire::types::Period;
 use std::collections::BTreeSet;
 
@@ -106,7 +106,7 @@ fn table() -> Vec<(Outcome, u8, String, &'static str)> {
             Outcome::Store(StoreFault::Locked),
             4,
             "error=store-locked".into(),
-            "cannot be used",
+            "refused the sign-in",
         ),
         (
             Outcome::Store(StoreFault::Fault),
@@ -135,11 +135,38 @@ fn table() -> Vec<(Outcome, u8, String, &'static str)> {
         (
             Outcome::Kept {
                 result: "deleted".into(),
-                fault: StoreFault::Locked,
+                fault: KeptFault::Locked,
             },
             4,
             "result=deleted credential=kept error=store-locked".into(),
-            "could not be removed",
+            "what it holds was kept",
+        ),
+        (
+            Outcome::Kept {
+                result: "no-such-account".into(),
+                fault: KeptFault::Fault,
+            },
+            4,
+            "result=no-such-account credential=kept error=store-fault".into(),
+            "whether a sign-in is still stored is not known",
+        ),
+        (
+            Outcome::Kept {
+                result: "deleted".into(),
+                fault: KeptFault::Unreadable,
+            },
+            4,
+            "result=deleted credential=kept error=store-unreadable".into(),
+            "an item that is no sign-in of this helper; it was kept",
+        ),
+        (
+            Outcome::Kept {
+                result: "deleted".into(),
+                fault: KeptFault::Changed,
+            },
+            4,
+            "result=deleted credential=kept error=store-changed".into(),
+            "a sign-in that this run did not send; it was kept",
         ),
         (
             Outcome::Environment(EnvironmentFault::NoBackend),

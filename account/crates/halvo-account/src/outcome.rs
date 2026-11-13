@@ -8,11 +8,12 @@ use halvo_wire::types::Period;
 ///
 /// | code | kind | line |
 /// |---|---|---|
-/// | 0 | the backend answered with a result of the route | `result=R`, with more pairs for some results |
+/// | 0 | the backend answered with a result of the route | `result=R`, with more pairs for some results; after `delete` it is `result=R credential=removed` or `result=R credential=kept` |
 /// | 1 | a failed call: no answer, an answer that was not read, or a page outside the list | `error=failed-call` |
 /// | 2 | the backend rejected the request | `error=rejected` |
 /// | 3 | no credential is stored, and nothing was sent | `error=no-credential` |
-/// | 4 | the store cannot be used, and nothing was sent; or a delete that the backend answered and that left the credential in place | `error=store-...`, or `result=R credential=kept error=store-...` |
+/// | 4 | the store cannot be used, and nothing was sent | `error=store-locked`, `error=store-fault`, `error=store-unreadable`, `error=store-changed` or `error=no-random` |
+/// | 4 | the backend answered `deleted` or `no-such-account`, and the stored item stays: at the second read or at the delete the store answered `Locked` or failed, or the second read found a sign-in that this run did not send or an item of another form | `result=R credential=kept error=store-locked`, `result=R credential=kept error=store-fault`, `result=R credential=kept error=store-changed` or `result=R credential=kept error=store-unreadable` |
 /// | 5 | a debug build lacks a usable `HALVO_ACCOUNT_BACKEND` or `HALVO_ACCOUNT_STORE_DIR`, and nothing was sent | `error=no-backend`, `error=bad-backend`, `error=no-store-directory` or `error=bad-store-directory` |
 /// | 6 | the page that the backend answered could not be opened | `result=R error=not-opened` |
 /// | 64 | the arguments are outside the grammar, and nothing was sent | `error=usage` |
@@ -23,7 +24,7 @@ pub enum Outcome {
     Rejected,
     NoCredential,
     Store(StoreFault),
-    Kept { result: String, fault: StoreFault },
+    Kept { result: String, fault: KeptFault },
     Environment(EnvironmentFault),
     NotOpened { result: String },
     Usage(Usage),
@@ -35,6 +36,9 @@ pub enum Answer {
     /// `result=R`.
     Result(String),
     /// `result=R`, and `url=URL` when `--print-url` asked for it; without it the page was opened.
+    /// No test of this crate hands a page to the built binary: each test run of it that names
+    /// `subscribe` or `manage` passes `--print-url` first, and the one function of the tests
+    /// that starts it refuses a run that does not.
     Page {
         result: String,
         printed: Option<PageUrl>,
@@ -77,6 +81,21 @@ pub enum StoreFault {
     NoRandom,
 }
 
+/// Why a delete that the backend answered with `deleted` or `no-such-account` left the stored
+/// item in place. `delete` reads the store a second time after the answer and removes the item
+/// only when it holds the sign-in that this run sent.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KeptFault {
+    /// The store answered `Locked` to the second read or to the delete.
+    Locked,
+    /// The system failed at the second read or at the delete.
+    Fault,
+    /// The second read found an item that is no sign-in of this helper.
+    Unreadable,
+    /// The second read found a sign-in that this run did not send.
+    Changed,
+}
+
 /// Why a debug build cannot reach its backend or its store.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EnvironmentFault {
@@ -96,6 +115,17 @@ impl StoreFault {
             StoreFault::Unreadable => "store-unreadable",
             StoreFault::Changed => "store-changed",
             StoreFault::NoRandom => "no-random",
+        }
+    }
+}
+
+impl KeptFault {
+    fn word(self) -> &'static str {
+        match self {
+            KeptFault::Locked => StoreFault::Locked.word(),
+            KeptFault::Fault => StoreFault::Fault.word(),
+            KeptFault::Unreadable => StoreFault::Unreadable.word(),
+            KeptFault::Changed => StoreFault::Changed.word(),
         }
     }
 }
@@ -172,12 +202,15 @@ impl Outcome {
             Outcome::Failed(Failure::PageRefused) => "the call failed: the page is not on the list of origins that this build opens; nothing was opened",
             Outcome::Rejected => "the backend rejected the request; nothing more was sent",
             Outcome::NoCredential => "no credential is stored; nothing was sent",
-            Outcome::Store(StoreFault::Locked) => "the stored sign-in cannot be used; nothing was sent and nothing was stored",
+            Outcome::Store(StoreFault::Locked) => "the store answered locked and refused the sign-in; nothing was sent and nothing was stored",
             Outcome::Store(StoreFault::Fault) => "the store failed; whether a sign-in is stored is not known; nothing was sent",
             Outcome::Store(StoreFault::Unreadable) => "the store holds something that is no sign-in of this helper; nothing was sent",
             Outcome::Store(StoreFault::Changed) => "a sign-in was stored by another run; nothing was sent",
             Outcome::Store(StoreFault::NoRandom) => "the system gave no random bytes; nothing was stored and nothing was sent",
-            Outcome::Kept { .. } => "the backend answered, and the credential could not be removed",
+            Outcome::Kept { fault: KeptFault::Locked, .. } => "the backend answered, and the store answered locked; what it holds was kept",
+            Outcome::Kept { fault: KeptFault::Fault, .. } => "the backend answered, and the store failed; whether a sign-in is still stored is not known",
+            Outcome::Kept { fault: KeptFault::Unreadable, .. } => "the backend answered, and the store now holds an item that is no sign-in of this helper; it was kept",
+            Outcome::Kept { fault: KeptFault::Changed, .. } => "the backend answered, and the store now holds a sign-in that this run did not send; it was kept",
             Outcome::Environment(EnvironmentFault::NoBackend) => "HALVO_ACCOUNT_BACKEND is unset; nothing was sent",
             Outcome::Environment(EnvironmentFault::BadBackend) => "HALVO_ACCOUNT_BACKEND is no origin by address, such as http://127.0.0.1:8787; nothing was sent",
             Outcome::Environment(EnvironmentFault::NoStoreDirectory) => "HALVO_ACCOUNT_STORE_DIR is unset; nothing was stored, read or sent",

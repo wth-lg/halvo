@@ -4,7 +4,7 @@ use halvo_account::flow::{
 };
 use halvo_account::grammar::{parse, Build};
 use halvo_account::origin::{PageUrl, Pages};
-use halvo_account::outcome::Outcome;
+use halvo_account::outcome::{Failure, Outcome};
 use halvo_account::sign_in::SignIn;
 use halvo_secrets::{Delete, Fault, Locked, Read, Secret, Write};
 use halvo_wire::request::Request;
@@ -32,6 +32,18 @@ enum Mode {
     Fault,
 }
 
+/// What the store does once the request is sent: what a second run's delete, or a third run's
+/// subscribe, does while the answer is on its way.
+#[derive(Clone)]
+enum After {
+    /// The store holds these bytes.
+    Holds(Vec<u8>),
+    /// The store holds nothing.
+    Empty,
+    /// Each read answers in this mode.
+    Reads(Mode),
+}
+
 #[derive(Debug, PartialEq)]
 struct Sent {
     method: String,
@@ -46,6 +58,7 @@ struct World {
     read_mode: Mode,
     write_mode: Mode,
     delete_mode: Mode,
+    after_send: Option<After>,
     replies: RefCell<VecDeque<Result<Reply, NoAnswer>>>,
     sent: RefCell<Vec<Sent>>,
     opened: RefCell<Vec<String>>,
@@ -61,6 +74,7 @@ impl World {
             read_mode: Mode::Normal,
             write_mode: Mode::Normal,
             delete_mode: Mode::Normal,
+            after_send: None,
             replies: RefCell::new(VecDeque::new()),
             sent: RefCell::new(Vec::new()),
             opened: RefCell::new(Vec::new()),
@@ -122,8 +136,12 @@ impl World {
 
 impl Keep for World {
     fn read(&self) -> Read {
+        let mode = match &self.after_send {
+            Some(After::Reads(mode)) if self.log.borrow().contains(&"send") => *mode,
+            _ => self.read_mode,
+        };
         self.log.borrow_mut().push("read");
-        match self.read_mode {
+        match mode {
             Mode::Locked => Read::Locked(Locked::Mode),
             Mode::Fault => Read::Fault(Fault { code: 5 }),
             _ => match self.stored.borrow().as_ref() {
@@ -176,6 +194,11 @@ impl Transport for World {
                 .collect(),
             body: request.body().map(<[u8]>::to_vec),
         });
+        match &self.after_send {
+            Some(After::Holds(bytes)) => *self.stored.borrow_mut() = Some(bytes.clone()),
+            Some(After::Empty) => *self.stored.borrow_mut() = None,
+            Some(After::Reads(_)) | None => {}
+        }
         self.replies
             .borrow_mut()
             .pop_front()
@@ -536,7 +559,7 @@ fn delete_removes_the_credential_after_deleted_or_no_such_account_alone() {
             (outcome.code(), outcome.line()),
             (0, format!("result={result} credential=removed"))
         );
-        assert_eq!(world.log(), ["read", "send", "delete"]);
+        assert_eq!(world.log(), ["read", "send", "read", "delete"]);
         assert_eq!(world.stored(), None);
     }
     for result in ["pending", "not-finished", "credential-mismatch"] {
@@ -615,7 +638,194 @@ fn a_delete_that_the_store_refuses_after_the_backend_deleted_says_that_the_crede
         .answering(200, &sample("account-delete", "deleted"));
         let outcome = world.run(&["delete"]);
         assert_eq!((outcome.code(), outcome.line().as_str()), (4, line));
-        assert_eq!(world.log(), ["read", "send", "delete"]);
+        assert_eq!(world.log(), ["read", "send", "read", "delete"]);
+    }
+}
+
+#[test]
+fn after_deleted_or_no_such_account_delete_removes_only_the_sign_in_that_it_sent() {
+    let sent = sign_in(5);
+    let bytes = sent.to_secret().expose().to_vec();
+    let other = sign_in(6).to_secret().expose().to_vec();
+    let mut credential_one_byte_off = bytes.clone();
+    let last = credential_one_byte_off.len() - 1;
+    credential_one_byte_off[last] = if bytes[last] == b'0' { b'1' } else { b'0' };
+    let credential_under_another_id = format!(
+        "{} {}",
+        sign_in(6).account().as_str(),
+        sent.credential().as_str()
+    )
+    .into_bytes();
+    let another_form = b"no sign-in of this helper".to_vec();
+    for (name, held) in [
+        ("another sign-in", &other),
+        (
+            "the same id, one byte of the credential",
+            &credential_one_byte_off,
+        ),
+        (
+            "the same credential, another id",
+            &credential_under_another_id,
+        ),
+    ] {
+        assert!(
+            SignIn::from_secret(&Secret::new(held.clone()).expect("a secret")).is_some(),
+            "{name} is a sign-in"
+        );
+        assert_ne!(held, &bytes, "{name} is another sign-in");
+    }
+    // (case, what the store does once the request is sent, the mode of the delete,
+    //  code, line after `result=R`, delete calls, what the store holds at the end)
+    type Case<'a> = (
+        &'a str,
+        Option<After>,
+        Mode,
+        u8,
+        &'a str,
+        usize,
+        Option<Vec<u8>>,
+    );
+    let cases: Vec<Case> = vec![
+        (
+            "the same sign-in",
+            None,
+            Mode::Normal,
+            0,
+            "credential=removed",
+            1,
+            None,
+        ),
+        (
+            "the same sign-in, the delete answers locked",
+            None,
+            Mode::Locked,
+            4,
+            "credential=kept error=store-locked",
+            1,
+            Some(bytes.clone()),
+        ),
+        (
+            "the same sign-in, the delete fails",
+            None,
+            Mode::Fault,
+            4,
+            "credential=kept error=store-fault",
+            1,
+            Some(bytes.clone()),
+        ),
+        (
+            "nothing stored",
+            Some(After::Empty),
+            Mode::Normal,
+            0,
+            "credential=removed",
+            0,
+            None,
+        ),
+        (
+            "another sign-in",
+            Some(After::Holds(other.clone())),
+            Mode::Normal,
+            4,
+            "credential=kept error=store-changed",
+            0,
+            Some(other.clone()),
+        ),
+        (
+            "the same id, one byte of the credential",
+            Some(After::Holds(credential_one_byte_off.clone())),
+            Mode::Normal,
+            4,
+            "credential=kept error=store-changed",
+            0,
+            Some(credential_one_byte_off.clone()),
+        ),
+        (
+            "the same credential, another id",
+            Some(After::Holds(credential_under_another_id.clone())),
+            Mode::Normal,
+            4,
+            "credential=kept error=store-changed",
+            0,
+            Some(credential_under_another_id.clone()),
+        ),
+        (
+            "an item of another form",
+            Some(After::Holds(another_form.clone())),
+            Mode::Normal,
+            4,
+            "credential=kept error=store-unreadable",
+            0,
+            Some(another_form.clone()),
+        ),
+        (
+            "the second read answers locked",
+            Some(After::Reads(Mode::Locked)),
+            Mode::Normal,
+            4,
+            "credential=kept error=store-locked",
+            0,
+            Some(bytes.clone()),
+        ),
+        (
+            "the second read fails",
+            Some(After::Reads(Mode::Fault)),
+            Mode::Normal,
+            4,
+            "credential=kept error=store-fault",
+            0,
+            Some(bytes.clone()),
+        ),
+    ];
+    for result in ["deleted", "no-such-account"] {
+        for (name, after, delete_mode, code, line, deletes, held) in &cases {
+            let world = World {
+                after_send: after.clone(),
+                delete_mode: *delete_mode,
+                ..World::holding(&sent)
+            }
+            .answering(200, &sample("account-delete", result));
+            let outcome = world.run(&["delete"]);
+            let log = world.log();
+            assert_eq!(
+                (outcome.code(), outcome.line()),
+                (*code, format!("result={result} {line}")),
+                "{result}, {name}"
+            );
+            assert_eq!(log[..3], ["read", "send", "read"], "{result}, {name}");
+            assert_eq!(
+                log.iter().filter(|call| **call == "delete").count(),
+                *deletes,
+                "{result}, {name}: delete calls in {log:?}"
+            );
+            assert_eq!(world.stored(), *held, "{result}, {name}");
+        }
+    }
+}
+
+#[test]
+fn a_url_of_2048_code_points_is_read_and_the_page_check_refuses_it() {
+    let body = serde_json::json!({
+        "result": "session",
+        "url": "\u{1F600}".repeat(2048),
+    })
+    .to_string();
+    for words in [
+        &["--print-url", "subscribe", "5", "week"][..],
+        &["subscribe", "5", "week"],
+    ] {
+        let world = World::holding(&sign_in(9)).answering(200, &body);
+        let outcome = world.run(words);
+        assert!(
+            matches!(outcome, Outcome::Failed(Failure::PageRefused)),
+            "{words:?}: {outcome:?}"
+        );
+        assert_eq!(
+            (outcome.code(), outcome.line().as_str()),
+            (1, "error=failed-call")
+        );
+        assert_eq!(world.log(), ["read", "send"], "{words:?}");
+        assert!(world.opened.borrow().is_empty(), "{words:?}");
     }
 }
 
@@ -940,4 +1150,92 @@ fn a_page_that_was_not_opened_or_was_refused_removes_nothing() {
     world.run(&["subscribe", "5", "week"]);
     assert_eq!(world.log(), ["read", "write", "send"]);
     assert!(world.stored().is_some());
+}
+
+struct FinderA1 {
+    stored: RefCell<Option<Vec<u8>>>,
+    other: Vec<u8>,
+    body: String,
+}
+
+impl Keep for FinderA1 {
+    fn read(&self) -> Read {
+        match self.stored.borrow().as_ref() {
+            None => Read::NotStored,
+            Some(bytes) => Read::Found(Secret::new(bytes.clone()).expect("a secret")),
+        }
+    }
+
+    fn write(&self, secret: &Secret) -> Write {
+        let mut stored = self.stored.borrow_mut();
+        if stored.is_some() {
+            return Write::Occupied;
+        }
+        *stored = Some(secret.expose().to_vec());
+        Write::Stored
+    }
+
+    fn delete(&self) -> Delete {
+        match self.stored.borrow_mut().take() {
+            Some(_) => Delete::Deleted,
+            None => Delete::NotStored,
+        }
+    }
+}
+
+impl Transport for FinderA1 {
+    fn send(&self, _request: &Request) -> Result<Reply, NoAnswer> {
+        // While this request is in flight, another run's delete removed the first sign-in
+        // and a subscribe of a third run stored a new one.
+        *self.stored.borrow_mut() = Some(self.other.clone());
+        Ok(Reply {
+            status: 200,
+            body: self.body.as_bytes().to_vec(),
+        })
+    }
+}
+
+impl Opener for FinderA1 {
+    fn open(&self, _page: &PageUrl) -> Result<(), NotOpened> {
+        Err(NotOpened)
+    }
+}
+
+impl Random for FinderA1 {
+    fn fill(&self, _bytes: &mut [u8; 48]) -> Result<(), NoRandom> {
+        Err(NoRandom)
+    }
+}
+
+#[test]
+fn finder_a1_delete_removes_only_the_sign_in_that_it_sent() {
+    let first = sign_in(1).to_secret().expose().to_vec();
+    let second = sign_in(2).to_secret().expose().to_vec();
+    let world = FinderA1 {
+        stored: RefCell::new(Some(first)),
+        other: second.clone(),
+        body: sample("account-delete", "deleted"),
+    };
+    let args = vec![OsString::from("delete")];
+    let invocation = parse(&args, Build::Debug).expect("delete");
+    let outcome = run(
+        &invocation,
+        &Reach {
+            keep: &world,
+            transport: &world,
+            opener: &world,
+            random: &world,
+            pages: &Pages::Loopback,
+        },
+    );
+    let kept = world.stored.borrow().clone();
+    let second_kept = kept.as_deref() == Some(second.as_slice());
+    println!(
+        "FINDER_A1 line={} second_kept={second_kept}",
+        outcome.line()
+    );
+    assert!(
+        second_kept,
+        "the second sign-in, for which the backend answered nothing, was removed"
+    );
 }
