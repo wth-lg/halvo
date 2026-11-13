@@ -137,6 +137,23 @@ cases() {
   t listen-only-absent FAIL predicate_no_ll_hook "$gate_scratch/no-control"
   tree trailing-comment crates/halvo-capture/src/windows/hook.rs 'let h = SetWindowsHookExW(id, Some(cb), hmod, 0); // a note after the call'
   t hook-before-a-trailing-comment FAIL predicate_no_ll_hook "$gate_scratch/trailing-comment"
+  tree after-a-block-comment crates/halvo-capture/src/macos/post.rs '/* a block comment
+// that ends here */ CGEventPost(tap, event);'
+  t call-after-a-block-comment-on-a-slash-line FAIL predicate_no_ll_hook "$gate_scratch/after-a-block-comment"
+  tree inside-a-block-comment crates/halvo-capture/src/macos/note.rs '/* CGEventPost(tap, event) is never called
+// and SetWindowsHookExW neither */'
+  t calls-inside-a-block-comment PASS predicate_no_ll_hook "$gate_scratch/inside-a-block-comment"
+  tree comment-control crates/halvo-capture/src/macos/input.rs '// CGEventTapOptions::ListenOnly is what the tap uses
+let tap = make_tap();'
+  t listen-only-only-in-a-comment FAIL predicate_no_ll_hook "$gate_scratch/comment-control"
+  tree post-variable "$posted" 'let place = CGEventTapLocation::HID; event.post(place);'
+  t post-through-a-variable FAIL fails_naming "$gate_scratch/post-variable" "untied-post at $posted:1"
+  tree post-space "$posted" 'ev.post (CGEventTapLocation::HID);'
+  t post-behind-a-space FAIL fails_naming "$gate_scratch/post-space" "untied-post at $posted:1"
+  tree post-second "$posted" 'ev.post(pick(), CGEventTapLocation::HID);'
+  t post-after-another-argument FAIL fails_naming "$gate_scratch/post-second" "untied-post at $posted:1"
+  tree quoted-slashes crates/halvo-capture/src/windows/hook.rs 'let url = "https://example.invalid"; let h = SetWindowsHookExW(id, Some(cb), hmod, 0);'
+  t hook-after-a-string-with-slashes FAIL predicate_no_ll_hook "$gate_scratch/quoted-slashes"
   t measured-listen-only-tree PASS measured_on listen-only
   t measured-active-tap FAIL measured_on tap-default
   t measured-windows-hook FAIL measured_on windows-hook
