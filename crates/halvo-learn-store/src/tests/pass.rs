@@ -117,6 +117,10 @@ fn every_request_of_the_agent_store_gets_its_reply_and_its_rows() {
             let got = handlers.runner(&mut host, bytes.as_bytes());
             assert_eq!(got, want.map_err(Refused::Error), "body {i}");
         }
-        assert_eq!(agent_rows(&host.agent), agent_rows(&plain), "body {i}");
+        assert_eq!(
+            agent_rows(&host.agent.store),
+            agent_rows(&plain),
+            "body {i}"
+        );
     }
 }

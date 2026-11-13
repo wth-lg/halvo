@@ -39,15 +39,6 @@ pub(crate) fn load(
     }
 }
 
-/// The agent's newest compile number as the agent store reads it now, or none.
-pub(crate) fn newest(
-    host: &mut dyn LearnHost,
-    agent: &AgentId,
-    run: &RunId,
-) -> Result<Option<NonZeroU32>, ErrorName> {
-    Ok(load(host, agent, run)?.and_then(|reply| reply.playbook.map(|p| p.number)))
-}
-
 /// The stored steps of the compile number, read page by page through `load_steps`, which stores nothing.
 pub(crate) fn compiled(
     host: &mut dyn LearnHost,

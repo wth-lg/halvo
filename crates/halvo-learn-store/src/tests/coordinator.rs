@@ -316,3 +316,78 @@ fn list_refinements_refuses_another_shape_and_is_not_passed_on() {
     ));
     assert_eq!(w.host.count(), count);
 }
+
+fn stale_routine(w: &mut World, a: u32) {
+    let routine = json!({
+        "v": 1, "workflow": wf(1), "agent": agent(a), "rev": 2, "day": DAY, "category": "utility_bill_payment",
+        "site": null, "app": "com.example.browser", "period": 30, "seen": 3, "first": DAY - 200,
+        "last": DAY - 90, "next": DAY - 60, "missed": 3, "mark": "stale", "since": DAY - 7,
+    });
+    w.host
+        .commit(vec![TypedRecord {
+            kind: "learn_routine",
+            json: routine.to_string(),
+        }])
+        .expect("the routine row is stored");
+}
+
+#[test]
+fn a_load_that_the_agent_store_refuses_gives_the_empty_list_also_beside_a_stale_routine_row() {
+    let mut w = world();
+    stale_routine(&mut w, 2);
+    let reply = read(
+        &mut w,
+        json!({"op": "list_refinements", "workflow": wf(1), "agent": agent(2)}),
+    );
+    assert_eq!(reply, Ok(json!({"refinements": []})));
+}
+
+#[test]
+fn an_agent_that_the_agent_store_holds_with_no_compile_number_still_gets_its_stale_routine() {
+    let mut w = world();
+    stale_routine(&mut w, 1);
+    assert_eq!(
+        list(&mut w),
+        json!({"refinements": [{"day": DAY - 7, "what": "routine_stale"}]})
+    );
+}
+
+#[test]
+fn list_refinements_draws_a_new_run_id_for_each_call_and_no_row_log_line_or_reply_holds_one() {
+    let mut w = active_world();
+    w.learn(2, 2, "button Pay now", vec![loc("A")]);
+    let kinds: Vec<&str> = halvo_schema::kinds::registry().map(|e| e.name).collect();
+    let rows = |w: &World| -> Vec<String> {
+        kinds
+            .iter()
+            .flat_map(|k| {
+                if k.starts_with("learn_") {
+                    w.host.learn_rows(k)
+                } else {
+                    w.host.agent_rows(k)
+                }
+            })
+            .collect()
+    };
+    let before = rows(&w);
+    assert!(
+        before.iter().any(|r| r.contains("\"event\":")),
+        "the store holds log lines"
+    );
+    let first = list(&mut w);
+    let second = list(&mut w);
+    let after = rows(&w);
+    assert_eq!(after, before);
+    assert_eq!(w.handlers.probes.len(), 2);
+    assert_ne!(w.handlers.probes[0], w.handlers.probes[1]);
+    for probe in &w.handlers.probes {
+        let id = probe.as_str();
+        assert!(!after.iter().any(|r| r.contains(id)));
+        assert!(!first.to_string().contains(id) && !second.to_string().contains(id));
+    }
+    let refused = read(
+        &mut w,
+        json!({"op": "list_refinements", "workflow": wf(1), "agent": agent(9)}),
+    );
+    assert_eq!(refused, Ok(json!({"refinements": []})));
+}

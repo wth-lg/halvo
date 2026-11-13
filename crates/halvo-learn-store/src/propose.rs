@@ -176,20 +176,32 @@ impl LearnHandlers {
                     .is_none_or(|served| &served.step != *step)
             })
             .collect();
-        let Some(facts) = self.facts.get(&b.run).filter(|f| f.agent == b.agent) else {
-            return Ok(changed
+        let refused = |changed: &[&ExecutableStep]| -> Answers {
+            changed
                 .iter()
                 .map(|s| (s.n, Err(AdmitCause::Base)))
-                .collect());
+                .collect()
+        };
+        let Some(loaded) = self
+            .facts
+            .get(&b.run)
+            .filter(|f| f.agent == b.agent)
+            .map(|f| f.loaded)
+        else {
+            return Ok(refused(&changed));
+        };
+        let newest = self.newest_of(host, &b.agent, &b.run)?;
+        let Some(facts) = self.facts.get(&b.run) else {
+            return Ok(refused(&changed));
         };
         let runs = rows::runs(host.rows())?;
         let mode = convert::run_mode(rows::newest_run(&runs, b.run.as_str()).map(|r| r.mode));
-        let newest = agent::newest(host, &b.agent, &b.run)?;
-        let current = newest.is_some() && facts.loaded == newest && newest == Some(b.number);
-        let compiled = match current {
-            true => agent::compiled(host, &b.agent, &b.run, b.number)?,
-            false => Vec::new(),
+        let named = loaded.is_some_and(|l| b.number == l || l.checked_add(1) == Some(b.number));
+        let current = newest.is_some() && loaded == newest && named;
+        let (true, Some(number)) = (current, loaded) else {
+            return Ok(refused(&changed));
         };
+        let compiled = agent::compiled(host, &b.agent, &b.run, number)?;
         let edits = Edits::read(host.rows())?;
         let reader = Facts {
             mode,
@@ -202,7 +214,7 @@ impl LearnHandlers {
         let mut answers = Vec::new();
         let mut taken = Vec::new();
         for step in changed {
-            match reader.admit(step, b.number) {
+            match reader.admit(step, number) {
                 Ok(candidate) => {
                     taken.push((step.n, candidate));
                     answers.push((step.n, Ok(())));
