@@ -170,6 +170,12 @@ struct Held<T> {
     key: T,
 }
 
+/// The bytes of one slot of the queue for a held value of type `T`, its heap
+/// aside.
+pub fn slot_bytes<T>() -> usize {
+    std::mem::size_of::<Held<T>>()
+}
+
 /// The held keys in the order of their arrival, with the time of the last
 /// reading.
 pub struct HeldKeys<T> {

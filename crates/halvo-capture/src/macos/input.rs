@@ -1155,7 +1155,17 @@ impl Drop for InputSource {
 }
 
 #[allow(unexpected_cfgs)]
-mod release_build_proofs {
+mod proofs {
+    #[cfg(halvo_proof = "held_key_printed")]
+    fn held_key_printed(key: &super::HeldKey) -> String {
+        format!("{key:?}")
+    }
+
+    #[cfg(halvo_proof = "held_key_printed_twin")]
+    fn held_key_printed_twin(key: &super::HeldKey) -> String {
+        format!("{:?}", key.instant)
+    }
+
     #[cfg(halvo_proof = "hold_bound_in_a_release_build")]
     fn hold_bound_in_a_release_build(
         foreground: crate::macos::foreground::ForegroundReader,
@@ -1929,8 +1939,14 @@ mod tests {
             fg_writer,
         } = held;
         drop(writer);
-        ticks(&ctx, 1_010);
-        assert_eq!(held_now(&ctx), 0);
+        ticks(&ctx, 990);
+        assert_eq!(held_now(&ctx), 2, "before the bound");
+        tick(&ctx);
+        assert_eq!(
+            held_now(&ctx),
+            0,
+            "the first refused emit drops the key behind it"
+        );
         assert!(!counters.figures().keys_withheld);
         drop((ctx, fg_writer));
     }
@@ -2036,6 +2052,17 @@ mod tests {
             std::mem::size_of::<HeldKey>(),
             std::mem::size_of::<Mirror>()
         );
+    }
+
+    #[test]
+    fn the_held_keys_at_their_cap_stay_under_the_bytes_of_the_ledger() {
+        const LEDGER_BYTES: usize = 4_718_592;
+        const SLOT_ALLOWANCE: usize = 128;
+        let slot = crate::secure_input_macos::hold::slot_bytes::<HeldKey>();
+        assert!(slot <= SLOT_ALLOWANCE, "a slot of {slot} bytes");
+        let bytes = crate::secure_input_macos::hold::QUEUE_CAP
+            * (SLOT_ALLOWANCE + crate::floor::text::TEXT_MAX_BYTES);
+        assert_eq!(bytes, LEDGER_BYTES);
     }
 
     #[test]
