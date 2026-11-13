@@ -4,6 +4,8 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 . "$DIR/lib.sh"
 name=mutation
 TAB=$(printf '\t')
+stop_wait_s=60
+stop_signal=''
 
 usage() {
   cat <<'EOF'
@@ -36,8 +38,16 @@ row grammar is in scripts/r1-gate/README.md.
   sh scripts/r1-gate/mutation-test.sh --self-test [-v]
       Prove the classifier and the row rules on fixtures.
 
+TERM, INT or HUP stops a run: the runner starts no new row and no new test,
+sends the running test's process group TERM, waits up to 60 s for the test to
+end, prints STOPPED mutation:<row> (signal <name>; <what became of the test>)
+and exits with 143, 130 or 129. A cargo test runs with the three signals
+ignored, so that its case runs to its end and its own guard removes what it
+made; a gate self-test case ends its case by its own trap.
+
 Exit status: 0 when no line is FAIL (and, with --strict, nothing is open),
-1 otherwise, 2 when git or the copy of HEAD failed, 64 on bad usage.
+1 otherwise, 2 when git or the copy of HEAD failed, 64 on bad usage, and
+143, 130 or 129 after a stop by TERM, INT or HUP.
 EOF
 }
 
@@ -131,24 +141,73 @@ gate_lines() {
   done
 }
 
+stop_traps() {
+  trap 'stop_on TERM 143' TERM
+  trap 'stop_on INT 130' INT
+  trap 'stop_on HUP 129' HUP
+}
+
+stop_on() {
+  [ -z "$stop_signal" ] || return 0
+  stop_signal=$1; stop_status=$2
+}
+
+stop_now() {
+  if [ -n "$1" ]; then say STOPPED "$1" "signal $stop_signal; $2"
+  else printf 'STOPPED mutation (signal %s; no row had started)\n' "$stop_signal"; fi
+  exit "$stop_status"
+}
+
+test_ended() {
+  case $(ps -o stat= -p "$1" 2> /dev/null) in ''|Z*) return 0 ;; esac
+  return 1
+}
+
+test_wait() {
+  test_kind=$1; test_limit=$2; shift 2
+  [ -z "$stop_signal" ] || stop_now "$row_name" "no test was running"
+  case $test_kind in
+    cargo) ( cd "$tree" && trap '' TERM INT HUP && exec perl "$GATE_LIMIT" "$test_limit" "$@" ) > "$work/test.out" 2>&1 & ;;
+    *) ( trap '' TERM INT HUP && exec perl "$GATE_LIMIT" "$test_limit" perl -e '$SIG{$_} = "DEFAULT" for qw(TERM INT HUP); exec { $ARGV[0] } @ARGV or exit 127' "$@" ) > "$work/test.out" 2>&1 & ;;
+  esac
+  test_pid=$!
+  wait "$test_pid"
+  test_status=$?
+  [ -n "$stop_signal" ] || return 0
+  test_group=$(pgrep -P "$test_pid")
+  [ -z "$test_group" ] || kill -s TERM -- "-$test_group" 2> /dev/null
+  stop_deadline=$(date +%s)
+  stop_deadline=$((stop_deadline + stop_wait_s))
+  until test_ended "$test_pid"; do
+    stop_clock=$(date +%s)
+    if [ "$stop_clock" -ge "$stop_deadline" ]; then
+      [ -z "$test_group" ] || kill -s KILL -- "-$test_group" 2> /dev/null
+      kill -s KILL "$test_pid" 2> /dev/null
+      wait "$test_pid"
+      stop_now "$row_name" "the running case did not end within $stop_wait_s s and was killed"
+    fi
+    sleep 0.1
+  done
+  wait "$test_pid"
+  stop_now "$row_name" "the running case was let end"
+}
+
 test_run() {
   test_name=$1
   case $test_name in
     selftest:*/*)
       test_check=${test_name#selftest:}; test_case=${test_check#*/}; test_check=${test_check%%/*}
-      limited 300 env GATE_ROOT="$tree" sh "$tree/scripts/r1-gate/check-$test_check.sh" --self-test -v --case "$test_case" > "$work/test.out" 2>&1
-      test_status=$?
-      [ "$test_status" -ne 124 ] || { printf 'hang\n'; return 0; }
-      awk -v want="case $test_check/$test_case" '
+      test_wait case 300 env GATE_ROOT="$tree" sh "$tree/scripts/r1-gate/check-$test_check.sh" --self-test -v --case "$test_case"
+      [ "$test_status" -ne 124 ] || { outcome=hang; return 0; }
+      outcome=$(awk -v want="case $test_check/$test_case" '
         index($0, want " want=") == 1 { n++; split($0, part, " "); verdict = (part[3] == "want=" substr(part[4], 5)) ? "passed" : "failed" }
-        END { if (n == 1) print verdict; else print "ran " n + 0 " cases" }' "$work/test.out" ;;
+        END { if (n == 1) print verdict; else print "ran " n + 0 " cases" }' "$work/test.out") ;;
     *)
       test_package=${rows_file#crates/}; test_package=${test_package%%/*}
       case $rows_file in crates/*) ;; *) test_package=halvo ;; esac
-      ( cd "$tree" && limited 900 env CARGO_TARGET_DIR="$tree/target/r1-gate" cargo test -q --locked -p "$test_package" --lib -- --exact "$test_name" ) > "$work/test.out" 2>&1
-      test_status=$?
-      [ "$test_status" -ne 124 ] || { printf 'hang\n'; return 0; }
-      cargo_test_outcome "$work/test.out" ;;
+      test_wait cargo 900 env CARGO_TARGET_DIR="$tree/target/r1-gate" cargo test -q --locked -p "$test_package" --lib -- --exact "$test_name"
+      [ "$test_status" -ne 124 ] || { outcome=hang; return 0; }
+      outcome=$(cargo_test_outcome "$work/test.out") ;;
   esac
 }
 
@@ -187,8 +246,10 @@ run_rows() {
   else
     cp "$table" "$work/rows.loop" || return 2
   fi
-  budget_start=''; timed_name=''
+  budget_start=''; timed_name=''; last_row=''
   while IFS="$TAB" read -r rows_file row_line row_name row_file row_subst row_verdict row_state _ <&3; do
+    [ -z "$stop_signal" ] || stop_now "$last_row" "no test was running"
+    last_row=$row_name
     if ! defect=$(row_defect); then
       say FAIL "$row_name" "$defect"; failures=$((failures + 1)); continue
     fi
@@ -251,7 +312,7 @@ run_rows() {
     fi
     if [ "$apply_only" = no ] && [ "$row_state" != control ]; then
       case $row_verdict in 'test '*)
-        outcome=$(test_run "${row_verdict#test }")
+        test_run "${row_verdict#test }"
         if [ "$outcome" != passed ]; then
           say FAIL "$row_name" "unmutated, the test ${row_verdict#test } must run as one passing test: $outcome"; failures=$((failures + 1)); continue
         fi ;;
@@ -276,7 +337,7 @@ run_rows() {
     else
       case $row_verdict in
         'test '*)
-          outcome=$(test_run "${row_verdict#test }")
+          test_run "${row_verdict#test }"
           if [ "$outcome" = failed ]; then say PASS "$row_name" "$row_verdict: the one test failed"; caught=$((caught + 1))
           else say FAIL "$row_name" "$row_verdict: $outcome"; failures=$((failures + 1)); fi ;;
         *)
@@ -290,6 +351,7 @@ run_rows() {
     fi
     cp "$work/pristine" "$tree/$mutated" || return 2
   done 3< "$work/rows.loop"
+  [ -z "$stop_signal" ] || stop_now "$last_row" "no test was running"
   if [ -n "$budget" ]; then
     row_now=$(date +%s)
     row_seconds
@@ -384,6 +446,113 @@ STUB
 with_only() {
   fixture_only=" $1"; shift
   "$@"
+}
+
+stub_cargo() {
+  mkdir -p "$gate_scratch/$1/bin"
+  printf '%s\n' "$2" > "$gate_scratch/$1/bin/hold"
+  cat > "$gate_scratch/$1/bin/cargo" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+read -r hold < "$here/hold"
+printf 'cargo\n' >> "$here/starts"
+if [ "$hold" -gt 0 ]; then
+  : > "$here/marker"
+  sleep "$hold"
+  mv "$here/marker" "$here/marker.released"
+fi
+printf 'itself\n' > "$here/ended"
+printf 'test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n'
+STUB
+  chmod +x "$gate_scratch/$1/bin/cargo"
+}
+
+stub_cc() {
+  mkdir -p "$gate_scratch/$1/bin"
+  printf 'int x = 1;\n' > "$gate_scratch/$1/scripts/r1-gate/x.c"
+  cat > "$gate_scratch/$1/bin/cc" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+printf 'cc\n' >> "$here/starts"
+: > "$here/marker"
+sleep 2
+mv "$here/marker" "$here/marker.released"
+printf 'itself\n' > "$here/ended"
+STUB
+  chmod +x "$gate_scratch/$1/bin/cc"
+}
+
+stub_held_case() {
+  mkdir -p "$gate_scratch/$1/bin"
+  cat > "$gate_scratch/$1/scripts/r1-gate/check-hold.sh" <<'STUB'
+#!/bin/sh
+here=${0%/*}/../../bin
+trap 'kill "$sleeper"; mv "$here/marker" "$here/marker.released"; printf "TERM\n" > "$here/ended"; exit 143' TERM
+printf 'case\n' >> "$here/starts"
+sleep 30 &
+sleeper=$!
+: > "$here/marker"
+wait
+mv "$here/marker" "$here/marker.released"
+printf 'itself\n' > "$here/ended"
+printf 'case hold/c1 want=FAIL got=FAIL\n'
+STUB
+}
+
+descendants_of() {
+  ps -axo pid=,ppid= | awk -v root="$1" '
+    { parent[$1] = $2 }
+    END { mark[root] = 1; grew = 1
+      while (grew) { grew = 0; for (p in parent) if (!(p in mark) && (parent[p] in mark)) { mark[p] = 1; grew = 1 } }
+      for (p in mark) if (p != root) print p }'
+}
+
+stopped_by() {
+  stop_fixture=$gate_scratch/$1; stop_signal_sent=$2; stop_whom=$3; stop_bound=$4; stop_mode=$5
+  stop_status_wanted=$6; stop_marker_wanted=$7; stop_ended_wanted=$8; stop_starts_wanted=$9; shift 9; stop_line_wanted=$1
+  perl -e 'setpgrp(0, 0); exec { $ARGV[0] } @ARGV or exit 127' sh -c 'stop_arg_fixture=$1; stop_arg_bound=$2; stop_arg_mode=$3; set -- --self-test --case no-such-case; . "$0" > /dev/null 2>&1
+    PATH=$stop_arg_fixture/bin:$PATH; stop_wait_s=$stop_arg_bound; list=no; apply_only=no; strict=no; only=; budget=
+    [ "$stop_arg_mode" = run ] || apply_only=yes
+    work=$stop_arg_fixture.work; mkdir -p "$work"; stop_traps; run_rows "$stop_arg_fixture"' "$DIR/mutation-test.sh" "$stop_fixture" "$stop_bound" "$stop_mode" > "$stop_fixture.out" 2>&1 &
+  stop_pid=$!
+  stop_polls=0
+  until [ -f "$stop_fixture/bin/marker" ]; do
+    stop_polls=$((stop_polls + 1))
+    [ "$stop_polls" -lt 300 ] || { kill -s KILL -- "-$stop_pid"; printf 'the stand-in did not start within %s polls of 0.1 s\n' "$stop_polls"; return 1; }
+    sleep 0.1
+  done
+  case $stop_whom in
+    tree) for stop_child in $(descendants_of "$stop_pid"); do kill -s "$stop_signal_sent" "$stop_child" 2> /dev/null; done
+      kill -s "$stop_signal_sent" "$stop_pid" ;;
+    group) kill -s "$stop_signal_sent" -- "-$stop_pid" ;;
+    twice) kill -s "$stop_signal_sent" "$stop_pid"; sleep 0.5; kill -s TERM "$stop_pid" ;;
+    *) kill -s "$stop_signal_sent" "$stop_pid" ;;
+  esac
+  stop_polls=0
+  while kill -0 "$stop_pid" 2> /dev/null; do
+    stop_polls=$((stop_polls + 1))
+    [ "$stop_polls" -lt 400 ] || { kill -s KILL -- "-$stop_pid"; printf 'the runner did not end within %s polls of 0.1 s after the signal\n' "$stop_polls"; return 1; }
+    sleep 0.1
+  done
+  wait "$stop_pid"
+  stop_status=$?
+  sleep 0.2
+  stop_starts=$(wc -l < "$stop_fixture/bin/starts" | tr -d ' ')
+  stop_left=$(pgrep -f "$stop_fixture/" | wc -l | tr -d ' ')
+  stop_marker=gone
+  [ ! -e "$stop_fixture/bin/marker" ] || stop_marker=left
+  stop_ended=none
+  [ ! -f "$stop_fixture/bin/ended" ] || read -r stop_ended < "$stop_fixture/bin/ended"
+  stop_defects=''
+  grep -F -x -q -e "$stop_line_wanted" "$stop_fixture.out" || stop_defects="$stop_defects; the runner printed no line $stop_line_wanted"
+  [ "$stop_status" -eq "$stop_status_wanted" ] || stop_defects="$stop_defects; the runner exited $stop_status, not $stop_status_wanted"
+  [ "$stop_marker" = "$stop_marker_wanted" ] || stop_defects="$stop_defects; the marker of the stand-in is $stop_marker, not $stop_marker_wanted"
+  [ "$stop_ended" = "$stop_ended_wanted" ] || stop_defects="$stop_defects; the stand-in ended by $stop_ended, not by $stop_ended_wanted"
+  [ "$stop_starts" -eq "$stop_starts_wanted" ] || stop_defects="$stop_defects; the stand-ins started $stop_starts times, not $stop_starts_wanted"
+  [ "$stop_left" -eq 0 ] || stop_defects="$stop_defects; $stop_left processes of the stand-ins are left"
+  [ -n "$stop_defects" ] || return 0
+  printf '%s\n' "${stop_defects#; }"
+  return 1
 }
 
 with_list() {
@@ -686,6 +855,27 @@ cases() {
   t limit-ends-a-hang FAIL limited 1 sleep 5
   t limit-passes-a-status PASS limited 5 true
   t limit-passes-a-failure FAIL limited 5 false
+  for stop_fixture_name in stop-tree stop-twice stop-case stop-group stop-bound stop-build stop-build-apply stop-build-last; do
+    fixture_tree "$stop_fixture_name"
+    stop_file=b.sh; stop_first='s/two/three/'; stop_second='s/echo two/echo 2/'; stop_verdict='test stand::in'
+    case $stop_fixture_name in
+      stop-case|stop-group) stub_held_case "$stop_fixture_name"; stop_verdict='test selftest:hold/c1' ;;
+      stop-bound) stub_cargo "$stop_fixture_name" 30 ;;
+      stop-build*) stub_cc "$stop_fixture_name"; stub_cargo "$stop_fixture_name" 0; stop_file=x.c; stop_first='s/1/2/'; stop_second='s/int/long/' ;;
+      *) stub_cargo "$stop_fixture_name" 2 ;;
+    esac
+    row "$stop_fixture_name/scripts/r1-gate/mutants.rows" held "$stop_file" "$stop_first" "$stop_verdict" required X-1
+    [ "$stop_fixture_name" = stop-build-last ] || row "$stop_fixture_name/scripts/r1-gate/mutants.rows" after "$stop_file" "$stop_second" "$stop_verdict" required X-1
+  done
+  stop_let_end='the running case was let end)'
+  t stop-by-term-to-every-process-lets-the-case-end PASS stopped_by stop-tree TERM tree 60 run 143 gone itself 1 "STOPPED mutation:held (signal TERM; $stop_let_end"
+  t stop-by-hup-then-term-keeps-the-first-signal PASS stopped_by stop-twice HUP twice 60 run 129 gone itself 1 "STOPPED mutation:held (signal HUP; $stop_let_end"
+  t stop-by-term-to-the-runner-ends-a-self-test-case-by-its-trap PASS stopped_by stop-case TERM runner 60 run 143 gone TERM 1 "STOPPED mutation:held (signal TERM; $stop_let_end"
+  t stop-by-term-to-the-runner-s-group-ends-a-self-test-case-by-its-trap PASS stopped_by stop-group TERM group 60 run 143 gone TERM 1 "STOPPED mutation:held (signal TERM; $stop_let_end"
+  t stop-past-the-bound-kills-the-case PASS stopped_by stop-bound TERM runner 1 run 143 left none 1 'STOPPED mutation:held (signal TERM; the running case did not end within 1 s and was killed)'
+  t stop-during-a-build-starts-no-test PASS stopped_by stop-build TERM runner 60 run 143 gone itself 2 'STOPPED mutation:held (signal TERM; no test was running)'
+  t stop-during-a-build-starts-no-new-row PASS stopped_by stop-build-apply TERM runner 60 apply-only 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
+  t stop-during-the-last-build-prints-no-count PASS stopped_by stop-build-last TERM runner 60 apply-only 143 gone itself 1 'STOPPED mutation:held (signal TERM; no test was running)'
 }
 
 under_ci() {
@@ -718,6 +908,7 @@ main() {
   done
   gate_traps
   if [ "$mode" = self-test ]; then selftest_run; return; fi
+  stop_traps
   scratch_root
   work=$gate_scratch/work; tree=$gate_scratch/tree
   mkdir "$work" "$tree" || return 2

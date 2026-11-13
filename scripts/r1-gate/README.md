@@ -97,6 +97,30 @@ FAIL line comes for each name that no row file holds or retires, for each such
 required row whose name the list lacks, with the row file named, and for a
 missing `mutants.expected`. The count line of every run gives both numbers.
 
+### A stopped run
+
+A test that a row runs can make a root that its own guard removes when its
+case ends; a test ended in the middle of a case leaves that root behind. So
+TERM, INT or HUP to the runner, to its process group or to every process
+below it does not end the running test:
+
+- A cargo test runs with TERM, INT and HUP ignored, because a Rust test has
+  no handler for them and would end before its guard. A gate self-test case
+  runs with them at their defaults and ends its case by its own trap.
+- On the first signal the runner starts no new row and no new test, sends the
+  running test's process group TERM, and waits up to 60 s, a constant of the
+  runner, for the test to end. Then it prints
+  `STOPPED mutation:<row> (signal <name>; the running case was let end)` and
+  exits with 143 for TERM, 130 for INT and 129 for HUP.
+- A test that is still running after 60 s is killed, and the line ends
+  `the running case did not end within 60 s and was killed`: what that case
+  made may be left. A stop while no test runs ends
+  `no test was running`; a signal during a build or a gate check takes effect
+  when that command ends.
+- KILL cannot be caught. A caller that sends KILL some seconds after its TERM
+  lets a case end only when the case ends within those seconds: give a run of
+  rows a time limit above the time of its rows.
+
 ## What a run changes on a Mac
 
 A measured run of a service check starts target/r1-gate/debug/halvo-capture, the one gate-built path, and macOS will list that path in Privacy & Security, once that binary asks for each grant, under Screen & System Audio Recording, Accessibility and Input Monitoring; the helper window reads nothing and adds no row, and each such check prints this as its line `note privacy rows: ...` before it starts the service.
