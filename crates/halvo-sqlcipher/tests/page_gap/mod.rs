@@ -14,6 +14,7 @@ const MARKER_HEAD: &[u8] = b"hgap";
 const MARKER_LEN: usize = 13;
 const FILL: &[u8] = b"bcdefjkmnrstvwxyz";
 const MEND_LINE: usize = 81262;
+const MARK: &[u8] = b"int halvo_sqlcipher_page_gap_mend(void){ return 1; }";
 const MEND: &str = " if( pPg->pBt->btsFlags & BTS_FAST_SECURE ){ memset(pCellptr, 0, (size_t)(pData - pCellptr)); }";
 const KEY: &str =
     "PRAGMA key = \"x'000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f'\";";
@@ -621,14 +622,18 @@ fn a_removed_or_replaced_row_leaves_no_byte_in_the_gap_of_a_page_that_the_databa
 }
 
 #[test]
-fn the_compiled_copy_is_the_pinned_file_with_the_mend_at_the_end_of_line_81262() {
+fn the_compiled_copy_is_the_pinned_file_with_the_mend_at_the_end_of_line_81262_and_one_added_function(
+) {
     let pinned = std::fs::read(env!("HALVO_SQLCIPHER_PINNED_SOURCE")).unwrap();
     let copy = std::fs::read(concat!(env!("OUT_DIR"), "/sqlcipher.c"))
         .expect("the build script wrote its copy of the source");
     let pinned: Vec<&[u8]> = pinned.split(|byte| *byte == b'\n').collect();
     let copy: Vec<&[u8]> = copy.split(|byte| *byte == b'\n').collect();
-    assert_eq!(copy.len(), pinned.len());
-    let differ: Vec<usize> = (0..pinned.len())
+    assert_eq!(copy.len(), pinned.len() + 1);
+    let last = pinned.len() - 1;
+    assert_eq!(pinned[last], b"");
+    assert_eq!(copy[last..], [MARK, b""]);
+    let differ: Vec<usize> = (0..last)
         .filter(|&at| copy[at] != pinned[at])
         .map(|at| at + 1)
         .collect();

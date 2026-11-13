@@ -72,6 +72,8 @@ const MEND_LINE: &str =
 
 const MEND: &str = " if( pPg->pBt->btsFlags & BTS_FAST_SECURE ){ memset(pCellptr, 0, (size_t)(pData - pCellptr)); }";
 
+const MARK: &str = "int halvo_sqlcipher_page_gap_mend(void){ return 1; }\n";
+
 fn libtomcrypt_build(source_dir: &Path) -> cc::Build {
     let mut build = cc::Build::new();
     build
@@ -217,6 +219,7 @@ fn mended_source(source: &[u8], name: &Path) -> Vec<u8> {
     copy.extend_from_slice(&source[..end]);
     copy.extend_from_slice(MEND.as_bytes());
     copy.extend_from_slice(&source[end..]);
+    copy.extend_from_slice(MARK.as_bytes());
     copy
 }
 

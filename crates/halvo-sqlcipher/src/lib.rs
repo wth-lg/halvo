@@ -21,6 +21,7 @@ pub fn initialize() -> Result<(), c_int> {
 
 extern "C" {
     fn halvo_sqlcipher_os_entropy_hook_installed() -> c_int;
+    fn halvo_sqlcipher_page_gap_mend() -> c_int;
 }
 
 /// Whether LibTomCrypt draws its random bytes from the operating system's
@@ -28,6 +29,15 @@ extern "C" {
 /// initializes.
 pub fn os_entropy_hook_installed() -> bool {
     unsafe { halvo_sqlcipher_os_entropy_hook_installed() != 0 }
+}
+
+/// Whether the linked SQLCipher is this crate's build, whose copy of the
+/// pinned source zeroes, under secure delete, the gap of a page that the
+/// database builds again. Only that copy defines the function that answers
+/// here, so a program that links another SQLCipher does not link at all. A
+/// store's open requires `true`, as it requires secure delete.
+pub fn page_gap_mend_linked() -> bool {
+    unsafe { halvo_sqlcipher_page_gap_mend() == 1 }
 }
 
 #[cfg(test)]
@@ -39,7 +49,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_linked_library_is_the_sqlcipher_of_the_pinned_source() {
+    fn the_linked_library_is_the_pinned_sqlcipher_with_the_page_gap_mend() {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         let cipher: String = conn
             .query_row("PRAGMA cipher_version", [], |r| r.get(0))
@@ -49,6 +59,10 @@ mod tests {
             .unwrap();
         assert!(cipher.starts_with("4.19.0"), "cipher_version {cipher}");
         assert_eq!(sqlite, "3.53.4");
+        assert!(
+            page_gap_mend_linked(),
+            "the linked SQLCipher lacks the mend"
+        );
     }
 
     #[test]
