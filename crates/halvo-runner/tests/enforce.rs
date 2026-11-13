@@ -598,9 +598,12 @@ fn a_cancel_during_the_wait_for_a_secret_reply_is_read_when_it_comes() {
     assert!(seen.handbacks().is_empty());
 }
 
-/// CP-135 (4), A6.5: a cancel after the answer to the edit's `begin` and before its `replace` leaves the workbook
-/// byte for byte, and the run ends `effect_unknown` after the handback `effect_unknown`, with the effect
-/// `releasing` at the `finish`, which the store's handler of the run's end makes `unknown`.
+/// CP-135 (4), A6.5: a cancel that the runner holds once it has taken the answer to the edit's `begin`, and before
+/// its `replace`, leaves the workbook byte for byte, and the run ends `effect_unknown` after the handback
+/// `effect_unknown`, with the effect `releasing` at the `finish`, which the store's handler of the run's end makes
+/// `unknown`. The supervisor writes the cancel before the answer, so that the runner holds it when it takes the
+/// answer; a cancel that comes after the act is reading 1's limit, and the lock's own read of a held cancel is the
+/// link's test `a_cancel_that_the_link_holds_lets_no_effect_act`.
 #[test]
 fn a_cancel_after_the_answer_to_begin_leaves_the_workbook_and_ends_effect_unknown() {
     let files = FillFiles::new("cancel-after-begin", 1);
@@ -610,7 +613,7 @@ fn a_cancel_after_the_answer_to_begin_leaves_the_workbook_and_ends_effect_unknow
         |frame, _| {
             if is_effect(frame, EffectState::Releasing) {
                 let reply = sup.answer(frame).expect("the begin's answer");
-                Act::Then(reply, Box::new(Act::With(cancel())))
+                Act::Then(cancel(), Box::new(Act::With(reply)))
             } else {
                 Act::Answer
             }
