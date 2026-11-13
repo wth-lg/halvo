@@ -151,8 +151,9 @@ The commits of a range and of a push come from scripts/commit-range.sh, the
 one function that scripts/check-home-paths.sh calls too, so both checks of the
 hook read the same commits. This script reads that file beside itself, or,
 when it runs as text without its path (sh -c, as the CI step runs the copy of
-the default branch), from scripts/ in the work tree: there the copy of the
-default branch lists the commits with the function of the work tree.
+the default branch), from the default branch (--default-ref, or
+refs/remotes/origin/HEAD, or refs/remotes/origin/main), never from the work
+tree, so that copy lists the commits with the function of the default branch.
 No layer reads the author or the committer of a commit, or words that are
 spelled in another way. Before the layers, the tracked file .claude/settings.json
 tells Claude Code to add no attribution line, and the CI step checks it.
@@ -290,14 +291,18 @@ require_repository_with_exempt_commit() {
 }
 
 load_commit_range() {
-  range_file=$own_directory/commit-range.sh
-  if [ ! -f "$range_file" ]; then
-    top=$(git rev-parse --show-toplevel 2>/dev/null) || top=
-    range_file=$top/scripts/commit-range.sh
+  if [ -f "$own_directory/commit-range.sh" ]; then
+    # shellcheck source=scripts/commit-range.sh
+    . "$own_directory/commit-range.sh"
+    return 0
   fi
-  [ -f "$range_file" ] || die 'scripts/commit-range.sh, which lists the commits of a range or a push, is neither beside this script nor in the work tree, so no commit could be checked'
-  # shellcheck source=scripts/commit-range.sh
-  . "$range_file"
+  for range_ref in ${default_ref:+"$default_ref"} refs/remotes/origin/HEAD refs/remotes/origin/main; do
+    if range_text=$(git show "$range_ref:scripts/commit-range.sh" 2>/dev/null); then
+      eval "$range_text"
+      return 0
+    fi
+  done
+  die 'scripts/commit-range.sh, which lists the commits of a range or a push, is neither beside this script nor on the default branch, so no commit could be checked'
 }
 
 resolve_default_ref() {
