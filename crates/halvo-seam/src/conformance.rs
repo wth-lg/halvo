@@ -44,8 +44,14 @@ pub const CASES: [&str; 4] = ["resume", "shredded", "filters", "store_changed"];
 /// names the id of the store that the server serves next, after `replace_live` and to an open with the old id
 /// at the zero position as at another position. `open_while_open`, in the case `filters`: an `open_cursor`
 /// sent while a cursor is open, without the `close` that C5.6 asks for, gets `bad-request`, and the cursor
-/// that was open then serves the whole reference read.
-pub const CHECKS: [&str; 2] = ["store_changed_names_the_current_id", "open_while_open"];
+/// that was open then serves the whole reference read. `open_at_the_watermark_after_a_shred`, in the case
+/// `shredded`: after `shred_oldest`, an `open_cursor` with S at W, and at the highest watermark of the replies
+/// after the shred where that is above W, is no error, and its read serves no entry.
+pub const CHECKS: [&str; 3] = [
+    "store_changed_names_the_current_id",
+    "open_while_open",
+    "open_at_the_watermark_after_a_shred",
+];
 
 /// The most `read_batch` messages of one read to the watermark.
 pub const MAX_READS: usize = 1_000;
@@ -603,7 +609,7 @@ pub fn resume<S: Subject>(subject: &mut S) -> Result<(), String> {
 
 /// The case `shredded` (C5.13 item 7): after `shred_oldest`, a read from the last position of the lowest
 /// segment and one from the zero position serve the entries above that segment, at the same positions, and
-/// no `expiry` names it.
+/// no `expiry` names it; last, the check `open_at_the_watermark_after_a_shred` of `CHECKS`.
 pub fn shredded<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (conn, rf) = reference(subject)?;
     drop(conn);
@@ -616,6 +622,7 @@ pub fn shredded<S: Subject>(subject: &mut S) -> Result<(), String> {
     subject.shred_oldest()?;
     let mut conn = connect(subject)?;
     let want: Vec<Entry> = rf.r.iter().filter(|e| e.pos.seg > s).cloned().collect();
+    let mut top = rf.w;
     for start in [p, ZERO] {
         let reading = read(&mut conn, Some(&rf.s), start, None, None)
             .map_err(|e| format!("after shred_oldest, from {}: {e}", show(start)))?;
@@ -634,6 +641,34 @@ pub fn shredded<S: Subject>(subject: &mut S) -> Result<(), String> {
             return Err(
                 "after shred_oldest, a watermark below that of the reference read".to_owned(),
             );
+        }
+        top = top.max(reading.top);
+    }
+    at_the_watermark(&mut conn, &rf, top).map_err(|e| format!("check {}: {e}", CHECKS[2]))
+}
+
+fn at_the_watermark<S: Subject>(
+    conn: &mut Conn<S>,
+    rf: &Reference,
+    top: Position,
+) -> Result<(), String> {
+    let mut marks = vec![rf.w];
+    if top != rf.w {
+        marks.push(top);
+    }
+    for at in marks {
+        let reading = read(conn, Some(&rf.s), at, None, None).map_err(|e| {
+            format!(
+                "after shred_oldest, the read from the watermark {}: {e}",
+                show(at)
+            )
+        })?;
+        if !reading.entries.is_empty() {
+            return Err(format!(
+                "after shred_oldest, the read from the watermark {} served {} entries; want none",
+                show(at),
+                reading.entries.len()
+            ));
         }
     }
     Ok(())

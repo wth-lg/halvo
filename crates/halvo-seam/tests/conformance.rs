@@ -17,6 +17,7 @@ enum Fault {
     StoreChangedAtZeroNamesAnotherId,
     OpenWhileOpenServes,
     OpenWhileOpenClosesTheCursor,
+    WatermarkRefusedAfterAShred,
 }
 
 use Fault::*;
@@ -101,12 +102,16 @@ impl Subject for Fixture {
         let (requests_in, requests_out) = io::pipe().map_err(|e| e.to_string())?;
         let (replies_in, replies_out) = io::pipe().map_err(|e| e.to_string())?;
         let fault = self.fault;
+        let shredded = self.first_live > 1;
         self.serving = Some(std::thread::spawn(move || {
             match fault {
                 None => {
                     let _ = transport.serve(requests_in, replies_out);
                 }
-                Some(fault) => serve_wrong(&mut transport, fault, requests_in, replies_out),
+                Some(fault) => {
+                    let mut wrong = Wrong { fault, shredded };
+                    wrong.serve(&mut transport, requests_in, replies_out);
+                }
             }
             transport
         }));
@@ -142,6 +147,41 @@ fn error(cause: Cause) -> ServerMessage {
     ServerMessage::Error(ServerError::new(cause, "wrong server").unwrap())
 }
 
+struct Wrong {
+    fault: Fault,
+    shredded: bool,
+}
+
+impl Wrong {
+    fn open(&mut self, t: &mut FixtureTransport, open: &OpenCursor) -> ServerMessage {
+        if self.fault == WatermarkRefusedAfterAShred
+            && self.shredded
+            && open.position() == t.watermark()
+        {
+            return error(Cause::BadPosition);
+        }
+        open_reply(t, self.fault, open)
+    }
+
+    fn serve(&mut self, t: &mut FixtureTransport, mut input: PipeReader, mut output: PipeWriter) {
+        while let Ok(Some(payload)) = read_frame(&mut input, CLIENT_FRAME_MAX) {
+            let reply = match decode_client(&payload) {
+                Ok(ClientMessage::OpenCursor(open)) => self.open(t, &open),
+                Ok(ClientMessage::ReadBatch) => read_reply(t, self.fault),
+                Ok(message) => t.handle(&message),
+                Err(Refusal::BadRequest) => error(Cause::BadRequest),
+                Err(Refusal::BadFrame) => break,
+            };
+            let Ok(bytes) = reply.to_payload() else {
+                break;
+            };
+            if write_frame(&mut output, &bytes, SERVER_FRAME_MAX).is_err() {
+                break;
+            }
+        }
+    }
+}
+
 fn open_reply(t: &mut FixtureTransport, fault: Fault, open: &OpenCursor) -> ServerMessage {
     let reply = t.handle(&ClientMessage::OpenCursor(open.clone()));
     match (fault, reply) {
@@ -172,29 +212,6 @@ fn read_reply(t: &mut FixtureTransport, fault: Fault) -> ServerMessage {
             _ => ServerMessage::Error(e),
         },
         (_, reply) => reply,
-    }
-}
-
-fn serve_wrong(
-    t: &mut FixtureTransport,
-    fault: Fault,
-    mut input: PipeReader,
-    mut output: PipeWriter,
-) {
-    while let Ok(Some(payload)) = read_frame(&mut input, CLIENT_FRAME_MAX) {
-        let reply = match decode_client(&payload) {
-            Ok(ClientMessage::OpenCursor(open)) => open_reply(t, fault, &open),
-            Ok(ClientMessage::ReadBatch) => read_reply(t, fault),
-            Ok(message) => t.handle(&message),
-            Err(Refusal::BadRequest) => error(Cause::BadRequest),
-            Err(Refusal::BadFrame) => break,
-        };
-        let Ok(bytes) = reply.to_payload() else {
-            break;
-        };
-        if write_frame(&mut output, &bytes, SERVER_FRAME_MAX).is_err() {
-            break;
-        }
     }
 }
 
@@ -262,5 +279,16 @@ fn conformance_check_open_while_open() {
         test,
         &[OpenWhileOpenServes, OpenWhileOpenClosesTheCursor],
         [None, None, check, None],
+    );
+}
+
+#[test]
+fn conformance_check_open_at_the_watermark_after_a_shred() {
+    let test = "conformance_check_open_at_the_watermark_after_a_shred";
+    let check = Some("open_at_the_watermark_after_a_shred");
+    wrong(
+        test,
+        &[WatermarkRefusedAfterAShred],
+        [None, check, None, None],
     );
 }
