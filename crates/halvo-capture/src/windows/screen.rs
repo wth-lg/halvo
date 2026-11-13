@@ -944,6 +944,62 @@ mod tests {
     }
 
     #[test]
+    fn a_frame_pushed_after_a_screen_shutdown_is_counted_lost_and_stays_out_of_the_sink() {
+        let (sink, writer) = crate::sink::channel(16);
+        let mut source = ScreenSource::new(Arc::default());
+        let handoff = HandOff::start(
+            sink,
+            "halvo-test-screen-forward",
+            Arc::clone(&source.counts),
+        )
+        .expect("hand-off");
+        let producer = handoff.producer();
+        source.handoff = Some(handoff);
+        let stopped = source.shutdown();
+        producer.push(frame_packet(1920, 1080, String::new(), 1).expect("a frame"));
+        let arrived = writer.recv_timeout(Duration::from_millis(500)).is_ok();
+        assert_eq!(stopped, Ok(()));
+        assert!(
+            !arrived,
+            "a frame pushed after the shutdown reached the sink"
+        );
+        assert_eq!(source.handoff_counts().lost, 1);
+    }
+
+    static ONE_REFUSAL: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+    fn refuses_once(body: StopBody) -> std::io::Result<()> {
+        if ONE_REFUSAL.fetch_add(1, Ordering::SeqCst) == 0 {
+            return Err(std::io::Error::from_raw_os_error(8));
+        }
+        spawn_stop_thread(body)
+    }
+
+    #[test]
+    fn a_stop_that_starts_after_a_refused_one_clears_the_refusal() {
+        let mut life = ScreenLife::with_spawner(refuses_once);
+        life.started(fake(false, true, 0));
+        let refused = life.shutdown(Duration::from_secs(2));
+        let while_refused = life.state(false, false);
+        let stopped = life.shutdown(Duration::from_secs(2));
+        let free = !life.is_busy();
+        life.started(fake(false, true, 0));
+        let after_a_new_start = life.state(false, false);
+        let _ = life.shutdown(Duration::from_secs(2));
+        assert!(
+            matches!(refused, Err(CaptureError::Os { .. })),
+            "{refused:?}"
+        );
+        assert!(
+            matches!(while_refused, SourceState::Failed { .. }),
+            "{while_refused:?}"
+        );
+        assert_eq!(stopped, Ok(()));
+        assert!(free, "a source whose stop went through refuses a begin");
+        assert_eq!(after_a_new_start, SourceState::Running);
+    }
+
+    #[test]
     fn the_process_mta_reference_is_taken_once_and_holds_an_mta_for_a_new_thread() {
         use windows::Win32::System::Com::{
             CoGetApartmentType, APTTYPE, APTTYPEQUALIFIER, APTTYPEQUALIFIER_IMPLICIT_MTA,

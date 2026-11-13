@@ -1527,6 +1527,113 @@ pub(crate) mod tests {
         );
     }
 
+    fn no_post(_id: PumpThreadId) {}
+
+    #[test]
+    fn a_pump_that_ends_at_its_stop_event_reads_what_is_queued() {
+        use std::os::windows::io::AsRawHandle;
+        use windows::Win32::Foundation::{HANDLE, LPARAM, WPARAM};
+        use windows::Win32::System::Threading::{ResumeThread, SuspendThread};
+        use windows::Win32::UI::WindowsAndMessaging::{
+            PeekMessageW, PostThreadMessageW, MSG, PM_REMOVE, WM_USER,
+        };
+        const QUEUED: u32 = 50;
+        let (count, counted) = std::sync::mpsc::channel();
+        let mut pump = spawn_pump("halvo-pump-event-end".to_string(), move |ready, signal| {
+            ensure_message_queue();
+            ready.report(Ok(()));
+            pump_messages(&signal);
+            let mut msg = MSG::default();
+            let mut left = 0u32;
+            // SAFETY: `msg` is a live MSG that PeekMessageW fills.
+            while unsafe { PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE) }.as_bool() {
+                left += 1;
+            }
+            let _ = count.send(left);
+        })
+        .expect("the pump")
+        .with_post(no_post);
+        std::thread::sleep(Duration::from_millis(200));
+        let raw = HANDLE(
+            pump.join
+                .as_ref()
+                .expect("a running pump holds its join handle")
+                .as_raw_handle(),
+        );
+        // SAFETY: `raw` is the pump thread's handle, which `pump` holds open.
+        let suspended = unsafe { SuspendThread(raw) };
+        pump.signal.set();
+        let mut posted = 0;
+        for _ in 0..QUEUED {
+            // SAFETY: PostThreadMessageW takes the pump's id and two plain
+            // values; `pump` holds the thread's handle.
+            if unsafe { PostThreadMessageW(pump.id.get(), WM_USER, WPARAM(0), LPARAM(0)) }.is_ok() {
+                posted += 1;
+            }
+        }
+        // SAFETY: `raw` is the handle that was suspended above.
+        let resumed = unsafe { ResumeThread(raw) };
+        let left = counted.recv_timeout(Duration::from_secs(5));
+        let _ = pump.stop(INPUT_STOP_DEADLINE);
+        assert_ne!(
+            suspended,
+            u32::MAX,
+            "INCONCLUSIVE: the pump was not suspended"
+        );
+        assert_ne!(resumed, u32::MAX, "INCONCLUSIVE: the pump was not resumed");
+        assert_eq!(posted, QUEUED, "INCONCLUSIVE: a post failed");
+        assert_eq!(
+            left,
+            Ok(0),
+            "messages left after the pump ended at its stop event with {QUEUED} queued"
+        );
+    }
+
+    #[test]
+    fn a_timed_out_stop_has_closed_the_hand_off_for_what_the_stuck_pump_pushes_later() {
+        let (sink, writer) = crate::sink::channel(16);
+        let mut life = Lifecycle::default();
+        let (go, gate) = std::sync::mpsc::channel::<()>();
+        let (pushed, all_pushed) = std::sync::mpsc::channel::<()>();
+        let started = life.begin(
+            &SourceContext::new(sink),
+            "halvo-test-forward",
+            move |producer| {
+                spawn_pump("halvo-pump-late-push".to_string(), move |ready, _signal| {
+                    ready.report(Ok(()));
+                    if gate.recv().is_ok() {
+                        for _ in 0..3 {
+                            producer.push(keystroke("after-the-timeout"));
+                        }
+                        let _ = pushed.send(());
+                    }
+                })
+            },
+        );
+        let stopped = life.shutdown();
+        let _ = go.send(());
+        let late_pushes = all_pushed.recv_timeout(Duration::from_secs(5));
+        let mut arrived = 0;
+        while writer.recv_timeout(Duration::from_millis(500)).is_ok() {
+            arrived += 1;
+        }
+        let lost = life.handoff_counts().lost;
+        assert_eq!(started, Ok(Started::Running));
+        assert!(
+            matches!(stopped, Err(CaptureError::Timeout { .. })),
+            "{stopped:?}"
+        );
+        assert!(late_pushes.is_ok(), "the stuck pump did not push");
+        assert_eq!(
+            arrived, 0,
+            "packets pushed after the timeout reached the sink"
+        );
+        assert_eq!(
+            lost, 3,
+            "each packet pushed after the timeout is counted lost"
+        );
+    }
+
     #[test]
     fn the_read_at_a_stop_takes_what_is_queued_and_ends_at_its_bound() {
         use windows::Win32::Foundation::{LPARAM, WPARAM};
