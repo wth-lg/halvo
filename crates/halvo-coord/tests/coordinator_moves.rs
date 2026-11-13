@@ -2289,11 +2289,12 @@ fn a_switch_off_marks_the_guards_table_and_the_board_before_a_cancel_that_panics
 /// answered `no_service`: by its own read right after the call, or by a later refusal `seq`.
 const ORDERS: [support::Loss; 2] = [support::Loss::Reply, support::Loss::Later];
 
-/// The orders in which a handback answer whose call answered `no_service` stays stored and not
-/// taken (ruling RD-52 (c)): the row reaching the owner's events after the move, and the read
-/// right after the call failing too. In the order in which that read shows the row the run gets
-/// the answer in the same move, so the tests of RD-40 keep their other order and gain this one.
-const HANDBACK_ORDERS: [support::Loss; 2] = [support::Loss::Later, support::Loss::Unread];
+/// The orders in which a row whose call answered `no_service` stays stored and unseen by the
+/// move: the row reaching the owner's events after the move, and the read right after the call
+/// failing too. In the order in which that read shows the row, the move takes it as stored: a
+/// handback answer goes to the run (ruling RD-52 (c)) and a switch-off goes on (RD-52 (b) rule
+/// 2). So the tests of RD-40 and of RD-52 (a) keep their other order and gain this one.
+const UNSEEN: [support::Loss; 2] = [support::Loss::Later, support::Loss::Unread];
 
 /// A run of agent 0 that waits on a stuck item, which the person answered `done`: the owner
 /// stored the row and the call answered `no_service`, in the order `order`.
@@ -2332,7 +2333,7 @@ fn handed_back(c: &Coordinator<Both>, m: usize) -> Vec<halvo_coord::types::Handb
 #[test]
 fn a_stored_answer_whose_reply_was_lost_counts_for_the_same_answer_again_in_both_orders() {
     use halvo_coord::types::HandbackResult;
-    for order in HANDBACK_ORDERS {
+    for order in UNSEEN {
         let (c, _run, item) = answered_with_a_lost_reply(order);
         let m = mark(&c);
         let tried = c.ports().ports.tried.borrow().len();
@@ -2365,7 +2366,7 @@ fn a_stored_answer_whose_reply_was_lost_counts_for_the_same_answer_again_in_both
 fn a_stored_done_whose_reply_was_lost_then_decline_stores_the_decline_and_sends_declined_in_both_orders(
 ) {
     use halvo_coord::types::HandbackResult;
-    for order in HANDBACK_ORDERS {
+    for order in UNSEEN {
         let (c, _run, item) = answered_with_a_lost_reply(order);
         let m = mark(&c);
         assert_eq!(c.answer(&item, Choice::Decline, None), Ok(()), "{order:?}");
@@ -2385,7 +2386,7 @@ fn a_stored_done_whose_reply_was_lost_then_decline_stores_the_decline_and_sends_
 
 #[test]
 fn a_stop_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_both_orders() {
-    for order in HANDBACK_ORDERS {
+    for order in UNSEEN {
         let (c, run, item) = answered_with_a_lost_reply(order);
         let m = mark(&c);
         assert_eq!(c.control(&agent(0), Action::Stop), Ok(()), "{order:?}");
@@ -2414,7 +2415,7 @@ fn a_stop_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_both_ord
 
 #[test]
 fn the_runners_end_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_both_orders() {
-    for order in HANDBACK_ORDERS {
+    for order in UNSEEN {
         let (c, run, item) = answered_with_a_lost_reply(order);
         c.ports().ports.end_runner(&run);
         assert_eq!(
@@ -2442,7 +2443,7 @@ fn the_runners_end_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in
 fn the_wait_limit_after_a_stored_answer_whose_reply_was_lost_stores_no_lapse_in_both_orders() {
     use halvo_coord::types::HandbackResult;
     let limits = Limits::PRODUCT;
-    for order in HANDBACK_ORDERS {
+    for order in UNSEEN {
         let (c, run, item) = answered_with_a_lost_reply(order);
         let m = mark(&c);
         c.ports()
@@ -2500,6 +2501,7 @@ struct Lossy {
     second_steps: usize,
     allows: usize,
     handbacks_refused: usize,
+    moves: usize,
     handed: usize,
     broken: Vec<String>,
     c4_seeds: Vec<u64>,
@@ -2514,6 +2516,7 @@ impl Lossy {
         self.done_decline += o.done_decline;
         self.same_again += o.same_again;
         self.handbacks_refused += o.handbacks_refused;
+        self.moves += o.moves;
         self.handed += o.handed;
         self.bind_moves += o.bind_moves;
         self.binds_raised += o.binds_raised;
@@ -2871,6 +2874,13 @@ fn lossy_sequence(seed: u64, form: support::Loss) -> Lossy {
             &before,
             &mut out,
         );
+        let off = c.off_beside_live();
+        if !off.is_empty() {
+            out.broken.push(format!(
+                "seed {seed} {form:?}: move {mv}: off beside a live run that no stop reached"
+            ));
+        }
+        out.moves += 1;
         handed_by_the_newest_row(
             &c,
             handbacks_from,
@@ -3003,7 +3013,7 @@ fn lossy_sequences_leave_no_item_with_two_closing_rows_and_send_allow_only_by_th
             }
         }
         println!(
-            "lossy form={form:?} sequences={count} items_with_two_closing_rows={} by_kind={by_kind:?} confirmations_answered_and_lapsed={} bind_moves={} second_steps_raised={} second_steps_answered={} second_steps_with_two_answer_rows={} second_steps_answered_and_lapsed={} done_then_decline={} same_choice_again={} allows_sent={} handback_presses_refused={} handback_results_checked={} broken={}",
+            "lossy form={form:?} sequences={count} items_with_two_closing_rows={} by_kind={by_kind:?} confirmations_answered_and_lapsed={} bind_moves={} second_steps_raised={} second_steps_answered={} second_steps_with_two_answer_rows={} second_steps_answered_and_lapsed={} done_then_decline={} same_choice_again={} allows_sent={} handback_presses_refused={} handback_results_checked={} moves_checked_for_off_beside_live={} broken={}",
             all.twice.len(),
             all.confirm_rows,
             all.bind_moves,
@@ -3016,6 +3026,7 @@ fn lossy_sequences_leave_no_item_with_two_closing_rows_and_send_allow_only_by_th
             all.allows,
             all.handbacks_refused,
             all.handed,
+            all.moves,
             all.broken.len()
         );
         println!(
@@ -3751,7 +3762,7 @@ fn a_taken_allow_gets_no_lapse_at_the_quit() {
 fn a_link_accounts_lost_done_then_the_declining_choice_sends_declined_and_never_done_in_both_forms()
 {
     use halvo_coord::types::HandbackResult;
-    for order in HANDBACK_ORDERS {
+    for order in UNSEEN {
         let c = coordinator(&[MANUAL], Limits::PRODUCT);
         let run = start(&c, 0);
         c.on_run(&run, handback(&run, 0, HandbackReason::AccountLink))
@@ -3943,7 +3954,7 @@ fn refused_after_its_read(c: &Coordinator<Both>, m: usize, n: usize, starts: usi
 
 #[test]
 fn a_run_now_whose_read_brings_a_lost_switch_off_is_refused_with_hold_in_both_forms() {
-    for order in ORDERS {
+    for order in UNSEEN {
         let c = coordinator(&[MANUAL], Limits::PRODUCT);
         switched_off_with_a_lost_acknowledgement(&c, 0, order);
         let starts = run_starts_of(&c, 0);
@@ -3984,7 +3995,7 @@ fn failures_held(spec: &[support::A]) -> Coordinator<Both> {
 fn a_run_now_under_failures_whose_hold_cleared_read_brings_a_lost_switch_off_stores_the_clear_alone_in_both_forms(
 ) {
     use halvo_coord::types::Cleared;
-    for order in ORDERS {
+    for order in UNSEEN {
         let c = failures_held(&[MANUAL]);
         switched_off_with_a_lost_acknowledgement(&c, 0, order);
         let starts = run_starts_of(&c, 0);
@@ -4017,7 +4028,7 @@ fn a_queued_start_of_a_ready_item_whose_read_brings_a_lost_switch_off_is_refused
         max_live_runs: 1,
         ..Limits::PRODUCT
     };
-    for order in ORDERS {
+    for order in UNSEEN {
         let c = coordinator(&[MANUAL, slotted, MANUAL], one);
         let (ready, kind) = open_item(&c);
         assert_eq!(kind, ItemKind::Ready);
@@ -4073,7 +4084,7 @@ fn a_ticks_start_whose_read_brings_a_lost_switch_off_stores_nothing_and_the_next
         person: false,
         slotted: true,
     };
-    for order in ORDERS {
+    for order in UNSEEN {
         let c = coordinator(&[auto], Limits::PRODUCT);
         let first = started(&c).last().cloned().expect("the first slot's start");
         assert_eq!(c.on_run(&first, RunEvent::Hello), Ok(()));
@@ -4128,7 +4139,7 @@ fn a_start_that_leaves_the_queue_after_a_lost_switch_off_is_dropped_with_hold_an
         max_live_runs: 1,
         ..Limits::PRODUCT
     };
-    for order in ORDERS {
+    for order in UNSEEN {
         let c = coordinator(&[MANUAL, MANUAL], one);
         let first = start(&c, 0);
         assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()), "{order:?}");
@@ -4647,5 +4658,480 @@ fn rd52c_after_a_busy_port_the_same_press_sends_again_with_no_second_row() {
         assert_eq!(c.answer(&item, choice, None), Ok(()), "{reason:?}");
         assert_eq!(handed_back(&c, m), [HandbackResult::Done], "{reason:?}");
         assert_eq!(closing_rows(&c, &item), 1, "{reason:?}: no second row");
+    }
+}
+
+/// The three ways in which a run of agent 0 waits on an item, by the item's lapse: a handback
+/// item (`lapse_item`), a confirmation (`lapse`) and the second step of a sign-in (`lapse_bind`).
+const WAITS: [&str; 3] = ["stuck", "confirm", "second_step"];
+
+/// A run of agent 0 that waits on an item of the way `way`.
+fn waiting(way: &str) -> (Coordinator<Both>, RunId, ItemId) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let event = match way {
+        "stuck" => handback(&run, 0, HandbackReason::StepFailed),
+        "confirm" => ask_confirm(&run, 0),
+        _ => bind(&run, 0),
+    };
+    c.on_run(&run, event).unwrap();
+    let (item, _) = open_item(&c);
+    (c, run, item)
+}
+
+/// RD-48 (a), review 14's F1: a stop of a waiting run whose `Runs::cancel` panics, at the
+/// person's Stop, at the switch-off and at the wait limit, for each kind of lapse: the board holds
+/// the stop, the next state shows no card of the lapsed item and the row stopping, and the tick at
+/// `cancel_grace_s` kills the run.
+#[test]
+fn rd48a_a_stop_whose_cancel_panics_leaves_the_board_holding_it_at_each_lapse() {
+    let limits = Limits::PRODUCT;
+    for way in WAITS {
+        for by in ["stop", "switch_off", "wait_limit"] {
+            let case = format!("{way} {by}");
+            let (c, run, _item) = waiting(way);
+            let at = if by == "wait_limit" {
+                T0 + limits.wait_limit_s * 1000
+            } else {
+                T0
+            };
+            c.ports().ports.set_clock(at, DAY);
+            c.ports().panics.set(Some("cancel"));
+            let stop = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match by {
+                "stop" => {
+                    let _ = c.control(&agent(0), Action::Stop);
+                }
+                "switch_off" => {
+                    let _ = c.control(&agent(0), Action::SwitchOff);
+                }
+                _ => c.tick(),
+            }));
+            c.ports().panics.set(None);
+            assert!(stop.is_err(), "{case}: the port's cancel panicked");
+            c.tick();
+            let s = c.snapshot();
+            assert!(s.items.is_empty(), "{case}: no card of the lapsed item");
+            let line = if by == "switch_off" {
+                "line.off.person"
+            } else {
+                "line.working.stopping"
+            };
+            assert_eq!(
+                row_line(&s, 0),
+                text(line),
+                "{case}: the board holds the stop"
+            );
+            let m = mark(&c);
+            c.ports()
+                .ports
+                .set_clock(at + limits.cancel_grace_s * 1000, DAY);
+            c.tick();
+            assert_eq!(kills_of(&c, m, &run), 1, "{case}: the grace tick kills");
+        }
+    }
+}
+
+fn is_hold(what: &What) -> bool {
+    matches!(what, What::HoldSet { .. } | What::HoldCleared { .. })
+}
+
+/// Loses, in the order `order`, the reply of the next log that holds a hold's row, whatever is
+/// logged before it.
+fn lose_the_holds_reply(c: &Coordinator<Both>, order: support::Loss) {
+    c.ports().loss_at.set(Some(is_hold));
+    c.ports().loss.set(Some(order));
+}
+
+fn hold_sets(c: &Coordinator<Both>, n: usize) -> usize {
+    c.ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(n) && matches!(e.what, What::HoldSet { .. }))
+        .count()
+}
+
+/// The place of each call of `pick` among the calls since `m`.
+fn places(c: &Coordinator<Both>, m: usize, pick: impl Fn(&Call) -> bool) -> Vec<usize> {
+    calls_since(c, m)
+        .iter()
+        .enumerate()
+        .filter(|(_, call)| pick(call))
+        .map(|(k, _)| k)
+        .collect()
+}
+
+/// RD-52 (b) rule 2 with rule 1: a switch-off of a run that waits on an item, whose `hold_set`
+/// the owner stored with the reply lost and the read showing it, for a handback kind and a
+/// confirmation: one `hold_set` row, the item lapsed `cancelled`, then the one cancel, then
+/// `set_state` `paused` once, the answer ok, and `run_ended` `cancelled` at the runner's end.
+#[test]
+fn rd52b_a_switch_off_whose_hold_the_read_shows_lapses_stops_and_pauses_in_order() {
+    use halvo_coord::types::AgentState;
+    for way in ["stuck", "confirm"] {
+        let (c, run, item) = waiting(way);
+        let m = mark(&c);
+        lose_the_holds_reply(&c, support::Loss::Reply);
+        assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()), "{way}");
+        assert_eq!(hold_sets(&c, 0), 1, "{way}");
+        assert_eq!(closing_rows(&c, &item), 1, "{way}: the lapse");
+        assert!(
+            events(&c).iter().any(|w| matches!(w, What::ItemLapsed { item: i, lapsed } if *i == item && lapsed.cause().name() == "cancelled")),
+            "{way}"
+        );
+        let lapse = places(
+            &c,
+            m,
+            |call| matches!(call, Call::Log(rows) if rows.iter().any(|e| matches!(e.what, What::ItemLapsed { .. }))),
+        );
+        let cancel = places(&c, m, |call| matches!(call, Call::Cancel(r) if *r == run));
+        let paused = places(&c, m, |call| {
+            matches!(
+                call,
+                Call::Send(Body::SetState {
+                    state: AgentState::Paused,
+                    ..
+                })
+            )
+        });
+        assert_eq!(cancel.len(), 1, "{way}: one cancel");
+        assert_eq!(paused.len(), 1, "{way}: paused once");
+        assert!(
+            lapse[0] < cancel[0] && cancel[0] < paused[0],
+            "{way}: {lapse:?} {cancel:?} {paused:?}"
+        );
+        assert!(c.snapshot().items.is_empty(), "{way}");
+        c.ports().ports.end_runner(&run);
+        assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()), "{way}");
+        assert!(events(&c).contains(&What::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Cancelled
+        }));
+    }
+}
+
+/// A switch-off of agent 0 whose `hold_set` the owner holds unseen by the move in the order
+/// `order`: the store's cause, and nothing lapsed, cancelled, stopped or sent, the card open.
+fn switched_off_unseen(c: &Coordinator<Both>, item: &ItemId, order: support::Loss, case: &str) {
+    let m = mark(c);
+    lose_the_holds_reply(c, order);
+    assert_eq!(
+        c.control(&agent(0), Action::SwitchOff),
+        Err(Cause::NoService),
+        "{case}"
+    );
+    c.ports().loss.set(None);
+    let lost: Vec<halvo_coord::types::Event> = c.ports().lost.borrow_mut().drain(..).collect();
+    c.ports().ports.events.borrow_mut().extend(lost);
+    assert_eq!(closing_rows(c, item), 0, "{case}: no item_lapsed");
+    assert!(
+        !calls_since(c, m)
+            .iter()
+            .any(|call| matches!(call, Call::Cancel(_) | Call::Send(Body::SetState { .. }))),
+        "{case}: no cancel and no set_state"
+    );
+    let s = c.snapshot();
+    assert_eq!(open_item(c).0, *item, "{case}: the card stays");
+    assert_ne!(row_line(&s, 0), text("line.working.stopping"), "{case}");
+    assert_eq!(hold_sets(c, 0), 1, "{case}: the owner holds the hold");
+}
+
+/// RD-52 (b) rule 1, where the read does not show the stored hold or fails, for a handback kind
+/// and a confirmation; then, one test each, a second Switch off, which the row still offers,
+/// stores no second `hold_set` and lapses, stops and pauses.
+#[test]
+fn rd52b_a_switch_off_whose_hold_the_move_does_not_see_does_nothing_and_a_second_one_works() {
+    use halvo_coord::types::{AgentState, Control};
+    for way in ["stuck", "confirm"] {
+        for order in UNSEEN {
+            let case = format!("{way} {order:?}");
+            let (c, run, item) = waiting(way);
+            switched_off_unseen(&c, &item, order, &case);
+            let row = c.snapshot().rows[0].clone();
+            assert!(
+                row.controls.iter().any(|t| t.control == Control::SwitchOff),
+                "{case}: the row offers Switch off"
+            );
+            let m = mark(&c);
+            assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()), "{case}");
+            assert_eq!(hold_sets(&c, 0), 1, "{case}: no second hold_set");
+            assert_eq!(closing_rows(&c, &item), 1, "{case}: the lapse");
+            assert_eq!(cancels_of(&c, m, &run), 1, "{case}");
+            assert_eq!(states_sent(&c, m), [AgentState::Paused], "{case}");
+        }
+    }
+}
+
+/// RD-52 (b) rule 3 and RD-61 (d) 5, T-i: the person's answer to the card of a run whose agent's
+/// switch-off the owner holds unseen, on `stuck` and on a sign-in's first step: the answer's read
+/// shows the hold beside the live run, the stop comes first, no answer row is stored, the run
+/// gets no answer of that press, the item lapses `cancelled`, the run stops with one cancel,
+/// `paused` is sent once, and the move answers `unknown_item`.
+#[test]
+fn rd52b_t_i_an_answer_whose_read_shows_a_stored_switch_off_stops_the_run_first() {
+    use halvo_coord::types::AgentState;
+    for reason in DECLINE_DONE {
+        for order in UNSEEN {
+            let case = format!("{reason:?} {order:?}");
+            let (c, run, item) = waiting_on(reason);
+            switched_off_unseen(&c, &item, order, &case);
+            let m = mark(&c);
+            assert_eq!(
+                c.answer(&item, Choice::Done, None),
+                Err(Cause::UnknownItem),
+                "{case}"
+            );
+            assert!(
+                answer_choices(&c, &item).is_empty(),
+                "{case}: no answer row"
+            );
+            assert!(
+                handed_back(&c, m).is_empty(),
+                "{case}: no answer at the run"
+            );
+            assert_eq!(step_rows(&c, &item), ["lapsed:cancelled"], "{case}");
+            assert_eq!(cancels_of(&c, m, &run), 1, "{case}");
+            assert_eq!(states_sent(&c, m), [AgentState::Paused], "{case}");
+            assert!(c.snapshot().items.is_empty(), "{case}: no card");
+            assert_eq!(c.live(), 1, "{case}: the run is stopping until its end");
+        }
+    }
+}
+
+/// RD-52 (b): the person's Stop after a switch-off whose hold the move did not see stops the run
+/// as any Stop does, with one cancel and the item lapsed `cancelled`, and sends no second stop.
+#[test]
+fn rd52b_a_stop_after_an_unseen_switch_off_stops_the_run_once() {
+    for order in UNSEEN {
+        let (c, run, item) = waiting("stuck");
+        switched_off_unseen(&c, &item, order, &format!("{order:?}"));
+        let m = mark(&c);
+        assert_eq!(c.control(&agent(0), Action::Stop), Ok(()), "{order:?}");
+        assert_eq!(cancels_of(&c, m, &run), 1, "{order:?}");
+        assert_eq!(step_rows(&c, &item), ["lapsed:cancelled"], "{order:?}");
+        assert_eq!(hold_sets(&c, 0), 1, "{order:?}");
+    }
+}
+
+/// RD-52 (b): a switch-off of a working run in both forms. Where the read shows the hold the run
+/// stops with one cancel and `paused` once. Where it does not, nothing is done, and the run's
+/// next request, whose move reads the hold, stops the run in that move and shows no card.
+#[test]
+fn rd52b_a_switch_off_of_a_working_run_in_both_forms() {
+    use halvo_coord::types::AgentState;
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let m = mark(&c);
+    lose_the_holds_reply(&c, support::Loss::Reply);
+    assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()));
+    assert_eq!(cancels_of(&c, m, &run), 1);
+    assert_eq!(states_sent(&c, m), [AgentState::Paused]);
+    for order in UNSEEN {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        let m = mark(&c);
+        lose_the_holds_reply(&c, order);
+        assert_eq!(
+            c.control(&agent(0), Action::SwitchOff),
+            Err(Cause::NoService),
+            "{order:?}"
+        );
+        c.ports().loss.set(None);
+        let lost: Vec<halvo_coord::types::Event> = c.ports().lost.borrow_mut().drain(..).collect();
+        c.ports().ports.events.borrow_mut().extend(lost);
+        assert_eq!(cancels_of(&c, m, &run), 0, "{order:?}");
+        let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+        assert_eq!(
+            cancels_of(&c, m, &run),
+            1,
+            "{order:?}: the request's move stops"
+        );
+        assert_eq!(states_sent(&c, m), [AgentState::Paused], "{order:?}");
+        let s = c.snapshot();
+        assert!(s.items.is_empty(), "{order:?}: no card");
+        assert_eq!(row_line(&s, 0), text("line.off.person"), "{order:?}");
+    }
+}
+
+/// RD-52 (b) rule 1: a switch-off of a waiting run while the owner is away stores nothing and
+/// does nothing: nothing lapsed, no cancel, no stop, no `set_state`, the card open, the cause.
+#[test]
+fn rd52b_a_switch_off_while_the_owner_is_away_does_nothing() {
+    for way in ["stuck", "confirm"] {
+        let (c, _run, item) = waiting(way);
+        let m = mark(&c);
+        c.ports().ports.refuse(Method::Log, PortError::NoService);
+        assert_eq!(
+            c.control(&agent(0), Action::SwitchOff),
+            Err(Cause::NoService),
+            "{way}"
+        );
+        c.ports().ports.clear_refusals();
+        assert_eq!(hold_sets(&c, 0), 0, "{way}");
+        assert_eq!(closing_rows(&c, &item), 0, "{way}: no item_lapsed");
+        assert!(
+            !calls_since(&c, m)
+                .iter()
+                .any(|call| matches!(call, Call::Cancel(_) | Call::Send(_))),
+            "{way}"
+        );
+        assert_eq!(open_item(&c).0, item, "{way}: the card stays");
+    }
+}
+
+/// Stores the hold `failures` of agent `n` at the owner after its last event, unseen by the
+/// coordinator, as a `hold_set` whose acknowledgement was lost leaves it.
+fn failures_unseen(c: &Coordinator<Both>, n: usize) {
+    let mut events = c.ports().ports.events.borrow_mut();
+    let last = events
+        .iter()
+        .rfind(|e| e.agent == agent(n))
+        .cloned()
+        .unwrap();
+    events.push(halvo_coord::types::Event {
+        seq: std::num::NonZeroU32::new(last.seq.get() + 1).unwrap(),
+        what: What::HoldSet {
+            cause: HoldSetCause::Failures,
+        },
+        ..last
+    });
+}
+
+/// RD-62 (a), a pin: a start by the person whose read brings a hold `failures` that the
+/// coordinator's events did not hold, by Run now and by the choice `start` of a `ready` item.
+/// The first press answers `hold`, the owner's rows gain nothing, `Runs::start` is not called and
+/// the row then shows the hold; the second press stores one `hold_cleared` with the cause
+/// `failures` and `run_started`, and starts.
+#[test]
+fn rd62a_pin_a_start_whose_read_brings_a_hold_failures_answers_hold_and_the_next_press_starts() {
+    use halvo_coord::types::{Cleared, Control};
+    let slotted = support::A {
+        person: true,
+        slotted: true,
+    };
+    for by in ["run_now", "ready"] {
+        let c = if by == "ready" {
+            coordinator(&[slotted], Limits::PRODUCT)
+        } else {
+            coordinator(&[MANUAL], Limits::PRODUCT)
+        };
+        let ready = c.snapshot().items.first().map(|i| i.item().clone());
+        failures_unseen(&c, 0);
+        let press = |c: &Coordinator<Both>| match &ready {
+            None => c.control(&agent(0), Action::RunNow),
+            Some(item) => c.answer(item, Choice::Start, None),
+        };
+        let before = events(&c).len();
+        let m = mark(&c);
+        assert_eq!(press(&c), Err(Cause::Hold), "{by}");
+        assert_eq!(
+            events(&c).len(),
+            before,
+            "{by}: the owner's rows gain nothing"
+        );
+        assert!(started(&c).is_empty(), "{by}: no Runs::start");
+        assert!(calls_since(&c, m)
+            .iter()
+            .all(|call| !matches!(call, Call::Start(_))));
+        let s = c.snapshot();
+        let controls: Vec<Control> = s.rows[0].controls.iter().map(|t| t.control).collect();
+        assert!(
+            controls.contains(&Control::SwitchOn),
+            "{by}: the row shows the hold: {controls:?}"
+        );
+        if ready.is_none() {
+            assert_eq!(row_line(&s, 0), text("line.problem.failures"), "{by}");
+        } else {
+            assert_eq!(s.items.len(), 1, "{by}: the card stays open");
+        }
+        assert_eq!(press(&c), Ok(()), "{by}");
+        let new: Vec<What> = events(&c)[before..].to_vec();
+        assert_eq!(
+            new.iter()
+                .filter(|w| matches!(
+                    w,
+                    What::HoldCleared {
+                        cause: Cleared::Failures
+                    }
+                ))
+                .count(),
+            1,
+            "{by}: {new:?}"
+        );
+        assert!(
+            new.iter().any(|w| matches!(w, What::RunStarted { .. })),
+            "{by}: {new:?}"
+        );
+        assert_eq!(started(&c).len(), 1, "{by}: it starts");
+    }
+}
+
+/// RD-62 (a), the question by a run: a run's end that makes the streak of `failures` stores
+/// `run_ended` with `hold_set` in one body; where that body's acknowledgement is lost, in either
+/// order, no move of the end, of the ticks that pay its debt, or of the person's Run now after
+/// them sends `set_state` `paused`. The answer is none; the report gives the two readings.
+#[test]
+fn rd62a_question_no_move_sends_paused_for_a_hold_failures_whose_acknowledgement_was_lost() {
+    use halvo_coord::types::AgentState;
+    let limits = Limits {
+        fails_to_pause: 1,
+        ..Limits::PRODUCT
+    };
+    for order in [support::Loss::Reply, support::Loss::Later] {
+        let c = coordinator(&[MANUAL], limits);
+        let run = start(&c, 0);
+        let m = mark(&c);
+        c.ports().ports.end_runner(&run);
+        c.ports().loss.set(Some(order));
+        let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Failed)));
+        c.ports().loss.set(None);
+        let lost: Vec<halvo_coord::types::Event> = c.ports().lost.borrow_mut().drain(..).collect();
+        c.ports().ports.events.borrow_mut().extend(lost);
+        assert!(
+            events(&c).iter().any(|w| matches!(
+                w,
+                What::HoldSet {
+                    cause: HoldSetCause::Failures
+                }
+            )),
+            "{order:?}: the owner holds the hold"
+        );
+        for k in 1..=3 {
+            c.ports().ports.set_clock(T0 + k * 1_000, DAY);
+            c.tick();
+        }
+        let _ = c.control(&agent(0), Action::RunNow);
+        assert!(
+            !states_sent(&c, m).contains(&AgentState::Paused),
+            "{order:?}: {:?}",
+            states_sent(&c, m)
+        );
+    }
+}
+
+/// RD-52 (b) rule 2 for the switch-on: a `hold_cleared` whose reply is lost and whose read shows
+/// the hold ended counts as stored, and `set_state` is sent; where the read does not show it, the
+/// store's cause and no `set_state`.
+#[test]
+fn rd52b_a_switch_on_whose_hold_cleared_reply_is_lost_in_both_forms() {
+    for order in [
+        support::Loss::Reply,
+        support::Loss::Later,
+        support::Loss::Unread,
+    ] {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()), "{order:?}");
+        let m = mark(&c);
+        lose_the_holds_reply(&c, order);
+        let out = c.control(&agent(0), Action::SwitchOn);
+        c.ports().loss.set(None);
+        if order == support::Loss::Reply {
+            assert_eq!(out, Ok(()), "{order:?}");
+            assert_eq!(states_sent(&c, m).len(), 1, "{order:?}");
+        } else {
+            assert_eq!(out, Err(Cause::NoService), "{order:?}");
+            assert!(states_sent(&c, m).is_empty(), "{order:?}");
+        }
     }
 }

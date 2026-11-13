@@ -1,8 +1,8 @@
 use halvo_coord::mem::{Call, Config, Method, Ports};
 use halvo_coord::ports::{Owner, PortError};
 use halvo_coord::schedule::{
-    drive, start_step, tick_step, Answer, Around, Ask, Board, Hold, Member, Move, Report, Served,
-    Verdict,
+    drive, holds, start_step, tick_step, Answer, Around, Ask, Board, Hold, Member, Move, Report,
+    Served, Verdict,
 };
 use halvo_coord::types::{
     Agent, AgentId, AgentState, Answered, Body, Category, Cause, CheckAnswer, Cleared, Doing,
@@ -2900,4 +2900,127 @@ fn an_end_after_midnight_takes_the_day_first_for_the_start_that_it_serves() {
         .map(|e| e.day)
         .collect();
     assert_eq!(started, [DAY + 1]);
+}
+
+/// Stores `what` for agent `n` at the owner after its last event, and, where `seen`, in the
+/// board's events too.
+fn stored_at_owner(w: &mut World, n: usize, what: What, seen: bool) {
+    let last = w
+        .stored()
+        .iter()
+        .filter(|e| e.agent == agent(n))
+        .map(|e| e.seq.get())
+        .max()
+        .unwrap_or(0);
+    let event = Event {
+        workflow: flow(n),
+        agent: agent(n),
+        seq: NonZeroU32::new(last + 1).unwrap(),
+        day: DAY,
+        at: 1,
+        what,
+    };
+    w.ports.events.borrow_mut().push(event.clone());
+    if seen {
+        let i = w
+            .board
+            .members
+            .iter()
+            .position(|m| m.facts.agent == agent(n))
+            .unwrap();
+        w.board.members[i].facts.events.push(event);
+    }
+}
+
+const OFF: What = What::HoldSet {
+    cause: HoldSetCause::Person,
+};
+
+/// RD-52 (b) rule 4, at the drive: for an agent whose hold `off` stands in the board's events,
+/// `Move::SwitchOff` answers `state` where no live run stands that a stop can reach, with no run
+/// and with a stopping one; where a live run stands it reads the owner's events first: with the
+/// hold standing it stores no second `hold_set` and stops the run; with the hold ended by a
+/// switch-on whose acknowledgement was lost it stores `hold_set` as a new press and stops the
+/// run; with the read failing it answers the read's cause and does nothing.
+#[test]
+fn rd52b_rule_4_the_switch_offs_guard_answers_by_a_read_where_a_live_run_stands() {
+    let mut w = world(&[manual()]);
+    stored_at_owner(&mut w, 0, OFF, true);
+    w.forget();
+    assert_eq!(
+        w.go(Move::SwitchOff { agent: agent(0) }).answer,
+        Err(Cause::State),
+        "off with no run"
+    );
+    assert!(w.calls().is_empty());
+    for case in ["standing", "ended", "read_fails"] {
+        let mut w = world(&[manual()]);
+        let run = ok_run(&w.start(0));
+        stored_at_owner(&mut w, 0, OFF, true);
+        if case == "ended" {
+            stored_at_owner(
+                &mut w,
+                0,
+                What::HoldCleared {
+                    cause: Cleared::Person,
+                },
+                false,
+            );
+        }
+        if case == "read_fails" {
+            w.ports.refuse(Method::History, PortError::NoService);
+        }
+        w.forget();
+        let r = w.go(Move::SwitchOff { agent: agent(0) });
+        w.ports.clear_refusals();
+        let expected: Vec<String> = match case {
+            "standing" => vec![format!("cancel {run}"), "set_state paused".into()],
+            "ended" => vec![
+                "log hold_set person".into(),
+                format!("cancel {run}"),
+                "set_state paused".into(),
+            ],
+            _ => vec![],
+        };
+        assert_eq!(w.calls(), expected, "{case}");
+        if case == "read_fails" {
+            assert_eq!(r.answer, Err(Cause::NoService), "{case}");
+            assert!(r.stopped.is_empty(), "{case}");
+            continue;
+        }
+        assert_eq!(r.answer, Ok(Answer::Ok), "{case}");
+        assert_eq!(r.stopped, vec![run.clone()], "{case}");
+        assert_eq!(
+            w.go(Move::SwitchOff { agent: agent(0) }).answer,
+            Err(Cause::State),
+            "{case}: off with a stopping run"
+        );
+    }
+}
+
+/// RD-52 (a), left to U2.4b: the tick's raise of a `ready` item whose log meets `seq` and whose
+/// read shows a hold raises no item: no `item_raised` row, and the agent holds no item.
+#[test]
+fn rd52a_the_ticks_raise_of_a_ready_item_whose_read_shows_a_hold_raises_nothing() {
+    let mut w = world(&[person()]);
+    stored_at_owner(&mut w, 0, OFF, false);
+    let r = w.tick();
+    assert!(r.raised.is_empty(), "{r:?}");
+    assert!(
+        !w.stored()
+            .iter()
+            .any(|e| matches!(e.what, What::ItemRaised { .. })),
+        "no item_raised"
+    );
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+    assert!(
+        holds(w.facts(0)).contains(&Hold::Off),
+        "the read brought the hold"
+    );
+    let mut control = world(&[person()]);
+    assert_eq!(
+        control.tick().raised,
+        vec![agent(0)],
+        "the control raises it"
+    );
 }

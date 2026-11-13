@@ -492,6 +492,21 @@ enum Decided {
     Lapsed,
     /// The press's own row goes to the owner.
     Log,
+    /// The read showed the agent switched off beside the live run: nothing goes to the run and
+    /// nothing more is stored, and the move answers `unknown_item` (ruling RD-52 (b) rule 3).
+    Stopped,
+}
+
+/// What a read of the owner's events in a press gave (rulings RD-52 (b) rule 3, (c) rule 1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Read {
+    /// The read failed.
+    Failed,
+    /// The ledger took the events.
+    Taken,
+    /// The ledger took the events, which show the agent's hold `off` standing beside its live
+    /// run where the coordinator did not know it: the run's stop comes first.
+    Off,
 }
 
 impl Press<'_> {
@@ -527,7 +542,8 @@ impl Press<'_> {
 }
 
 /// Logs the row of a press (rulings RD-61 (c), RD-52 (c)): one log, and after its failure one
-/// read by `read`, which takes the owner's events into the ledger and says whether it answered.
+/// read by `read`, which takes the owner's events into the ledger; a read that shows the agent
+/// switched off beside its run stops the press (RD-52 (b) rule 3).
 /// `Press::decide` then decides by the newest closing row that the read shows: the press's own
 /// row counts as its store, and another row decides. Where it gives `Log`, the row goes once more
 /// after a refusal `seq`, and after any other failure only where the read showed the older `done`
@@ -540,7 +556,7 @@ fn log_press<P: Owner>(
     press: &Press<'_>,
     row: &What,
     stamp: Stamp,
-    read: &mut dyn FnMut(&mut Ledger) -> bool,
+    read: &mut dyn FnMut(&mut Ledger) -> Read,
 ) -> Result<Decided, PortError> {
     let mut events = ledger.number(vec![row.clone()], stamp);
     let mut once = false;
@@ -552,8 +568,13 @@ fn log_press<P: Owner>(
                 return Ok(Decided::Own(press.result));
             }
             Err(e) => {
-                if once || !read(ledger) {
+                if once {
                     return Err(e);
+                }
+                match read(ledger) {
+                    Read::Failed => return Err(e),
+                    Read::Off => return Ok(Decided::Stopped),
+                    Read::Taken => {}
                 }
                 once = true;
                 let newest = ledger.closing(press.item).map(|e| &e.what);
@@ -851,10 +872,8 @@ pub fn stop_confirm<P: Owner + Runs + Clock>(
 ) -> Result<(), Cause> {
     if lapse(ports, ledger, table, held, LapseCause::Cancelled, limits).is_err() {
         let run = held.ask.run();
-        if !table.is_stopped(run) {
-            *table = table.stop(run);
-            let _ = ports.cancel(run);
-        }
+        *table = table.stop(run);
+        let _ = ports.cancel(run);
     }
     Ok(())
 }
@@ -862,8 +881,8 @@ pub fn stop_confirm<P: Owner + Runs + Clock>(
 /// The lapse of the open item of `run`, of a kind other than `confirm`, with `cause` (I7.1):
 /// stores its `item_lapsed`, and for `wait_limit` and `cancelled`, which stop the run, stops the
 /// run in the guard's table and sends `Runs::cancel` once, the fact that every kind of item sets
-/// at its lapse and that `Act::Stop` reads (ruling RD-6); `malformed` for a confirmation, whose
-/// lapse is `lapse`.
+/// at its lapse (ruling RD-6); the caller holds the run's stop in the guard's table and on the
+/// board before it (ruling RD-48 (a)). `malformed` for a confirmation, whose lapse is `lapse`.
 pub fn lapse_item<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -886,7 +905,7 @@ pub fn lapse_item<P: Owner + Runs + Clock>(
         lapsed,
     };
     let _ = store(ports, ledger, limits, vec![row]);
-    if matches!(cause, OtherLapse::WaitLimit | OtherLapse::Cancelled) && !table.is_stopped(run) {
+    if matches!(cause, OtherLapse::WaitLimit | OtherLapse::Cancelled) {
         *table = table.stop(run);
         let _ = ports.cancel(run);
     }
@@ -1012,12 +1031,12 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
     ask: &HandbackAsk,
     choice: Choice,
 ) -> Result<(), Cause> {
-    let mut read = |l: &mut Ledger| resync(ports, l).is_ok();
+    let mut read = |l: &mut Ledger| resync(ports, l).map_or(Read::Failed, |()| Read::Taken);
     answer_handback_reading(ports, ledger, limits, item, ask, choice, &mut read)
 }
 
 /// `answer_handback` with `read` as the one read of the owner's events after a failed log of the
-/// press's row: it takes the events into the ledger and says whether it answered.
+/// press's row: it takes the events into the ledger and says what it showed.
 pub fn answer_handback_reading<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -1025,7 +1044,7 @@ pub fn answer_handback_reading<P: Owner + Runs + Clock>(
     item: &ItemId,
     ask: &HandbackAsk,
     choice: Choice,
-    read: &mut dyn FnMut(&mut Ledger) -> bool,
+    read: &mut dyn FnMut(&mut Ledger) -> Read,
 ) -> Result<(), Cause> {
     let run = &ask.run;
     let kind = handback_kind(ask.reason);
@@ -1080,7 +1099,7 @@ pub fn answer_handback_reading<P: Owner + Runs + Clock>(
     match decided {
         Decided::Own(result) => hand(result),
         Decided::Other(result) => hand(result).and(Err(Cause::UnknownItem)),
-        Decided::Lapsed | Decided::Log => Err(Cause::UnknownItem),
+        Decided::Lapsed | Decided::Log | Decided::Stopped => Err(Cause::UnknownItem),
     }
 }
 

@@ -13,7 +13,7 @@ mod start;
 mod tick;
 
 pub use board::{Board, Dying, LiveRun, Member, Owed, Owing, Stop};
-pub use drive::{drive, stop_run, Answer, Ended, Move, Report, Served};
+pub use drive::{drive, drive_with, stop_run, Answer, Ended, Halt, Move, Report, Served};
 pub(crate) use drive::{item_closed, read_after_seq, resync, seq_refusal};
 pub use hold::{holds, Hold};
 pub use queue::{Queue, Waiting};

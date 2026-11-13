@@ -43,6 +43,13 @@ pub enum Move {
         /// The agent.
         agent: AgentId,
     },
+    /// The rest of a switch-off in a move whose own read of the owner's events showed the hold
+    /// `off` of the agent standing where the coordinator did not know it (I5.7, ruling RD-52 (b)
+    /// rule 3); `state` where the facts hold no such hold.
+    Off {
+        /// The agent.
+        agent: AgentId,
+    },
     /// The end of a live run by its runner: the outcome of its last frame, or none when the
     /// runner was gone with no last frame (I5.6).
     End {
@@ -1043,23 +1050,26 @@ fn pay_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>) {
     }
 }
 
+/// Raises an item of the coordinator's own kinds for the agent `i`; where its log meets `seq`,
+/// `decide` decides again from the facts as the read left them, and a cause there raises nothing
+/// (ruling RD-52 (a)). False where `decide` gave a cause.
 fn raise<P: Owner + Rng, C: ConfigView>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
     i: usize,
     raised: Raised,
     kind: OwnItemKind,
-) -> Result<(), PortError> {
+    decide: Option<Decide<'_, C>>,
+) -> Result<bool, PortError> {
     let item = ItemId::parse(&minted(cx)?).map_err(|_| PortError::NoService)?;
-    store(
-        cx,
-        board,
-        i,
-        vec![What::ItemRaised {
-            item: item.clone(),
-            raised,
-        }],
-    )?;
+    let (day, at) = (cx.stamp.day(), cx.stamp.at());
+    let row = What::ItemRaised {
+        item: item.clone(),
+        raised,
+    };
+    if let Stored::Decided(_) = store_read(cx, board, i, vec![row], day, at, decide)? {
+        return Ok(false);
+    }
     let facts = &mut board.members[i].facts;
     let stored = facts
         .events
@@ -1068,7 +1078,7 @@ fn raise<P: Owner + Rng, C: ConfigView>(
     if stored {
         facts.doing = Doing::Idle(Some(OwnItem { item, kind }));
     }
-    Ok(())
+    Ok(true)
 }
 
 /// Takes the day of the move's read of the clock as the coordinator's day (I5.9).
@@ -1150,9 +1160,20 @@ where
     for i in 0..board.members.len() {
         let facts = &board.members[i].facts;
         let agent = facts.agent.clone();
-        match tick_step(facts, listed.contains(&facts.workflow.id), cx.limits) {
+        let on_list = listed.contains(&facts.workflow.id);
+        match tick_step(facts, on_list, cx.limits) {
             Ask::Ready if starts => {
-                if raise(cx, board, i, Raised::Ready, OwnItemKind::Ready).is_ok() {
+                let still = |f: &Facts<C>| {
+                    (tick_step(f, on_list, cx.limits) != Ask::Ready).then_some(Cause::Hold)
+                };
+                if let Ok(true) = raise(
+                    cx,
+                    board,
+                    i,
+                    Raised::Ready,
+                    OwnItemKind::Ready,
+                    Some(&still),
+                ) {
                     report.raised.push(agent);
                 }
             }
@@ -1184,7 +1205,7 @@ where
             .iter()
             .any(|w| matches!(w, Workflow::Full(f) if f.id == facts.workflow.id));
         if listed && facts.doing == Doing::Idle(None) && holds(facts).contains(&Hold::Setup) {
-            let _ = raise(cx, board, i, Raised::Setup, OwnItemKind::Setup);
+            let _ = raise(cx, board, i, Raised::Setup, OwnItemKind::Setup, None);
         }
     }
 }
@@ -1265,13 +1286,18 @@ where
             .partition_point(|m| m.facts.agent < member.facts.agent);
         board.members.insert(at, member);
         if holds(&board.members[at].facts).contains(&Hold::Setup) {
-            let _ = raise(cx, board, at, Raised::Setup, OwnItemKind::Setup);
+            let _ = raise(cx, board, at, Raised::Setup, OwnItemKind::Setup, None);
         }
     }
     report
 }
 
-fn member_move<P, C>(cx: &Cx<'_, P>, board: &mut Board<C>, mv: Move) -> Report
+fn member_move<P, C>(
+    cx: &Cx<'_, P>,
+    board: &mut Board<C>,
+    mv: Move,
+    halt: Option<Halt<'_, C>>,
+) -> Report
 where
     P: Owner<Config = C> + Runs + Analysis + Rng,
     C: ConfigView + Clone,
@@ -1281,7 +1307,8 @@ where
         | Move::Skip { agent }
         | Move::Check { agent, .. }
         | Move::SwitchOn { agent }
-        | Move::SwitchOff { agent } => agent.clone(),
+        | Move::SwitchOff { agent }
+        | Move::Off { agent } => agent.clone(),
         Move::Tick | Move::End { .. } | Move::Create | Move::Owed => return refused(Cause::State),
     };
     let Some(i) = board.index(&agent) else {
@@ -1394,7 +1421,14 @@ where
                 return refused(Cause::State);
             }
             if let Err(e) = store(cx, board, i, whats) {
-                return refused(port_cause(&e));
+                let ended = !seq_refusal(&e)
+                    && read_once(cx, board, i).is_ok()
+                    && !holds(&board.members[i].facts)
+                        .iter()
+                        .any(|h| matches!(h, Hold::Off | Hold::Failures) && standing.contains(h));
+                if !ended {
+                    return refused(port_cause(&e));
+                }
             }
             let facts = &board.members[i].facts;
             let state = if gives_active(facts) {
@@ -1406,31 +1440,88 @@ where
             Report::default()
         }
         Move::SwitchOff { .. } => {
-            if standing.contains(&Hold::Off) {
-                return refused(Cause::State);
-            }
-            let set = What::HoldSet {
-                cause: HoldSetCause::Person,
-            };
-            if let Err(e) = store(cx, board, i, vec![set]) {
-                return refused(port_cause(&e));
-            }
-            let mut report = Report::default();
-            let live = board
+            let reachable = board
                 .runs
                 .iter()
-                .find(|r| r.agent == agent && r.stop.is_none())
-                .map(|r| r.run.clone());
-            if let Some(run) = live {
-                stop_run(board, &run, cx.stamp.now(), RunEnd::Cancelled);
-                let _ = cx.ports.cancel(&run);
-                report.stopped.push(run);
+                .any(|r| r.agent == agent && r.stop.is_none());
+            let mut known = false;
+            if standing.contains(&Hold::Off) {
+                if !reachable {
+                    return refused(Cause::State);
+                }
+                if let Err(e) = read_once(cx, board, i) {
+                    return refused(port_cause(&e));
+                }
+                known = holds(&board.members[i].facts).contains(&Hold::Off);
             }
-            send_state(cx, &board.members[i].facts, AgentState::Paused);
-            report
+            if !known {
+                let set = What::HoldSet {
+                    cause: HoldSetCause::Person,
+                };
+                if let Err(e) = store(cx, board, i, vec![set]) {
+                    let shown = !seq_refusal(&e)
+                        && read_once(cx, board, i).is_ok()
+                        && holds(&board.members[i].facts).contains(&Hold::Off);
+                    if !shown {
+                        return refused(port_cause(&e));
+                    }
+                }
+            }
+            off_rest(cx, board, i, halt)
+        }
+        Move::Off { .. } => {
+            if !standing.contains(&Hold::Off) {
+                return refused(Cause::State);
+            }
+            off_rest(cx, board, i, halt)
         }
         Move::Tick | Move::End { .. } | Move::Create | Move::Owed => refused(Cause::State),
     }
+}
+
+/// What stops a live run that a switch-off stops, called once the board holds its stop, with the
+/// index of the run's member: whether it sent `Runs::cancel`. The coordinator's holds the stop in
+/// the guard's table and lapses the run's open item, whose lapse sends it; for a run with no open
+/// item the switch-off sends it.
+pub type Halt<'a, C> = &'a mut dyn FnMut(&mut Board<C>, usize, &RunId) -> bool;
+
+/// One read of the agent's events at the owner, which the facts take as after a refusal `seq`,
+/// the agent's own item settled by it (I7.2).
+fn read_once<P: Owner, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize) -> Result<(), PortError> {
+    let facts = &mut board.members[i].facts;
+    let before = facts.events.len();
+    resync(cx.ports, &facts.agent, &mut facts.events)?;
+    settle(facts, before);
+    Ok(())
+}
+
+/// The rest of a switch-off once its hold `off` is known stored (I5.7, ruling RD-52 (b) rule 1):
+/// the agent's live run that no stop has reached is stopped on the board with `cancelled`, then
+/// halted by `halt`, and by `Runs::cancel` where `halt` sent none, and then `set_state` `paused`
+/// is sent.
+fn off_rest<P: Owner + Runs, C: ConfigView>(
+    cx: &Cx<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+    halt: Option<Halt<'_, C>>,
+) -> Report {
+    let agent = board.members[i].facts.agent.clone();
+    let mut report = Report::default();
+    let live = board
+        .runs
+        .iter()
+        .find(|r| r.agent == agent && r.stop.is_none())
+        .map(|r| r.run.clone());
+    if let Some(run) = live {
+        stop_run(board, &run, cx.stamp.now(), RunEnd::Cancelled);
+        let sent = halt.is_some_and(|halt| halt(board, i, &run));
+        if !sent {
+            let _ = cx.ports.cancel(&run);
+        }
+        report.stopped.push(run);
+    }
+    send_state(cx, &board.members[i].facts, AgentState::Paused);
+    report
 }
 
 /// Carries out a move on the ports and the board, and is the one function of the schedule
@@ -1473,11 +1564,37 @@ where
 /// holds, logs nothing of what they already hold (the same event, an open item of the same kind,
 /// an item that they close, an end of the run), takes the agent's open item from them, and logs
 /// the rest once more; a second refusal waits for the next move (I7.2, ruling XB-31).
+///
+/// The switch-off (I5.7, ruling RD-52 (b) rules 1, 2 and 4) stores `hold_set` with the cause
+/// `person` first and does nothing else until the hold is known stored, by the acknowledgement or
+/// by one read after a store that got none whose events show the hold standing; it then stops the
+/// agent's live run and sends `set_state` `paused`. For an agent whose hold `off` stands in the
+/// board's events it answers `state` where no live run stands that a stop can still reach;
+/// where one stands it reads the owner's events first and goes on with no second `hold_set`
+/// while the hold stands, stores `hold_set` as a new press where the hold has ended, and answers
+/// the read's cause where the read fails. The switch-on takes a read that shows its holds ended
+/// as its store in the same way.
 pub fn drive<P>(
     ports: &P,
     board: &mut Board<P::Config>,
     limits: &crate::types::Limits,
     mv: Move,
+) -> Report
+where
+    P: Owner + Runs + Analysis + Clock + Rng,
+    P::Config: ConfigView + Clone,
+{
+    drive_with(ports, board, limits, mv, None)
+}
+
+/// `drive` with `halt` as what stops a live run that the switch-off, or the rest of it of
+/// `Move::Off`, stops after the board holds its stop, in place of `Runs::cancel`.
+pub fn drive_with<P>(
+    ports: &P,
+    board: &mut Board<P::Config>,
+    limits: &crate::types::Limits,
+    mv: Move,
+    halt: Option<Halt<'_, P::Config>>,
 ) -> Report
 where
     P: Owner + Runs + Analysis + Clock + Rng,
@@ -1519,6 +1636,6 @@ where
                 ..Report::default()
             }
         }
-        other => member_move(&cx, board, other),
+        other => member_move(&cx, board, other, halt),
     }
 }

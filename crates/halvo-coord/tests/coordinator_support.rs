@@ -35,6 +35,8 @@ pub struct Both {
     pub lost: std::cell::RefCell<Vec<Event>>,
     /// Whether the next `history` fails, after a `log` of the form `Loss::Unread`.
     pub unread: Cell<bool>,
+    /// Where set, `loss` waits for the first `log` with a row that this names.
+    pub loss_at: Cell<Option<Names>>,
     /// Each `Runs::answer_bind`: its run, its answer, whether it did its work, and how many
     /// events the owner held at the call.
     pub binds_at: std::cell::RefCell<Vec<(RunId, BindResult, bool, usize)>>,
@@ -42,6 +44,9 @@ pub struct Both {
     /// events the owner held at the call.
     pub handbacks_at: std::cell::RefCell<Vec<(RunId, HandbackResult, bool, usize)>>,
 }
+
+/// Whether a row is one that a lost acknowledgement waits for.
+pub type Names = fn(&halvo_coord::types::What) -> bool;
 
 /// A lost acknowledgement of the next `log`, in one of two forms: the owner stores the rows and
 /// the reply is lost, so that the coordinator's read right after the call brings them; or the
@@ -95,7 +100,17 @@ impl Owner for Both {
 
     fn log(&self, events: &[Event]) -> Result<(), PortError> {
         self.note("::log");
-        match self.loss.take() {
+        let waits = self
+            .loss_at
+            .get()
+            .is_some_and(|names| !events.iter().any(|e| names(&e.what)));
+        let loss = if waits {
+            None
+        } else {
+            self.loss_at.set(None);
+            self.loss.take()
+        };
+        match loss {
             Some(Loss::Reply) => {
                 self.ports.log(events)?;
                 Err(PortError::NoService)
@@ -281,6 +296,7 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
         loss: Cell::new(None),
         lost: std::cell::RefCell::new(Vec::new()),
         unread: Cell::new(false),
+        loss_at: Cell::new(None),
         binds_at: std::cell::RefCell::new(Vec::new()),
         handbacks_at: std::cell::RefCell::new(Vec::new()),
     }
