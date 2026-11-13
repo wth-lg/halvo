@@ -409,11 +409,37 @@ async fn frames_of(ex: &Executor, reference: &str) -> Vec<(FrameId, Option<Strin
 }
 
 /// The origin of the first state-changing request that the rule let through since it was armed.
-fn left_request(ex: &Executor) -> Option<String> {
-    ex.paused()
-        .into_iter()
-        .find(|p| p.let_through && !matches!(p.method.as_str(), "GET" | "HEAD" | "OPTIONS"))
-        .map(|p| strip_port(&p.origin))
+fn left_request(ex: &Executor) -> Effect {
+    effect_of(&ex.paused())
+}
+
+/// What the state-changing requests of one step did: none, one that left (with the origin, no
+/// port, of the first), or one that the request rule failed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Effect {
+    None,
+    Left(String),
+    Refused,
+}
+
+/// The effect of a step from the requests that the rule paused while the step ran (A4.2).
+pub fn effect_of(paused: &[r3_web::cdp::PausedRequest]) -> Effect {
+    let changing =
+        |p: &&r3_web::cdp::PausedRequest| !matches!(p.method.as_str(), "GET" | "HEAD" | "OPTIONS");
+    if let Some(p) = paused.iter().filter(changing).find(|p| p.let_through) {
+        return Effect::Left(strip_port(&p.origin));
+    }
+    if paused.iter().any(|p| changing(&p)) {
+        return Effect::Refused;
+    }
+    Effect::None
+}
+
+/// Whether the request rule lets a state-changing request of a click or a press leave: the harness
+/// answered its confirmation with allow and the extracts of the task's effect row are kept, so a
+/// compile that reaches a request without them fails before the request leaves (A9.4).
+pub fn may_leave(confirmed: bool, extracts_kept: bool) -> bool {
+    confirmed && extracts_kept
 }
 
 /// The harness signs in at a handback when the page shows a credential field (A13.6, A3.4):
@@ -503,7 +529,11 @@ async fn carry_out(
         ));
     }
     let clicks = matches!(action, Action::Click { .. } | Action::Press { .. });
-    if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), clicks && confirm)).await? {
+    let kept_all = needed_extracts(&ctx.task)
+        .iter()
+        .all(|k| kept.contains_key(*k));
+    let allow = clicks && may_leave(confirm, kept_all);
+    if let Err(e) = guarded(ctx, ex.arm_rule(ctx.origins(), allow)).await? {
         return Ok(Done::Refused(format!("refused: {e}")));
     }
     let frames = frames_of(ex, &reference).await;
@@ -552,17 +582,15 @@ async fn carry_out(
     if clicks {
         settle(ex, &frames).await;
     }
-    let request = left_request(ex);
-    if let Some(origin) = &request {
-        if needed_extracts(&ctx.task)
-            .iter()
-            .any(|k| !kept.contains_key(*k))
-        {
-            return Ok(Done::Failed("provenance"));
+    let request = match left_request(ex) {
+        Effect::Left(origin) => {
+            tally.allowed += 1;
+            ctx.trace(&format!("effect allowed origin={origin}"));
+            Some(origin)
         }
-        tally.allowed += 1;
-        ctx.trace(&format!("effect allowed origin={origin}"));
-    }
+        Effect::Refused if clicks && confirm && !kept_all => return Ok(Done::Failed("provenance")),
+        Effect::Refused | Effect::None => None,
+    };
     let (verb, mut args) = match action {
         Action::Click { .. } => (Verb::Click, Vec::new()),
         Action::Press { key, .. } => (
@@ -1321,6 +1349,48 @@ mod tests {
                 name: "items".into()
             }
         ));
+    }
+
+    fn paused(method: &str, let_through: bool) -> r3_web::cdp::PausedRequest {
+        r3_web::cdp::PausedRequest {
+            method: method.into(),
+            origin: "http://pay.agent.test:18471".into(),
+            path: "/charge".into(),
+            let_through,
+            outcome: if let_through {
+                r3_web::cdp::Outcome::Continued
+            } else {
+                r3_web::cdp::Outcome::Failed
+            },
+            body: Vec::new(),
+            body_complete: true,
+        }
+    }
+
+    #[test]
+    fn a_request_leaves_only_when_confirmed_and_its_extracts_are_kept() {
+        assert!(may_leave(true, true));
+        assert!(!may_leave(true, false));
+        assert!(!may_leave(false, true));
+        assert!(!may_leave(false, false));
+    }
+
+    #[test]
+    fn the_paused_requests_tell_an_effect_from_a_refused_one() {
+        assert_eq!(effect_of(&[]), Effect::None);
+        assert_eq!(
+            effect_of(&[paused("GET", true), paused("HEAD", false)]),
+            Effect::None
+        );
+        assert_eq!(
+            effect_of(&[paused("GET", true), paused("POST", true)]),
+            Effect::Left("http://pay.agent.test".into())
+        );
+        assert_eq!(effect_of(&[paused("POST", false)]), Effect::Refused);
+        assert_eq!(
+            effect_of(&[paused("PUT", false), paused("POST", true)]),
+            Effect::Left("http://pay.agent.test".into())
+        );
     }
 
     #[test]
