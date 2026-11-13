@@ -11,7 +11,7 @@ mod graph;
 mod mail;
 mod token;
 
-pub use address::same_address;
+pub use address::{reply_senders, same_address, SendersError};
 pub use calendar::{Calendar, Event, EventToDelete, Events, RunDay};
 pub use error::{AnswerFault, BuildError, CallError, Effect};
 pub use graph::{Graph, Route};
