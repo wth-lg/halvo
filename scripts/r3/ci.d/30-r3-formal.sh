@@ -19,6 +19,7 @@ fetch_time=25
 fetch_pause=5
 fetch_bound=60
 controls_list='P2 P3 P4 P5 P6 P7 P8 P9 P10 P11 P10-live'
+control_slots=3
 
 fail() {
   printf 'FAIL %s (%s)\n' "$label" "$1"
@@ -184,17 +185,25 @@ jar() {
   [ "$same" = yes ] || fail jar
 }
 
-tlc() {
+tlc_start() {
   run=$tmp/$1
   mkdir "$run" "$run/jtmp" || fail scratch
   cp "${3:-$dir/Confirm.tla}" "$run/Confirm.tla" || fail scratch
   cp "$2" "$run/run.cfg" || fail scratch
+  date +%s >"$run/started.txt" || fail scratch
   (
     cd "$run" || exit 99
-    "$java" -XX:+UseParallelGC -Xmx2g -Djava.io.tmpdir=jtmp -cp ../tla2tools.jar tlc2.TLC -workers "$workers" \
+    "$java" -XX:+UseParallelGC -Xmx2g -Djava.io.tmpdir=jtmp -cp ../tla2tools.jar tlc2.TLC -workers "${4:-$workers}" \
       -deadlock -metadir meta -config run.cfg Confirm.tla >out.raw 2>&1 </dev/null
-  )
-  status=$?
+    printf '%s\n' "$?" >status.txt
+    date +%s >ended.txt
+  ) &
+}
+
+tlc_read() {
+  run=$tmp/$1
+  status=99
+  read -r status <"$run/status.txt" || status=99
   awk '
     { sub(/\r$/, "") }
     /^[0-9]+ states generated, [0-9]+ distinct states found, 0 states left on queue\.$/ { distinct = $4 }
@@ -210,6 +219,90 @@ tlc() {
   first=-
   found=0
   read -r distinct violated complete first found <"$run/facts.txt" || status=99
+  began=0
+  read -r began <"$run/started.txt" || began=0
+  ended=0
+  read -r ended <"$run/ended.txt" || ended=0
+  seconds=$((ended - began))
+}
+
+tlc() {
+  tlc_start "$@"
+  wait "$!"
+  tlc_read "$1"
+}
+
+control_prepare() {
+  k=$1
+  case $k in
+    P10-live) invariant=P10 ;;
+    *) invariant=$k ;;
+  esac
+  model=$tmp/model-$k.tla
+  cp "${2:-$dir/Confirm.tla}" "$model" || fail scratch
+  step=1
+  while block "$k" "${step}old" >"$tmp/old-$k-$step.txt"; do
+    block "$k" "${step}new" >"$tmp/new-$k-$step.txt" || fail control
+    replaced "$model" "$tmp/old-$k-$step.txt" "$tmp/new-$k-$step.txt" || return 1
+    step=$((step + 1))
+  done
+  [ "$step" -gt 1 ] || return 1
+  cfg_text '{e1}' "${3:-2}" FALSE "$invariant" >"$tmp/control-$k.cfg" || fail scratch
+}
+
+control_report() {
+  k=$1
+  case $k in
+    P10-live) invariant=P10 ;;
+    *) invariant=$k ;;
+  esac
+  tlc_read "control-$k"
+  printf 'formal control name=%s invariant=%s reported=%s status=%s states=%s seconds=%s\n' \
+    "$k" "$invariant" "$first" "$status" "$found" "$seconds"
+  [ "$status" -ne 0 ] && [ "$violated" -eq 1 ] && [ "$first" = "$invariant" ]
+}
+
+one_control() {
+  control_prepare "$@" || return 1
+  tlc_start "control-$1" "$tmp/control-$1.cfg" "$tmp/model-$1.tla" 1
+  wait "$!"
+  control_report "$1"
+}
+
+controls_wait() {
+  wait
+  for k in $batch; do
+    if control_report "$k"; then
+      reported=$((reported + 1))
+    else
+      wrong=yes
+    fi
+  done
+  batch=
+  slot=0
+}
+
+controls() {
+  reported=1
+  wrong=no
+  batch=
+  slot=0
+  started=$(date +%s)
+  for k in $controls_list; do
+    if ! control_prepare "$k"; then
+      printf 'formal control name=%s replaced=no\n' "$k"
+      wrong=yes
+      continue
+    fi
+    tlc_start "control-$k" "$tmp/control-$k.cfg" "$tmp/model-$k.tla" 1
+    batch="$batch $k"
+    slot=$((slot + 1))
+    [ "$slot" -lt "$control_slots" ] || controls_wait
+  done
+  controls_wait
+  ended=$(date +%s)
+  printf 'formal controls count=12 reported=%s seconds=%s\n' "$reported" "$((ended - started))"
+  [ "$wrong" = no ] || fail control
 }
 
 holds() {
@@ -327,43 +420,6 @@ replaced() {
     }' "$1" >"$1.next" && mv "$1.next" "$1"
 }
 
-one_control() {
-  k=$1
-  case $k in
-    P10-live) invariant=P10 ;;
-    *) invariant=$k ;;
-  esac
-  model=$tmp/model-$k.tla
-  cp "${2:-$dir/Confirm.tla}" "$model" || fail scratch
-  step=1
-  while block "$k" "${step}old" >"$tmp/old-$k-$step.txt"; do
-    block "$k" "${step}new" >"$tmp/new-$k-$step.txt" || fail control
-    replaced "$model" "$tmp/old-$k-$step.txt" "$tmp/new-$k-$step.txt" || return 1
-    step=$((step + 1))
-  done
-  [ "$step" -gt 1 ] || return 1
-  cfg_text '{e1}' "${3:-2}" FALSE "$invariant" >"$tmp/control-$k.cfg" || fail scratch
-  started=$(date +%s)
-  tlc "control-$k" "$tmp/control-$k.cfg" "$model"
-  ended=$(date +%s)
-  printf 'formal control name=%s invariant=%s reported=%s status=%s states=%s seconds=%s\n' \
-    "$k" "$invariant" "$first" "$status" "$found" "$((ended - started))"
-  [ "$status" -ne 0 ] && [ "$violated" -eq 1 ] && [ "$first" = "$invariant" ]
-}
-
-controls() {
-  reported=1
-  for k in $controls_list; do
-    if one_control "$k"; then
-      reported=$((reported + 1))
-    else
-      printf 'formal controls count=12 reported=%s\n' "$reported"
-      fail control
-    fi
-  done
-  printf 'formal controls count=12 reported=%s\n' "$reported"
-}
-
 finish() {
   committed
   stamp after
@@ -428,6 +484,14 @@ case $names in
   'P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 P11 ')
     if grep -q 'BeginUnguarded = TRUE' "$cfg"; then
       [ "$mode" != control-other ] || violation P5
+      if [ "$mode" = control-status0 ]; then
+        printf 'Error: Invariant P1 is violated.\n'
+        exit 0
+      fi
+      if [ "$mode" = control-two ]; then
+        printf 'Error: Invariant P1 is violated.\nError: Invariant P5 is violated.\n'
+        exit 12
+      fi
       violation P1
     fi
     ;;
@@ -441,6 +505,11 @@ distinct=61728
 grep -q 'Effects = {e1, e2}' "$cfg" && distinct=637933
 case $mode:$distinct in
   rebinds-violated:61728) violation P3 ;;
+  rebinds-status:61728)
+    printf 'Model checking completed. No error has been found.\n'
+    printf '1 states generated, 61728 distinct states found, 0 states left on queue.\n'
+    exit 1
+    ;;
   rebinds-incomplete:61728)
     printf '1 states generated, 1 distinct states found, 0 states left on queue.\n'
     exit 0
@@ -514,6 +583,7 @@ fx_make() {
     cp "$dir/$f" "$fx/formal/r3-confirm/$f" || fail selftest
   done
   cp "$repo/$self_path" "$fx/$self_path" || fail selftest
+  printf 'a tracked file outside formal/r3-confirm\n' >"$fx/outside.txt" || fail selftest
   fx_commit ''
   base=$commit
   mkdir "$tmp/stub" "$tmp/stub/bin" "$tmp/nojava" || fail selftest
@@ -545,7 +615,7 @@ expect() {
       'formal java '*) java_ran=yes ;;
     esac
   done <"$tmp/fixture.out"
-  if [ "$want:$java_ran" = tracked:yes ] && [ "$fixture" != step-writes ]; then
+  if [ "$want:$java_ran" = tracked:yes ] && [ "${fixture%-outside}" != step-writes ]; then
     cp "$tmp/fixture.out" "$art/fixture-$fixture.txt" || fail selftest
     fail "fixture $fixture looked for java before the cause tracked"
   fi
@@ -734,6 +804,8 @@ P5 == TRUE\
   expect invariants STUB_MODE=rebinds-violated
   fixture=rebinds-incomplete
   expect invariants STUB_MODE=rebinds-incomplete
+  fixture=rebinds-status
+  expect invariants STUB_MODE=rebinds-status
   fixture=rebinds-silent-violation
   expect invariants STUB_MODE=rebinds-silent
   fixture=confirm-no-states
@@ -760,11 +832,18 @@ P5 == TRUE\
   committed_fixture traces-one-byte traces
   fixture=control-other
   expect control STUB_MODE=control-other
+  fixture=control-status0
+  expect control STUB_MODE=control-status0
+  fixture=control-two
+  expect control STUB_MODE=control-two
   fixture=controls-other
   expect control STUB_MODE=controls-other
   committed_fixture control-no-match control
   fixture='step-writes'
   expect tracked STUB_MODE=writes "STUB_WRITE=$fx/formal/r3-confirm/README.md"
+  fx_reset
+  fixture='step-writes-outside'
+  expect tracked STUB_MODE=writes "STUB_WRITE=$fx/outside.txt"
   fx_reset
   java=$real_java
   committed
