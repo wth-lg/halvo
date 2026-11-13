@@ -154,9 +154,15 @@ fn check_rows(
     }
     close(&current, &mut mark);
     ranges.sort();
-    for w in ranges.windows(2) {
-        if w[1].0 < w[0].1 {
-            mark(w[0].2.max(w[1].2), 3);
+    let mut reach: Option<(i64, usize)> = None;
+    for (start, end, line) in &ranges {
+        if let Some((far, far_line)) = reach {
+            if *start < far {
+                mark((*line).max(far_line), 3);
+            }
+        }
+        if reach.is_none_or(|(far, _)| *end > far) {
+            reach = Some((*end, *line));
         }
     }
     let token = |rule: u8| match rule {
