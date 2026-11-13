@@ -147,8 +147,9 @@ enum Through {
     Left,
     /// A `reject_once` on a later card for the effect ended it, and that effect alone.
     Rejected,
-    /// A later load gives `confirm` for the `cleared` effect: the effect and that load, for the batch of case (iv).
-    Batch(Open, LoadReply),
+    /// A later load gives `confirm` for the `cleared` effect: the effect and that load, boxed for its size, for the
+    /// batch of case (iv).
+    Batch(Open, Box<LoadReply>),
 }
 
 impl Runner {
@@ -215,7 +216,7 @@ impl Runner {
                     declined = true;
                     continue;
                 }
-                Through::Batch(first, again) => (first, again),
+                Through::Batch(first, again) => (first, *again),
             };
             let (cleared, rest): (Vec<Open>, Vec<Open>) = open
                 .drain(..)
@@ -299,7 +300,7 @@ impl Runner {
                 return Err(refused(&again.config));
             }
             if decision == Decision::Confirm && self.effects[one.at].state == EffectState::Cleared {
-                return Ok(Through::Batch(one, again));
+                return Ok(Through::Batch(one, Box::new(again)));
             }
             let now = match one.request.bound(&class_slots(&again, class)) {
                 Ok(now) => now,
