@@ -268,10 +268,12 @@ mod sys {
 
     pub(super) fn hard_kill(child: &Started) {
         // SAFETY: the child is not reaped, so its number names it and no other process. That holds
-        // while nothing else in this process reaps children: `reap` above is the only wait for a
-        // child that a start made and waits on that child's own number; the crate waits for no
-        // other child, sets no SIGCHLD disposition (SIG_IGN would let the system reap it), and
-        // builds tokio without its process feature (Cargo.toml), so no runtime reaps beside it.
+        // while nothing else in this process reaps this child: `reap` above is the only wait for a
+        // child that a start made, and every other wait in the crate names its own child (std's
+        // `Child::wait` and `try_wait` call waitpid with that child's number); nothing waits for
+        // any child (waitpid with -1, wait), the crate sets no SIGCHLD disposition (SIG_IGN would
+        // let the system reap it), and tokio is built without its process feature (Cargo.toml),
+        // so no runtime reaps beside it.
         unsafe { libc::kill(child.pid as libc::pid_t, libc::SIGKILL) };
     }
 
