@@ -540,6 +540,10 @@ fn run_raw_input(
 }
 
 #[cfg(test)]
+#[path = "gate_probes.rs"]
+mod gate_probes;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
