@@ -322,6 +322,7 @@ mod tests {
     use super::*;
     use halvo_schema::executable::frame::{Cancel, Done, SecretReply};
     use halvo_schema::executable::Outcome;
+    use std::sync::atomic::AtomicUsize;
     use std::sync::{mpsc, OnceLock};
     use std::time::Instant;
 
@@ -609,8 +610,13 @@ mod tests {
         assert!(!acted.load(Ordering::SeqCst), "no effect");
     }
 
+    /// After a reply and an end of file written together, the row that proposes or begins an effect is not
+    /// answered in any of 500 links; in 500 links of its own the first call after them is `settle`. It prints the
+    /// count of rows that left and of acts that ran, with no bound on either: both can still go while the system
+    /// has not given the end of file to the reader's read. The test that holds `settle` is
+    /// `while_the_reader_holds_an_end_of_file_no_effect_row_leaves_and_no_effect_acts`.
     #[test]
-    fn after_a_reply_and_an_end_of_file_together_no_effect_acts_in_500_links() {
+    fn after_a_reply_and_an_end_of_file_no_row_is_answered_and_rows_and_acts_are_counted() {
         let reply = framed(&ToRunner::SecretReply(SecretReply::None));
         let mut late_rows = 0;
         for n in 0..500 {
@@ -628,15 +634,113 @@ mod tests {
             if out.lock().expect("lock").len() > before {
                 late_rows += 1;
             }
-            let mut acted = false;
-            assert_eq!(
-                link.settle(|| acted = true),
-                Err(Broken::Closed),
-                "link {n}: no effect is begun"
-            );
-            assert!(!acted, "link {n}: no replace is made");
         }
-        eprintln!("links=500 propose_or_begin_rows_after_the_end_of_file={late_rows}");
+        let mut acts = 0;
+        for n in 0..500 {
+            let (mut link, mut writer, _out) = piped();
+            link.send(&done()).expect("the request");
+            writer.write_all(&reply).expect("write");
+            drop(writer);
+            assert!(link.reply().is_ok(), "link {n}: the reply");
+            match link.settle(|| ()) {
+                Ok(()) => acts += 1,
+                Err(broken) => assert_eq!(broken, Broken::Closed, "link {n}: the close"),
+            }
+        }
+        eprintln!(
+            "links=500 propose_or_begin_rows_after_the_end_of_file={late_rows} acts_after_the_end_of_file={acts}"
+        );
+    }
+
+    /// A later end that counts its calls.
+    fn counting(calls: &Arc<AtomicUsize>) -> EndLater {
+        let calls = Arc::clone(calls);
+        Box::new(move || {
+            calls.fetch_add(1, Ordering::SeqCst);
+        })
+    }
+
+    fn quiet() -> Box<Out> {
+        Box::new(Out(Arc::new(Mutex::new(Vec::new()))))
+    }
+
+    #[test]
+    fn an_end_of_file_calls_the_later_end_once() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let input = std::io::Cursor::new(Vec::new());
+        let link = Link::start(Box::new(input), quiet(), counting(&calls));
+        assert_eq!(ended(&link), Broken::Closed);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn a_frame_out_of_turn_calls_the_later_end_once() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let (input, mut writer) = std::io::pipe().expect("a pipe");
+        let link = Link::start(Box::new(input), quiet(), counting(&calls));
+        let mut replies = framed(&ToRunner::SecretReply(SecretReply::None));
+        replies.extend(framed(&ToRunner::SecretReply(SecretReply::None)));
+        writer.write_all(&replies).expect("write");
+        assert_eq!(ended(&link), Broken::Frame("out_of_turn"));
+        assert!(
+            within(Duration::from_secs(5), || calls.load(Ordering::SeqCst) > 0),
+            "the later end is called"
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 1, "once");
+        drop(writer);
+    }
+
+    #[test]
+    fn an_end_of_file_calls_the_later_end_while_the_run_holds_the_lock() {
+        let (gate, heard, release) = gated();
+        let (called, call) = mpsc::channel();
+        let end: EndLater = Box::new(move || {
+            let _ = called.send(());
+        });
+        let link = Link::start(Box::new(gate), quiet(), end);
+        heard.recv().expect("the reader stands in its read");
+        let held = link.shared.lock();
+        release.send(()).expect("the end of file");
+        let early = call.recv_timeout(Duration::from_secs(5));
+        drop(held);
+        assert_eq!(
+            early,
+            Ok(()),
+            "the later end is called while the lock is held"
+        );
+        assert_eq!(ended(&link), Broken::Closed);
+    }
+
+    #[test]
+    fn a_run_that_waits_before_the_reader_stands_in_its_read_is_woken_when_it_does() {
+        let shared = Arc::new(Shared {
+            held: Mutex::new(Held::default()),
+            changed: Condvar::new(),
+            reading: AtomicBool::new(false),
+        });
+        let (settled, waited) = mpsc::channel();
+        let waiter = Arc::clone(&shared);
+        std::thread::spawn(move || {
+            let got = Link::settled(&waiter).is_ok();
+            let _ = settled.send(got);
+        });
+        assert!(
+            waited.recv_timeout(Duration::from_millis(200)).is_err(),
+            "the run's thread waits while no reader stands in its read"
+        );
+        let (gate, heard, release) = gated();
+        let reader = Arc::clone(&shared);
+        std::thread::spawn(move || {
+            let mut gate = gate;
+            read_all(&reader, &mut gate, &mut || {});
+        });
+        heard.recv().expect("the reader stands in its read");
+        assert_eq!(
+            waited.recv_timeout(Duration::from_secs(5)),
+            Ok(true),
+            "the run's thread gets the settled link once the reader stands in its read"
+        );
+        drop(release);
     }
 
     #[test]
