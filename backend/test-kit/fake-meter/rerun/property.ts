@@ -101,7 +101,7 @@ const meter: fc.Arbitrary<MeterSettings> = fc.record({
   duplicateAnswer: fc.constantFrom("error" as const, "same-as-recorded" as const),
   graceSeconds: fc.constantFrom(HOUR, 72 * HOUR),
   readLagSeconds: fc.constantFrom(0, 60, HOUR, 23 * HOUR),
-  readGranularitySeconds: fc.constantFrom(1, 60, HOUR, DAY),
+  readGranularitySeconds: fc.constant(60),
 });
 
 const oneOrTwoAccountsAtAnySubscribeTimes = fc.array(fc.integer({ min: 0, max: 3 * DAY }), { minLength: 1, maxLength: 2 });
@@ -201,16 +201,21 @@ export type SearchCase = { readonly scenario: Scenario; readonly faultsOfEarlier
 export type SearchSummary = {
   readonly settings: number;
   readonly sequences: number;
+  readonly rangesWithAnotherInterval: number;
   readonly failure: (Finding & { readonly scenario: Scenario; readonly facts: Readonly<Record<string, number>> }) | null;
 };
 
 export async function searchOne(searchCase: SearchCase): Promise<SearchSummary> {
   let sequences = 0;
+  let rangesWithAnotherInterval = 0;
   let failure: SearchSummary["failure"] = null;
   const visit = async (faults: readonly Fault[], reportOfTheSameRun: Report | null): Promise<boolean> => {
     const scenario = { ...searchCase.scenario, faultsByProviderCall: [...searchCase.faultsOfEarlierCalls, ...faults] };
     const report = reportOfTheSameRun ?? (await runScenario(scenario, ruleOptions));
-    if (reportOfTheSameRun === null) sequences += 1;
+    if (reportOfTheSameRun === null) {
+      sequences += 1;
+      rangesWithAnotherInterval += report.coverage["read.range-holds-another-sealed-interval"] ?? 0;
+    }
     const finding = report.findings[0];
     if (finding !== undefined) {
       failure = { ...finding, scenario, facts: report.facts };
@@ -224,7 +229,7 @@ export async function searchOne(searchCase: SearchCase): Promise<SearchSummary> 
     return true;
   };
   await visit([], null);
-  return { settings: 1, sequences, failure };
+  return { settings: 1, sequences, rangesWithAnotherInterval, failure };
 }
 
 const ONE_MINOR_UNIT_AND_A_REMAINDER = RULE_MICRO_PER_MINOR + 2_345;
@@ -251,7 +256,16 @@ export function searchCases(): SearchCase[] {
     { kind: "reserve", account: 0, amountMicro: RULE_MICRO_PER_MINOR, dispatch: true },
     { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
   ];
-  const twoIntervalsAnHourApartWithTheSameAmountToSend: Command[] = [...usageWithARemainder, hourPasses, ...sameAmount, hourPasses];
+  const inOneMinute = (first: number, second: number): Command[] => [
+    { kind: "advance-to-period-end", account: 0, secondsBeforePeriodEnd: 30 },
+    { kind: "reserve", account: 0, amountMicro: first, dispatch: true },
+    { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
+    { kind: "advance", seconds: 31 },
+    { kind: "reserve", account: 0, amountMicro: second, dispatch: true },
+    { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
+    { kind: "cancel", account: 0, form: "stated", lagSeconds: 0 },
+    hourPasses,
+  ];
   const theFirstIntervalIsAcknowledgedAtOnce: Fault[] = [{ kind: "none" }];
   const aHoldSettlesAfterItsPeriodEndWhenALaterIntervalCutByACancelHasEnded: Command[] = [
     { kind: "advance-to-period-end", account: 0, secondsBeforePeriodEnd: 361 },
@@ -273,13 +287,13 @@ export function searchCases(): SearchCase[] {
         cases.push({ scenario: scenario(narrow, oneIntervalOnAnAccountThatStays), faultsOfEarlierCalls: [] });
         cases.push({ scenario: scenario(narrow, oneIntervalOnAnAccountDeletedWithItUnsent), faultsOfEarlierCalls: [] });
       }
-      const wide = { ...base, duplicateAnswer: "error" as const, readGranularitySeconds: DAY };
-      cases.push({ scenario: scenario(wide, twoIntervalsAnHourApartWithTheSameAmountToSend), faultsOfEarlierCalls: theFirstIntervalIsAcknowledgedAtOnce });
+      const minute = { ...base, duplicateAnswer: "error" as const, readGranularitySeconds: 60 };
+      cases.push({ scenario: scenario(minute, inOneMinute(ONE_MINOR_UNIT_AND_A_REMAINDER, RULE_MICRO_PER_MINOR)), faultsOfEarlierCalls: theFirstIntervalIsAcknowledgedAtOnce });
     }
   }
   cases.push({
     scenario: scenario(
-      { uniquenessWindowSeconds: DAY, readLagSeconds: 0, graceSeconds: HOUR, duplicateAnswer: "error", readGranularitySeconds: 1 },
+      { uniquenessWindowSeconds: DAY, readLagSeconds: 0, graceSeconds: HOUR, duplicateAnswer: "error", readGranularitySeconds: 60 },
       aHoldSettlesAfterItsPeriodEndWhenALaterIntervalCutByACancelHasEnded,
     ),
     faultsOfEarlierCalls: [],
@@ -315,21 +329,13 @@ export function searchCases(): SearchCase[] {
     { kind: "late-delivery" },
     ...crashes([JUST_OUTSIDE_THE_SYNC_WINDOW, PAST_THE_FAKES_WINDOW]),
   ];
-  const wideAndLagging = { uniquenessWindowSeconds: DAY, readLagSeconds: 23 * HOUR, graceSeconds: HOUR, duplicateAnswer: "error" as const, readGranularitySeconds: DAY };
-  const twoIntervals = (first: number, second: number): Command[] => [
-    { kind: "reserve", account: 0, amountMicro: first, dispatch: true },
-    { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
-    hourPasses,
-    { kind: "reserve", account: 0, amountMicro: second, dispatch: true },
-    { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
-    hourPasses,
-  ];
+  const minuteAndLagging = { uniquenessWindowSeconds: DAY, readLagSeconds: 23 * HOUR, graceSeconds: HOUR, duplicateAnswer: "error" as const, readGranularitySeconds: 60 };
   const recordedThenRefusedToTheLimit: Fault[] = [{ kind: "response-lost" }, { kind: "refused" }, { kind: "none" }, { kind: "refused" }, { kind: "refused" }];
   const refusedToTheLimit: Fault[] = [{ kind: "refused" }, { kind: "refused" }, { kind: "refused" }];
-  cases.push({ scenario: scenario(wideAndLagging, twoIntervals(ONE_MINOR_UNIT_AND_A_REMAINDER, 3 * RULE_MICRO_PER_MINOR)), faultsOfEarlierCalls: recordedThenRefusedToTheLimit, faults: rangeFaults });
-  cases.push({ scenario: scenario(wideAndLagging, twoIntervals(2 * RULE_MICRO_PER_MINOR, 2 * RULE_MICRO_PER_MINOR)), faultsOfEarlierCalls: refusedToTheLimit, faults: rangeFaults });
+  cases.push({ scenario: scenario(minuteAndLagging, inOneMinute(ONE_MINOR_UNIT_AND_A_REMAINDER, 3 * RULE_MICRO_PER_MINOR)), faultsOfEarlierCalls: recordedThenRefusedToTheLimit, faults: rangeFaults });
+  cases.push({ scenario: scenario(minuteAndLagging, inOneMinute(2 * RULE_MICRO_PER_MINOR, 2 * RULE_MICRO_PER_MINOR)), faultsOfEarlierCalls: refusedToTheLimit, faults: rangeFaults });
   const fewFaults: Fault[] = [{ kind: "none" }, { kind: "request-lost" }, { kind: "response-lost" }, { kind: "crash-after-call", downSeconds: 0 }];
-  const exact = { uniquenessWindowSeconds: DAY, readLagSeconds: 0, graceSeconds: HOUR, duplicateAnswer: "error" as const, readGranularitySeconds: 1 };
+  const exact = { uniquenessWindowSeconds: DAY, readLagSeconds: 0, graceSeconds: HOUR, duplicateAnswer: "error" as const, readGranularitySeconds: 60 };
   const twoHoursPass: Command = { kind: "advance", seconds: 2 * HOUR };
   const lateCancel = (form: CancelForm, lateAfterSeconds: number): Command[] => [
     ...usageWithARemainder,

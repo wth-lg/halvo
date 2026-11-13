@@ -307,6 +307,7 @@ class World {
     const deleteAll = test.host.deleteAll;
     test.host.deleteAll = async () => {
       this.readRemainder(account);
+      this.readRecordAgainstTheProvider(account, null);
       this.count("remainder.read-before-the-delete");
       await deleteAll();
     };
@@ -426,6 +427,7 @@ class World {
       else if (row.outcome === "acknowledged") others += int(row, "amount");
     }
     if (others > 0) this.count("read.range-holds-another-interval");
+    if (rows.some((row) => int(row, "timestamp") !== from)) this.count("read.range-holds-another-sealed-interval");
     if (total === others) this.count("read.lacks-the-amount");
     else if (total === others + own) this.count("read.holds-the-amount");
     else if (total < others + own && this.scenario.meter.readLagSeconds > 0) this.count("read.short-by-the-lag");
@@ -681,6 +683,17 @@ class World {
     if (writtenOff !== undefined && writtenOff !== account.writtenOffAtReactivation) account.writeOffWhileActiveAgain = 1;
   }
 
+  private readRecordAgainstTheProvider(account: Account, rows: Row[] | null): void {
+    const intervals =
+      rows ??
+      account.test.host.step((sql) => (ownTables(sql).length === 0 ? [] : sql.exec("SELECT start, identifier, outcome FROM metering_interval WHERE outcome = ?", "not-billable")));
+    const held = new Set(this.meter.recordedEvents(account.id).map((e) => e.identifier));
+    for (const interval of intervals) {
+      if (interval.outcome !== "not-billable" || !held.has(String(interval.identifier))) continue;
+      this.fail("the record disagrees with the provider", `${account.id} interval ${interval.start} is not billable while the meter holds ${interval.identifier}`);
+    }
+  }
+
   private readRemainder(account: Account): void {
     const read = account.test.host.step((sql) => {
       if (ownTables(sql).length === 0) return null;
@@ -856,6 +869,7 @@ class World {
       }
       const intervals = view?.intervals ?? [];
       if (intervals.some((i) => i.outcome === null)) this.fail("an ended interval is not acknowledged", account.id);
+      this.readRecordAgainstTheProvider(account, intervals);
       const refusedByAFault = (i: Row) => i.outcome === "not-billable" && i.refusal === "unknown_account" && account.refused.has(String(i.identifier));
       if (intervals.some((i) => i.outcome === "not-billable" && !refusedByAFault(i))) this.fail("an interval the provider refused", account.id);
       this.count("interval.not-billable-after-refusals", intervals.filter(refusedByAFault).length);
@@ -865,7 +879,7 @@ class World {
       for (const interval of intervals) {
         if (interval.sealed_at === null) continue;
         const held = events.filter((e) => e.timestamp === interval.timestamp);
-        const expected = interval.outcome === "acknowledged" ? [1] : refusedByAFault(interval) ? [0, 1] : [0];
+        const expected = interval.outcome === "acknowledged" ? [1] : [0];
         if (!expected.includes(held.length) || held.some((e) => e.amountMinor !== interval.amount)) {
           this.fail("one event for each acknowledged interval", `${account.id} interval ${interval.start}: ${held.length} events, outcome ${interval.outcome}`);
         }

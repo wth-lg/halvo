@@ -163,7 +163,7 @@ async function rule() {
       continue;
     }
     const run = message.result;
-    note(`search setting ${index}: ${run.sequences} sequences, ${run.failure === null ? "every check passed" : "a check failed"}, ${run.seconds.toFixed(1)} s`);
+    note(`search setting ${index}: ${run.sequences} sequences, ${run.failure === null ? "every check passed" : "a check failed"}, ${run.seconds.toFixed(1)} s, reads whose range held another sealed interval: ${run.rangesWithAnotherInterval}`);
     if (run.failure === null) {
       searched += 1;
       passedSequences += run.sequences;

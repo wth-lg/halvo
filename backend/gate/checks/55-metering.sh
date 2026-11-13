@@ -89,6 +89,17 @@ fi
 want=
 # shellcheck disable=SC2086
 expect good checkout "$ROOT" $SELF_TEST_ARGS || failed=1
+for good in "$FIXTURES"/good-*.json; do
+  [ -f "$good" ] || continue
+  fixture=$(basename "$good" .json)
+  [ -z "${METERING_SELF_TEST_ONLY:-}" ] || [ "$fixture" = "$METERING_SELF_TEST_ONLY" ] || continue
+  set --
+  for arg in $(node -p '(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).args ?? []).map((a) => a === "" ? "-" : a).join("\n")' "$good"); do
+    [ "$arg" = - ] && arg=
+    set -- "$@" "$arg"
+  done
+  expect good "$fixture" "$ROOT" "$@" || failed=1
+done
 for mutant in "$FIXTURES"/bad-*.json; do
   [ -f "$mutant" ] || continue
   fixture=$(basename "$mutant" .json)
