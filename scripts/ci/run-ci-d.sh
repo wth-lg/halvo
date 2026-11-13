@@ -605,9 +605,11 @@ whole_number() {
   esac
 }
 
-st_first_word() {
+st_entry() {
   st_word=${1%"$cr"}
   st_word=${st_word#"${st_word%%[![:blank:]]*}"}
+  st_reason=${st_word#"${st_word%%[[:blank:]]*}"}
+  st_reason=${st_reason#"${st_reason%%[![:blank:]]*}"}
   st_word=${st_word%%[[:blank:]]*}
 }
 
@@ -1058,7 +1060,7 @@ own_self_test() {
   own_case alone-by-header-and-by-list 0 'ci.d macos self-test: 5 passed, 0 failed' macos --self-test 10-a 20-b 30-c 40-d 50-e
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $alone; $ends; $passes" &&
     add_script r1 20-b.sh "$good" "$prelude; $starts; sleep 1; $ends; $passes" &&
-    mkdir -p "$fixture/scripts/ci" && printf '10-a\r\n' >"$fixture/$alone_list"
+    mkdir -p "$fixture/scripts/ci" && printf '10-a its self-test fails beside another one\r\n' >"$fixture/$alone_list"
   case_jobs=2
   own_case alone-list-line-with-a-carriage-return 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $starts; sleep 1; $running; [ \"\$others\" -le 1 ] || { printf \"FAIL self-test:%s (two others ran beside it)\\n\" \"\$me\"; exit 1; }; $ends; $passes" &&
@@ -1140,6 +1142,20 @@ own_self_test() {
     mkdir -p "$fixture/scripts/ci" && printf '  10-a\tits self-test fails beside another one\n' >"$fixture/$alone_list"
   case_jobs=2
   own_case alone-list-line-with-leading-blanks 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $alone; $ends; $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; $starts; sleep 1; $ends; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '# a comment\n\n  # 20-b an indented comment\n10-a its self-test fails beside another one\n' >"$fixture/$alone_list"
+  case_jobs=2
+  own_case alone-list-with-comment-and-blank-lines 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '10-a\n' >"$fixture/$alone_list"
+  own_case alone-list-entry-without-a-reason 1 "FAIL run-ci-d ($alone_list names 10-a without a reason)" macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '  10-a \t\r\n' >"$fixture/$alone_list"
+  own_case alone-list-entry-with-blanks-alone-after-the-name 1 "FAIL run-ci-d ($alone_list names 10-a without a reason)" macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes" &&
+    mkdir -p "$fixture/$alone_list"
+  own_case alone-list-that-cannot-be-read 1 "FAIL run-ci-d ($alone_list cannot be read)" macos --self-test 10-a
   prelude_any=${prelude#*exit 3; }
   for signal in INT QUIT HUP TERM; do
     for place in beside-another alone; do
@@ -1261,9 +1277,13 @@ trap 'st_interrupt TERM 143' TERM
 trap 'st_interrupt HUP 129' HUP
 if [ "$mode" = self-test ]; then
   st_what='self-test'
-  if [ -e "$st_list" ]; then
+  if [ -e "$st_list" ] || [ -L "$st_list" ]; then
+    { [ -f "$st_list" ] && [ -r "$st_list" ]; } || {
+      printf 'FAIL run-ci-d (%s cannot be read)\n' "$st_list"
+      exit 1
+    }
     while IFS= read -r st_line || [ -n "$st_line" ]; do
-      st_first_word "$st_line"
+      st_entry "$st_line"
       st_alone="$st_alone$st_word "
     done <"$st_list" || {
       printf 'FAIL run-ci-d (%s cannot be read)\n' "$st_list"
@@ -1303,8 +1323,11 @@ done
 if [ "$mode" = self-test ]; then
   if [ -e "$st_list" ]; then
     while IFS= read -r st_line || [ -n "$st_line" ]; do
-      st_first_word "$st_line"
-      [ -n "$st_word" ] || continue
+      st_entry "$st_line"
+      case $st_word in
+        '' | '#'*) continue ;;
+      esac
+      [ -n "$st_reason" ] || note "FAIL run-ci-d ($st_list names $st_word without a reason)"
       case $seen in
         *" $st_word "*) ;;
         *) note "FAIL run-ci-d ($st_list names $st_word, which is no script)" ;;
