@@ -133,7 +133,7 @@ impl LearnHandlers {
         };
         if let (Ok(call), Err(Refused::Error(name))) = (&call, &answer) {
             let was_load = matches!(call, RunnerCall::Load(_));
-            self.after_refusal(host, *name, call.run(), was_load);
+            self.after_refusal(host, *name, call.agent(), call.run(), was_load);
         }
         answer
     }

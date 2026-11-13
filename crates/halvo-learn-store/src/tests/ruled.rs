@@ -434,3 +434,99 @@ fn f4_a_refused_load_of_a_run_that_has_only_a_start_drops_the_start() {
         .is_err());
     assert!(!holds(&w, 2));
 }
+
+fn bind(w: &mut World, value: &str) {
+    let reply = w.coordinator(json!({
+        "op": "set_bindings", "workflow": wf(1), "agent": agent(1),
+        "slots": [{"name": "account", "value": [value]}],
+    }));
+    assert!(reply.is_ok(), "set_bindings: {reply:?}");
+}
+
+fn second_agent(w: &mut World) {
+    w.host
+        .put_workflow(workflow(&wf(2), "utility_bill_payment", "approved", None));
+    let reply = w.coordinator(json!({"op": "create_agent", "workflow": wf(2), "agent": agent(2)}));
+    assert!(reply.is_ok(), "create_agent: {reply:?}");
+}
+
+#[test]
+fn g1_a_refused_load_under_another_agent_leaves_the_run_as_it_was() {
+    let mut w = active_world();
+    bind(&mut w, "1111-2222");
+    w.replay(2);
+    let slots = w.handlers.facts[&id(2)].slots.clone();
+    let start = format!("{:?}", w.handlers.starts.get(&id(2)));
+    assert!(w
+        .runner(json!({"op": "load", "agent": agent(9), "run": run(2)}))
+        .is_err());
+    assert!(w.handlers.facts.contains_key(&id(2)));
+    assert_eq!(w.handlers.facts[&id(2)].slots, slots);
+    assert_eq!(format!("{:?}", w.handlers.starts.get(&id(2))), start);
+}
+
+#[test]
+fn g2_a_later_load_keeps_the_loaded_number_after_a_compile_of_another_run() {
+    let mut w = active_world();
+    let served = w.replay(2);
+    w.compile(20, 2, compiled());
+    w.load(2);
+    assert_eq!(w.handlers.facts[&id(2)].loaded.map(|n| n.get()), Some(1));
+    let proposal = with_locators(served[1].clone(), "button Pay now", vec![loc("A"), pay()]);
+    assert_eq!(answer(&mut w, 2, 2, proposal), Err(AdmitCause::Base));
+}
+
+#[test]
+fn g3_a_later_load_keeps_the_slot_values_of_the_first() {
+    let mut w = active_world();
+    bind(&mut w, "1111-2222");
+    let served = w.replay(2);
+    bind(&mut w, "9999-8888");
+    w.load(2);
+    let proposal = with_locators(
+        served[1].clone(),
+        "button Pay now",
+        vec![loc("Pay 1111-2222"), pay()],
+    );
+    assert_eq!(answer(&mut w, 2, 1, proposal), Err(AdmitCause::Value));
+}
+
+#[test]
+fn g4_a_load_under_another_agent_than_the_start_makes_no_facts() {
+    let mut w = active_world();
+    second_agent(&mut w);
+    w.start(2, "replay");
+    assert!(w
+        .runner(json!({"op": "load", "agent": agent(2), "run": run(2)}))
+        .is_ok());
+    assert!(!w.handlers.facts.contains_key(&id(2)));
+    assert!(w.handlers.starts.contains_key(&id(2)));
+}
+
+#[test]
+fn g4_an_end_run_under_another_agent_drops_nothing() {
+    let mut w = active_world();
+    second_agent(&mut w);
+    w.replay(2);
+    let reply = w
+        .coordinator(json!({"op": "end_run", "workflow": wf(2), "agent": agent(2), "run": run(2)}));
+    assert!(reply.is_ok(), "end_run: {reply:?}");
+    assert!(w.handlers.facts.contains_key(&id(2)));
+    assert!(w.handlers.starts.contains_key(&id(2)));
+}
+
+#[test]
+fn g4_a_store_fault_in_the_sweep_at_a_start_is_answered_store_and_a_repeat_stores_the_row_once() {
+    let mut w = active_world();
+    w.replay(2);
+    w.host.agent.fault = true;
+    let body = json!({"op": "start_run", "workflow": wf(1), "agent": agent(1), "run": run(3), "mode": "replay"});
+    assert_eq!(
+        w.coordinator(body.clone()),
+        Err(crate::Refused::Error(halvo_schema::ErrorName::Store))
+    );
+    assert!(revs(&w, 3).is_empty());
+    w.host.agent.fault = false;
+    assert!(w.coordinator(body).is_ok());
+    assert_eq!(revs(&w, 3), [1]);
+}

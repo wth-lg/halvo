@@ -85,12 +85,14 @@ impl LearnHandlers {
         Ok(())
     }
 
-    /// After the agent store refused a runner body of a run: a refused `load` drops the run, and for any other
-    /// body of a run with facts the handlers send their own `load` of it to find out.
+    /// After the agent store refused a runner body of a run: a refused `load` under the run's own agent drops the
+    /// run, and for any other body of a run with facts the handlers send their own `load` of it to find out. A body
+    /// under another agent never drops a run.
     pub(crate) fn after_refusal(
         &mut self,
         host: &mut dyn LearnHost,
         name: ErrorName,
+        agent: &AgentId,
         run: &RunId,
         was_load: bool,
     ) {
@@ -98,7 +100,11 @@ impl LearnHandlers {
             return;
         }
         if was_load {
-            self.drop_run(run);
+            let of_agent = self.facts.get(run).is_some_and(|f| &f.agent == agent)
+                || self.starts.get(run).is_some_and(|s| &s.agent == agent);
+            if of_agent {
+                self.drop_run(run);
+            }
             return;
         }
         if let Some(agent) = self.facts.get(run).map(|f| f.agent.clone()) {
