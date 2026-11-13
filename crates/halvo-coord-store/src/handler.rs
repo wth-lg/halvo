@@ -10,6 +10,10 @@ const KIND: &str = "coord_event";
 /// The `op` names of the bodies that the handler takes.
 pub const OPS: [&str; 2] = [CoordLog::OP, CoordHistory::OP];
 
+/// The most records of one reply of `coord_history`, which the coordinator reads as the end of the records where a
+/// reply holds fewer; it equals `HISTORY_RECORDS` of halvo-schema.
+pub const HISTORY_PAGE: usize = 64;
+
 /// The reply of a body that the handler took.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CoordReply {
@@ -45,6 +49,10 @@ fn declared(name: &str) -> ErrorName {
 ///   each record, never the bytes that arrived, and answers `malformed` where the commit refuses a day after the
 ///   clock's day or outside the bound of 93 days, or a record that `check_record` refuses, `no_workflow` where it
 ///   finds no stored workflow, and `store` for any other refusal. It answers the number of records stored.
+/// - `coord_history`: the stored records of the workflow and agent whose `seq` is above `after`, or every one where
+///   it is null, at most `HISTORY_PAGE` in ascending `seq`, gaps allowed, with `last` the largest stored `seq` of
+///   the workflow and agent, or 0 where none is stored. It stores nothing.
+/// - A stored row of the family that the typed reader refuses, read for either body, is `store`.
 pub fn coordinator(host: &mut dyn Host, request: &RawRequest) -> Result<CoordReply, ErrorName> {
     if request.role() != Some(Role::Coordinator) {
         return Err(ErrorName::Role);
@@ -54,7 +62,7 @@ pub fn coordinator(host: &mut dyn Host, request: &RawRequest) -> Result<CoordRep
         return coord_log(host, &log).map(CoordReply::Stored);
     }
     match CoordHistory::parse(body) {
-        Ok(_) => Err(ErrorName::Unsupported),
+        Ok(history) => coord_history(&*host, &history).map(CoordReply::History),
         Err(_) => Err(ErrorName::Malformed),
     }
 }
@@ -121,4 +129,19 @@ fn coord_log(host: &mut dyn Host, b: &CoordLog) -> Result<Stored, ErrorName> {
     let count = u32::try_from(records.len()).map_err(|_| ErrorName::Malformed)?;
     host.commit(records).map_err(commit_error)?;
     Ok(Stored { stored: count })
+}
+
+fn coord_history(host: &dyn Host, b: &CoordHistory) -> Result<History, ErrorName> {
+    bound(host, &b.workflow, &b.agent)?;
+    let stored = stored_of(host, &b.workflow, &b.agent)?;
+    let last = stored.last().map_or(0, |e| e.seq.get());
+    let after = b.after.unwrap_or(0);
+    let records = stored
+        .into_iter()
+        .filter(|e| e.seq.get() > after)
+        .take(HISTORY_PAGE)
+        .collect();
+    let reply = History { records, last };
+    reply.rules().map_err(|_| ErrorName::Store)?;
+    Ok(reply)
 }
