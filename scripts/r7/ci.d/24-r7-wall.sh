@@ -126,7 +126,7 @@ judge() {
       if (!match(t, assignment)) return
       nm = substr(t, 1, RLENGTH)
       v = substr(t, RLENGTH + 1)
-      sub(/[ \t]*=$/, "", nm)
+      sub(/[ \t]*[+]?=$/, "", nm)
       sub(/^[ \t]*(export|const|let|var|readonly|local)?[ \t]*/, "", nm)
       sub(/^[ \t]*/, "", v)
       sub(/[ \t]*;?[ \t]*$/, "", v)
@@ -241,6 +241,7 @@ judge() {
         if (r == "@") { problem(where, "reaches an absolute path through a link: " tok fix_ask); return }
         if (r == "~") { problem(where, "follows a loop of links: " tok fix_ask); return }
         if (r == "") { problem(where, "reads the top of the repository: " tok fix); return }
+        if (substr(r, 1, 1) == "$" && (kind == "top" || kind == "file")) { problem(where, "names a path from the top whose next part the check cannot read: " tok "; write the path from backend/'"'"'s own directory, or ask for a ruling"); return }
         if (!inside(r)) { problem(where, "reads " r " outside backend/ and formal/r7-ledger/: " tok fix); return }
       }
       if (kind == "plain" && climbs) {
@@ -257,7 +258,7 @@ judge() {
       }
     }
     function app_token(tok, sg, n, from, kind, c, low,   r, r1, r2, hit, i, dotted, base) {
-      if (low ~ /(^|[^:]):backend(\/|$)/) { problem(where, "reads under backend/ by a rev:path: " tok fix_md); return }
+      if (low ~ /(^|[^:]):backend(\/|$)/) { problem(where, "reads under backend/ by a rev:path: " tok (index(path, "account/schema/") == 1 ? fix_four : fix_md)); return }
       if (low in backend_package) { problem(where, "names the package of backend/: " tok fix_md); return }
       if (kind == "absolute") return
       hit = ""
@@ -274,6 +275,7 @@ judge() {
         else if (r1 == "^" || r2 == "^") { r = rest_from_top(sg, from, n); if (under_backend(r)) hit = r }
       } else {
         dotted = c == "."
+        if (n == 1 && !dotted) return
         r1 = walk(dir_of(path), sg, 1, n)
         if (under_backend(r1)) hit = r1
         else if (r1 == "^") { r = rest_from_top(sg, 1, n); if (under_backend(r)) hit = r }
@@ -340,8 +342,8 @@ judge() {
     }
     function app_line(s,   low) {
       low = lower(s)
-      if (s ~ enters_word || s ~ enters_mark) { problem(where, "enters backend/ as a directory or a project" fix_md); return }
-      if (s ~ operand) { problem(where, "gives backend to a command of the closed list as its first path operand" fix_md); return }
+      if (s ~ enters_word || s ~ enters_mark || s ~ enters_tool) { problem(where, "enters backend/ as a directory or a project" fix_md); return }
+      if (s ~ operand || s ~ archive) { problem(where, "gives backend to a command of the closed list as its first path operand" fix_md); return }
       if (low ~ defaults) { problem(where, "takes the word backend as a parameter default" fix_md); return }
       if (low ~ braces) { problem(where, "names backend/ in a brace group" fix_md); return }
       if (low ~ assigns) { problem(where, "assigns the word backend to a name, a label or an attribute" fix_name); return }
@@ -378,13 +380,15 @@ judge() {
       join_var = "(join|resolve)\\([ \t]*[A-Za-z_][A-Za-z0-9_.]*[ \t]*,[ \t]*" qs "\\.\\."
       word = qs "?(\\./)?backend/?" qs "?"
       bk = qs "?(\\./)?[Bb][Aa][Cc][Kk][Ee][Nn][Dd]/?" qs "?"
-      enters_word = "(^|[^A-Za-z0-9_-])(cd|pushd|-C|--cwd|--dir|--prefix|--manifest-path|--project|-p|--workspace|-w)([ \t]+|[ \t]*=[ \t]*)" bk "([^A-Za-z0-9_./-]|$)"
+      enters_word = "(^|[^A-Za-z0-9_-])(cd|pushd|-C|--cwd|--dir|--prefix|--manifest-path|--project|--workspace)([ \t]+|[ \t]*=[ \t]*)" bk "([^A-Za-z0-9_./-]|$)"
+      enters_tool = "(^|[^A-Za-z0-9_-])((tsc|vue-tsc)([ \t]+[^ \t;&|]+)*[ \t]+-p|(npm|pnpm|yarn)([ \t]+[^ \t;&|]+)*[ \t]+-w)([ \t]+|[ \t]*=[ \t]*)" bk "([^A-Za-z0-9_./-]|$)"
       enters_mark = "(working-directory:|cwd:|cwd=|current_dir\\()[ \t]*" bk "([^A-Za-z0-9_./-]|$)"
-      operand = "(^|[;&|(`$ \t])(cat|cp|mv|ln|ls|find|tar|zip|rsync|du)([ \t]+-[A-Za-z0-9-]+)*[ \t]+" bk "([ \t;&|)]|$)"
+      operand = "(^|[;&|(`$ \t])(cat|cp|mv|ln|ls|find|rsync|du)([ \t]+-[A-Za-z0-9-]+)*[ \t]+" bk "([ \t;&|)]|$)"
+      archive = "(^|[;&|(`$ \t])(tar|zip)([ \t]+[^ \t;&|]+)*[ \t]+" bk "([ \t;&|)]|$)"
       defaults = "\\$\\{[a-z_][a-z0-9_]*:?[-=?+][ \t]*" word "\\}"
       braces = "\\{([^{}]*,)?[ \t]*backend[ \t]*(,[^{}]*)?\\}/"
       assigns = "(^|[^a-z0-9_])[a-z_][a-z0-9_]*[ \t]*(:[^=]*)?=[ \t]*" word "[ \t]*(;|,|$|&&|\\|\\||\\))"
-      assignment = "^[ \t]*(export[ \t]+|const[ \t]+|let[ \t]+|var[ \t]+|readonly[ \t]+|local[ \t]+)?[A-Za-z_][A-Za-z0-9_]*[ \t]*="
+      assignment = "^[ \t]*(export[ \t]+|const[ \t]+|let[ \t]+|var[ \t]+|readonly[ \t]+|local[ \t]+)?[A-Za-z_][A-Za-z0-9_]*[ \t]*[+]?="
       listed = "^[ \t]*-[ \t]+" word "[ \t]*$"
       fix_md = "; write the path in a .md file, or ask for a ruling"
       fix_dir = "; write the file'"'"'s own directory out, or ask for a ruling"
@@ -422,7 +426,7 @@ judge() {
       if (sub(/\.[^.\/]*$/, "", st)) stem[st] = 1
       next
     }
-    FILENAME == ARGV[6] { if (parse($0) && match(gtext, assignment)) { v = substr(gtext, 1, RLENGTH); sub(/[ \t]*=$/, "", v); sub(/^[ \t]*(export|const|let|var|readonly|local)?[ \t]*/, "", v); assigned[gpath SUBSEP v]++ }; next }
+    FILENAME == ARGV[6] { if (parse($0) && match(gtext, assignment)) { v = substr(gtext, 1, RLENGTH); sub(/[ \t]*[+]?=$/, "", v); sub(/^[ \t]*(export|const|let|var|readonly|local)?[ \t]*/, "", v); assigned[gpath SUBSEP v]++ }; next }
     FILENAME == ARGV[7] { if (parse($0)) anchor_line(gpath, gtext); next }
     FILENAME == ARGV[5] {
       if ($1 == "dir") backend_dir[$2] = 1
@@ -552,7 +556,7 @@ check_in() {
   ' "$work/anchor-lines") || return 2
   : >"$work/assignments"
   if [ -n "$anchor_names" ]; then
-    git -c core.quotepath=off grep --cached -I -n -E -e "^[ $tab]*(export[ $tab]+|const[ $tab]+|let[ $tab]+|var[ $tab]+|readonly[ $tab]+|local[ $tab]+)?($anchor_names)[ $tab]*=([^=]|\$)" -- . >"$work/assignments"
+    git -c core.quotepath=off grep --cached -I -n -E -e "^[ $tab]*(export[ $tab]+|const[ $tab]+|let[ $tab]+|var[ $tab]+|readonly[ $tab]+|local[ $tab]+)?($anchor_names)[ $tab]*[+]?=([^=]|\$)" -- . >"$work/assignments"
     found=$?
     [ "$found" -le 1 ] || return 2
   fi
@@ -634,10 +638,12 @@ It fails when:
   backend/package.json; joins, lists or assigns the word backend, also as a
   label or an attribute value; names it in a brace group ({ui,backend}/x) or as
   a parameter default (${X:-backend}); enters it with cd, pushd, -C, --cwd,
-  --dir, --prefix, --manifest-path, --project, -p, --workspace, -w,
-  working-directory:, cwd:, cwd= or current_dir(, each option in its own
-  letter case; or gives it as the first path operand of cat, cp, mv, ln, ls,
-  find, tar, zip, rsync or du;
+  --dir, --prefix, --manifest-path, --project, --workspace,
+  working-directory:, cwd:, cwd= or current_dir(, with -p of tsc or vue-tsc,
+  or with -w of npm, pnpm or yarn, each option in its own letter case; gives
+  it as an operand of tar or zip; or gives it as the first path operand of
+  cat, cp, mv, ln, ls, find, rsync or du. A word that stands alone is no
+  path: a comment or a sentence that names the backend is read and passes;
 - a tracked link of the app points under backend/, a tracked link of either
   side points to an absolute or a drive-letter path, or a link is part of a
   loop.
@@ -668,6 +674,10 @@ Readings that refuse an honest line, with the form to write in its place:
   $(dirname "$0"), ${0%/*}, __dirname + or import.meta.url in its place;
 - in backend/, a cd or a git -C to the top is refused: stay inside backend/,
   for example cd "$(dirname "$0")/..";
+- in backend/, a path from the top whose next part is a variable, as
+  "$(git rev-parse --show-toplevel)/$a/$b", is refused, because the variable
+  may name the app: write the path from backend/'s own directory, as
+  "$(dirname "$0")/../gate/prompt-budget.json";
 - in the app, a comment that names a path under backend/ is refused: write it
   in a .md file;
 - in the app, the word backend assigned to a name, as a label or as an
@@ -1338,6 +1348,25 @@ cat "$HERE/../src-tauri/tauri.conf.json"' 'backend/spikes/s1/peek.sh:3: reads sr
   pass_with backend-climbs-after-an-unread-variable-to-no-tracked-path backend/stress/driver.mjs 'ctx.registry ??= join(ctx.outDir, "..", "started.jsonl");' 'read:backend/stress/driver.mjs'
   case_with backend-climbs-after-an-unread-variable-to-the-app backend/stress/driver.mjs 'ctx.registry ??= join(ctx.outDir, "..", "src-tauri", "tauri.conf.json");' 'backend/stress/driver.mjs:1: reads src-tauri/tauri.conf.json, a tracked path of the app'
   case_with backend-climbs-after-an-unread-variable-to-the-root-manifest backend/stress/driver.mjs 'ctx.registry ??= join(ctx.outDir, "..", "Cargo.toml");' 'backend/stress/driver.mjs:1: reads Cargo.toml, a tracked path of the app'
+
+  case_with app-archives-backend-with-tar scripts/pack.sh 'tar -czf dist/app.tgz backend' 'scripts/pack.sh:1: gives backend to a command'
+  case_with app-archives-backend-with-zip scripts/pack.sh 'zip -r dist/app.zip backend' 'scripts/pack.sh:1: gives backend to a command'
+  case_with app-cats-backend scripts/list.sh 'cat backend' 'scripts/list.sh:1: gives backend to a command'
+  case_with app-moves-backend scripts/list.sh 'mv backend old-server' 'scripts/list.sh:1: gives backend to a command'
+  case_with app-links-backend scripts/list.sh 'ln -s backend server' 'scripts/list.sh:1: gives backend to a command'
+  case_with app-lists-backend scripts/list.sh 'ls backend' 'scripts/list.sh:1: gives backend to a command'
+  case_with app-syncs-backend scripts/list.sh 'rsync -a backend out' 'scripts/list.sh:1: gives backend to a command'
+  case_with app-sizes-backend scripts/list.sh 'du -sh backend' 'scripts/list.sh:1: gives backend to a command'
+  pass_with a-root-manifest-comment-names-the-backend Cargo.toml '[workspace]
+# The billing backend is TypeScript; it has no crate in this workspace.' 'read:Cargo.toml'
+  pass_with a-root-text-file-names-the-backend notes.txt 'The backend lives in its own directory.' 'read:notes.txt'
+  pass_with a-root-package-description-names-the-backend package.json '{ "description": "Tools of the app; the backend has its own package." }' 'read:package.json'
+  pass_with app-greps-the-whole-word-backend scripts/count-words.sh 'grep -w backend target/log.txt' 'read:scripts/count-words.sh'
+  pass_with app-makes-a-directory-named-backend scripts/make.sh 'mkdir -p backend' 'read:scripts/make.sh'
+  case_with backend-names-a-path-from-the-top-by-variables backend/scripts/ab.sh 'a=backend; b=gate/prompt-budget.json; cat "$(git rev-parse --show-toplevel)/$a/$b"' 'backend/scripts/ab.sh:1: names a path from the top whose next part the check cannot read'
+  case_with backend-climbs-after-a-variable-extended-with-plus-equals backend/src/pe.mjs 'let here = dirname(fileURLToPath(import.meta.url));
+here += "/../..";
+const p = here + "/../crates/halvo-capture/src/lib.rs";' 'backend/src/pe.mjs:3: reads crates/halvo-capture/src/lib.rs, a tracked path of the app'
 
   fixture known-limit-names-v0
   put backend/scripts/names-v0.sh 'APP_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
