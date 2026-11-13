@@ -3356,6 +3356,14 @@ mod tests {
             (NoReleaseCustody, None, None, None, DeleteDecision::Refused),
             (Sealed, key_file, None, None, DeleteDecision::Accept),
             (Unavailable, io, None, None, DeleteDecision::Accept),
+            (
+                Unavailable,
+                Some(StoreErrorKind::Obstructed),
+                None,
+                None,
+                DeleteDecision::Accept,
+            ),
+            (UnsupportedVersion, None, None, None, DeleteDecision::Accept),
             (Deleting, None, None, None, DeleteDecision::Busy),
             (
                 Unavailable,
