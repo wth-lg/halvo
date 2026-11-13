@@ -903,9 +903,15 @@ pub enum LastStop {
     None,
     Clean,
     Unclean,
+    SourceNotStopped,
 }
 
-one_spelling!(LastStop, "last stop", [None => "none", Clean => "clean", Unclean => "unclean"]);
+one_spelling!(LastStop, "last stop", [
+    None => "none",
+    Clean => "clean",
+    Unclean => "unclean",
+    SourceNotStopped => "source_not_stopped",
+]);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StateFile {
@@ -2410,6 +2416,11 @@ mod tests {
                 "run_loop_stalled",
                 "user"
             ]
+        );
+        let last_stop: Vec<&str> = LastStop::ALL.iter().map(|s| s.as_str()).collect();
+        assert_eq!(
+            last_stop,
+            ["none", "clean", "unclean", "source_not_stopped"]
         );
     }
 
