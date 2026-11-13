@@ -1289,6 +1289,7 @@ struct SourceLineWire {
     reason: Option<Reason>,
     #[serde(deserialize_with = "required")]
     error: Option<SourceError>,
+    unstopped: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1296,6 +1297,11 @@ struct SourceLineWire {
 pub struct SourceLine {
     pub name: SourceName,
     pub state: SourceState,
+    /// The mark of a source that a stop did not end: true from the first answer of its
+    /// `shutdown` that is not a stop, in every stop, and false again once a later ask answers Ok
+    /// or ThreadEnded (contracts.md C2.1, ruling PL-8 part (3)(c)). The text of C2.3 does not
+    /// print it.
+    pub unstopped: bool,
 }
 
 impl TryFrom<SourceLineWire> for SourceLine {
@@ -1320,6 +1326,7 @@ impl TryFrom<SourceLineWire> for SourceLine {
         Ok(SourceLine {
             name: wire.name,
             state,
+            unstopped: wire.unstopped,
         })
     }
 }
@@ -1331,6 +1338,7 @@ impl From<SourceLine> for SourceLineWire {
             state: line.state.name(),
             reason: line.state.reason(),
             error: line.state.error().cloned(),
+            unstopped: line.unstopped,
         }
     }
 }
@@ -1503,7 +1511,9 @@ impl StatusError {
 /// The daemon's status. Its fields agree with each other and with its platform: the
 /// platform's own lines, its sources in order, the five switches and the eight kinds in
 /// order, the enabled sources against the source lines, the store state against its
-/// cause, and the sums.
+/// cause, and the sums. Beside a source that carries the mark `unstopped`, capture reads
+/// pausing, starting, running, partial or faulted, never paused, no_indicator or
+/// awaiting_resume (ruling PL-8 part (3)(c)).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "StatusFields", into = "StatusFields")]
 pub struct DaemonStatus(StatusFields);
@@ -1645,6 +1655,15 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
     };
     if !fits {
         return fail("the capture value agrees with the states of the required sources");
+    }
+    if matches!(
+        f.capture,
+        Capture::Paused | Capture::NoIndicator | Capture::AwaitingResume
+    ) && f.sources.iter().any(|s| s.unstopped)
+    {
+        return fail(
+            "paused, no_indicator and awaiting_resume have no source that a stop did not end",
+        );
     }
     if f.capture == Capture::NoIndicator
         && (f.lease == Lease::Fresh || f.desired != CaptureState::Running)
@@ -2176,6 +2195,149 @@ mod tests {
             );
             f.desired = CaptureState::Paused;
             assert!(DaemonStatus::new(f).is_ok(), "{platform:?}");
+        }
+    }
+
+    /// The status as JSON, with the mark `unstopped` of each source entry true for `marked` and
+    /// false for every other source.
+    fn json_with_mark(fields: StatusFields, marked: Option<SourceName>) -> serde_json::Value {
+        let mut json = serde_json::to_value(fields).unwrap();
+        for entry in json["sources"].as_array_mut().unwrap() {
+            let is_marked = marked.is_some_and(|name| entry["name"] == name.as_str());
+            entry["unstopped"] = serde_json::Value::from(is_marked);
+        }
+        json
+    }
+
+    /// For each capture value, a status that the type takes beside the first required source of
+    /// the platform when that source carries no mark: the source reads failed with
+    /// reason=timeout, as a source reads after a stop that it did not answer, except beside
+    /// running, where every required source runs.
+    fn one_status_for_each_capture_value(platform: Platform) -> Vec<(Capture, StatusFields)> {
+        let base = sample_status(platform).into_fields();
+        let first = base.enabled_sources[0];
+        let timed_out = SourceState::Failed {
+            reason: Reason::Timeout,
+            error: None,
+        };
+        let with = |capture, change: &dyn Fn(&mut StatusFields)| {
+            let mut f = base.clone();
+            f.capture = capture;
+            for line in &mut f.sources {
+                if line.state != SourceState::Off {
+                    line.state = SourceState::Stopped { by_user: false };
+                }
+            }
+            if let Some(line) = f.sources.iter_mut().find(|l| l.name == first) {
+                line.state = timed_out.clone();
+            }
+            change(&mut f);
+            (capture, f)
+        };
+        vec![
+            with(Capture::Paused, &|f| f.desired = CaptureState::Paused),
+            with(Capture::NoIndicator, &|f| f.lease = Lease::Lapsed),
+            with(Capture::AwaitingResume, &|_| {}),
+            with(Capture::Pausing, &|f| f.desired = CaptureState::Paused),
+            with(Capture::Starting, &|_| {}),
+            with(Capture::Partial, &|f| {
+                for line in f.sources.iter_mut().skip(1) {
+                    if line.state != SourceState::Off {
+                        line.state = SourceState::Running;
+                    }
+                }
+            }),
+            with(Capture::Faulted, &|f| {
+                f.capture_reason = Some(CaptureReason::NoSource);
+                for line in &mut f.sources {
+                    if line.state != SourceState::Off {
+                        line.state = timed_out.clone();
+                    }
+                }
+            }),
+            with(Capture::Running, &|f| {
+                for line in &mut f.sources {
+                    if line.state != SourceState::Off {
+                        line.state = SourceState::Running;
+                    }
+                }
+            }),
+        ]
+    }
+
+    #[test]
+    fn the_mark_unstopped_refuses_paused_no_indicator_and_awaiting_resume_beside_it_and_takes_the_other_five(
+    ) {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let first = sample_status(platform).fields().enabled_sources[0];
+            let cases = one_status_for_each_capture_value(platform);
+            assert_eq!(cases.len(), Capture::ALL.len());
+            for (capture, fields) in cases {
+                let unmarked = json_with_mark(fields.clone(), None);
+                assert!(
+                    serde_json::from_value::<DaemonStatus>(unmarked).is_ok(),
+                    "{platform:?} {capture:?} without the mark"
+                );
+                let marked =
+                    serde_json::from_value::<DaemonStatus>(json_with_mark(fields, Some(first)));
+                if matches!(
+                    capture,
+                    Capture::Paused | Capture::NoIndicator | Capture::AwaitingResume
+                ) {
+                    assert_eq!(
+                        marked.map(|_| ()).map_err(|e| e.to_string()),
+                        Err("the status does not hold together: paused, no_indicator and awaiting_resume have no source that a stop did not end".to_string()),
+                        "{platform:?} {capture:?}"
+                    );
+                } else {
+                    assert!(marked.is_ok(), "{platform:?} {capture:?}: {marked:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn each_source_entry_carries_the_mark_unstopped_on_the_wire_and_an_entry_without_it_does_not_decode(
+    ) {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let mut json = serde_json::to_value(sample_status(platform)).unwrap();
+            for entry in json["sources"].as_array().unwrap() {
+                assert_eq!(entry["unstopped"], false, "{platform:?} {entry}");
+            }
+            json["sources"][0]
+                .as_object_mut()
+                .unwrap()
+                .remove("unstopped");
+            assert!(
+                serde_json::from_value::<DaemonStatus>(json).is_err(),
+                "{platform:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_text_of_a_status_does_not_print_the_mark() {
+        for platform in [Platform::Macos, Platform::Windows] {
+            let first = sample_status(platform).fields().enabled_sources[0];
+            let (_, pausing) = one_status_for_each_capture_value(platform)
+                .into_iter()
+                .find(|(capture, _)| *capture == Capture::Pausing)
+                .unwrap();
+            let unmarked: DaemonStatus =
+                serde_json::from_value(json_with_mark(pausing.clone(), None)).unwrap();
+            let marked: DaemonStatus =
+                serde_json::from_value(json_with_mark(pausing, Some(first))).unwrap();
+            assert_ne!(marked, unmarked, "{platform:?}");
+            let text = crate::ctl_text::status_text(&marked);
+            assert_eq!(text, crate::ctl_text::status_text(&unmarked));
+            assert!(
+                text.contains(&format!(
+                    "\nsource name={} state=failed reason=timeout\n",
+                    first.as_str()
+                )),
+                "{text}"
+            );
+            assert!(!text.contains("unstopped"), "{text}");
         }
     }
 
@@ -2778,21 +2940,26 @@ mod tests {
             },
         ];
         for state in good {
-            let line = SourceLine {
-                name: SourceName::Foreground,
-                state: state.clone(),
-            };
-            let json = serde_json::to_value(&line).unwrap();
-            assert_eq!(serde_json::from_value::<SourceLine>(json).unwrap(), line);
+            for unstopped in [false, true] {
+                let line = SourceLine {
+                    name: SourceName::Foreground,
+                    state: state.clone(),
+                    unstopped,
+                };
+                let json = serde_json::to_value(&line).unwrap();
+                assert_eq!(serde_json::from_value::<SourceLine>(json).unwrap(), line);
+            }
         }
         for json in [
-            r#"{"name":"foreground","state":"running","reason":"permission","error":null}"#,
-            r#"{"name":"foreground","state":"off","reason":null,"error":{"kind":"a","stage":"b","os_domain":"c","os_code":1}}"#,
-            r#"{"name":"foreground","state":"stopped","reason":"permission","error":null}"#,
-            r#"{"name":"foreground","state":"failed","reason":null,"error":null}"#,
-            r#"{"name":"foreground","state":"impaired","reason":"user","error":null}"#,
-            r#"{"name":"foreground","state":"running","reason":null}"#,
-            r#"{"name":"foreground","state":"running","error":null}"#,
+            r#"{"name":"foreground","state":"running","reason":"permission","error":null,"unstopped":false}"#,
+            r#"{"name":"foreground","state":"off","reason":null,"error":{"kind":"a","stage":"b","os_domain":"c","os_code":1},"unstopped":false}"#,
+            r#"{"name":"foreground","state":"stopped","reason":"permission","error":null,"unstopped":false}"#,
+            r#"{"name":"foreground","state":"failed","reason":null,"error":null,"unstopped":false}"#,
+            r#"{"name":"foreground","state":"impaired","reason":"user","error":null,"unstopped":false}"#,
+            r#"{"name":"foreground","state":"running","reason":null,"unstopped":false}"#,
+            r#"{"name":"foreground","state":"running","error":null,"unstopped":false}"#,
+            r#"{"name":"foreground","state":"running","reason":null,"error":null}"#,
+            r#"{"name":"foreground","state":"running","reason":null,"error":null,"unstopped":null}"#,
         ] {
             assert!(serde_json::from_str::<SourceLine>(json).is_err(), "{json}");
         }
@@ -3160,7 +3327,7 @@ mod tests {
             let text = String::from_utf8(encode_reply(&reply)).unwrap();
             assert!(
                 text.contains(&format!(
-                    r#"{{"name":"pointer","state":"failed","reason":"{}","error":null}}"#,
+                    r#"{{"name":"pointer","state":"failed","reason":"{}","error":null,"unstopped":false}}"#,
                     reason.as_str()
                 )),
                 "{text}"
