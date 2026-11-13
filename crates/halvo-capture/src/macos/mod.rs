@@ -6,6 +6,7 @@ pub mod audio;
 pub mod foreground;
 pub mod input;
 pub mod mic;
+pub mod run_loop;
 pub mod screen;
 pub(crate) mod secure_input_byte;
 pub mod window_title;
@@ -16,8 +17,10 @@ use std::time::Duration;
 use crate::daemon::{DaemonError, TimedRunReport};
 use crate::event::Modality;
 use crate::sink::{self, SinkWriter};
-use crate::source::{CaptureError, CaptureSource, HealthReason, SourceState};
-use foreground::{foreground_state, FOREGROUND_POLL};
+use crate::source::{
+    CaptureError, CaptureSource, HealthReason, SourceContext, SourceState, Started,
+};
+use foreground::FOREGROUND_POLL;
 
 /// The bounded sink capacity.
 pub const SINK_CAPACITY: usize = 2048;
@@ -47,23 +50,25 @@ impl std::fmt::Display for SourceStartFailure {
     }
 }
 
-/// Run every macOS source for a bounded window and report per-modality counts.
-/// Reads the gate's secure-input switch from the environment, then delegates to
-/// [`run_sources`], which takes it as a parameter.
-pub fn timed_run(seconds: u64) -> Result<TimedRunReport, DaemonError> {
+pub(crate) fn timed_run(seconds: u64) -> Result<TimedRunReport, DaemonError> {
     let hold_secure_input = std::env::var("HALVO_GATE_SECURE_INPUT").as_deref() == Ok("1");
     run_sources(seconds, hold_secure_input)
 }
 
 fn run_sources(seconds: u64, hold_secure_input: bool) -> Result<TimedRunReport, DaemonError> {
+    let off_the_main_thread =
+        || DaemonError::NotImplemented("a second timed run, or one off the main thread,");
+    let mut main_loop = run_loop::MainRunLoop::claim().map_err(|_| off_the_main_thread())?;
+    let (foreground_writer, foreground_reader) = main_loop
+        .foreground_state()
+        .ok_or_else(off_the_main_thread)?;
+
     let (handle, writer) = sink::channel(SINK_CAPACITY);
     let counts = Arc::new(Counts::default());
     let drain = {
         let counts = counts.clone();
         std::thread::spawn(move || drain_counting(writer, &counts))
     };
-
-    let (foreground_writer, foreground_reader) = foreground_state();
 
     let mut screen = screen::ScreenSource::new(screen::SCREEN_FRAME_CAP, foreground_reader.clone());
     let input_counters = input::InputCounters::new();
@@ -73,17 +78,20 @@ fn run_sources(seconds: u64, hold_secure_input: bool) -> Result<TimedRunReport, 
         input::HoldPlan::Never
     };
     let mut input = input::InputSource::new(foreground_reader, input_counters.clone(), plan);
-    let mut foreground = foreground::ForegroundSource::new(FOREGROUND_POLL, foreground_writer);
+    let mut foreground =
+        foreground::ForegroundSource::new(FOREGROUND_POLL, foreground_writer, main_loop.turns());
     let mut audio = audio::SystemAudioSource::disabled();
     let mut mic = mic::MicrophoneSource::disabled();
 
-    let starts: [(&'static str, Result<(), crate::source::CaptureError>); 5] = [
-        ("foreground", foreground.start(handle.clone())),
-        ("screen", screen.start(handle.clone())),
-        ("input", input.start(handle.clone())),
-        ("system_audio", audio.start(handle.clone())),
-        ("microphone", mic.start(handle.clone())),
+    let ctx = SourceContext::new(handle);
+    let starts: [(&'static str, Result<Started, CaptureError>); 5] = [
+        ("foreground", foreground.begin(ctx.clone())),
+        ("screen", screen.begin(ctx.clone())),
+        ("input", input.begin(ctx.clone())),
+        ("system_audio", audio.begin(ctx.clone())),
+        ("microphone", mic.begin(ctx.clone())),
     ];
+    drop(ctx);
     let failed: Vec<SourceStartFailure> = starts
         .into_iter()
         .filter_map(|(name, result)| result.err().map(|error| SourceStartFailure { name, error }))
@@ -92,20 +100,28 @@ fn run_sources(seconds: u64, hold_secure_input: bool) -> Result<TimedRunReport, 
         eprintln!("halvo-capture: {failure}");
     }
 
-    std::thread::sleep(Duration::from_secs(seconds));
+    main_loop.turn_for(Duration::from_secs(seconds));
 
-    foreground.stop();
-    screen.stop();
-    input.stop();
-    audio.stop();
-    mic.stop();
+    let stops: [(&'static str, Result<(), CaptureError>); 5] = [
+        ("input", input.shutdown()),
+        ("foreground", foreground.shutdown()),
+        ("screen", screen.shutdown()),
+        ("system_audio", audio.shutdown()),
+        ("microphone", mic.shutdown()),
+    ];
+    for (name, stopped) in stops {
+        if let Err(error) = stopped {
+            eprintln!("halvo-capture: source {name} did not stop: {error}");
+        }
+    }
+    let refusal = input.hold_refusal();
+    drop((input, foreground, screen, audio, mic));
 
-    drop(handle);
     drain
         .join()
         .map_err(|_| DaemonError::Store("drain thread panicked".into()))?;
 
-    secure_input_byte::refusal_or_none(input.hold_refusal())?;
+    secure_input_byte::refusal_or_none(refusal)?;
 
     Ok(TimedRunReport {
         seconds,

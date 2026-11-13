@@ -59,6 +59,8 @@ pub enum TitleError {
     NotAnElement,
     /// The title attribute held a value that is not a string.
     NotAString,
+    /// The reader panicked; the panic's text is not kept.
+    ReaderPanicked,
 }
 
 /// Whether Halvo has the Accessibility grant needed to read window titles.
