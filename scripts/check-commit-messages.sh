@@ -863,6 +863,13 @@ self_test_pre_push() {
 
   expect_push a-clean-commit-to-a-remote-without-fetched-refs-in-a-clone-without-a-default-branch 0 'commits checked 2,' proof-empty "$clean:refs/heads/clean-to-an-unfetched-remote"
 
+  in_other_clone checkout -q -b unseen origin/base
+  in_other_clone commit -q --allow-empty --no-verify -m 'Add a change that the first clone never fetches'
+  in_other_clone push -q origin unseen:refs/heads/unseen
+  expect_push a-forced-push-over-a-commit-that-this-clone-lacks 0 'commits checked 1,' proof "+$clean:refs/heads/unseen"
+  git -C "$work/clone" -c tag.gpgsign=false tag -a -m 'A tag of a tree' tag-of-a-tree "$tree"
+  expect_push an-annotated-tag-of-a-tree 0 'commits checked 0,' proof refs/tags/tag-of-a-tree
+
   status=0
   (cd "$work/clone" && printf 'not a line that git writes\n' | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-line-that-git-does-not-write.txt" 2>&1 || status=$?
   judge a-line-that-git-does-not-write "$status" 2 'cannot read this line'
