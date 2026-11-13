@@ -239,11 +239,15 @@ as text and prints PASS, or FAIL with the file and the cause. --self-test runs
 it over fixture trees that must pass or fail. The rule that it holds is the
 line "# rule:" of this file, which sh scripts/ci/run-ci-d.sh --rules prints.
 
-Limit: checks 22 and 23 read text. The two checks refuse the listed spellings
-alone, and a daemon file that reaches the store's database type by another
-spelling is refused by review and not by a check. Ruling DM-7 moves the
-boundary to the compiler in a later unit. Until it lands, these forms pass
-this check and reach the store's database type in the real crate:
+Limits. Checks 22 and 23 read text and are the second layer: they refuse the
+listed spellings alone. The compiler holds the boundary (ruling DM-7): the
+store's database type, its key file and its segment files are visible inside
+crate::store alone, and 30-core-boundary-proofs holds a proof line that fails
+to build for a path, a glob, a re-export and a macro that name them, the four
+forms below among them. What the crate exports stays nameable from a daemon
+file and is refused by this check and by review: EncryptedStore, the trait
+SegmentStore, the store's error and shred types, and rusqlite through the
+crate halvo-sqlcipher. These forms pass this check, and the build refuses each:
 - a use line with the name store right behind the brace:
   use {store as backing, sink};
 - self::store after the one allowed use super::*; in daemon/mod.rs, where the
