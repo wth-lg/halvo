@@ -21,6 +21,8 @@ pub enum PathError {
     Unresolved,
     #[error("the scratch directory is the data directory or lies inside it")]
     InsideDataDir,
+    #[error("the scratch directory holds the data directory")]
+    AboveDataDir,
     #[error("the scratch directory is the account's LaunchAgents directory or lies inside it")]
     InsideLaunchAgents,
     #[error(
@@ -248,18 +250,45 @@ pub struct ScratchDir {
 }
 
 impl ScratchDir {
-    /// Refuses a path that does not exist yet with [`PathError::Unresolved`], so a caller
-    /// makes the scratch directory first, and a path that is or lies in `user_data_dir`, as
-    /// given or as resolved, with [`PathError::InsideDataDir`]. [`ScratchDir::path`] is the
+    /// Takes the data directory from `account`. Refuses a path that does not exist yet with
+    /// [`PathError::Unresolved`], so a caller makes the scratch directory first; a path that
+    /// is or lies in the data directory, as given or as resolved, with
+    /// [`PathError::InsideDataDir`]; and a directory that holds the data directory, compared
+    /// by directory identity, with [`PathError::AboveDataDir`]. [`ScratchDir::path`] is the
     /// resolved path.
-    pub fn new(path: impl Into<PathBuf>, user_data_dir: &DataDir) -> Result<Self, PathError> {
+    pub fn new(path: impl Into<PathBuf>, account: &dyn AccountLookup) -> Result<Self, PathError> {
+        Self::against(path, &DataDir::for_account(account)?)
+    }
+
+    pub(crate) fn against(
+        path: impl Into<PathBuf>,
+        user_data_dir: &DataDir,
+    ) -> Result<Self, PathError> {
         let given = checked(path.into())?;
         let real = checked(given.canonicalize().map_err(|_| PathError::Unresolved)?)?;
         let scratch = Self { given, real };
         if scratch.is_or_lies_in(user_data_dir.path()) {
             return Err(PathError::InsideDataDir);
         }
+        if scratch.holds(user_data_dir.path()) {
+            return Err(PathError::AboveDataDir);
+        }
         Ok(scratch)
+    }
+
+    fn holds(&self, dir: &Path) -> bool {
+        let Some(me) = identity(&self.real) else {
+            return false;
+        };
+        let real_ancestors = dir
+            .ancestors()
+            .find_map(|existing| existing.canonicalize().ok())
+            .into_iter()
+            .flat_map(|real| real.ancestors().map(Path::to_path_buf).collect::<Vec<_>>());
+        dir.ancestors()
+            .map(Path::to_path_buf)
+            .chain(real_ancestors)
+            .any(|ancestor| identity(&ancestor) == Some(me))
     }
 
     pub fn path(&self) -> &Path {
@@ -813,7 +842,11 @@ mod tests {
         refused.push(absolute("a").join("..").join("b"));
         for path in refused {
             assert!(DataDir::from_flag(&path).is_err(), "{}", path.display());
-            assert!(ScratchDir::new(&path, &data).is_err(), "{}", path.display());
+            assert!(
+                ScratchDir::against(&path, &data).is_err(),
+                "{}",
+                path.display()
+            );
         }
         let with_slash = absolute("a").join("b").join("");
         assert_eq!(
@@ -915,6 +948,114 @@ mod tests {
         assert!(!Path::new(line).starts_with(elsewhere.path()));
     }
 
+    struct At(PathBuf);
+
+    impl AccountLookup for At {
+        fn base_dir(&self) -> Result<Option<OsString>, PathError> {
+            Ok(Some(self.0.clone().into_os_string()))
+        }
+
+        fn user_temp_dir(&self) -> Result<Option<DarwinUserTempDir>, PathError> {
+            Ok(None)
+        }
+    }
+
+    #[test]
+    fn a_scratch_directory_that_holds_the_data_directory_is_refused() {
+        let root = tempfile::tempdir().unwrap();
+        let home = root.path().canonicalize().unwrap().join("home");
+        std::fs::create_dir(&home).unwrap();
+        let account = At(home.clone());
+        let data = DataDir::for_account(&account).unwrap();
+        let above: Vec<&Path> = data
+            .path()
+            .ancestors()
+            .skip(1)
+            .take_while(|a| a.starts_with(&home))
+            .collect();
+        assert_eq!(above.len(), DATA_DIR.len(), "{above:?}");
+        for dir in &above {
+            std::fs::create_dir_all(dir).unwrap();
+            assert_eq!(
+                ScratchDir::new(dir, &account),
+                Err(PathError::AboveDataDir),
+                "{}",
+                dir.display()
+            );
+        }
+        let top = home.ancestors().last().unwrap();
+        assert_eq!(ScratchDir::new(top, &account), Err(PathError::AboveDataDir));
+        assert_eq!(
+            ScratchDir::new(root.path(), &account),
+            Err(PathError::AboveDataDir)
+        );
+        std::fs::create_dir_all(data.path()).unwrap();
+        assert_eq!(
+            ScratchDir::new(data.path(), &account),
+            Err(PathError::InsideDataDir)
+        );
+        let side = root.path().join("side");
+        std::fs::create_dir(&side).unwrap();
+        assert!(ScratchDir::new(&side, &account).is_ok());
+        let in_home_not_above = home.join("other");
+        std::fs::create_dir(&in_home_not_above).unwrap();
+        assert!(ScratchDir::new(&in_home_not_above, &account).is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_scratch_directory_above_the_data_directory_is_refused_through_a_link_and_by_its_real_parent(
+    ) {
+        let root = tempfile::tempdir().unwrap();
+        let real = root.path().canonicalize().unwrap();
+        let homes = real.join("homes");
+        std::fs::create_dir_all(homes.join("a")).unwrap();
+        let link = real.join("l");
+        std::os::unix::fs::symlink(homes.join("a"), &link).unwrap();
+        let account = At(link.clone());
+        assert_eq!(
+            ScratchDir::new(&link, &account),
+            Err(PathError::AboveDataDir)
+        );
+        assert_eq!(
+            ScratchDir::new(homes.join("a"), &account),
+            Err(PathError::AboveDataDir)
+        );
+        assert_eq!(
+            ScratchDir::new(&homes, &account),
+            Err(PathError::AboveDataDir)
+        );
+        let to_homes = real.join("to-homes");
+        std::os::unix::fs::symlink(&homes, &to_homes).unwrap();
+        assert_eq!(
+            ScratchDir::new(&to_homes, &account),
+            Err(PathError::AboveDataDir)
+        );
+        let other = homes.join("b");
+        std::fs::create_dir(&other).unwrap();
+        assert!(ScratchDir::new(&other, &account).is_ok());
+    }
+
+    #[test]
+    fn the_scratch_type_takes_the_data_directory_from_the_account() {
+        let root = tempfile::tempdir().unwrap();
+        let home = root.path().canonicalize().unwrap();
+        let data = DataDir::for_account(&At(home.clone())).unwrap();
+        std::fs::create_dir_all(data.path()).unwrap();
+        let inside = data.path().join("store");
+        std::fs::create_dir(&inside).unwrap();
+        assert_eq!(
+            ScratchDir::new(&inside, &At(home.clone())),
+            Err(PathError::InsideDataDir)
+        );
+        let elsewhere = tempfile::tempdir().unwrap();
+        assert!(ScratchDir::new(&inside, &At(elsewhere.path().to_path_buf())).is_ok());
+        assert_eq!(
+            ScratchDir::new(&inside, &account("relative")),
+            Err(PathError::Relative)
+        );
+    }
+
     #[test]
     fn is_provisioned_is_true_once_the_state_file_exists() {
         let root = tempfile::tempdir().unwrap();
@@ -939,7 +1080,7 @@ mod tests {
         symlink_dir(&real, &link).unwrap();
         let data = DataDir::from_flag(guard.path().join("data")).unwrap();
         assert_eq!(
-            ScratchDir::new(&link, &data).unwrap().path(),
+            ScratchDir::against(&link, &data).unwrap().path(),
             real.canonicalize().unwrap()
         );
     }
@@ -972,7 +1113,7 @@ mod tests {
             root.join("elsewhere"),
         ]
         .iter()
-        .map(|scratch| ScratchDir::new(scratch, &data).map(|_| ()))
+        .map(|scratch| ScratchDir::against(scratch, &data).map(|_| ()))
         .collect();
         assert_eq!(
             got,
@@ -1001,7 +1142,7 @@ mod tests {
             upper.join("store"),
         ] {
             assert_eq!(
-                ScratchDir::new(&inside, &data),
+                ScratchDir::against(&inside, &data),
                 Err(PathError::InsideDataDir),
                 "{}",
                 inside.display()
@@ -1013,7 +1154,7 @@ mod tests {
         ] {
             std::fs::create_dir(&outside).unwrap();
             assert_eq!(
-                ScratchDir::new(&outside, &data).unwrap().path(),
+                ScratchDir::against(&outside, &data).unwrap().path(),
                 outside.canonicalize().unwrap()
             );
         }
@@ -1022,7 +1163,7 @@ mod tests {
             let link = root.path().join("link");
             std::os::unix::fs::symlink(data.path(), &link).unwrap();
             assert_eq!(
-                ScratchDir::new(link.join("store"), &data),
+                ScratchDir::against(link.join("store"), &data),
                 Err(PathError::InsideDataDir)
             );
         }
@@ -1180,25 +1321,25 @@ mod tests {
         assert_eq!((a.dev(), a.ino()), (b.dev(), b.ino()));
         for inside in [firm.clone(), firm.join("store")] {
             assert_eq!(
-                ScratchDir::new(&inside, &data),
+                ScratchDir::against(&inside, &data),
                 Err(PathError::InsideDataDir),
                 "{}",
                 inside.display()
             );
         }
         assert_eq!(
-            ScratchDir::new(firm.join("not-yet").join("x"), &data),
+            ScratchDir::against(firm.join("not-yet").join("x"), &data),
             Err(PathError::Unresolved)
         );
         let missing = DataDir::from_flag(real.join("Later")).unwrap();
         let firm_missing =
             Path::new("/System/Volumes/Data").join(missing.path().strip_prefix("/").unwrap());
         assert_eq!(
-            ScratchDir::new(firm_missing.join("store"), &missing),
+            ScratchDir::against(firm_missing.join("store"), &missing),
             Err(PathError::Unresolved)
         );
         std::fs::create_dir(real.join("Halvo-scratch")).unwrap();
-        assert!(ScratchDir::new(firm.with_file_name("Halvo-scratch"), &data).is_ok());
+        assert!(ScratchDir::against(firm.with_file_name("Halvo-scratch"), &data).is_ok());
     }
 
     #[test]
@@ -1338,7 +1479,7 @@ mod tests {
         let wrong: Vec<String> = rows
             .iter()
             .filter_map(|(form, data, scratch, want)| {
-                let got = ScratchDir::new(scratch, data).map(|_| ());
+                let got = ScratchDir::against(scratch, data).map(|_| ());
                 println!("{form}: {} -> {got:?}", scratch.display());
                 (got != *want).then(|| format!("{form}: got {got:?}, want {want:?}"))
             })
@@ -1387,9 +1528,9 @@ mod tests {
                 count += 1;
                 let got = match target {
                     Target::Data(data) => {
-                        ScratchDir::new(scratch, &DataDir::from_flag(data).unwrap()).map(|_| ())
+                        ScratchDir::against(scratch, &DataDir::from_flag(data).unwrap()).map(|_| ())
                     }
-                    Target::LaunchAgents => ScratchDir::new(scratch, &far)
+                    Target::LaunchAgents => ScratchDir::against(scratch, &far)
                         .and_then(|scratch| LoginItemDir::scratch_form(&scratch, &account))
                         .map(|_| ()),
                 };
@@ -1635,7 +1776,7 @@ mod tests {
         let path = Path::new(std::ffi::OsStr::from_bytes(b"/data-\xff"));
         let data = DataDir::from_flag("/data").unwrap();
         assert_eq!(DataDir::from_flag(path), Err(PathError::NotUtf8));
-        assert_eq!(ScratchDir::new(path, &data), Err(PathError::NotUtf8));
+        assert_eq!(ScratchDir::against(path, &data), Err(PathError::NotUtf8));
     }
 
     #[cfg(target_os = "macos")]

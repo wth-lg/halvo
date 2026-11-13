@@ -1187,7 +1187,7 @@ mod login_item_tests {
         let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
         let root = tempfile::tempdir().unwrap();
         let user = DataDir::for_account(&Home(PathBuf::from("/Users/a b"))).unwrap();
-        let scratch = ScratchDir::new(root.path(), &user).unwrap();
+        let scratch = ScratchDir::against(root.path(), &user).unwrap();
         let target =
             LoginItemDir::scratch_form(&scratch, &Home(PathBuf::from("/Users/a b"))).unwrap();
         let data = DataDir::from_flag(root.path()).unwrap();
@@ -1217,12 +1217,12 @@ mod login_item_tests {
         let user_dir = std::fs::read_dir(root.path()).unwrap().count();
         assert_eq!(user_dir, 1);
         assert_eq!(
-            ScratchDir::new(root.path().join("missing"), &user),
+            ScratchDir::against(root.path().join("missing"), &user),
             Err(PathError::Unresolved)
         );
         let gone = root.path().join("gone");
         std::fs::create_dir(&gone).unwrap();
-        let scratch = ScratchDir::new(&gone, &user).unwrap();
+        let scratch = ScratchDir::against(&gone, &user).unwrap();
         let target =
             LoginItemDir::scratch_form(&scratch, &Home(PathBuf::from("/Users/a b"))).unwrap();
         std::fs::remove_dir(&gone).unwrap();
@@ -1246,7 +1246,7 @@ mod login_item_tests {
             upper.join("check"),
             link.join("check"),
         ] {
-            let scratch = ScratchDir::new(&inside, &user).unwrap();
+            let scratch = ScratchDir::against(&inside, &user).unwrap();
             assert_eq!(
                 LoginItemDir::scratch_form(&scratch, &account),
                 Err(PathError::InsideLaunchAgents),
@@ -1255,7 +1255,7 @@ mod login_item_tests {
             );
         }
         std::fs::create_dir(home.path().join("scratch")).unwrap();
-        let outside = ScratchDir::new(home.path().join("scratch"), &user).unwrap();
+        let outside = ScratchDir::against(home.path().join("scratch"), &user).unwrap();
         assert_eq!(
             LoginItemDir::scratch_form(&outside, &account)
                 .unwrap()
