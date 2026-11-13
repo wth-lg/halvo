@@ -34,6 +34,7 @@ enum Fault {
     ExpiryMovesFromCursorToCursor,
     ExpiryMovesOnTheSecondCursorOfSetA,
     ExpiryMovesOnAFurtherConnectionToOneTransport,
+    NothingOnAFurtherConnection,
     FilteredStopRepeats,
     FilteredStopRepeatsInTheNextBatch,
     FilteredStopSkipsARecord,
@@ -325,6 +326,11 @@ impl Wrong {
                 }
             }
         }
+        if self.fault == NothingOnAFurtherConnection && self.further {
+            b.records.clear();
+            b.expiry.clear();
+            b.next = b.watermark;
+        }
         self.at_watermark = b.next == b.watermark;
         self.position = b.next;
         let Some(open) = self
@@ -539,6 +545,7 @@ fn conformance_check_one_expiry_instant() {
                 ExpiryMovesOnAFurtherConnectionToOneTransport,
                 [None, None, check, None],
             ),
+            (NothingOnAFurtherConnection, [None, None, check, None]),
         ],
     );
 }

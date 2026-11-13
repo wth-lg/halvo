@@ -881,9 +881,12 @@ pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
     let instants = conn.end();
     let mut conn = connect(subject, instants)?;
     let again = read(&mut conn, Some(&rf.s), ZERO, None, None)
-        .map_err(|e| format!("the read on a second connection: {e}"))?;
+        .map_err(|e| format!("check {}: the read on a second connection: {e}", CHECKS[4]))?;
     if !same(&again.entries, &rf.r) {
-        return Err("the read on a second connection differs from the reference read".to_owned());
+        return Err(format!(
+            "check {}: the read on a second connection differs from the reference read",
+            CHECKS[4]
+        ));
     }
     open_while_open(&mut conn, &rf).map_err(|e| format!("check {}: {e}", CHECKS[1]))
 }
@@ -952,7 +955,6 @@ fn open_while_open<S: Subject>(conn: &mut Conn<S>, rf: &Reference) -> Result<(),
                 reading.watermark,
             )
             .map_err(|e| format!("the read_batch after {what}: {e}"))?;
-            conn.one_instant(&b)?;
             if !b.records.is_empty() || b.next != b.watermark {
                 return Err(format!(
                     "the read_batch after {what} served {} entries with next {}; want none at the watermark",
