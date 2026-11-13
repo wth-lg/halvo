@@ -1,0 +1,4 @@
+#![cfg(not(target_os = "macos"))]
+
+#[test]
+fn a_second_guard_test() {}
