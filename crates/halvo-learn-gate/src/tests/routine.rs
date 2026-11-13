@@ -4,8 +4,8 @@ use halvo_schema::learning::names::Mark;
 
 use crate::cli::Cause;
 use crate::routine::{
-    line, play, read_sample, report, run, Event, Played, Stream, Train, LAST_DAY, REPLAY_FROM,
-    SAMPLE_PATH, TRAINS,
+    line, play, play_all, read_sample, report, run, Event, Played, Stream, Train, LAST_DAY,
+    REPLAY_FROM, SAMPLE_PATH, TRAINS,
 };
 
 fn sample() -> Vec<Train> {
@@ -50,14 +50,24 @@ fn routine_gives_the_trials_figures_on_every_day_of_a_stale_train_in_both_stream
 }
 
 #[test]
-fn routine_replay_carries_the_occurrences_from_day_120_as_runs_and_the_rest_as_summaries() {
+fn routine_plays_each_train_in_both_streams_in_order_with_runs_from_day_120_and_expiry() {
     let train = sample().remove(0);
     let count = |keep: &dyn Fn(u32) -> bool| train.days.iter().filter(|d| keep(**d)).count() as u32;
     let last = *train.days.last().expect("a day");
     let gone = |d: u32| d + 93 <= last;
     assert!(train.days.contains(&REPLAY_FROM));
-    let replay = play(&train, Stream::Replay).expect("a play");
-    let summaries = play(&train, Stream::Summaries).expect("a play");
+    let mut changed = train.clone();
+    changed.events[0].period = changed.events[0].period.map(|p| p + 1);
+    let first = changed.events[0].day;
+    let played: Vec<Played> = play_all(&[train.clone(), changed])
+        .into_iter()
+        .map(|r| r.expect("a play"))
+        .collect();
+    let [summaries, replay, changed_summaries, changed_replay] = played[..] else {
+        panic!("{} plays, not 4", played.len());
+    };
+    assert_eq!(changed_summaries.differs_on, Some(first));
+    assert_eq!(changed_replay.differs_on, Some(first));
     assert_eq!(replay.differs_on, None);
     assert_eq!(summaries.differs_on, None);
     let late = count(&|d| d >= REPLAY_FROM);

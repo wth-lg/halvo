@@ -309,9 +309,9 @@ pub fn play(train: &Train, stream: Stream) -> Result<Played, String> {
     Ok(played)
 }
 
-/// Every play of the trains, each train in both streams, in the order of the trains, spread over at most four
-/// threads.
-fn play_all(trains: &[Train]) -> Vec<Result<Played, String>> {
+/// Every play of the trains, each train in both streams in the order of `Stream::BOTH`, in the order of the trains,
+/// spread over at most four threads.
+pub fn play_all(trains: &[Train]) -> Vec<Result<Played, String>> {
     let plays: Vec<(&Train, Stream)> = trains
         .iter()
         .flat_map(|t| Stream::BOTH.map(|s| (t, s)))
