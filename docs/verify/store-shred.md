@@ -114,10 +114,10 @@ checks call and that no row fails through stands under Not covered.
 | Check | File | Functions | Rows that fail through it |
 |---|---|---|---|
 | 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` (the `UPDATE` that sets a key to NULL, and the checkpoint after its commit), `destroy_store_key`, `delete_events_and_index` (the `DELETE` of the event rows), `crypto_shred_all` (its branch for a handle that delete-all sealed) | `formal-shredded-key-survives`, `formal-key-row-deleted`, `formal-key-row-deleted-oldest-first`, `formal-checkpoint-removed`, `formal-delete-all-destroys-nothing`, `formal-shred-leaves-the-event-rows`, `formal-second-delete-all-is-refused`, `formal-second-delete-all-finishes-nothing` |
-| 1 | `crates/halvo-capture/src/store/db.rs` | `Db::open_file`, which `Db::open` and `Db::open_existing` call (the `secure_delete` pragma with `require_secure_delete`), `require_write_ahead_log` (the journal mode that it sets and the one that it requires), `Db::checkpoint_truncate`, `EncryptedStore::write_segment_with_expiry` (where it puts the wrapped key), `KeyFile` and `EncryptedStore::write_key_file` (what `store.key` holds), `EncryptedStore::create` (the removal of the database when `Db::open` fails, and the database before the root step), `EncryptedStore::under_a_new_root` (the root step of a create, which calls `create_root`, and where its error goes), `Db::insert_event` (the rollback to its savepoint), `open_database` (the mode that it sets on `store.db` before the connection opens) | `formal-secure-delete-off`, `formal-journal-mode-not-wal`, `formal-checkpoint-not-verified`, `formal-wrapped-key-in-a-side-file`, `formal-second-wrap-in-another-table`, `formal-raw-store-key-in-key-file`, `formal-failed-create-leaves-the-database`, `formal-create-makes-its-root-first`, `formal-create-takes-an-existing-root`, `formal-refused-create-destroys-the-root`, `formal-create-spares-only-a-root-it-can-read`, `formal-failed-append-leaves-the-event-row`, `formal-store-db-keeps-a-wider-mode` |
-| 1 | `crates/halvo-capture/src/custody/dev_fallback.rs` | the macOS root store: `seal`, which `wrap` calls, and `unwrap` (the `aead_seal` and `aead_open` calls under the root), and `make_root` (the random fill of a new root), which `create_root` and `existing_or_new_root` call | `formal-custody-wrap-under-constant-key`, `formal-custody-root-is-all-zero` |
+| 1 | `crates/halvo-capture/src/store/db.rs` | `Db::open_file`, which `Db::open` and `Db::open_existing` call (the `secure_delete` pragma with `require_secure_delete`), `Db::checkpoint_truncate`, `EncryptedStore::write_segment_with_expiry` (where it puts the wrapped key), `KeyFile` and `EncryptedStore::write_key_file` (what `store.key` holds), `EncryptedStore::create` (the removal of the database when `Db::open` fails, and the database before the root step), `EncryptedStore::under_a_new_root` (the root step of a create, which calls `create_root`, and where its error goes), `Db::insert_event` (the rollback to its savepoint), `open_database` (the mode that it sets on `store.db` before the connection opens) | `formal-secure-delete-off`, `formal-checkpoint-not-verified`, `formal-wrapped-key-in-a-side-file`, `formal-second-wrap-in-another-table`, `formal-raw-store-key-in-key-file`, `formal-failed-create-leaves-the-database`, `formal-create-makes-its-root-first`, `formal-create-takes-an-existing-root`, `formal-refused-create-destroys-the-root`, `formal-create-spares-only-a-root-it-can-read`, `formal-failed-append-leaves-the-event-row`, `formal-store-db-keeps-a-wider-mode` |
+| 1 | `crates/halvo-capture/src/custody/file_root.rs` | the root files of both systems: `FileRoots::wrap` and `FileRoots::unwrap` (the `aead_seal` and `aead_open` calls under the root), and `FileRoots::make_root` (the random fill of a new root), which `FileRoots::create_root` calls | `formal-custody-wrap-under-constant-key`, `formal-custody-root-is-all-zero` |
 | 1 | `crates/halvo-capture/src/store/durable.rs` | `Dir::create_new`, which `OsFs::create_new` calls (the mode of a new file), `Dir::create_dir` (the mode of `segments` and of a shard) | `formal-store-files-take-the-umask`, `formal-store-directories-take-the-umask` |
-| 2 | `crates/halvo-capture/src/store/db.rs` | `Db::open_file` (the `locking_mode = EXCLUSIVE` pragma and `require_exclusive_locking`), `verify_key` (the mapping of `DatabaseBusy` to `Locked`), `EncryptedStore::open_with` (the call of `Db::refuse_a_live_holder` and the place of its answer, before the custody) | `formal-single-writer`, `formal-single-writer-both-locks`, `formal-busy-not-mapped-to-locked`, `formal-held-store-asks-its-custody` |
+| 2 | `crates/halvo-capture/src/store/db.rs` | `Db::open_file` (the `locking_mode = EXCLUSIVE` pragma and `require_exclusive_locking`) together with the calls of `DirLock::take` in `EncryptedStore::create_with` and `EncryptedStore::open_with`, `Db::refuse_a_live_holder` (its own `locking_mode = EXCLUSIVE` pragma), `verify_key`, `code_answer` and `Db::refuse_a_live_holder` (the mapping of `DatabaseBusy` to `Locked`), `EncryptedStore::open_with` (the call of `Db::refuse_a_live_holder` and the place of its answer, before the custody) | `formal-single-writer`, `formal-single-writer-both-locks`, `formal-busy-not-mapped-to-locked`, `formal-held-store-asks-its-custody` |
 
 A change to any function in the table, or to the schema of `segment_keys`,
 touches verified code. A change to the text that a row's substitution
@@ -514,18 +514,17 @@ row cannot go stale unseen.
 | `formal-key-row-deleted-oldest-first` | the same | the oldest-first scaled case | "after pass 17 of 50", then the same |
 | `formal-checkpoint-removed` | `destroy_segment_keys` does not checkpoint after its commit | the random test of check 1 | the same, in a frame of `store.db-wal` |
 | `formal-checkpoint-not-verified` | `Db::checkpoint_truncate` runs a PASSIVE checkpoint and accepts a WAL that still holds frames | the random test of check 1 | the same, in a frame of `store.db-wal` |
-| `formal-journal-mode-not-wal` | `require_write_ahead_log` sets `journal_mode = DELETE` and requires `delete` of the mode that it reads back; it left the rows file at store-3, and `journal-mode-not-wal`, judged by `db::tests::pragmas_are_set`, stands for the fault | the random test of check 1 | the same, in a record of `store.db-journal` |
 | `formal-secure-delete-off` | `Db::open_file` switches `secure_delete` off and does not read it back | the one-pass scaled case | the same, in a page of `store.db` |
 | `formal-wrapped-key-in-a-side-file` | `write_segment_with_expiry` also writes the wrapped key into `keys.log` in the store directory | the random test of check 1 | "the store directory holds keys.log, which is no file of a store" |
 | `formal-second-wrap-in-another-table` | `write_segment_with_expiry` wraps the segment key a second time and keeps that wrap in a table that no shred clears | the random test of check 1 | "shredded segment ... decrypts with a key remaining in the store" |
 | `formal-reader-keyed-with-zeros` | the harness gives the page reader an all-zero key | the random test of check 1 | panic "page 1 does not decrypt to a SQLite header" |
 | `formal-raw-store-key-in-key-file` | `store.key` also holds the raw store key, as base64 | the random test of check 1 | "store.key of the fresh store holds the raw store key" |
 | `formal-delete-all-destroys-nothing` | `destroy_store_key` returns at once | the random test of check 1 | "after delete-all the root is alive: the retained wrapped store key still unwraps" |
-| `formal-custody-wrap-under-constant-key` | the macOS root store seals and opens the store key under an all-zero key, not under the root | the random test of check 1 | "the wrapped store key of a fresh store opens under an all-zero key, so no root seals it" |
+| `formal-custody-wrap-under-constant-key` | the root file store seals and opens the store key under an all-zero key, not under the root | the random test of check 1 | "the wrapped store key of a fresh store opens under an all-zero key, so no root seals it" |
 | `formal-custody-root-is-all-zero` | a new root is never filled with random bytes | the random test of check 1 | the same |
-| `formal-single-writer` | `Db::open_file` neither sets `locking_mode = EXCLUSIVE` nor requires it | check 2 | "a contender found another contender inside the store", "held the store at the same time", or "contender N exited with exit status: 101" |
-| `formal-single-writer-both-locks` | the same, and `WriterLock::take` never locks | check 2 | the same three, or "no contender was refused while another held the store" |
-| `formal-busy-not-mapped-to-locked` | `verify_key` does not map `DatabaseBusy` and `DatabaseLocked` to `Locked` | check 2 | "contender N exited with exit status: 101", and on stderr "open failed with Db(5), which is no refusal of a second writer" |
+| `formal-single-writer` | `Db::open_file` neither sets `locking_mode = EXCLUSIVE` nor requires it, and `create` and `open` take no directory lock (either lock alone refuses a second process, so a row that removes one is not seen by check 2) | check 2 | "a contender found another contender inside the store", "held the store at the same time", or "contender N exited with exit status: 101" |
+| `formal-single-writer-both-locks` | the same, and the live-holder probe takes no `locking_mode = EXCLUSIVE` | check 2 | the same three, or "no contender was refused while another held the store" |
+| `formal-busy-not-mapped-to-locked` | `verify_key`, `code_answer` and the live-holder probe do not map `DatabaseBusy` and `DatabaseLocked` to `Locked`, and `create` and `open` take no directory lock | check 2 | "contender N exited with exit status: 101", and on stderr "open failed with Db(5), which is no refusal of a second writer" |
 | `formal-held-store-asks-its-custody` | `open_with` runs `Db::refuse_a_live_holder` and drops its answer, so a held store whose lock file was unlinked is refused by `verify_key`, after the unwrap | check 2 | "contender N asked its custody in an open that was refused, and contender Some(M) held the store from before that open to after it" |
 | `formal-store-files-take-the-umask` | `Dir::create_new` makes a new file with the mode of the umask, so `store.key` and each segment file take it; `open` still narrows `store.db` to 0600 on its own descriptor | the fixed order | before its first move: "store.key has mode 644 in the store directory, and a store makes it 600" |
 | `formal-store-directories-take-the-umask` | `Dir::create_dir` makes a directory with the mode of the umask, so `segments` and each shard take it | the fixed order | "at move 1 of 24, Write { len: 40, expiry: Past }: ... segments has mode 755 in the store directory, and a store makes it 700" |
@@ -559,7 +558,7 @@ of these substitutions stands under more than one name: that of
 three rows on a create under four, with
 `formal-refused-create-destroys-the-root`.
 
-`formal-journal-mode-not-wal`, until store-3 took it out of the rows file,
+The formal row of the journal mode, until store-3 took it out of the rows file,
 turned two places, the pragma and the mode that `require_write_ahead_log`
 requires. The row `journal-mode-not-wal` of
 the same file turns the pragma alone, and `db::tests::pragmas_are_set`
@@ -975,7 +974,7 @@ set, and the root's own volume name answers the root.
   the store's name before it reads `store.key`.
 - A second name of a file (a hard link) is no refusal: another process can
   make one after any check, and a store that a backup tool restored with
-  shared names still opens The zero-fill of `store.key` and of a root file
+  shared names still opens. The zero-fill of `store.key` and of a root file
   reaches every name of the file, so that no second name keeps a key
   (`delete_all_zeroes_the_store_key_file_through_every_name_before_it_removes_it`);
   a file of another program that a process of the same user hard-links at
@@ -1363,7 +1362,7 @@ settings read back, the sweep that follows no link, the modes, and
 
 Check 1 stands on the changed `open`, `create` and write paths, and it
 passes. One of its rows had come to fail for another reason than its line
-gives: `formal-journal-mode-not-wal`, which now turns the read-back with
+gives: the formal row of the journal mode, which now turns the read-back with
 the pragma (see Break proofs). Check 1 gained the read of the modes, with
 two rows on `durable.rs`.
 
@@ -1407,7 +1406,13 @@ it by hand when the code of `WriterLock` changes:
 `cargo test -p halvo-capture --lib -- --ignored --exact store::db::tests::a_take_of_the_writer_lock_never_answers_not_found_while_another_thread_unlinks_the_file --nocapture`.
 From store-3 on, macOS takes the lock on the store directory itself and no
 lock file exists, so this test, the retry, its seam tests and the row
-`lock-file-open-not-retried` are gone. What follows is the record of the
+`lock-file-open-not-retried` are gone. Check 2 does not fail through the
+directory lock alone or through the database's `locking_mode = EXCLUSIVE`
+alone, because either one refuses a second process: its rows remove both,
+and the rows `directory-lock-never-refuses`,
+`directory-lock-refusal-taken-as-a-lock` and
+`live-holder-busy-not-mapped-to-locked` judge each part alone by a test
+that sees it. What follows is the record of the
 lock file as it stood until then.
 Its last run, at the commit that ignored it, on this Mac at a 1-minute load
 of 98 to 107: 1,000,000 takes, 14,469 unlinks, no take that answered
