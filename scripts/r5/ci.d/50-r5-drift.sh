@@ -370,7 +370,7 @@ stand_in_git() {
   case $* in
     '-c core.fsmonitor=false -c core.untrackedCache=false status --porcelain=v2 --branch --untracked-files=all')
       [ -e "$FX/git-unreadable" ] && return 128
-      printf '# branch.oid %s\n' "$(cat "$FX/oid")"
+      printf '# branch.oid ' && cat "$FX/oid"
       cat "$FX/status"
       ;;
     'ls-files -v')
