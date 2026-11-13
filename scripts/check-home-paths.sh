@@ -212,7 +212,8 @@ Output and exit. A hit prints the commit, the file, the line number and the
 form, and never the text of the line. Exit 0 when no added line holds a home
 path that the list does not allow, 1 when one does, 2 when the check could
 not run (git failed, a range or a line that git wrote cannot be read, the
-list is missing or malformed, git cannot resolve an object that a push
+list of the commit is malformed or a list that --allow names is missing, git
+cannot resolve an object that a push
 names, or a commit adds an entry while HOME is unset or empty), 64 on bad
 usage. Every run that the scan counts as passed ends with one PASS line,
 also when it reads no commit. In the pre-push mode 1 and 2 both make
