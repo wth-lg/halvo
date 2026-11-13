@@ -125,7 +125,7 @@ fn root() -> PathBuf {
 /// each by its path from the root, byte for byte. The rules read every other
 /// file there as Rust, whatever its name: the compiler opens a module file by
 /// a path, and a volume that folds case gives `x.RS` for `x.rs`.
-const DATA_FILES: [&str; 7] = [
+const DATA_FILES: [&str; 9] = [
     "crates/halvo-capture/Cargo.toml",
     "crates/halvo-capture/src/custody/mutants.rows",
     "crates/halvo-capture/src/daemon/mutants.rows",
@@ -133,6 +133,8 @@ const DATA_FILES: [&str; 7] = [
     "crates/halvo-capture/src/mutants.rows",
     "crates/halvo-capture/src/store/mutants.rows",
     "crates/halvo-capture/src/store/testdata/segment-v1.golden",
+    "crates/halvo-capture/src/windows/mutants.rows",
+    "src-tauri/src/engine-url-forms.txt",
 ];
 
 /// Every file under the directory `dir` of the tree at `base`, tracked or not,
