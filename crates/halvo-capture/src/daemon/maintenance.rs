@@ -2,6 +2,7 @@
 //! deadline of the monotonic clock, eviction after each flush, one chunk of
 //! shreds per loop pass, and the guard against a wall clock set ahead.
 
+use std::collections::VecDeque;
 use std::time::{Duration, Instant, SystemTime};
 
 use super::port::{ByteBound, MaintFault, MaintainStore, Pass};
@@ -90,9 +91,10 @@ pub struct Schedule {
     expiry_at: Duration,
     expiry_more: bool,
     evict_due: bool,
+    expiry_failed: bool,
+    evict_failed: bool,
     previous: Option<Instants>,
-    trusted: Option<Instants>,
-    step_since: Option<Duration>,
+    steps: VecDeque<(Duration, Duration)>,
 }
 
 fn deadline_after(now: Instants) -> Duration {
@@ -112,9 +114,10 @@ impl Schedule {
             expiry_at: Duration::ZERO,
             expiry_more: true,
             evict_due: false,
+            expiry_failed: false,
+            evict_failed: false,
             previous: None,
-            trusted: None,
-            step_since: None,
+            steps: VecDeque::new(),
         }
     }
 
@@ -134,7 +137,11 @@ impl Schedule {
     pub fn next(&mut self, now: Instants) -> Option<Job> {
         let stepped = self.observe(now);
         let expiry_wall = self.expiry_wall(now);
-        if stepped || self.expiry_more || reached(now, self.expiry_at) {
+        let deadline = reached(now, self.expiry_at);
+        if deadline && self.evict_failed {
+            self.evict_due = true;
+        }
+        if stepped || self.expiry_more || deadline {
             self.expiry_at = deadline_after(now);
             self.expiry_more = false;
             return Some(Job::Expire { now: expiry_wall });
@@ -147,56 +154,72 @@ impl Schedule {
     }
 
     /// Records the answer of `job`: a pass that owes work or finds more due is
-    /// called again at the next loop pass; a fault waits for the next deadline.
+    /// called again at the next loop pass; a fault is called again at each
+    /// deadline until the job succeeds.
     pub fn done(&mut self, job: Job, answer: &Result<Pass, MaintFault>) {
         let again = answer.as_ref().is_ok_and(|pass| pass.more_due || pass.owed);
         match job {
-            Job::Expire { .. } => self.expiry_more = again,
-            Job::Evict => self.evict_due = again,
+            Job::Expire { .. } => {
+                self.expiry_more = again;
+                self.expiry_failed = answer.is_err();
+            }
+            Job::Evict => {
+                self.evict_due = again;
+                self.evict_failed = answer.is_err();
+            }
         }
+    }
+
+    /// Whether the last call of either job failed.
+    pub fn is_failing(&self) -> bool {
+        self.expiry_failed || self.evict_failed
     }
 
     /// Whether the wall clock stepped against the monotonic clock since the
-    /// last loop pass.
+    /// last loop pass. A forward step of more than one interval is held until
+    /// it has stood for [`CLOCK_STEP_GRACE`]; a step back takes back the steps
+    /// still held, the latest first.
     fn observe(&mut self, now: Instants) -> bool {
-        let stepped = self.previous.is_some_and(|previous| {
-            let monotonic = now.monotonic.saturating_sub(previous.monotonic);
-            match now.wall.duration_since(previous.wall) {
-                Ok(wall) => wall.abs_diff(monotonic) > CLOCK_STEP_TOLERANCE,
-                Err(back) => back.duration() + monotonic > CLOCK_STEP_TOLERANCE,
+        let Some(previous) = self.previous.replace(now) else {
+            return false;
+        };
+        let monotonic = now.monotonic.saturating_sub(previous.monotonic);
+        let (ahead, behind) = match now.wall.duration_since(previous.wall) {
+            Ok(wall) if wall >= monotonic => (wall - monotonic, Duration::ZERO),
+            Ok(wall) => (Duration::ZERO, monotonic - wall),
+            Err(back) => (Duration::ZERO, back.duration() + monotonic),
+        };
+        if ahead > MAINTENANCE_INTERVAL {
+            self.steps.push_back((now.monotonic, ahead));
+        }
+        let mut undone = behind;
+        while !undone.is_zero() {
+            let Some(last) = self.steps.back_mut() else {
+                break;
+            };
+            let taken = last.1.min(undone);
+            last.1 -= taken;
+            undone -= taken;
+            if last.1.is_zero() {
+                self.steps.pop_back();
             }
-        });
-        self.previous = Some(now);
-        stepped
+        }
+        ahead > CLOCK_STEP_TOLERANCE || behind > CLOCK_STEP_TOLERANCE
     }
 
-    /// The wall time that expiry reads at `now`: the wall clock, unless it is
-    /// ahead of the trusted reading by more than the monotonic time since then
-    /// plus one interval and that step has held for less than
-    /// [`CLOCK_STEP_GRACE`]; then the trusted reading moved on by the
-    /// monotonic time.
+    /// The wall time that expiry reads at `now`: the wall clock less every
+    /// forward step that has not yet stood for [`CLOCK_STEP_GRACE`], so each
+    /// step waits its own grace.
     fn expiry_wall(&mut self, now: Instants) -> SystemTime {
-        let Some(trusted) = self.trusted else {
-            self.trusted = Some(now);
-            return now.wall;
-        };
-        let expected = trusted.wall + now.monotonic.saturating_sub(trusted.monotonic);
-        let ahead = now
-            .wall
-            .duration_since(expected)
-            .is_ok_and(|ahead| ahead > MAINTENANCE_INTERVAL);
-        if !ahead {
-            self.trusted = Some(now);
-            self.step_since = None;
-            return now.wall;
+        while self
+            .steps
+            .front()
+            .is_some_and(|(since, _)| now.monotonic.saturating_sub(*since) >= CLOCK_STEP_GRACE)
+        {
+            self.steps.pop_front();
         }
-        let since = *self.step_since.get_or_insert(now.monotonic);
-        if now.monotonic.saturating_sub(since) >= CLOCK_STEP_GRACE {
-            self.trusted = Some(now);
-            self.step_since = None;
-            return now.wall;
-        }
-        expected
+        let held: Duration = self.steps.iter().map(|(_, size)| *size).sum();
+        now.wall.checked_sub(held).unwrap_or(now.wall)
     }
 
     /// Runs `job` on `store`: the one call of the port's `expire_due` and the

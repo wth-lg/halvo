@@ -177,6 +177,8 @@ enum Drain {
         retry_at: Duration,
         delay: Duration,
         same: Option<(WriteFault, u32)>,
+        cause: DrainCause,
+        since: SystemTime,
     },
 }
 
@@ -321,7 +323,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
                         self.read_usage();
                     }
                 }
-                if self.maintenance_failing {
+                if self.maintenance_failing && !self.schedule.is_failing() {
                     self.maintenance_failing = false;
                     self.report(Report::MaintenanceHealthy);
                 }
@@ -593,20 +595,25 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
             self.reject(now);
             return;
         }
-        let delay = match self.drain {
-            Drain::Failing { delay, .. } => (delay * 2).min(RETRY_MAX),
-            Drain::Healthy => {
-                self.report(Report::DrainFailing {
-                    cause: cause_of(fault),
-                    since: now.wall,
-                });
-                RETRY_FIRST
-            }
+        let cause = cause_of(fault);
+        let (delay, since, changed) = match self.drain {
+            Drain::Failing {
+                delay,
+                cause: before,
+                since,
+                ..
+            } => ((delay * 2).min(RETRY_MAX), since, before != cause),
+            Drain::Healthy => (RETRY_FIRST, now.wall, true),
         };
+        if changed {
+            self.report(Report::DrainFailing { cause, since });
+        }
         self.drain = Drain::Failing {
             retry_at: now.monotonic + delay,
             delay,
             same,
+            cause,
+            since,
         };
     }
 
@@ -1286,5 +1293,230 @@ mod tests {
                 max: SHRED_CHUNK
             }
         );
+    }
+
+    mod taken {
+        use std::io;
+        use std::time::Duration;
+
+        use crate::daemon::counters::Snapshot;
+        use crate::daemon::maintenance::{Clocks, CLOCK_STEP_GRACE, MAINTENANCE_INTERVAL};
+        use crate::daemon::model_store::{
+            foreground, foreground_now, noon, open_floor, Call, Harness, ModelStore, AT_NOON,
+        };
+        use crate::daemon::owner::{Answer, Command, DrainCause, Report, FREE_SPACE_FLOOR_BYTES};
+        use crate::daemon::port::{MaintFault, Pass, WriteFault};
+
+        const SECOND: Duration = Duration::from_secs(1);
+
+        fn resumed(harness: &mut Harness) {
+            assert!(matches!(
+                harness.ask(Command::ClosePause),
+                Answer::Resumed(_)
+            ));
+        }
+
+        fn settled(harness: &mut Harness) -> Snapshot {
+            match harness.ask(Command::Settle) {
+                Answer::Settled(snapshot) => snapshot,
+                other => panic!("{other:?}"),
+            }
+        }
+
+        fn evict_calls(harness: &Harness) -> usize {
+            harness
+                .store
+                .log()
+                .into_iter()
+                .filter(|call| matches!(call, Call::EvictTo { .. }))
+                .count()
+        }
+
+        /// One event flushed, its eviction failed, and the report of that fault read.
+        fn after_one_failed_eviction() -> Harness {
+            let store = ModelStore::new();
+            store.script_evict(vec![Err(MaintFault::Io(io::ErrorKind::Other))]);
+            let mut harness = Harness::over(store, open_floor(), 64);
+            resumed(&mut harness);
+            harness.emit(foreground(&AT_NOON, Duration::ZERO));
+            settled(&mut harness);
+            harness.passes(2);
+            let reports = harness.reports();
+            println!("ADV2 f1 reports up to the failed eviction: {reports:?}");
+            assert_eq!(evict_calls(&harness), 1);
+            assert!(reports.contains(&Report::MaintenanceFailing {
+                fault: MaintFault::Io(io::ErrorKind::Other)
+            }));
+            harness
+        }
+
+        #[test]
+        fn a_second_forward_step_inside_the_grace_waits_its_own_grace() {
+            let mut harness = Harness::new();
+            resumed(&mut harness);
+            let start_wall = harness.clocks.wall();
+            let day = Duration::from_secs(86_400);
+            harness.clocks.step_wall_forward(15 * day);
+            let first_step = harness.clocks.monotonic();
+            while harness.clocks.monotonic() - first_step < CLOCK_STEP_GRACE - 10 * SECOND {
+                harness.clocks.advance(5 * SECOND);
+                harness.pass();
+            }
+            harness.clocks.step_wall_forward(15 * day);
+            let second_step = harness.clocks.monotonic();
+            let calls_before = harness.store.expire_calls().len();
+            while harness.clocks.monotonic() - second_step < 120 * SECOND {
+                harness.clocks.advance(5 * SECOND);
+                harness.pass();
+            }
+            let days_ahead: Vec<u64> = harness.store.expire_calls()[calls_before..]
+                .iter()
+                .map(|now| now.duration_since(start_wall).unwrap().as_secs() / 86_400)
+                .collect();
+            println!(
+                "ADV2 f6 whole days ahead of the start that expire_due read in the 120 s after the second step: {days_ahead:?}"
+            );
+            assert!(
+                days_ahead.iter().all(|days| *days < 30),
+                "expire_due read a wall clock 30 days ahead within 120 s of the step that put it there: {days_ahead:?}"
+            );
+        }
+
+        #[test]
+        fn a_failed_eviction_is_called_again_at_the_next_deadline() {
+            let mut harness = after_one_failed_eviction();
+            harness.ask(Command::OpenPause);
+            let mut later = Vec::new();
+            for _ in 0..5 {
+                harness.clocks.advance(MAINTENANCE_INTERVAL + SECOND);
+                harness.passes(2);
+                later.extend(harness.reports());
+            }
+            let evicts = evict_calls(&harness);
+            println!(
+                "ADV2 f1a after 5 deadlines (305 s) with no flush: evict_to calls = {evicts}, expire_due calls = {}, reports = {later:?}",
+                harness.store.expire_calls().len()
+            );
+            assert!(
+                evicts >= 2,
+                "a failed eviction was not called again in 5 deadlines: evict_to calls = {evicts}"
+            );
+        }
+
+        #[test]
+        fn healthy_is_not_reported_while_the_failed_eviction_was_never_called_again() {
+            let mut harness = after_one_failed_eviction();
+            harness.ask(Command::OpenPause);
+            harness.clocks.advance(MAINTENANCE_INTERVAL + SECOND);
+            harness.passes(2);
+            let later = harness.reports();
+            let evicts = evict_calls(&harness);
+            println!("ADV2 f1b one deadline later: evict_to calls = {evicts}, reports = {later:?}");
+            assert!(
+                !(later.contains(&Report::MaintenanceHealthy) && evicts == 1),
+                "MaintenanceHealthy was reported with evict_to called {evicts} time(s), and that one call failed"
+            );
+        }
+
+        #[test]
+        fn healthy_is_not_reported_while_every_expiry_fails() {
+            let store = ModelStore::new();
+            let mut script = vec![Ok(Pass::default())];
+            script.extend((0..6).map(|_| Err(MaintFault::Db(10))));
+            store.script_expire(script);
+            let mut harness = Harness::over(store, open_floor(), 64);
+            resumed(&mut harness);
+            let mut seen = Vec::new();
+            for _ in 0..5 {
+                harness.clocks.advance(MAINTENANCE_INTERVAL + SECOND);
+                harness.pass();
+                harness.emit(foreground(&AT_NOON, Duration::ZERO));
+                settled(&mut harness);
+                harness.passes(2);
+                seen.extend(harness.reports());
+            }
+            let snapshot = harness.owner.snapshot();
+            let healthy = seen
+                .iter()
+                .filter(|report| **report == Report::MaintenanceHealthy)
+                .count();
+            println!(
+                "ADV2 f1c expire_due calls = {} (the one at open good, the rest failed), last_expiry_at moved = {}, reports = {seen:?}",
+                harness.store.expire_calls().len(),
+                snapshot.last_expiry_at != Some(noon())
+            );
+            assert_eq!(
+                healthy,
+                0,
+                "MaintenanceHealthy was reported {healthy} times while each of the 5 expiry calls after open failed; the last report is {:?}",
+                seen.last()
+            );
+        }
+
+        #[test]
+        fn the_reported_cause_follows_the_fault_under_the_floor() {
+            let mut harness = Harness::new();
+            harness
+                .store
+                .fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
+            resumed(&mut harness);
+            harness.emit(foreground_now());
+            settled(&mut harness);
+            let writes_before = harness.store.write_calls().len();
+            harness.store.set_free_bytes(Ok(FREE_SPACE_FLOOR_BYTES - 1));
+            for _ in 0..200 {
+                harness.clocks.advance(SECOND);
+                harness.pass();
+            }
+            let reports = harness.reports();
+            println!(
+                "ADV2 f2 200 s under the floor after an I/O fault: write calls {writes_before} -> {}, reports = {reports:?}",
+                harness.store.write_calls().len()
+            );
+            assert!(
+                reports.iter().any(|report| matches!(
+                    report,
+                    Report::DrainFailing {
+                        cause: DrainCause::NoSpace,
+                        ..
+                    }
+                )),
+                "under the floor for 200 s no report carries the cause no_space: {reports:?}"
+            );
+        }
+
+        #[test]
+        fn the_reported_cause_follows_the_fault_in_the_other_order_and_keeps_its_since() {
+            let mut harness = Harness::new();
+            harness.store.set_free_bytes(Ok(FREE_SPACE_FLOOR_BYTES - 1));
+            resumed(&mut harness);
+            harness.emit(foreground_now());
+            settled(&mut harness);
+            let first_since = harness.clocks.wall();
+            harness
+                .store
+                .fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
+            harness.store.set_free_bytes(Ok(FREE_SPACE_FLOOR_BYTES));
+            for _ in 0..200 {
+                harness.clocks.advance(SECOND);
+                harness.pass();
+            }
+            let failing: Vec<(DrainCause, std::time::SystemTime)> = harness
+                .reports()
+                .into_iter()
+                .filter_map(|report| match report {
+                    Report::DrainFailing { cause, since } => Some((cause, since)),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(
+                failing,
+                [
+                    (DrainCause::NoSpace, first_since),
+                    (DrainCause::Io, first_since)
+                ],
+                "one report per change of the cause, each with the since of the first fault"
+            );
+        }
     }
 }
