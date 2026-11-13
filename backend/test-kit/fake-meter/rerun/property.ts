@@ -31,6 +31,7 @@ const fault: fc.Arbitrary<Fault> = fc.oneof(
   { weight: 8, arbitrary: fc.constant<Fault>({ kind: "none" }) },
   { weight: 3, arbitrary: fc.constant<Fault>({ kind: "request-lost" }) },
   { weight: 3, arbitrary: fc.constant<Fault>({ kind: "response-lost" }) },
+  { weight: 2, arbitrary: fc.constant<Fault>({ kind: "refused" }) },
   { weight: 2, arbitrary: fc.constant<Fault>({ kind: "late-delivery" }) },
   { weight: 2, arbitrary: fc.constant<Fault>({ kind: "late-response" }) },
   { weight: 3, arbitrary: downSeconds.map((d): Fault => ({ kind: "crash-before-call", downSeconds: d })) },
@@ -78,7 +79,7 @@ const command: fc.Arbitrary<Command> = fc.oneof(
     arbitrary: fc.record({ kind: fc.constant("advance-to-period-end" as const), account, secondsBeforePeriodEnd: lastSecondsOfABillingPeriod }),
   },
   { weight: 3, arbitrary: fc.record({ kind: fc.constant("crash" as const), account, downSeconds }) },
-  { weight: 1, arbitrary: fc.record({ kind: fc.constant("cancel" as const), account }) },
+  { weight: 1, arbitrary: fc.record({ kind: fc.constant("cancel" as const), account, unstatedFirstSeconds: fc.constantFrom(0, 0, 1, 30, HOLD_LIFE) }) },
   { weight: 1, arbitrary: fc.record({ kind: fc.constant("delete" as const), account }) },
 );
 
@@ -167,7 +168,7 @@ if (!(2 * TWO_OF_THESE_PASS_A_WINDOW > DAY && TWO_OF_THESE_PASS_A_WINDOW < 23 * 
 }
 const SEARCH_DOWNTIMES = [0, HALF_A_WINDOW, TWO_OF_THESE_PASS_A_WINDOW, JUST_INSIDE_THE_SYNC_WINDOW, JUST_OUTSIDE_THE_SYNC_WINDOW, PAST_THE_FAKES_WINDOW];
 
-type SearchedFaultKind = Exclude<FaultKind, "late-response">;
+type SearchedFaultKind = Exclude<FaultKind, "late-response" | "refused">;
 
 const SEARCH_FAULTS_BY_KIND: { readonly [Kind in SearchedFaultKind]: readonly Fault[] } = {
   none: [{ kind: "none" }],
@@ -244,7 +245,7 @@ export function searchCases(): SearchCase[] {
     { kind: "advance", seconds: 250 },
     { kind: "reserve", account: 0, amountMicro: 9_000, dispatch: true },
     { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
-    { kind: "cancel", account: 0 },
+    { kind: "cancel", account: 0, unstatedFirstSeconds: 0 },
     { kind: "advance", seconds: 600 },
     { kind: "settle", account: 0, holdsBackFromNewest: 1, percentOfHold: 100 },
   ];

@@ -25,7 +25,7 @@ const EVENT_LIMIT = 200_000;
 const UNIT_PRICE = { input: 1_000_000, output: 1_000_000 };
 const CAP_MINOR = 100_000_000;
 
-export type FaultKind = "none" | "request-lost" | "response-lost" | "late-delivery" | "late-response" | "crash-before-call" | "crash-after-call";
+export type FaultKind = "none" | "request-lost" | "response-lost" | "refused" | "late-delivery" | "late-response" | "crash-before-call" | "crash-after-call";
 
 export type Fault =
   | { readonly kind: Exclude<FaultKind, "crash-before-call" | "crash-after-call"> }
@@ -39,7 +39,7 @@ export type Command =
   | { readonly kind: "reserve"; readonly account: number; readonly amountMicro: number; readonly dispatch: boolean }
   | { readonly kind: "settle"; readonly account: number; readonly holdsBackFromNewest: number; readonly percentOfHold: number }
   | { readonly kind: "crash"; readonly account: number; readonly downSeconds: number }
-  | { readonly kind: "cancel"; readonly account: number }
+  | { readonly kind: "cancel"; readonly account: number; readonly unstatedFirstSeconds: number }
   | { readonly kind: "delete"; readonly account: number };
 
 export type Scenario = {
@@ -100,6 +100,7 @@ type Account = {
   events: number;
   eventsHeldWhenEndCompleted: number | null;
   unexplainedReads: number;
+  refused: Map<string, { amountMinor: number; timestamp: number }>;
 };
 
 function blocker(): Blocker {
@@ -248,6 +249,7 @@ class World {
       events: 0,
       eventsHeldWhenEndCompleted: null,
       unexplainedReads: 0,
+      refused: new Map(),
     } satisfies Omit<Account, "index" | "id">);
     this.meter.subscribe(id, at);
     this.accounts.push(account);
@@ -316,6 +318,9 @@ class World {
           case "response-lost":
             this.deliver(event);
             return failed;
+          case "refused":
+            account.refused.set(e.identifier, { amountMinor: e.amountMinor, timestamp: e.timestamp });
+            return { kind: "refused", reason: "unknown_account" };
           case "late-delivery":
             this.lateDeliveries.push({ at: this.now + LATE_DELIVERY, event });
             return failed;
@@ -333,7 +338,7 @@ class World {
       readUsageTotal: async (a) => {
         const fault = this.takeFault();
         this.count("call.read");
-        if (fault.kind === "request-lost" || fault.kind === "response-lost") return failed;
+        if (fault.kind === "request-lost" || fault.kind === "response-lost" || fault.kind === "refused") return failed;
         if (fault.kind === "crash-before-call" || fault.kind === "crash-after-call") return this.crashDuringCall(account, fault.downSeconds);
         const read = this.meter.read(a.accountId, a.from, a.to, seconds());
         this.explain(account, a.from, read.widenedFrom, read.widenedTo, read.totalMinor);
@@ -365,6 +370,7 @@ class World {
     if (others > 0) this.count("read.range-holds-another-interval");
     if (total === others) this.count("read.lacks-the-amount");
     else if (total === others + own) this.count("read.holds-the-amount");
+    else if (total < others + own && this.scenario.meter.readLagSeconds > 0) this.count("read.short-by-the-lag");
     else account.unexplainedReads += 1;
   }
 
@@ -467,8 +473,10 @@ class World {
         this.count("crash.idle");
         return;
       case "cancel":
+        await this.end(account, "cancel", command.unstatedFirstSeconds);
+        return;
       case "delete":
-        await this.end(account, command.kind);
+        await this.end(account, "delete", 0);
         return;
     }
   }
@@ -534,12 +542,16 @@ class World {
     if (account.ended !== null || account.deleting) this.count("settle.after-cancel-or-delete");
   }
 
-  private async end(account: Account, kind: "cancel" | "delete"): Promise<void> {
+  private async end(account: Account, kind: "cancel" | "delete", unstatedFirstSeconds: number): Promise<void> {
     const previous = account.ended;
     const openHolds = account.holds.some((h) => h.open && this.now < h.expiresAt);
     if (kind === "cancel") {
       account.cancelled = true;
       const endedAt = this.meter.endSubscription(account.id, this.now);
+      if (unstatedFirstSeconds > 0) {
+        this.count("cancel.unstated-event-first");
+        await account.entries.webhookEvent(this.subscriptionEvent(account, { state: "cancelled", providerTime: (this.now + unstatedFirstSeconds) * 1000 }));
+      }
       await account.entries.webhookEvent(this.subscriptionEvent(account, { state: "cancelled", endedAt: endedAt * 1000 }));
       if (previous === null) account.ended = "cancel";
     } else {
@@ -696,15 +708,17 @@ class World {
       }
       const intervals = view?.intervals ?? [];
       if (intervals.some((i) => i.outcome === null)) this.fail("an ended interval is not acknowledged", account.id);
-      if (intervals.some((i) => i.outcome === "not-billable")) this.fail("an interval the provider refused", account.id);
+      const refusedByAFault = (i: Row) => i.outcome === "not-billable" && i.refusal === "unknown_account" && account.refused.has(String(i.identifier));
+      if (intervals.some((i) => i.outcome === "not-billable" && !refusedByAFault(i))) this.fail("an interval the provider refused", account.id);
+      this.count("interval.not-billable-after-refusals", intervals.filter(refusedByAFault).length);
       if (view !== null) this.checkHolds(account, view.holds);
       const events = this.meter.recordedEvents(account.id);
       if (new Set(events.map((e) => e.identifier)).size !== events.length) this.fail("one identifier recorded twice", account.id);
       for (const interval of intervals) {
         if (interval.sealed_at === null) continue;
         const held = events.filter((e) => e.timestamp === interval.timestamp);
-        const expected = interval.outcome === "acknowledged" ? 1 : 0;
-        if (held.length !== expected || held.some((e) => e.amountMinor !== interval.amount)) {
+        const expected = interval.outcome === "acknowledged" ? [1] : refusedByAFault(interval) ? [0, 1] : [0];
+        if (!expected.includes(held.length) || held.some((e) => e.amountMinor !== interval.amount)) {
           this.fail("one event for each acknowledged interval", `${account.id} interval ${interval.start}: ${held.length} events, outcome ${interval.outcome}`);
         }
       }
@@ -717,14 +731,19 @@ class World {
         const reported = account.reported.get(period.index) ?? 0;
         const providerMinor = this.meter.exactTotal(account.id, period.start, period.end);
         const provider = providerMinor * RULE_MICRO_PER_MINOR;
-        const carryOut = reported + carryIn - provider;
+        let unsent = 0;
+        for (const [identifier, sent] of account.refused) {
+          const atTheMeter = events.some((e) => e.identifier === identifier);
+          if (!atTheMeter && sent.timestamp >= period.start && sent.timestamp < period.end) unsent += sent.amountMinor * RULE_MICRO_PER_MINOR;
+        }
+        const carryOut = reported + carryIn - provider - unsent;
         this.rows.push({ account: account.id, period: period.index, reported, carryIn, provider, carryOut, invoicedMinor: this.meter.invoicedTotal(account.id, period) });
         if (carryIn > 0) this.count("period.starts-with-a-remainder");
         if (period.index > 0 && reported > 0) this.count("period.later-with-usage");
         if (carryOut < 0 || carryOut >= RULE_MICRO_PER_MINOR) {
           this.fail(
             "the equation with a remainder under one minor unit",
-            `${account.id} period ${period.index}: reported ${reported} + carried in ${carryIn} - provider ${provider} = ${carryOut}`,
+            `${account.id} period ${period.index}: reported ${reported} + carried in ${carryIn} - provider ${provider} - closed as not billable ${unsent} = ${carryOut}`,
           );
         }
         if (view !== null) {
