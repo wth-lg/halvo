@@ -1023,6 +1023,11 @@ grant_units() {
   grant_case windows-form hold passing
   cp "$work/stub/release.out" "$u/grants-release-form" || fixture_fail
   grant_case release-form hold passing
+  if grant_lines_hold "$base" "$work/stub/empty.out"; then
+    verdict grants-second-profile-empty miss hold failing
+  else
+    verdict grants-second-profile-empty miss miss failing
+  fi
 }
 
 probe_units() {
