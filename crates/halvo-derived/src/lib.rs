@@ -62,6 +62,21 @@
 //! revision of every family, the count per retention class, the bytes on disk and the next expiry deadline. A call
 //! that returns a fault after its transaction committed leaves that transaction in place.
 //!
+//! # What a host and a later unit must know
+//!
+//! - While a `Store` is open no other connection can read its database, also one that holds its key: the store keeps
+//!   the database in exclusive locking mode.
+//! - A handler learns of a window record that its typed commit dropped, past its expiry or naming a purged ordinal,
+//!   from `Committed::dropped` alone; the commit refuses nothing for it.
+//! - A stop between a batch's transaction and its steps leaves the batch committed with no proposal and no step
+//!   record; the same batch sent again answers `repeated` and runs no step, and the store notes no owed step.
+//! - An open fails while its entries give a stored kind another retention class, or a workflow key under which a
+//!   stored row names another workflow than its workflow column holds; the crate holds no migration for either.
+//! - A summary one or two days after the clock's day is stored and counted in the report, and no step sees it until
+//!   the clock reaches its day.
+//! - The list of the check `scripts/r2/ci.d/50-derived.sh` names the crate's tests by hand, and the check fails for a
+//!   test that the crate's test binaries run and the list does not name, so a commit that adds a test adds its line.
+//!
 //! # What may be logged
 //!
 //! The store logs nothing. Its errors (`Error`, `Fault`, `OpenError`, `Refusal`) hold an error name of the reply form,
