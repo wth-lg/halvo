@@ -565,6 +565,28 @@ mod tests {
     }
 
     #[test]
+    fn a_child_that_runs_no_test_fails_the_parent() {
+        let failed = std::panic::catch_unwind(|| in_a_child_alone("probe::tests::no_such_test"))
+            .expect_err("a child that runs no test fails");
+        let text = failed.downcast_ref::<String>().expect("a panic text");
+        assert!(text.contains("test result: ok. 0 passed"), "{text}");
+    }
+
+    #[test]
+    fn a_window_leaves_out_the_calls_of_the_first_thread() {
+        let start = first_thread();
+        if !in_a_child_alone("probe::tests::a_window_leaves_out_the_calls_of_the_first_thread") {
+            return;
+        }
+        let apart = apart_from_the_harness(start);
+        let size = 1 << 20;
+        FIRST_THREAD.store(this_thread(), Ordering::SeqCst);
+        let (window, _) = allocations(&apart, || black_box(vec![0_u8; size]));
+        assert_eq!(window.first, (1, size as u64));
+        assert!(window.others.1 < size as u64, "{:?}", window.others);
+    }
+
+    #[test]
     fn a_window_is_refused_when_no_thread_called_before_the_test() {
         let refused = std::panic::catch_unwind(|| apart_from_the_harness((0, 0)))
             .err()
