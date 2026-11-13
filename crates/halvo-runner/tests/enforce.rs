@@ -688,3 +688,130 @@ fn the_binary_still_fails_a_web_step_and_an_api_call_and_asks_no_confirmation() 
     assert_eq!(failed, [Some(Cause::Adapter)]);
     assert!(seen.effects().is_empty() && !seen.tags().contains(&"confirm"));
 }
+
+/// The cells of `range` of the sheet `sheet` of `workbook`, each written as text, read under a data directory of
+/// the test's own.
+fn sheet_texts(dir: &Path, workbook: &Path, sheet: &str, range: &str) -> Vec<Vec<String>> {
+    let data = scratch("read-sheet-data");
+    let locks = halvo_sheet::Locks::open(&data, LONG).expect("locks");
+    let folder = halvo_sheet::Folder::new(dir, locks).expect("a folder");
+    folder
+        .read(
+            workbook,
+            sheet,
+            halvo_sheet::Range::parse(range).expect("a range"),
+        )
+        .expect("read the range")
+        .into_iter()
+        .map(|row| {
+            row.into_iter()
+                .map(|cell| match cell {
+                    halvo_sheet::Cell::Text(t) => t,
+                    halvo_sheet::Cell::Number(n) => format!("{n:.2}"),
+                    other => format!("{other:?}"),
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// The ruling CP-159 G2: the slot `sheet` names another sheet at the load before the `begin` than at the load
+/// before the `prepare`. No cell of the first sheet is written; the first effect is ended, and a new effect with its
+/// own `prepare` and rows writes the second sheet.
+#[test]
+fn a_sheet_changed_at_the_load_before_the_begin_is_written_by_a_new_effect() {
+    let files = FillFiles::new("sheet-changed", 1);
+    let corpus = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tools/r3-trials/sheet/corpus/two-sheets.xlsx");
+    std::fs::copy(corpus, &files.workbook).expect("a workbook of two sheets");
+    let input_before = sheet_texts(&files.dir, &files.workbook, "Input", "B2:D6");
+    let mut sup = fill(160, &files);
+    let at = sup
+        .slots
+        .iter()
+        .position(|s| s.name.as_str() == "sheet")
+        .expect("the slot sheet");
+    sup.slots[at] = slot("sheet", "Input");
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                set_slot(l, "sheet", "Summary");
+            }
+        },
+        |_| {},
+    );
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    let effects = seen.effects();
+    assert_eq!(
+        seen.states(),
+        [
+            EffectState::Cleared,
+            EffectState::Rejected,
+            EffectState::Cleared,
+            EffectState::Releasing,
+            EffectState::Committed
+        ]
+    );
+    assert_eq!(
+        effects[1].cause,
+        Some(Cause::Ended),
+        "the first effect's ended row"
+    );
+    assert_ne!(effects[1].effect, effects[2].effect, "a new effect");
+    assert_eq!(
+        sheet_texts(&files.dir, &files.workbook, "Input", "B2:D6"),
+        input_before,
+        "no cell of the first sheet is written"
+    );
+    assert_eq!(
+        sheet_texts(&files.dir, &files.workbook, "Summary", "B2:D6"),
+        files.rows,
+        "the second sheet holds the rows"
+    );
+}
+
+/// The ruling CP-159 G3: the slot `source` names another file at the load before the `begin` than the one under
+/// which the read step read. No `begin` and no `replace`; the effect is ended with its `ended` row, and the run ends
+/// `failed` with `changed`; the workbook is byte for byte as it was and no prepared copy is left. The checkpoint
+/// that the `prepare` made stays (A11.3: the runner removes no checkpoint).
+#[test]
+fn a_source_changed_at_the_load_before_the_begin_ends_the_effect_and_the_run_changed() {
+    let files = FillFiles::new("source-changed", 2);
+    let before = files.workbook_bytes();
+    let other = files.dir.join("other.csv");
+    std::fs::copy(&files.source, &other).expect("a second source");
+    let sup = fill(161, &files);
+    let other_text = other.to_string_lossy().into_owned();
+    let seen = serve_loads(
+        &sup,
+        |n, l| {
+            if n >= 3 {
+                set_slot(l, "source", &other_text);
+            }
+        },
+        |_| {},
+    );
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::Changed)))
+    );
+    assert_eq!(
+        seen.states(),
+        [EffectState::Cleared, EffectState::Rejected],
+        "no begin; the effect's ended row"
+    );
+    assert_eq!(seen.effects()[1].cause, Some(Cause::Ended));
+    assert_eq!(files.workbook_bytes(), before, "the workbook byte for byte");
+    assert_eq!(
+        files.names(),
+        [
+            checkpoint_of(&sup, "formulas"),
+            "formulas.xlsx".to_string(),
+            "other.csv".to_string(),
+            "source.csv".to_string()
+        ],
+        "no prepared copy is left"
+    );
+}

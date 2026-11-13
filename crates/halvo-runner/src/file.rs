@@ -157,7 +157,11 @@ impl Runner {
     /// `user_files` holds, `decide` gives `run` and that digest is the row's. Otherwise the prepared copy goes and
     /// the effect is ended: without the permission the step fails as at the first load; on `refuse` the run ends
     /// `refused`; on another digest a new effect is proposed from that load with its own `prepare`, at most
-    /// `LIMITS.rebinds` times for the step, and then the run ends `failed` with `changed`. A cancel or a passed
+    /// `LIMITS.rebinds` times for the step, and then the run ends `failed` with `changed`. The load before the
+    /// `begin` is also held against the sheet of the `prepare`, a changed sheet being met as another digest is
+    /// (CP-159 G2), and against the source of the read step, held as a text, so that another spelling of the same
+    /// file ends the run too: another source ends the effect and then the run `failed` with `changed`, after the
+    /// permission and the decision (CP-159 G3). A cancel or a passed
     /// `wall` limit before the `propose` or the `begin` ends the run there, and a cancel read under the lock after
     /// the answered `begin` lets nothing reach the workbook. A close that the runner's reader has returned before
     /// the `replace` lets nothing reach the workbook. A propose or begin row, or the replace after an answered
@@ -227,9 +231,16 @@ impl Runner {
             let held = again.config.permissions.contains(&Permission::UserFiles);
             let decision = decide(&again.config, step.class, Checkpoint::Yes).decision();
             let rebuilt = digest_of(&again, target);
+            let same_sheet = slot_text(&again, target.sheet.as_ref()).ok() == Some(sheet.clone());
+            let same_source = self
+                .read_under
+                .as_ref()
+                .is_none_or(|read| slot_path(&again, &read.slot).ok() == Some(read.source.clone()));
             if held
                 && decision == Decision::Run
                 && rebuilt.as_ref() == Some(self.effects[at].digest())
+                && same_sheet
+                && same_source
             {
                 let digest = rebuilt.ok_or(Failure::Step(Cause::StepFailed))?;
                 self.advance(at, EffectMove::Begin { digest })?;
@@ -255,6 +266,9 @@ impl Runner {
                 Decision::Run => {}
                 Decision::Refuse => return Err(refused(&again.config).into()),
                 _ => return Err(Stop::End(Outcome::Failed, Some(Cause::Effect)).into()),
+            }
+            if !same_source {
+                return Err(Stop::End(Outcome::Failed, Some(Cause::Changed)).into());
             }
             if renewed >= LIMITS.rebinds {
                 return Err(Stop::End(Outcome::Failed, Some(Cause::Changed)).into());
