@@ -178,7 +178,8 @@ use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Input::{
     GetRawInputData, RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER,
-    RIDEV_INPUTSINK, RIDEV_REMOVE, RID_INPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
+    RAWKEYBOARD, RAWMOUSE, RIDEV_INPUTSINK, RIDEV_REMOVE, RID_INPUT, RIM_TYPEKEYBOARD,
+    RIM_TYPEMOUSE,
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -380,7 +381,16 @@ fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
     #[repr(C, align(8))]
     struct Aligned([u8; core::mem::size_of::<RAWINPUT>()]);
 
-    if bytes.len() < core::mem::size_of::<RAWINPUTHEADER>() {
+    let header = core::mem::size_of::<RAWINPUTHEADER>();
+    let kind = u32::from_ne_bytes(bytes.get(..4)?.try_into().ok()?);
+    let record = if kind == RIM_TYPEKEYBOARD.0 {
+        core::mem::size_of::<RAWKEYBOARD>()
+    } else if kind == RIM_TYPEMOUSE.0 {
+        core::mem::size_of::<RAWMOUSE>()
+    } else {
+        return None;
+    };
+    if bytes.len() < header + record {
         return None;
     }
     let mut aligned = Aligned([0u8; core::mem::size_of::<RAWINPUT>()]);
