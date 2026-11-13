@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
 use std::sync::{Mutex, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use block2::RcBlock;
 use dispatch2::{DispatchQueue, DispatchRetained};
@@ -426,8 +426,13 @@ impl CaptureSource for ScreenSource {
             return Ok(());
         };
         let (tx, rx) = channel();
+        let asked = Instant::now();
         stream.ask_stop(tx);
-        let completion = rx.recv_timeout(SCREEN_STOP_WAIT);
+        let mut completion = rx.recv_timeout(SCREEN_STOP_WAIT);
+        if completion == Err(RecvTimeoutError::Disconnected) {
+            std::thread::sleep(SCREEN_STOP_WAIT.saturating_sub(asked.elapsed()));
+            completion = Err(RecvTimeoutError::Timeout);
+        }
         if stopped_without_error(&completion) {
             self.stream = None;
             self.stopped = true;
@@ -519,7 +524,6 @@ mod tests {
     use std::cell::{Cell, RefCell};
     use std::ffi::c_void;
     use std::rc::Rc;
-    use std::time::Instant;
 
     #[test]
     fn only_the_own_process_is_excluded_and_every_other_entry_is_kept() {
