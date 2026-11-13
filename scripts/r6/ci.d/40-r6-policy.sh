@@ -11,7 +11,7 @@ bar=docs/r6/bar.md
 recorded=docs/r6/outcomes/recorded.tsv
 freeze=docs/r6/outcomes/freeze.txt
 pinned_path=scripts/r6/ci.d/80-r6-absent.sh
-pinned_blob=5f4eec629b1b232d07430968036b2049e6dc831c
+pinned_blob=a0cbd1d17f92e6135678879353c57137fc2ac1fb
 specimen=crates/halvo-route-gate/tests/data/specimen.tsv
 cap_line='default_cap amount=2000 period=month status=provisional'
 case $0 in
@@ -200,6 +200,23 @@ pinned_holds() {
   [ "$work_blob" = "$pinned_blob" ]
 }
 
+pin_report() {
+  tab=$(printf '\t')
+  entry=$(git ls-tree HEAD -- "$pinned_path" 2>/dev/null) || entry=
+  head_entry=absent
+  if [ -n "$entry" ]; then
+    read -r entry_mode entry_type entry_id <<EOF
+${entry%%"$tab"*}
+EOF
+    head_entry=$entry_mode:$entry_type:$entry_id
+  fi
+  work_entry=absent
+  if [ -f "$pinned_path" ]; then
+    work_entry=$(git hash-object --no-filters -- "$pinned_path" 2>/dev/null) || work_entry=absent
+  fi
+  printf 'pin path=%s want=%s head=%s work=%s\n' "$pinned_path" "$pinned_blob" "$head_entry" "$work_entry"
+}
+
 scan_flags() {
   exempt=
   if pinned_holds; then
@@ -331,6 +348,9 @@ measure() {
 
   if ! scan_flags >"$artifacts/flags.txt" 2>"$artifacts/flags.err"; then
     cause=${cause:-flags}
+    if grep -qxF "sets $pinned_path" "$artifacts/flags.txt"; then
+      pin_report
+    fi
   fi
 
   if [ -n "$cause" ]; then
@@ -697,6 +717,15 @@ build = 'gen/make.rs'" crates/x/gen/make.rs "fn main() { println!(\"cargo:$build
     pinned_case "$label" FAIL
   done
   pinned_case pinned-bytes-at-the-path PASS
+  report=$work/flags/pin-report
+  make_repo "$report"
+  mkdir -p "$report/scripts/r6/ci.d" || exit 2
+  cp "$pinned_path" "$report/$pinned_path" || exit 2
+  printf '\n' >>"$report/$pinned_path" || exit 2
+  git -C "$report" add -A || exit 2
+  git -C "$report" commit -q -m fixture || exit 2
+  found_blob=$(git -C "$report" rev-parse "HEAD:$pinned_path") || exit 2
+  check failure-line-names-the-ids "$report" FAIL "pin path=$pinned_path want=$pinned_blob head=100644:blob:$found_blob work=$found_blob"
   flags_case words-in-a-document PASS docs/notes.md "Never set $setting or $cfg_test."
   flags_case untracked-config PASS
   mkdir -p "$work/flags/untracked-config/.cargo" || exit 2
