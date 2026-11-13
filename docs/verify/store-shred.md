@@ -407,7 +407,7 @@ The contender takes an error of `open` as a refusal only when
 | Platform | Refusal that the contender accepts | Where it comes from |
 |---|---|---|
 | macOS | `Locked` | `DirLock::take` (store/lock.rs) gets `WouldBlock` from the `flock` on a descriptor of the store directory itself, so no lock file exists to unlink, and every second opener is refused there. While a process holds the database without the directory lock, `open` answers `Locked` from `Db::refuse_a_live_holder`, which reads `SQLITE_BUSY` before `open` asks its custody; the cases around the directory lock make that state, and the open race does not |
-| Windows | `Locked`, `Io(PermissionDenied)`, or the `Io` of a sharing violation | the same two paths, with the lock on the file `writer.lock`, which `DirLock` opens without delete sharing: an unlink of the held file is refused, so no name is left delete-pending as it was before store-3. While the parent's unlink has the lock file open for an instant, the system refuses a contender's own open of it with a sharing violation, and `open` hands that on as `Io` with a kind that the standard library does not name (`Io(Uncategorized)` in a debug print). The contender takes it as a refusal and tries again. Until the sixth formal step it did not: the hosted Windows job of that step failed on this answer in a case with a cadence of 2 ms, where the job at the head of the unit had passed one run. The contender still takes `Io(PermissionDenied)` from any step of `open` |
+| Windows | `Locked`, `Io(PermissionDenied)`, or the `Io` of a sharing violation | the same two paths, with the lock on the file `writer.lock`, which `DirLock` opens without delete sharing, so an unlink of the held file is refused. While the parent's unlink has the lock file open for an instant, the system refuses a contender's own open of it, mostly with a sharing violation, which `open` hands on as `Io` with a kind that the standard library does not name (`Io(Uncategorized)` in a debug print), and now and then with access denied. The contender takes both as a refusal and tries again. Until the sixth formal step it did not take the first: the hosted Windows job of that step failed on it in a case with a cadence of 2 ms, where the job at the head of the unit had passed one run. In the 20 hosted runs after the change, 14 runs counted 31 sharing violations in all and 4 runs counted 5 answers of access denied, beside 154,272 of `Locked`. The contender takes `Io(PermissionDenied)` from any step of `open` |
 
 Any other error ends the contender at once, with the error in its message,
 and the case fails with "contender N exited with exit status: 101". So an
@@ -448,6 +448,9 @@ that file open for an instant, and a creator's own open of it can be
 refused by the system then. Such a case can end with no creator, which
 the parent accepts on Windows alone. The line of a pass counts both
 (`other_under_the_unlink` with the answers, and `cases_with_no_creator`).
+In the 22 hosted Windows runs of the sixth formal step, 264 cases, every
+case ended with one creator, and every other creator was answered
+`Locked`.
 
 Two contenders can finish a case without meeting: they start 0 to 20 ms
 apart and hold the store 5 to 30 ms. A run in which no contender is ever
