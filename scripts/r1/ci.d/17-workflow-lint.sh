@@ -1,11 +1,12 @@
 #!/bin/sh
 # jobs: macos
-# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, and the timeout of each job is the bound ci_job_timeout_min.
+# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, no quoted scalar or flow collection runs over several lines, and the timeout of each job is the bound ci_job_timeout_min.
 set -u
 name=17-workflow-lint
 pinned_version=1.7.12
 nl='
 '
+tab=$(printf '\t')
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -84,6 +85,47 @@ EOF
     finding "the top-level permissions of ci.yml must grant contents: read and nothing else"
   fi
 
+  span=$(awk -v q="'" '
+    function past(line, i, c,    n, d) {
+      for (n = length(line); i <= n; i++) {
+        d = substr(line, i, 1)
+        if (c == "\"" && d == "\\") i++
+        else if (d == c) return i
+      }
+      return 0
+    }
+    function scan(line,    i, n, c, nx, start, prev, after, first, dash, depth) {
+      n = length(line); start = 1; prev = " "
+      for (i = 1; i <= n; i++) {
+        c = substr(line, i, 1); nx = substr(line, i + 1, 1)
+        if (c ~ /[ \t]/) { prev = " "; continue }
+        if (c == "#" && prev == " ") break
+        prev = c
+        if (start && c == "-" && nx ~ /[ \t]/) { dash = i; first = 0; continue }
+        if (start && (c == "|" || c == ">")) { block = first ? first : dash ? dash : i; continue }
+        if (start && !first) first = i
+        if (start && (c == "\"" || c == q)) {
+          i = past(line, i + 1, c)
+          if (!i) return "quote"
+          after = 1; continue
+        }
+        if (c == ":" && (after || nx ~ /[ \t]/)) { start = 1; continue }
+        if (start && (c == "[" || c == "{")) { depth++; continue }
+        if (depth && (c == "]" || c == "}")) { depth--; continue }
+        if (depth && c == ",") { start = 1; continue }
+        if (start && (c == "&" || c == "!")) { while (i < n && substr(line, i + 1, 1) !~ /[ \t]/) i++; continue }
+        start = 0
+        after = 0
+      }
+      return depth ? "flow" : ""
+    }
+    block && /[^ \t]/ && match($0, /[^ \t]/) <= block { block = 0 }
+    !block && (kind = scan($0)) != "" { print kind, NR; exit }' "$file")
+  case $span in
+    quote*) finding "ci.yml line ${span#quote } ends inside a quoted scalar, which this lint does not read over several lines; write the value on one line or as a block scalar (| or >)" ;;
+    flow*) finding "ci.yml line ${span#flow } ends inside a flow collection ([ or {), which this lint does not read over several lines; write it on one line or in block form" ;;
+  esac
+
   [ -f scripts/r1-gate/lib.sh ] || fail "scripts/r1-gate/lib.sh is missing"
   GATE_ROOT=$CI_D_REPO
   export GATE_ROOT
@@ -97,48 +139,7 @@ EOF
       if (timed == 1) good++
       job = ""
     }
-    function past(line, i, c,    n, d) {
-      for (n = length(line); i <= n; i++) {
-        d = substr(line, i, 1)
-        if (c == "\"" && d == "\\") i++
-        else if (d == q && substr(line, i + 1, 1) == q) i++
-        else if (d == c) return i
-      }
-      return 0
-    }
-    function scan(line,    i, n, c, nx, start, prev, after, tok, keycol) {
-      n = length(line); i = 1; start = 1; prev = " "
-      if (quote != "") {
-        i = past(line, 1, quote)
-        if (!i) return
-        quote = ""; start = 0
-      }
-      for (; i <= n; i++) {
-        c = substr(line, i, 1); nx = substr(line, i + 1, 1)
-        if (c ~ /[ \t]/) { prev = " "; continue }
-        if (c == "#" && prev == " ") return
-        prev = c
-        if (start && (c == "\"" || c == q)) {
-          tok = i; i = past(line, i + 1, c)
-          if (!i) { quote = c; return }
-          after = 1; continue
-        }
-        if (c == ":" && (after || nx ~ /[ \t]/)) { keycol = tok; start = 1; continue }
-        if (start && c == "-" && nx ~ /[ \t]/) continue
-        if (start && (c == "[" || c == "{")) { depth++; continue }
-        if (depth && (c == "]" || c == "}")) { depth--; continue }
-        if (depth && c == ",") { start = 1; continue }
-        if (start && (c == "|" || c == ">")) block = keycol
-        if (start && (c == "&" || c == "!")) { while (i < n && substr(line, i + 1, 1) !~ /[ \t]/) i++; continue }
-        if (start) { start = 0; tok = i }
-        after = 0
-      }
-    }
     BEGIN { key = "^[\"" q "]?jobs[\"" q "]?[[:space:]]*:" }
-    { inside = quote != "" }
-    block && /[^ \t]/ && match($0, /[^ \t]/) <= block { block = 0 }
-    !block { scan($0) }
-    inside { next }
     in_jobs && /^[^[:space:]#]/ { finish(); in_jobs = 0 }
     $0 ~ key { blocks++; rest = $0; sub(key, "", rest); if (rest !~ /^[[:space:]]*(#.*)?$/) inline = 1; in_jobs = 1; next }
     in_jobs && /^  [^[:space:]#]/ { finish(); job = $0; sub(/^  /, "", job); sub(/[[:space:]]*:.*$/, "", job); gsub(q, "", job); gsub(/"/, "", job); timed = 0; next }
@@ -328,31 +329,37 @@ EOF
   tree explicit-job-permissions "7s/\$/\\${nl}    ? permissions\\${nl}    : write-all/"
   check explicit-job-permissions FAIL 'keys in the explicit form of YAML'
   tree timeout-in-a-double-quoted-name "8s/.*/    name: \"macos\\${nl}    timeout-minutes: 30\\${nl}    \"/"
-  check timeout-in-a-double-quoted-name FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check timeout-in-a-double-quoted-name FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-in-a-single-quoted-name "8s/.*/    name: 'macos\\${nl}    timeout-minutes: 30\\${nl}    '/"
-  check timeout-in-a-single-quoted-name FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check timeout-in-a-single-quoted-name FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree longer-timeout-beside-a-quoted-name "8s/30/600/;8s/\$/\\${nl}    name: \"macos\\${nl}    timeout-minutes: 30\\${nl}    \"/"
-  check longer-timeout-beside-a-quoted-name FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check longer-timeout-beside-a-quoted-name FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-after-an-escaped-double-quote "8s/.*/    name: \"say \\\\\"hi\\${nl}    timeout-minutes: 30\\${nl}    \"/"
-  check timeout-after-an-escaped-double-quote FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check timeout-after-an-escaped-double-quote FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-after-a-doubled-single-quote "8s/.*/    name: 'macos\\${nl}    it''s\\${nl}    timeout-minutes: 30\\${nl}    '/"
-  check timeout-after-a-doubled-single-quote FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check timeout-after-a-doubled-single-quote FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-after-a-hash-in-a-quoted-name "8s/.*/    name: \"macos #\\${nl}    timeout-minutes: 30\\${nl}    \"/"
-  check timeout-after-a-hash-in-a-quoted-name FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check timeout-after-a-hash-in-a-quoted-name FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-in-a-tagged-quoted-name "8s/.*/    name: \&n !!str \"macos\\${nl}    timeout-minutes: 30\\${nl}    \"/;13s/\$/\\${nl}    name: *n/"
-  check timeout-in-a-tagged-quoted-name FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check timeout-in-a-tagged-quoted-name FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-in-a-quoted-flow-value "8s/.*/    env: { A: a#b, NAME: \"macos\\${nl}    timeout-minutes: 30\\${nl}    \" }/"
-  check timeout-in-a-quoted-flow-value FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check timeout-in-a-quoted-flow-value FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-in-a-json-like-flow-value "8s/.*/    env: {\"NAME\":\"macos\\${nl}    timeout-minutes: 30\\${nl}    \"}/"
-  check timeout-in-a-json-like-flow-value FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check timeout-in-a-json-like-flow-value FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-in-a-quoted-item-of-a-flow-list-over-lines "8s/.*/    strategy:\\${nl}      matrix:\\${nl}        os: [a,\\${nl}      b, \"c\\${nl}    timeout-minutes: 30\\${nl}    \"]/"
-  check timeout-in-a-quoted-item-of-a-flow-list-over-lines FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check timeout-in-a-quoted-item-of-a-flow-list-over-lines FAIL 'ends inside a flow collection ([ or {), which this lint does not read over several lines'
   tree timeout-in-a-quoted-step-value "8d;10s/.*/      - run: \"true\\${nl}    timeout-minutes: 30\\${nl}      \"/"
-  check timeout-in-a-quoted-step-value FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check timeout-in-a-quoted-step-value FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-in-a-step-name-after-a-run-block "8d;10s/.*/      - run: |\\${nl}          true\\${nl}        name: \"step\\${nl}    timeout-minutes: 30\\${nl}        \"/"
-  check timeout-in-a-step-name-after-a-run-block FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check timeout-in-a-step-name-after-a-run-block FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree job-in-a-quoted-name "8s/\$/\\${nl}    name: \"macos\\${nl}  windows:\\${nl}    runs-on: windows-2025\\${nl}    timeout-minutes: 30\\${nl}    \"/;11,15d"
-  check job-in-a-quoted-name FAIL 'the jobs of ci.yml must be exactly macos and windows, and it holds: macos)'
+  check job-in-a-quoted-name FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
+  tree tab-before-a-quote-in-a-flow-value "8s/.*/    env: {NAME:${tab}!!str${tab}\"macos\\${nl}    timeout-minutes: 30\\${nl}    \"}/"
+  check tab-before-a-quote-in-a-flow-value FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
+  tree flow-list-over-lines-holds-the-limit "8s/30/600/;8s/\$/\\${nl}    strategy:\\${nl}      matrix:\\${nl}        os: [a,\\${nl}    timeout-minutes: 30\\${nl}    ]/"
+  check flow-list-over-lines-holds-the-limit FAIL 'ends inside a flow collection ([ or {), which this lint does not read over several lines'
+  tree quote-in-a-plain-continuation-hides-no-job "7s/\$/\\${nl}    env:\\${nl}      NOTE: a\\${nl}        \"b/;\$s/\$/\\${nl}  extra:\\${nl}    runs-on: ubuntu-24.04\\${nl}    timeout-minutes: 600\\${nl}    steps:\\${nl}      - run: echo \"hi\"/"
+  check quote-in-a-plain-continuation-hides-no-job FAIL 'the jobs of ci.yml must be exactly macos and windows, and it holds: macos windows extra'
   tree closed-quotes-before-the-timeout "7s/\$/\\${nl}    name: \"macos \\\\\" # job\"/;12s/\$/\\${nl}    name: 'windows\\\\' # y/"
   check closed-quotes-before-the-timeout PASS 'jobs: 2, uses keys: 2, findings: 0'
   tree comment-at-column-one-with-a-quote "7s/\$/\\${nl}# a: \"x/"
@@ -371,12 +378,18 @@ EOF
   check comma-after-a-closed-flow-map PASS 'jobs: 2, uses keys: 2, findings: 0'
   tree colon-in-a-plain-value-after-a-quoted-key "7s/\$/\\${nl}    env:\\${nl}      \"D\": a:\"b/"
   check colon-in-a-plain-value-after-a-quoted-key PASS 'jobs: 2, uses keys: 2, findings: 0'
-  tree quoted-names-over-two-lines-before-the-timeout "7s/\$/\\${nl}    name: \"macos\\${nl}      job\"/;12s/\$/\\${nl}    name: 'windows\\${nl}      job'/"
-  check quoted-names-over-two-lines-before-the-timeout PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree quoted-names-over-two-lines-that-close-before-the-timeout "7s/\$/\\${nl}    name: \"macos\\${nl}      job\"/;12s/\$/\\${nl}    name: 'windows\\${nl}      job'/"
+  check quoted-names-over-two-lines-that-close-before-the-timeout FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree run-block-with-a-blank-line-and-an-open-quote "10s/\$/\\${nl}      - run: |\\${nl}\\${nl}          printf '%s' \"x: 'y\"/"
   check run-block-with-a-blank-line-and-an-open-quote PASS 'jobs: 2, uses keys: 2, findings: 0'
   tree folded-block-with-an-open-quote "10s/\$/\\${nl}      - name: >-\\${nl}          step: 'one\\${nl}        run: echo/"
   check folded-block-with-an-open-quote PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree block-scalar-under-a-tagged-key "10s/\$/\\${nl}      - !!str run: |\\${nl}          printf '%s' \"x: 'y\"/"
+  check block-scalar-under-a-tagged-key PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree block-scalar-under-a-quoted-key "10s/\$/\\${nl}      - \"run\": |\\${nl}          printf '%s' \"x: 'y\"/"
+  check block-scalar-under-a-quoted-key PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree block-scalar-item-of-a-list "7s/\$/\\${nl}    strategy:\\${nl}      matrix:\\${nl}        note:\\${nl}          - |\\${nl}            a: 'b/"
+  check block-scalar-item-of-a-list PASS 'jobs: 2, uses keys: 2, findings: 0'
   tree another-actionlint-version ''
   printf '#!/bin/sh\ncase "%s1" in -version) printf "1.6.0\\n" ;; *) exec "%s" "%s@" ;; esac\n' "\$" "$STUB_REAL" "\$" >"$work/old-tools/actionlint"
   chmod +x "$work/old-tools/actionlint"
