@@ -1623,6 +1623,14 @@ self_test_hook() {
   push_case added-entry-for-an-account-with-an-at-sign refused 'this entry names the home directory of the account that runs this push' proof add-signs
   push_home="$work/homes/ann,b"
   push_case added-entry-for-an-account-with-a-comma refused 'this entry names the home directory of the account that runs this push' proof add-signs
+  case $(uname -s) in
+    MINGW* | MSYS* | CYGWIN*) printf 'case %s/added-entry-for-an-account-with-a-curly-apostrophe not run: this system converts a HOME outside ASCII\n' "$NAME" ;;
+    *)
+      push_home="$work/homes/zed$(printf '\342\200\231')s"
+      push_case added-entry-for-an-account-with-a-curly-apostrophe refused 'this entry names the home directory of the account that runs this push' proof add-signs
+      rejected=$((rejected - 1))
+      ;;
+  esac
   push_home=$work/homes/nobody
   in_repo checkout -q -b plain-as-sam trunk || die 'git checkout failed'
   printf 'plain\n' >"$repo/plain-as-sam.txt"
