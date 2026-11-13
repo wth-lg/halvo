@@ -339,3 +339,38 @@ fn the_stand_in_started_by_hand_opens_a_loopback_socket_with_system_root_alone_a
         "the stand-in with no SystemRoot opened a loopback socket"
     );
 }
+
+#[cfg(windows)]
+#[test]
+fn a_marker_in_the_profile_variables_of_the_library_reaches_no_temporary_directory_of_the_runner() {
+    let m = marker();
+    let profile = common::scratch("environment-profile").join(format!("{m}-profile"));
+    fs::create_dir_all(profile.join("AppData").join("Local").join("Temp")).unwrap();
+    let profile = profile.to_string_lossy().into_owned();
+    let (drive, path) = profile.split_at(2);
+    let (_, log) = run(
+        "environment-profile-run",
+        &[format!("environment {m}")],
+        &[
+            ("USERPROFILE", profile.as_str()),
+            ("HOMEDRIVE", drive),
+            ("HOMEPATH", path),
+        ],
+        &["LOCALAPPDATA"],
+    );
+    assert_eq!(
+        logged(&log, "environment marked="),
+        "",
+        "the names of the runner's environment whose value holds the marker of the library's profile variables"
+    );
+    let rest: Vec<&str> = LIST
+        .iter()
+        .copied()
+        .filter(|n| *n != "LOCALAPPDATA")
+        .collect();
+    assert_eq!(
+        logged(&log, "environment names="),
+        names(&rest),
+        "the names of the runner's environment"
+    );
+}

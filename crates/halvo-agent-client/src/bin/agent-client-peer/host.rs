@@ -6,7 +6,7 @@
 //! passed, and prints `answers-out` before it answers. Before the start it writes into SCRIPT, for `{host-mark}`,
 //! the number of a descriptor or handle of SCRIPT.mark that it holds open and inheritable (on macOS a descriptor
 //! of at least 200 without close-on-exec), and on Windows for `{host-out}` and `{host-err}` the numbers of its own
-//! standard output and standard error handles.
+//! standard output and standard error handles, and for `{host-pid}` its own process number.
 
 use std::fs::OpenOptions;
 use std::io::{self, Write};
@@ -171,6 +171,7 @@ fn fill(script: &Path) -> Option<()> {
     let mark = held_open(mark)?;
     let (out, err) = own_numbers();
     let text = text
+        .replace("{host-pid}", &std::process::id().to_string())
         .replace("{host-mark}", &mark)
         .replace("{host-out}", &out)
         .replace("{host-err}", &err);

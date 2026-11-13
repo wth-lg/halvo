@@ -1,7 +1,10 @@
 //! The other end of the library in its tests. Started by the library with `--run ... --browser SCRIPT`, it plays a
 //! runner from the script file that `--browser` names and logs what it reads to `SCRIPT.log`; started as `browser`
 //! it plays a browser that sleeps, as `child` a process that sleeps, and as `stderr-child MARKER` a process that
-//! prints MARKER on standard error and exits.
+//! prints MARKER on standard error and exits. On macOS `holder-parent LOG` starts `holder`, a process of a group of
+//! its own that sleeps with the standard input and output it was given, logs it to LOG and exits; on Windows
+//! `hold PID IN OUT LOG` copies the two handles IN and OUT of the process PID into itself, logs how many to LOG and
+//! sleeps.
 
 use std::fs::OpenOptions;
 use std::io::{self, Write};
@@ -107,6 +110,135 @@ fn stderr_kind() -> &'static str {
         FILE_TYPE_DISK => "file",
         _ => "other",
     }
+}
+
+#[cfg(unix)]
+fn console_line(_host: u32) -> String {
+    "console none".to_owned()
+}
+
+#[cfg(windows)]
+fn console_line(host: u32) -> String {
+    use std::ffi::c_void;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetConsoleProcessList(list: *mut u32, count: u32) -> u32;
+        fn GetConsoleWindow() -> *mut c_void;
+    }
+    #[link(name = "user32")]
+    extern "system" {
+        fn IsWindowVisible(window: *mut c_void) -> i32;
+    }
+    let mut list = [0u32; 256];
+    let n = unsafe { GetConsoleProcessList(list.as_mut_ptr(), list.len() as u32) };
+    let held = &list[..(n as usize).min(list.len())];
+    let window = unsafe { GetConsoleWindow() };
+    let window = if window.is_null() {
+        "none"
+    } else if unsafe { IsWindowVisible(window) } != 0 {
+        "visible"
+    } else {
+        "hidden"
+    };
+    format!(
+        "console attached={n} host={} window={window}",
+        if held.contains(&host) { "yes" } else { "no" }
+    )
+}
+
+#[cfg(unix)]
+fn pipes_beyond_three() -> usize {
+    use std::os::unix::fs::FileTypeExt;
+    let Ok(entries) = std::fs::read_dir("/dev/fd") else {
+        return usize::MAX;
+    };
+    let fds: Vec<i32> = entries
+        .flatten()
+        .filter_map(|e| e.file_name().to_str()?.parse().ok())
+        .filter(|fd| *fd > 2)
+        .collect();
+    fds.iter()
+        .filter(|fd| {
+            std::fs::metadata(format!("/dev/fd/{fd}")).is_ok_and(|m| {
+                let t = m.file_type();
+                t.is_fifo() || t.is_socket()
+            })
+        })
+        .count()
+}
+
+#[cfg(windows)]
+fn pipes_beyond_three() -> usize {
+    use std::ffi::c_void;
+    use std::os::windows::io::AsRawHandle;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetFileType(file: *mut c_void) -> u32;
+    }
+    const FILE_TYPE_PIPE: u32 = 3;
+    let own = [
+        io::stdin().as_raw_handle(),
+        io::stdout().as_raw_handle(),
+        io::stderr().as_raw_handle(),
+    ];
+    (1..=0x1000usize)
+        .map(|n| (n * 4) as *mut c_void)
+        .filter(|h| !own.contains(h))
+        .filter(|h| unsafe { GetFileType(*h) } == FILE_TYPE_PIPE)
+        .count()
+}
+
+#[cfg(windows)]
+fn hold(args: &[String]) -> ! {
+    use std::ffi::c_void;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut c_void;
+        fn GetCurrentProcess() -> *mut c_void;
+        fn DuplicateHandle(
+            source_process: *mut c_void,
+            source: *mut c_void,
+            target_process: *mut c_void,
+            target: *mut *mut c_void,
+            access: u32,
+            inherit: i32,
+            options: u32,
+        ) -> i32;
+    }
+    const PROCESS_DUP_HANDLE: u32 = 0x0040;
+    const DUPLICATE_SAME_ACCESS: u32 = 0x0002;
+    let num = |i: usize| {
+        args.get(i)
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(0)
+    };
+    let runner = unsafe { OpenProcess(PROCESS_DUP_HANDLE, 0, num(1) as u32) };
+    let mut held = 0;
+    if !runner.is_null() {
+        for value in [num(2), num(3)] {
+            let mut copy: *mut c_void = std::ptr::null_mut();
+            let ok = unsafe {
+                DuplicateHandle(
+                    runner,
+                    value as *mut c_void,
+                    GetCurrentProcess(),
+                    &mut copy,
+                    0,
+                    0,
+                    DUPLICATE_SAME_ACCESS,
+                )
+            };
+            if ok != 0 {
+                held += 1;
+            }
+        }
+    }
+    if let Some(log) = args.get(4) {
+        if let Ok(mut f) = OpenOptions::new().append(true).open(log) {
+            let _ = f.write_all(format!("holder holds={held}\n").as_bytes());
+        }
+    }
+    sleep_forever()
 }
 
 #[cfg(unix)]
@@ -543,6 +675,18 @@ impl Peer {
                     self.log.line("relative removed=yes");
                 }
             }
+            "console" => self.log.line(&console_line(rest.parse().unwrap_or(0))),
+            "pipes" => self
+                .log
+                .line(&format!("pipes beyond={}", pipes_beyond_three())),
+            "holder" => self.holder(),
+            "wait-for" => {
+                let there = wait_for_file(Path::new(rest), Duration::from_secs(30));
+                self.log.line(&format!(
+                    "waited found={}",
+                    if there { "yes" } else { "no" }
+                ));
+            }
             "socket" => {
                 let ok = std::net::TcpListener::bind("127.0.0.1:0").is_ok();
                 self.log
@@ -680,6 +824,36 @@ impl Peer {
         self.send(&json);
         if self.reply().is_none() {
             self.log.line("no-reply");
+        }
+    }
+
+    fn holder(&mut self) {
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            let made = std::env::current_exe().and_then(|exe| {
+                Command::new(exe)
+                    .arg("holder-parent")
+                    .arg(&self.log_path)
+                    .stdin(Stdio::inherit())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::null())
+                    .process_group(0)
+                    .status()
+            });
+            let ok = made.is_ok_and(|s| s.success());
+            self.log
+                .line(&format!("holder made={}", if ok { "yes" } else { "no" }));
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::io::AsRawHandle;
+            self.log.line(&format!(
+                "own-handles pid={} in={} out={}",
+                std::process::id(),
+                io::stdin().as_raw_handle() as usize,
+                io::stdout().as_raw_handle() as usize
+            ));
         }
     }
 
@@ -836,6 +1010,36 @@ fn main() {
             sleep_forever();
         }
         Some("child") => sleep_forever(),
+        #[cfg(unix)]
+        Some("holder-parent") => {
+            use std::os::unix::process::CommandExt;
+            let made = std::env::current_exe().and_then(|exe| {
+                Command::new(exe)
+                    .arg("holder")
+                    .stdin(Stdio::inherit())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::null())
+                    .process_group(0)
+                    .spawn()
+            });
+            let Ok(c) = made else {
+                std::process::exit(1);
+            };
+            let created = process::creation_time(c.id())
+                .map(|t| t.to_string())
+                .unwrap_or_default();
+            if let Some(log) = args.get(1) {
+                if let Ok(mut f) = OpenOptions::new().append(true).open(log) {
+                    let line = format!("child pid={} created={created}\n", c.id());
+                    let _ = f.write_all(line.as_bytes());
+                }
+            }
+            std::process::exit(0);
+        }
+        #[cfg(unix)]
+        Some("holder") => sleep_forever(),
+        #[cfg(windows)]
+        Some("hold") => hold(&args),
         Some("stderr-child") => {
             let marker = args.get(1).cloned().unwrap_or_default();
             let wrote = write_stderr(format!("{marker}\n").as_bytes());

@@ -227,7 +227,12 @@ extern "system" {
 extern "system" {
     fn GetSystemDirectoryW(buffer: *mut u16, size: u32) -> u32;
     fn GetSystemWindowsDirectoryW(buffer: *mut u16, size: u32) -> u32;
+    fn GetCurrentProcess() -> Handle;
 }
+
+const TOKEN_QUERY: u32 = 0x0008;
+const TOKEN_IMPERSONATE: u32 = 0x0004;
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[link(name = "bcrypt")]
 extern "system" {
@@ -286,12 +291,35 @@ pub(crate) fn windows_directory() -> Option<Vec<u16>> {
     directory(GetSystemWindowsDirectoryW)
 }
 
-/// The account's LocalAppData known folder, by `SHGetKnownFolderPath`, read from no variable of this process; none
-/// when it cannot be read.
+#[link(name = "advapi32")]
+extern "system" {
+    fn OpenProcessToken(process: Handle, access: u32, token: *mut Handle) -> Bool;
+}
+
+/// The account's LocalAppData known folder, by `SHGetKnownFolderPath` for the token of this process, so that the
+/// shell resolves it for the account and not from this process's profile variables (with a null token it expands
+/// `%USERPROFILE%` from this process's environment); none when it cannot be read.
 pub(crate) fn local_app_data() -> Option<Vec<u16>> {
+    let mut raw: Handle = std::ptr::null_mut();
+    let opened = unsafe {
+        OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_QUERY | TOKEN_IMPERSONATE,
+            &mut raw,
+        )
+    };
+    if opened == 0 {
+        return None;
+    }
+    let token = owned(raw).ok()?;
     let mut path: *mut u16 = std::ptr::null_mut();
     let result = unsafe {
-        SHGetKnownFolderPath(&FOLDERID_LOCAL_APP_DATA, 0, std::ptr::null_mut(), &mut path)
+        SHGetKnownFolderPath(
+            &FOLDERID_LOCAL_APP_DATA,
+            0,
+            token.as_raw_handle(),
+            &mut path,
+        )
     };
     let found = if result == 0 && !path.is_null() {
         let mut len = 0usize;
@@ -617,7 +645,7 @@ pub(crate) fn start(
         pid: 0,
         tid: 0,
     };
-    let mut flags = CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT;
+    let mut flags = CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT | CREATE_NO_WINDOW;
     if environment.is_some() {
         flags |= CREATE_UNICODE_ENVIRONMENT;
     }
