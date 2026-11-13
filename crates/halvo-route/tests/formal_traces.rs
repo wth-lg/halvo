@@ -1,5 +1,7 @@
+#![forbid(unsafe_code)]
+
 use halvo_route::spend::{step, Account, Hold, Move, SpendCause, State};
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 
 const TRACES: &str = "../../formal/r6-spend/traces.jsonl";
 const MICRO_PER_MINOR: u64 = 10_000;
@@ -8,6 +10,13 @@ const MOST_MOVES: usize = 12;
 const HEADER_KEYS: [&str; 2] = ["count", "seed"];
 const TRACE_KEYS: [&str; 5] = ["active", "cap", "held", "moves", "spent"];
 const MOVE_KEYS: [&str; 7] = ["answer", "arg", "cost", "held", "move", "spent", "state"];
+const FORM_ORDER: [&str; 12] = [
+    "seed", "count", "cap", "active", "move", "arg", "answer", "state", "spent", "held", "moves",
+    "cost",
+];
+const STATE_WORDS: [&str; 6] = ["new", "held", "sent", "settled", "expired", "voided"];
+const OUTCOMES: [&str; 5] = ["answer", "state", "spent", "held", "cost"];
+const OPENINGS: [&str; 4] = ["opening spent", "opening held", "cap", "active"];
 
 #[derive(Clone, Copy)]
 struct Want {
@@ -24,6 +33,7 @@ struct Trace {
     account: Account,
     moves: Vec<(Move, Want)>,
 }
+
 fn object<'a>(value: &'a Value, keys: &[&str], at: &str) -> Result<&'a Map<String, Value>, String> {
     let map = value
         .as_object()
@@ -38,16 +48,38 @@ fn object<'a>(value: &'a Value, keys: &[&str], at: &str) -> Result<&'a Map<Strin
     Ok(map)
 }
 
-fn once(text: &str, keys: &[(&str, usize)], at: &str) -> Result<(), String> {
-    for (key, want) in keys {
-        let found = text.matches(&format!("\"{key}\":")).count();
-        if found != *want {
-            return Err(format!(
-                "{at}: the key {key} is written {found} times, the form has {want}"
-            ));
+fn form_of(value: &Value) -> String {
+    match value {
+        Value::Object(map) => {
+            let mut keys: Vec<&String> = map.keys().collect();
+            keys.sort_by_key(|key| {
+                FORM_ORDER
+                    .iter()
+                    .position(|form| form == key)
+                    .unwrap_or(FORM_ORDER.len())
+            });
+            let fields: Vec<String> = keys
+                .iter()
+                .map(|key| format!("{}:{}", Value::from(key.as_str()), form_of(&map[*key])))
+                .collect();
+            format!("{{{}}}", fields.join(","))
         }
+        Value::Array(items) => format!(
+            "[{}]",
+            items.iter().map(form_of).collect::<Vec<_>>().join(",")
+        ),
+        scalar => scalar.to_string(),
     }
-    Ok(())
+}
+
+fn in_form(value: &Value, text: &str, at: &str) -> Result<(), String> {
+    if form_of(value) == text {
+        Ok(())
+    } else {
+        Err(format!(
+            "{at}: the line is not written in the line form of T7.6"
+        ))
+    }
 }
 
 fn number(value: &Value, at: &str) -> Result<u64, String> {
@@ -128,6 +160,7 @@ fn read_trace(text: &str, line: usize) -> Result<Trace, String> {
     let at = format!("line {line}");
     let value: Value = serde_json::from_str(text).map_err(|error| format!("{at}: {error}"))?;
     let map = object(&value, &TRACE_KEYS, &at)?;
+    in_form(&value, text, &at)?;
     let cap_minor = match &map["cap"] {
         Value::Null => None,
         cap => Some(number(cap, &at)?),
@@ -157,23 +190,6 @@ fn read_trace(text: &str, line: usize) -> Result<Trace, String> {
         .enumerate()
         .map(|(index, mv)| read_move(mv, &format!("{at} move {}", index + 1)))
         .collect::<Result<Vec<_>, String>>()?;
-    let n = list.len();
-    once(
-        text,
-        &[
-            ("cap", 1),
-            ("active", 1),
-            ("moves", 1),
-            ("spent", n + 1),
-            ("held", n + 1),
-            ("move", n),
-            ("arg", n),
-            ("answer", n),
-            ("state", n),
-            ("cost", n),
-        ],
-        &at,
-    )?;
     Ok(Trace {
         line,
         account,
@@ -185,10 +201,10 @@ fn read_file(text: &str) -> Result<Vec<Trace>, String> {
     let mut lines = text.lines();
     let first = lines.next().ok_or("the file is empty")?;
     let header: Value = serde_json::from_str(first).map_err(|error| format!("line 1: {error}"))?;
-    let header = object(&header, &HEADER_KEYS, "line 1")?;
-    once(first, &[("count", 1), ("seed", 1)], "line 1")?;
-    number(&header["seed"], "line 1")?;
-    let count = number(&header["count"], "line 1")?;
+    let map = object(&header, &HEADER_KEYS, "line 1")?;
+    in_form(&header, first, "line 1")?;
+    number(&map["seed"], "line 1")?;
+    let count = number(&map["count"], "line 1")?;
     let traces = lines
         .enumerate()
         .map(|(index, text)| read_trace(text, index + 2))
@@ -272,18 +288,23 @@ fn committed() -> String {
         .expect("the committed traces of formal/r6-spend")
 }
 
-fn edited(line: usize, edit: impl Fn(&mut Value)) -> String {
-    let mut lines: Vec<String> = committed().lines().map(str::to_string).collect();
+fn with_line(text: &str, line: usize, edit: impl Fn(&mut Value)) -> String {
+    let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
     let mut value: Value = serde_json::from_str(&lines[line - 1]).expect("a line of JSON");
     edit(&mut value);
-    lines[line - 1] = value.to_string();
+    lines[line - 1] = form_of(&value);
     lines.join("\n")
 }
 
 #[test]
-fn step_answers_every_move_of_the_committed_traces_as_the_model_does() {
-    let (traces, moves) =
-        check(&committed()).unwrap_or_else(|fault| panic!("traces.jsonl: {fault}"));
+fn formal_traces() {
+    let text = committed();
+    let (traces, moves) = check(&text).unwrap_or_else(|fault| panic!("traces.jsonl: {fault}"));
+    let written = text.matches("\"move\":").count();
+    assert_eq!(
+        moves, written,
+        "the reader read {moves} moves of the {written} that the file writes"
+    );
     println!("formal_traces traces={traces} moves={moves}");
 }
 
@@ -297,7 +318,7 @@ fn changes(want: &Want) -> Vec<(&'static str, Want)> {
         out.push(("state", Want { state, ..*want }));
     }
     let others = |value: u64| {
-        [value + 1, 0]
+        [value + 1, value + MICRO_PER_MINOR, 0]
             .into_iter()
             .filter(move |other| *other != value)
     };
@@ -336,39 +357,236 @@ fn a_changed_value_of_any_move_of_any_trace_is_a_fault() {
     );
 }
 
-#[test]
-fn a_changed_first_or_last_trace_fails_the_check() {
-    let last = committed().lines().count();
-    for (line, key) in [(2, "spent"), (last, "cost")] {
-        let text = edited(line, |trace| {
-            let moves = trace["moves"].as_array_mut().expect("a list of moves");
-            let mv = if line == 2 {
-                &mut moves[0]
-            } else {
-                moves.last_mut().expect("a move")
-            };
-            mv[key] = serde_json::json!(mv[key].as_u64().expect("a number") + 1);
-        });
-        match check(&text) {
-            Err(fault) => assert!(
-                fault.contains("differs from the model"),
-                "line {line}: {fault}"
-            ),
-            Ok(_) => panic!("line {line} with a changed {key} passed the check"),
+struct TextEdit {
+    line: usize,
+    index: usize,
+    kind: String,
+    value: &'static str,
+}
+
+fn certain_values(trace: &Value, index: usize) -> Vec<&'static str> {
+    let moves = trace["moves"].as_array().expect("a list of moves");
+    let mv = &moves[index];
+    let mut values = Vec::new();
+    if mv["answer"] == "ok" {
+        values.push("move");
+        if mv["arg"].is_u64() {
+            values.push("arg");
         }
+    }
+    if index == 0 {
+        values.extend(["opening spent", "opening held"]);
+        let reserve_on_new = moves.iter().enumerate().any(|(at, other)| {
+            let before = if at == 0 {
+                "new"
+            } else {
+                moves[at - 1]["state"].as_str().unwrap_or("")
+            };
+            other["move"] == "reserve" && other["arg"].as_u64().unwrap_or(0) > 0 && before == "new"
+        });
+        if reserve_on_new && trace["active"] == "yes" {
+            values.push("cap");
+        }
+        if reserve_on_new {
+            values.push("active");
+        }
+    }
+    values.extend(OUTCOMES);
+    values
+}
+
+fn apply(trace: &mut Value, index: usize, value: &str) {
+    let plus_one = |field: &mut Value| *field = json!(field.as_u64().expect("a number") + 1);
+    match value {
+        "opening spent" => plus_one(&mut trace["spent"]),
+        "opening held" => plus_one(&mut trace["held"]),
+        "cap" => {
+            trace["cap"] = if trace["cap"].is_null() {
+                json!(3)
+            } else {
+                Value::Null
+            }
+        }
+        "active" => {
+            trace["active"] = json!(if trace["active"] == "yes" {
+                "no"
+            } else {
+                "yes"
+            })
+        }
+        _ => {
+            let mv = &mut trace["moves"][index];
+            match value {
+                "move" => {
+                    let other = match mv["move"].as_str().expect("a word") {
+                        "reserve" => "settle",
+                        "settle" => "reserve",
+                        "dispatch" => "void",
+                        "void" => "expire",
+                        _ => "dispatch",
+                    };
+                    mv["move"] = json!(other);
+                }
+                "arg" => plus_one(&mut mv["arg"]),
+                "answer" => mv["answer"] = json!(if mv["answer"] == "ok" { "state" } else { "ok" }),
+                "state" => {
+                    let now = STATE_WORDS
+                        .iter()
+                        .position(|state| mv["state"] == *state)
+                        .expect("a state");
+                    mv["state"] = json!(STATE_WORDS[(now + 1) % STATE_WORDS.len()]);
+                }
+                field => plus_one(&mut mv[field]),
+            }
+        }
+    }
+}
+
+fn text_edits(text: &str) -> (Vec<TextEdit>, Vec<String>) {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut edits = Vec::new();
+    let mut wanted: Vec<(String, &'static str)> = Vec::new();
+    for (offset, line) in lines[1..].iter().enumerate() {
+        let trace: Value = serde_json::from_str(line).expect("a trace line");
+        let moves = trace["moves"].as_array().expect("a list of moves");
+        for mv in moves {
+            let kind = mv["move"].as_str().expect("a word").to_string();
+            for value in ["move", "answer", "state", "spent", "held", "cost"] {
+                wanted.push((kind.clone(), value));
+            }
+            if mv["arg"].is_u64() {
+                wanted.push((kind.clone(), "arg"));
+            }
+        }
+        let places = [0, moves.len() / 2, moves.len() - 1];
+        for (place, index) in places.into_iter().enumerate() {
+            let values = certain_values(&trace, index);
+            let value = values[(offset * places.len() + place) % values.len()];
+            edits.push(TextEdit {
+                line: offset + 2,
+                index,
+                kind: moves[index]["move"].as_str().expect("a word").to_string(),
+                value,
+            });
+        }
+    }
+    for opening in OPENINGS {
+        wanted.push(("trace".to_string(), opening));
+    }
+    wanted.sort();
+    wanted.dedup();
+    let hit = |edits: &[TextEdit], kind: &str, value: &str| {
+        edits.iter().any(|edit| {
+            edit.value == value
+                && (edit.kind == kind || (kind == "trace" && OPENINGS.contains(&value)))
+        })
+    };
+    for (kind, value) in &wanted {
+        if hit(&edits, kind, value) {
+            continue;
+        }
+        'search: for (offset, line) in lines[1..].iter().enumerate() {
+            let trace: Value = serde_json::from_str(line).expect("a trace line");
+            let moves = trace["moves"].as_array().expect("a list of moves");
+            for (index, mv) in moves.iter().enumerate() {
+                let fits = kind == "trace" || mv["move"] == kind.as_str();
+                if fits && certain_values(&trace, index).contains(value) {
+                    edits.push(TextEdit {
+                        line: offset + 2,
+                        index,
+                        kind: mv["move"].as_str().expect("a word").to_string(),
+                        value,
+                    });
+                    break 'search;
+                }
+            }
+        }
+    }
+    let missed = wanted
+        .iter()
+        .filter(|(kind, value)| !hit(&edits, kind, value))
+        .map(|(kind, value)| format!("{kind} {value}"))
+        .collect();
+    (edits, missed)
+}
+
+#[test]
+fn a_changed_value_in_the_text_of_every_trace_fails_the_check() {
+    let text = committed();
+    let (edits, missed) = text_edits(&text);
+    assert!(
+        missed.is_empty(),
+        "no move of the file takes these changes for certain: {missed:?}"
+    );
+    let traces = text.lines().count() - 1;
+    assert!(edits.len() >= 3 * traces, "{} edits", edits.len());
+    let threads = std::thread::available_parallelism().map_or(1, |n| n.get());
+    let size = edits.len().div_ceil(threads);
+    let passed: Vec<String> = std::thread::scope(|scope| {
+        let workers: Vec<_> = edits
+            .chunks(size)
+            .map(|chunk| {
+                let text = &text;
+                scope.spawn(move || {
+                    chunk
+                        .iter()
+                        .filter_map(|edit| {
+                            let changed = with_line(text, edit.line, |trace| {
+                                apply(trace, edit.index, edit.value)
+                            });
+                            let name = format!(
+                                "line {} move {} {} {}",
+                                edit.line,
+                                edit.index + 1,
+                                edit.kind,
+                                edit.value
+                            );
+                            match check(&changed) {
+                                Err(fault) if fault.contains("differs from the model") => None,
+                                Err(fault) => Some(format!("{name}: refused as {fault}")),
+                                Ok(_) => Some(format!("{name}: passed")),
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        workers
+            .into_iter()
+            .flat_map(|worker| worker.join().expect("a worker thread"))
+            .collect()
+    });
+    assert!(
+        passed.is_empty(),
+        "{} of {} changed texts did not fail the check as a fault, among them {:?}",
+        passed.len(),
+        edits.len(),
+        &passed[..passed.len().min(5)]
+    );
+}
+
+#[test]
+fn a_fault_names_its_file_line_and_its_move() {
+    let text = committed();
+    let middle = text.lines().count() / 2;
+    for (line, index) in [(2, 0), (middle, 2)] {
+        let changed = with_line(&text, line, |trace| apply(trace, index, "spent"));
+        let fault = check(&changed).expect_err("a changed spent");
+        let name = format!("line {line} move {} ", index + 1);
+        assert!(fault.contains(&name), "{name}: {fault}");
     }
 }
 
 #[test]
 fn the_reader_refuses_a_file_outside_the_form() {
-    use serde_json::json;
-    let fewer = committed()
+    let text = committed();
+    let fewer = text
         .lines()
         .take(200)
         .enumerate()
         .map(|(index, line)| {
             if index == 0 {
-                "{\"count\":199,\"seed\":3}"
+                "{\"seed\":3,\"count\":199}"
             } else {
                 line
             }
@@ -376,47 +594,73 @@ fn the_reader_refuses_a_file_outside_the_form() {
         .collect::<Vec<_>>()
         .join("\n");
     let written = |old: &str, new: &str| {
-        let text = committed();
         assert!(text.contains(old), "the committed traces hold {old}");
         text.replacen(old, new, 1)
     };
+    let first = "\"move\":\"reserve\",\"arg\":2,";
+    let form = "is not written in the line form";
     let cases = [
         (
             "count",
-            edited(1, |head| head["count"] = json!(205)),
+            with_line(&text, 1, |head| head["count"] = json!(205)),
             "its count is 205",
         ),
         (
             "count above",
-            edited(1, |head| head["count"] = json!(207)),
+            with_line(&text, 1, |head| head["count"] = json!(207)),
             "its count is 207",
         ),
         (
             "key twice in the header",
             written("\"count\":206}", "\"count\":5,\"count\":206}"),
-            "the key count is written 2 times",
+            form,
         ),
         (
             "key twice in a move",
+            written(first, "\"move\":\"reserve\",\"arg\":5,\"arg\":2,"),
+            form,
+        ),
+        (
+            "key twice, the second with a space before its colon",
+            written(first, "\"move\":\"reserve\",\"arg\":2,\"arg\" :3,"),
+            form,
+        ),
+        (
+            "key twice, the second with an escaped first letter",
+            written(first, "\"move\":\"reserve\",\"arg\":2,\"\\u0061rg\":3,"),
+            form,
+        ),
+        (
+            "move twice, the second with an escaped first letter",
             written(
-                "\"move\":\"reserve\",\"arg\":2,",
-                "\"move\":\"reserve\",\"arg\":5,\"arg\":2,",
+                first,
+                "\"move\":\"reserve\",\"\\u006dove\":\"settle\",\"arg\":2,",
             ),
-            "the key arg is written 6 times, the form has 5",
+            form,
         ),
         (
             "moves twice",
             written("\"moves\":[", "\"moves\":[],\"moves\":["),
-            "the key moves is written 2 times",
+            form,
+        ),
+        (
+            "keys in another order",
+            written("{\"seed\":3,\"count\":206}", "{\"count\":206,\"seed\":3}"),
+            form,
+        ),
+        (
+            "a space after a colon",
+            written(first, "\"move\":\"reserve\",\"arg\": 2,"),
+            form,
         ),
         (
             "no move",
-            edited(2, |trace| trace["moves"] = json!([])),
+            with_line(&text, 2, |trace| trace["moves"] = json!([])),
             "the trace has 0 moves",
         ),
         (
             "thirteen moves",
-            edited(2, |trace| {
+            with_line(&text, 2, |trace| {
                 let moves = trace["moves"].as_array_mut().expect("a list of moves");
                 let last = moves[moves.len() - 1].clone();
                 moves.resize(13, last);
@@ -426,12 +670,12 @@ fn the_reader_refuses_a_file_outside_the_form() {
         ("fewer", fewer, "fewer than 200"),
         (
             "seed",
-            edited(1, |head| head["seed"] = json!("x")),
+            with_line(&text, 1, |head| head["seed"] = json!("x")),
             "is no whole number",
         ),
         (
             "renamed key",
-            edited(2, |trace| {
+            with_line(&text, 2, |trace| {
                 let mv = trace["moves"][0].as_object_mut().expect("a move");
                 let cost = mv.remove("cost").expect("a cost");
                 mv.insert("costs".to_string(), cost);
@@ -440,7 +684,7 @@ fn the_reader_refuses_a_file_outside_the_form() {
         ),
         (
             "missing key",
-            edited(2, |trace| {
+            with_line(&text, 2, |trace| {
                 trace["moves"][0]
                     .as_object_mut()
                     .expect("a move")
@@ -450,7 +694,7 @@ fn the_reader_refuses_a_file_outside_the_form() {
         ),
         (
             "extra key",
-            edited(2, |trace| {
+            with_line(&text, 2, |trace| {
                 trace
                     .as_object_mut()
                     .expect("a trace")
@@ -460,47 +704,56 @@ fn the_reader_refuses_a_file_outside_the_form() {
         ),
         (
             "move",
-            edited(2, |trace| trace["moves"][1]["move"] = json!("send")),
+            with_line(&text, 2, |trace| trace["moves"][1]["move"] = json!("send")),
             "the move \"send\" is outside the list",
         ),
         (
             "answer",
-            edited(2, |trace| trace["moves"][3]["answer"] = json!("again")),
+            with_line(&text, 2, |trace| {
+                trace["moves"][3]["answer"] = json!("again")
+            }),
             "again is outside the list",
         ),
         (
             "state",
-            edited(2, |trace| trace["moves"][0]["state"] = json!("done")),
+            with_line(&text, 2, |trace| trace["moves"][0]["state"] = json!("done")),
             "done is outside the list",
         ),
         (
+            "a state that begins a word of the list",
+            with_line(&text, 2, |trace| trace["moves"][1]["state"] = json!("se")),
+            "se is outside the list",
+        ),
+        (
             "active",
-            edited(2, |trace| trace["active"] = json!("maybe")),
+            with_line(&text, 2, |trace| trace["active"] = json!("maybe")),
             "active is \"maybe\"",
         ),
         (
             "argument of dispatch",
-            edited(2, |trace| trace["moves"][1]["arg"] = json!(1)),
+            with_line(&text, 2, |trace| trace["moves"][1]["arg"] = json!(1)),
             "dispatch holds the argument 1",
         ),
         (
             "no argument of reserve",
-            edited(2, |trace| trace["moves"][0]["arg"] = json!(null)),
+            with_line(&text, 2, |trace| trace["moves"][0]["arg"] = json!(null)),
             "null is no whole number",
         ),
         (
             "fraction",
-            edited(2, |trace| trace["spent"] = json!(0.5)),
+            with_line(&text, 2, |trace| trace["spent"] = json!(0.5)),
             "0.5 is no whole number",
         ),
         (
             "negative",
-            edited(2, |trace| trace["held"] = json!(-1)),
+            with_line(&text, 2, |trace| trace["held"] = json!(-1)),
             "-1 is no whole number",
         ),
         (
             "too large",
-            edited(2, |trace| trace["moves"][0]["arg"] = json!(u64::MAX / 2)),
+            with_line(&text, 2, |trace| {
+                trace["moves"][0]["arg"] = json!(u64::MAX / 2)
+            }),
             "does not fit a u64",
         ),
     ];
