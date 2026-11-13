@@ -1,0 +1,191 @@
+{
+  "kind": "judge",
+  "ruling": "B-37, read by P7-69 F1",
+  "about": "two streams admitted with receipts that carry no now, as the S1 spike's do, and a refusal at 1,000 ms: each admitted reserve is read as answered when its headers came, at 1,100 and 1,150 ms; the first hold settled at 1,120 ms, before the second, so the wave was not held and its two rows where K is 1 are not read",
+  "source": "by hand",
+  "top": {
+    "cell": {
+      "name": "wave@200",
+      "kind": "wave",
+      "level": 3,
+      "switch": "usage-last",
+      "k": 1
+    },
+    "requests": [
+      {
+        "index": 0,
+        "sentAt": 900,
+        "endedAt": 1005,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last",
+        "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+        "id": "w2",
+        "status": 403,
+        "headersAt": 1000
+      },
+      {
+        "index": 1,
+        "sentAt": 1000,
+        "endedAt": 1125,
+        "hold": 100,
+        "receipt": {
+          "requestId": "w0",
+          "amount": 100,
+          "expiresAt": 4010
+        },
+        "trailer": {
+          "settled": true,
+          "outcome": "settled",
+          "cost": 19,
+          "settle_ms": 1
+        },
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last",
+        "body": "",
+        "id": "w0",
+        "status": 200,
+        "headersAt": 1100
+      },
+      {
+        "index": 2,
+        "sentAt": 1000,
+        "endedAt": 3005,
+        "hold": 100,
+        "receipt": {
+          "requestId": "w1",
+          "amount": 100,
+          "expiresAt": 4060
+        },
+        "trailer": {
+          "settled": true,
+          "outcome": "settled",
+          "cost": 19,
+          "settle_ms": 1
+        },
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last",
+        "body": "",
+        "id": "w1",
+        "status": 200,
+        "headersAt": 1150
+      }
+    ],
+    "mockEvents": [
+      {
+        "t": 1050,
+        "id": "w0",
+        "ev": "request"
+      },
+      {
+        "t": 1110,
+        "id": "w0",
+        "ev": "usage",
+        "final": true,
+        "input_tokens": 1,
+        "output_tokens": 1
+      },
+      {
+        "t": 1115,
+        "id": "w0",
+        "ev": "end",
+        "clean": true
+      },
+      {
+        "t": 1080,
+        "id": "w1",
+        "ev": "request"
+      },
+      {
+        "t": 2950,
+        "id": "w1",
+        "ev": "usage",
+        "final": true,
+        "input_tokens": 1,
+        "output_tokens": 1
+      },
+      {
+        "t": 2990,
+        "id": "w1",
+        "ev": "end",
+        "clean": true
+      }
+    ],
+    "final": {
+      "now": 20000,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 20000,
+        "seq": 20
+      },
+      "periods": [
+        {
+          "period_start": 1000,
+          "reported": 38,
+          "unreported": 0,
+          "open": 0
+        }
+      ],
+      "holds": [
+        {
+          "period_start": 1000,
+          "amount": 100,
+          "dispatched": 1,
+          "created_seq": 1,
+          "ended_seq": 10,
+          "input_tokens": 1,
+          "output_tokens": 1,
+          "cost": 19,
+          "overrun": 0,
+          "late_at": null,
+          "late_seq": null,
+          "request_id": "w0",
+          "expires_at": 4010,
+          "state": "settled",
+          "created_at": 1010,
+          "ended_at": 1120,
+          "ended_by": "settle"
+        },
+        {
+          "period_start": 1000,
+          "amount": 100,
+          "dispatched": 1,
+          "created_seq": 2,
+          "ended_seq": 11,
+          "input_tokens": 1,
+          "output_tokens": 1,
+          "cost": 19,
+          "overrun": 0,
+          "late_at": null,
+          "late_seq": null,
+          "request_id": "w1",
+          "expires_at": 4060,
+          "state": "settled",
+          "created_at": 1060,
+          "ended_at": 3000,
+          "ended_by": "settle"
+        }
+      ],
+      "alarm": null,
+      "databaseSize": null
+    }
+  },
+  "expect": {
+    "counted": false,
+    "violations": [],
+    "facts": {
+      "held": false
+    }
+  }
+}

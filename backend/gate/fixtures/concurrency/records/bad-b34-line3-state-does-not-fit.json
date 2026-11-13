@@ -1,0 +1,44 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 3",
+  "about": "a 409 repeat that says settled for an id sent twice whose marked row expired",
+  "source": "by hand",
+  "request": {
+    "lost": [
+      {
+        "why": "reset",
+        "body": ""
+      }
+    ],
+    "body": "{\"result\":\"repeat\",\"state\":\"settled\",\"dispatched\":true}"
+  },
+  "row": {
+    "state": "expired",
+    "dispatched": 1,
+    "ended_by": "expire"
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 0,
+      "unreported": 100,
+      "open": 0
+    }
+  ],
+  "mockEvents": [
+    {
+      "t": 1500,
+      "id": "r",
+      "ev": "request"
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

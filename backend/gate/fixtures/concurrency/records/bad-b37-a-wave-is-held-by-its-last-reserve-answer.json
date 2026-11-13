@@ -1,0 +1,149 @@
+{
+  "kind": "judge",
+  "ruling": "B-37, read by P7-69 F1 (the review's B1)",
+  "about": "K is 1. Two rows, both voided at 2,195 ms; the receipts carry 1,010 and 1,011 ms, the refusal came at 950 ms, and the two 503 answers reached the driver at 2,200 and 2,210 ms. Every reserve was answered by 1,011 ms, so the wave was held, and its two rows where K is 1 are a violation",
+  "source": "reports/pr-review-18.md B1, its record wf-cases/f1-excuses/wave-void-after-last-reserve-not-held-v2.mjs",
+  "top": {
+    "cell": {
+      "name": "wave@200",
+      "kind": "wave",
+      "level": 3,
+      "switch": "usage-last",
+      "k": 1
+    },
+    "requests": [
+      {
+        "index": 0,
+        "sentAt": 1000,
+        "endedAt": 2205,
+        "hold": 100,
+        "receipt": {
+          "requestId": "w0",
+          "amount": 100,
+          "now": 1010,
+          "expiresAt": 4010
+        },
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last",
+        "body": "{\"result\":\"voided\"}",
+        "id": "w0",
+        "status": 503,
+        "headersAt": 2200
+      },
+      {
+        "index": 1,
+        "sentAt": 1000,
+        "endedAt": 2215,
+        "hold": 100,
+        "receipt": {
+          "requestId": "w1",
+          "amount": 100,
+          "now": 1011,
+          "expiresAt": 4011
+        },
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last",
+        "body": "{\"result\":\"voided\"}",
+        "id": "w1",
+        "status": 503,
+        "headersAt": 2210
+      },
+      {
+        "index": 2,
+        "sentAt": 900,
+        "endedAt": 955,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [],
+        "behavior": "normal",
+        "fault": "usage-last",
+        "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+        "id": "w2",
+        "status": 403,
+        "headersAt": 950
+      }
+    ],
+    "mockEvents": [],
+    "final": {
+      "now": 20000,
+      "account": {
+        "cap": 10000,
+        "clock_ms": 20000,
+        "seq": 20
+      },
+      "periods": [
+        {
+          "period_start": 1000,
+          "reported": 0,
+          "unreported": 0,
+          "open": 0
+        }
+      ],
+      "holds": [
+        {
+          "period_start": 1000,
+          "amount": 100,
+          "dispatched": 0,
+          "created_seq": 1,
+          "ended_seq": 10,
+          "input_tokens": null,
+          "output_tokens": null,
+          "cost": null,
+          "overrun": 0,
+          "late_at": null,
+          "late_seq": null,
+          "request_id": "w0",
+          "expires_at": 4010,
+          "state": "voided",
+          "created_at": 1010,
+          "ended_at": 2195,
+          "ended_by": "void"
+        },
+        {
+          "period_start": 1000,
+          "amount": 100,
+          "dispatched": 0,
+          "created_seq": 2,
+          "ended_seq": 11,
+          "input_tokens": null,
+          "output_tokens": null,
+          "cost": null,
+          "overrun": 0,
+          "late_at": null,
+          "late_seq": null,
+          "request_id": "w1",
+          "expires_at": 4011,
+          "state": "voided",
+          "created_at": 1011,
+          "ended_at": 2195,
+          "ended_by": "void"
+        }
+      ],
+      "alarm": null,
+      "databaseSize": null
+    }
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "wave-admits-k",
+        "id": null
+      }
+    ],
+    "facts": {
+      "held": true
+    }
+  }
+}

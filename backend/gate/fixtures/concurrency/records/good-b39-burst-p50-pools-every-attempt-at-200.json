@@ -1,0 +1,124 @@
+{
+  "kind": "line",
+  "ruling": "B-39",
+  "about": "the median of the first bursts at 200 pools the waits of every attempt at that level, the discarded slow one among them, and no wait of level 20: of 100, 3000, 3000 and 3000 it is 3000",
+  "source": "by hand",
+  "selected": [
+    {
+      "name": "usage-last@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    },
+    {
+      "name": "usage-last@20",
+      "kind": "matrix",
+      "level": 20,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    }
+  ],
+  "runs": [
+    {
+      "key": "ledger-usage-last-at-200-plain-1-try2",
+      "cell": "usage-last@200",
+      "kind": "matrix",
+      "level": 200,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "counted": true,
+      "error": null,
+      "violations": [],
+      "facts": {
+        "admitted": 1,
+        "settled": 1,
+        "expired": 0,
+        "voided": 0,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "settleMs": [
+          18
+        ],
+        "crossed": null,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": false,
+        "burstWaits": [
+          100
+        ],
+        "burstMedianMs": 100,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0
+      },
+      "discarded": [
+        {
+          "key": "ledger-usage-last-at-200-plain-1-try1",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": true,
+          "burstWaits": [
+            3000,
+            3000,
+            3000
+          ],
+          "burstMedianMs": 3000,
+          "slowBoundMs": 2600,
+          "lateSettles": 0,
+          "lostInTransport": 0,
+          "violations": []
+        }
+      ],
+      "ms": 1
+    },
+    {
+      "key": "ledger-usage-last-at-20-plain-1-try1",
+      "cell": "usage-last@20",
+      "kind": "matrix",
+      "level": 20,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "counted": true,
+      "error": null,
+      "violations": [],
+      "facts": {
+        "admitted": 1,
+        "settled": 1,
+        "expired": 0,
+        "voided": 0,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "settleMs": [
+          18
+        ],
+        "crossed": null,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": false,
+        "burstWaits": [
+          900,
+          900
+        ],
+        "burstMedianMs": 900,
+        "slowBoundMs": 2600,
+        "lateSettles": 0,
+        "lostInTransport": 0
+      },
+      "discarded": [],
+      "ms": 1
+    }
+  ],
+  "expect": {
+    "line": "PASS concurrency: runs=2 of 2 cells=2 of 2 violations=0 wave=unmeasured lost-sends=0 settle-p99-at-200=18ms second-attempts=1 rollover-uncrossed=0 slow=1 burst-p50-at-200=3000ms rollover-redrawn=0"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "kind": "send",
+  "ruling": "B-35, B-36",
+  "about": "an attempt answered 500 is sent again, as before",
+  "source": "by hand",
+  "attempt": {
+    "status": 500,
+    "error": null
+  },
+  "expect": {
+    "resend": true
+  }
+}

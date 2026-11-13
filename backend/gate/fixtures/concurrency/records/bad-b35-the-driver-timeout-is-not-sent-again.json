@@ -1,0 +1,13 @@
+{
+  "kind": "send",
+  "ruling": "B-35",
+  "about": "an attempt that the driver's own timeout ended is no lost send",
+  "source": "by hand",
+  "attempt": {
+    "status": null,
+    "error": "the driver's request timed out"
+  },
+  "expect": {
+    "resend": false
+  }
+}

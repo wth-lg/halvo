@@ -1,0 +1,74 @@
+{
+  "kind": "judge",
+  "ruling": "B-38",
+  "about": "a settle that arrived after the expiry in a plain run whose first burst was answered in 50 ms",
+  "source": "by hand",
+  "request": {
+    "status": 200,
+    "body": "",
+    "headersAt": 1100,
+    "endedAt": 4600,
+    "trailer": {
+      "settled": true,
+      "outcome": "expired",
+      "cost": 19,
+      "settle_ms": 1
+    }
+  },
+  "row": {
+    "state": "expired",
+    "dispatched": 1,
+    "ended_by": "expire",
+    "input_tokens": 1,
+    "output_tokens": 1,
+    "cost": 19,
+    "late_at": 4500,
+    "late_seq": 3
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 0,
+      "unreported": 100,
+      "open": 0
+    }
+  ],
+  "mockEvents": [
+    {
+      "t": 1050,
+      "id": "r",
+      "ev": "request"
+    },
+    {
+      "t": 4450,
+      "id": "r",
+      "ev": "usage",
+      "final": true,
+      "input_tokens": 1,
+      "output_tokens": 1
+    },
+    {
+      "t": 4490,
+      "id": "r",
+      "ev": "end",
+      "clean": true
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "no-late-settle",
+        "id": "r"
+      },
+      {
+        "clause": "no-late-settle",
+        "id": "r"
+      }
+    ],
+    "facts": {
+      "lateSettles": 1,
+      "slow": false
+    }
+  }
+}

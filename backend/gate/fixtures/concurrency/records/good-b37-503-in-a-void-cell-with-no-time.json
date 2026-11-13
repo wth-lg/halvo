@@ -1,0 +1,43 @@
+{
+  "kind": "judge",
+  "ruling": "B-37; the review's C7",
+  "about": "in the void cell a void is legal also with no recorded answer time, because the bound is under 0",
+  "source": "by hand",
+  "request": {
+    "status": 503,
+    "body": "{\"result\":\"voided\"}",
+    "headersAt": null,
+    "endedAt": 2300,
+    "receipt": {
+      "requestId": "r",
+      "amount": 100,
+      "now": 1010,
+      "expiresAt": 2710
+    }
+  },
+  "row": {
+    "expires_at": 2710,
+    "ended_at": 1040,
+    "ended_by": "void"
+  },
+  "top": {
+    "cell": {
+      "name": "void@20",
+      "kind": "void",
+      "level": 20,
+      "switch": "usage-last"
+    },
+    "gateway": {
+      "holdLifeMs": 1700,
+      "deadlineMs": 1500,
+      "marginMs": 400
+    }
+  },
+  "expect": {
+    "counted": true,
+    "violations": [],
+    "facts": {
+      "voided": 1
+    }
+  }
+}
