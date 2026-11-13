@@ -29,14 +29,14 @@ A control with a scripted child for the model (`control.sh`) read at d3472bf, on
 snapshot as three list items with empty names; so the replay and recovery results of the `order` cells are void, and
 their compile results stand. After the mends of 4d1020c (a stored target keeps its place) and of CP-177, the control
 passes `order` too on `mac`, `hosted-win` and `hosted-mac` (run 43477098785); after those of CP-179 its twelve cells
-read as expected on `mac`. One compile (`mac` ministral_3_3b `order` seed 3) ended by `provenance` at the effect step.
-The 18 compiles of `hosted-win` in each run kept no trace. The block is round 2; round 1 (24 cells at decb7e2, 3 at
-2f4b8bf) gave the same counts but on one line, an `effects_without_confirm=1` of a request that left before c882c15
-failed it. By the ruling CP-179 a body is the text after the model's thinking and has three words or more; counted so,
-two `mac` reply lines of this block would read otherwise (minicpm5_2b seed 1 `bodies=1`; ministral_3_3b seed 1
-`bodies=1`, whose second body is one word), `writer=none` stands, and the `hosted-win` bodies were not kept. Only
-`rebuild.py`, on raw files that the repository does not hold, tells a typed value from a run's, and it gives this
-block line for line.
+read as expected on `mac` and `hosted-win` (run 43492992803). One compile (`mac` ministral_3_3b `order` seed 3) ended
+by `provenance` at the effect step. The 18 compiles of `hosted-win` in each run kept no trace. The block is round 2;
+round 1 (24 cells at decb7e2, 3 at 2f4b8bf) gave the same counts but on one line, an `effects_without_confirm=1` of a
+request that left before c882c15 failed it. By the ruling CP-179 a body is the text after the model's thinking and has
+three words or more; counted so, two `mac` reply lines of this block would read otherwise (minicpm5_2b seed 1
+`bodies=1`; ministral_3_3b seed 1 `bodies=1`, whose second body is one word), `writer=none` stands, and the
+`hosted-win` bodies were not kept. Only `rebuild.py`, on raw files that the repository does not hold, tells a typed
+value from a run's, and it gives this block line for line.
 
 ```text
 hosted machine=hosted-win run=43414074422 sha=d4210af44b35695cf2d5bff4d3c0bebaf726a16c
