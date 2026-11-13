@@ -1,4 +1,4 @@
-//! Proof lines of the floor's boundaries, built only by
+//! Proof lines of the floor's boundaries and of the daemon's port, built only by
 //! scripts/r1/ci.d/30-core-boundary-proofs.sh. Each proof sits under its own
 //! `halvo_proof` cfg and must fail to build with the error code that the script
 //! names; its twin, under the same name with `_twin`, must build. This module is
@@ -282,6 +282,43 @@ fn event_id_made_outside_its_maker() -> crate::event::EventId {
 #[cfg(halvo_proof = "event_id_made_outside_its_maker_twin")]
 fn event_id_made_outside_its_maker_twin(event: &crate::event::FloorEvent) -> crate::event::EventId {
     event.id()
+}
+
+#[cfg(halvo_proof = "segment_write_filled_outside_the_daemon")]
+fn segment_write_filled_outside_the_daemon(
+    segment_id: &crate::daemon::port::SegmentId,
+    day: halvo_control::model::UtcDay,
+) {
+    let _ = crate::daemon::port::SegmentWrite {
+        segment_id,
+        day,
+        first_capture: 0,
+        last_capture: 0,
+        entries: &[],
+        payload: b"{}",
+    };
+}
+
+#[cfg(halvo_proof = "segment_write_filled_outside_the_daemon_twin")]
+fn segment_write_filled_outside_the_daemon_twin(
+    write: &crate::daemon::port::SegmentWrite<'_>,
+) -> usize {
+    write.payload().len()
+}
+
+#[cfg(halvo_proof = "batch_filled_outside_the_daemon")]
+fn batch_filled_outside_the_daemon(batch: &mut crate::daemon::batch::Batch) {
+    batch.push(
+        crate::daemon::port::EntryKind::Kind(crate::event::Modality::Keystroke),
+        0,
+        b"{}",
+        std::time::Duration::ZERO,
+    );
+}
+
+#[cfg(halvo_proof = "batch_filled_outside_the_daemon_twin")]
+fn batch_filled_outside_the_daemon_twin(batch: &crate::daemon::batch::Batch) -> usize {
+    batch.events()
 }
 
 #[cfg(halvo_proof = "synthetic_clearance_in_a_release_build")]
