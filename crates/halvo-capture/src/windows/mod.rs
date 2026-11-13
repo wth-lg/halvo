@@ -383,6 +383,9 @@ pub const SCREEN_STOP_DEADLINE: Duration = Duration::from_millis(6_000);
 
 const STOP_POLL: Duration = Duration::from_millis(5);
 
+#[allow(dead_code)]
+const STOP_READ_LIMIT: usize = 4_096;
+
 fn deadline_ms(deadline: Duration) -> u64 {
     u64::try_from(deadline.as_millis()).unwrap_or(u64::MAX)
 }
@@ -1273,6 +1276,48 @@ pub(crate) mod tests {
             "{outcome:?} after {waited:?}"
         );
         assert!(waited < INPUT_STOP_DEADLINE, "{waited:?}");
+    }
+
+    #[test]
+    fn the_read_at_a_stop_takes_what_is_queued_and_ends_at_its_bound() {
+        use windows::Win32::Foundation::{LPARAM, WPARAM};
+        use windows::Win32::UI::WindowsAndMessaging::{
+            PeekMessageW, PostThreadMessageW, MSG, PM_REMOVE, WM_USER,
+        };
+        const BEYOND: usize = 100;
+        let (posted, left) = std::thread::spawn(|| {
+            ensure_message_queue();
+            let me = PumpThreadId::current();
+            post_quit_to(me);
+            let mut posted = 0;
+            for _ in 0..STOP_READ_LIMIT + BEYOND {
+                // SAFETY: PostThreadMessageW takes this thread's id and two
+                // plain values.
+                if unsafe { PostThreadMessageW(me.get(), WM_USER, WPARAM(0), LPARAM(0)) }.is_ok() {
+                    posted += 1;
+                }
+            }
+            let signal = StopSignal::new().expect("the stop event");
+            pump_messages(&signal);
+            let mut msg = MSG::default();
+            let mut left = 0;
+            // SAFETY: `msg` is a live MSG that PeekMessageW fills.
+            while unsafe { PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE) }.as_bool() {
+                left += 1;
+            }
+            (posted, left)
+        })
+        .join()
+        .expect("the pump thread");
+        assert_eq!(
+            posted,
+            STOP_READ_LIMIT + BEYOND,
+            "INCONCLUSIVE: a post failed"
+        );
+        assert_eq!(
+            left, BEYOND,
+            "messages left after the pump returned at its quit message"
+        );
     }
 
     #[cfg(target_os = "windows")]

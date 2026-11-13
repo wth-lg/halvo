@@ -32,6 +32,7 @@ c9_peak_working_set_of_sources_1_to_4_for_60_seconds
 capture_times_follow_the_input_order
 helper_child_window
 helper_limited_listener
+keys_queued_before_a_stop_are_delivered_or_counted
 known_defect::c5_watch_armed_while_the_per_user_key_is_absent RR-windows-12
 known_defect::title_event_on_a_switch_to_a_window_with_a_fixed_title RR-windows-08
 known_defect::x14_foreground_app_of_a_hosted_app RR-windows-10
@@ -510,7 +511,7 @@ fixtures() {
   expected=real
   check every-test-of-the-real-list-right PASS "$real" \
     "${nl}WF known_defect::x1_keystrokes_typed_into_a_password_field result=known-defect id=RR-windows-01${nl}" \
-    "${nl}WF total=28 pass=20 known_defect=8 fail=0${nl}PASS $name"
+    "${nl}WF total=29 pass=21 known_defect=8 fail=0${nl}PASS $name"
   check a-test-prints-the-lines-of-the-script PASS "c1_raw_input|fakes${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}    | WF ghost_test_not_in_the_file result=pass${nl}" \
     "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}PASS $name" \

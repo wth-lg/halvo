@@ -2618,6 +2618,70 @@ fn a_dropped_keyboard_source_stops_capturing() {
     });
 }
 
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn keys_queued_before_a_stop_are_delivered_or_counted() {
+    with_deadline("queued-at-stop", Duration::from_secs(60), || {
+        env_report("queued-at-stop");
+        source_built_by_test("queued-at-stop", "keyboard");
+        let (sink, writer) = channel(64);
+        let last_app = Arc::new(Mutex::new(None));
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        std::thread::sleep(Duration::from_millis(200));
+        let held = last_app.lock().expect("the last-app cell");
+        let accepted = press_keys(5);
+        std::thread::sleep(Duration::from_millis(300));
+        let (done, returned) = mpsc::channel();
+        std::thread::Builder::new()
+            .name("tf-queued-at-stop-stop".to_string())
+            .spawn(move || {
+                let stopped = keyboard.shutdown();
+                let lost = keyboard.handoff_counts().lost;
+                let _ = done.send((stopped, lost));
+            })
+            .expect("spawn the stop thread");
+        std::thread::sleep(Duration::from_millis(200));
+        drop(held);
+        let outcome = returned.recv_timeout(Duration::from_secs(5));
+        let events = forward(writer);
+        let delivered = count(
+            &events.drain_for(Duration::from_secs(1)),
+            Modality::Keystroke,
+        ) as u64;
+        let (stopped, lost) = match &outcome {
+            Ok((stopped, lost)) => (format!("{stopped:?}"), *lost),
+            Err(e) => (format!("no answer ({e:?})"), 0),
+        };
+        say(
+            "queued-at-stop",
+            format!(
+                "keyboard_start={} presses=5 sendinput_key_events_accepted={accepted} \
+                 stop={stopped} keystrokes_delivered={delivered} lost={lost} \
+                 neither_delivered_nor_counted={}",
+                show(&start),
+                5i64 - delivered as i64 - lost as i64,
+            ),
+        );
+        drop(sink);
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert_eq!(
+            accepted, 10,
+            "INCONCLUSIVE: SendInput did not insert every key event"
+        );
+        assert!(
+            matches!(outcome, Ok((Ok(()), _))),
+            "the stop did not answer Ok: {outcome:?}"
+        );
+        assert_eq!(
+            delivered + lost,
+            5,
+            "key presses queued before the stop were neither delivered nor counted: \
+             delivered {delivered}, lost {lost}"
+        );
+    });
+}
+
 fn screen_frames_within(events: &Events, window: Duration) -> usize {
     count(&events.drain_for(window), Modality::ScreenFrame)
 }
