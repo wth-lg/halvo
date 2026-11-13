@@ -763,6 +763,49 @@ fn a_runs_check_item_is_stored_as_the_check_of_that_run() {
     }));
 }
 
+/// RD-61 (e) (3), a pin of RD-40 (1) (b) as built for a run's check: a run's check that the
+/// person answers `try_again` goes to the run as `done`; when that run then ends
+/// `effect_unknown` with one unknown effect, the card that follows is the hold's check of that
+/// run, raised although the run's own check card was answered, because the hold's check ends
+/// only by a `hold_cleared` that names the run.
+#[test]
+fn rd61e_pin_an_answered_runs_check_then_an_unknown_effect_at_the_end_brings_the_holds_check() {
+    use halvo_coord::types::{HandbackResult, PastRun};
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::EffectUnknown))
+        .unwrap();
+    let (item, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::Check);
+    let m = mark(&c);
+    assert_eq!(
+        c.answer(&item, Choice::TryAgain, None, shown(&c, &item)),
+        Ok(())
+    );
+    assert_eq!(handed_back(&c, m), [HandbackResult::Done]);
+    assert!(c.snapshot().items.is_empty(), "the run's check is answered");
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::EffectUnknown,
+            unknown: 1,
+        },
+    );
+    c.ports().ports.end_runner(&run);
+    assert_eq!(
+        c.on_run(&run, RunEvent::Ended(Some(Outcome::EffectUnknown))),
+        Ok(())
+    );
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    let s = c.snapshot();
+    assert_eq!(s.items.len(), 1, "one card follows: {s:?}");
+    assert_eq!(s.items[0].kind(), ItemKind::Check, "the hold's check");
+    assert_ne!(s.items[0].item(), &item, "a new item, not the run's");
+}
+
 fn bind(run: &RunId, n: usize) -> RunEvent {
     RunEvent::Bind(halvo_coord::types::BindAsk {
         run: run.clone(),
