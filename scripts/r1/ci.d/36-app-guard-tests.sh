@@ -10,8 +10,11 @@ the_web_view_main_moved_into_another_window_gets_no_command_of_the_unit_and_dele
 a_capability_handed_to_the_context_macro_reaches_no_command_of_the_unit_from_another_window'
 app_modules='app
 commands
+engine
 launch
-tray'
+poller
+tray
+view_state'
 test_command='test --workspace --locked --test page_guard'
 tree_command='tree -p halvo -e normal --target all -f {p} {f} --prefix none --locked'
 esc=$(printf '\033')
