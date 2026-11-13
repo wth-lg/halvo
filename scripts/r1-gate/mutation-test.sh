@@ -266,6 +266,7 @@ needs_cargo() {
 
 tree_build() {
   stop_check
+  # shellcheck disable=SC2016
   shield_run "build of the copy" env GATE_ROOT="$tree" sh -c '. "$1/scripts/r1-gate/lib.sh"; gate_build || { printf "%s\n" "$gate_build_error"; exit 1; }' sh "$tree" > "$1" 2>&1
   step_check $? "build of the copy"
 }
