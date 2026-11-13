@@ -2,12 +2,11 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, connect } from 'node:net';
-import { networkInterfaces, tmpdir } from 'node:os';
+import { networkInterfaces } from 'node:os';
 import { join } from 'node:path';
-import test from 'node:test';
+import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
-const SERVER = fileURLToPath(new URL('./server.mjs', import.meta.url));
+import { SERVER, scratchDir, startServer, stopServer } from './servers.mjs';
 
 const SHOP = {
   v: 1,
@@ -59,8 +58,11 @@ const NEWS = {
   flows: [{ flow: 'read', role: 'other', pages: ['home'] }],
 };
 
+const ROOT = scratchDir('fixture-server-server-');
+after(ROOT.remove);
+
 function scratch() {
-  return mkdtempSync(join(tmpdir(), 'fixture-server-server-'));
+  return mkdtempSync(join(ROOT.dir, 'case-'));
 }
 
 function writeSites(dir, sites) {
@@ -71,41 +73,11 @@ function writeSites(dir, sites) {
   });
 }
 
-function start(args) {
-  const child = spawn(process.execPath, [SERVER, ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
-  return new Promise((resolve, reject) => {
-    let out = '';
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', (chunk) => {
-      out += chunk;
-      const line = /^listening 127\.0\.0\.1:(\d+)\n/.exec(out);
-      if (line) resolve({ child, port: Number(line[1]), line: line[0] });
-    });
-    const deadline = setTimeout(() => child.kill('SIGKILL'), 20000);
-    child.on('exit', (code) => {
-      clearTimeout(deadline);
-      reject(new Error(`server exited ${code} before it listened`));
-    });
-    child.stdout.once('data', () => clearTimeout(deadline));
-    child.on('error', reject);
-  });
-}
-
-function stop(child, signal = 'SIGTERM') {
-  return new Promise((resolve) => {
-    if (child.exitCode !== null || child.signalCode !== null) {
-      resolve({ code: child.exitCode, signal: child.signalCode });
-      return;
-    }
-    child.once('exit', (code, sig) => resolve({ code, signal: sig }));
-    child.kill(signal);
-  });
-}
-
 function raw(port, text, address = '127.0.0.1') {
   return new Promise((resolve, reject) => {
     const socket = connect({ host: address, port });
     const chunks = [];
+    socket.setTimeout(15000, () => socket.destroy());
     socket.on('data', (chunk) => chunks.push(chunk));
     socket.on('error', reject);
     socket.on('close', () => {
@@ -136,7 +108,8 @@ function refusal(args) {
 test('server: the page face and the API face answer 200, and every other request 404 with an empty body', async () => {
   const dir = scratch();
   const files = writeSites(dir, [SHOP, SHEET, NEWS]);
-  const { child, port, line } = await start(['--port', '0', ...files]);
+  const server = await startServer(['--port', '0', ...files]);
+  const { port, line } = server;
   assert.equal(line, `listening 127.0.0.1:${port}\n`);
   const shop = `acorn-shop.test:${port}`;
   try {
@@ -260,13 +233,14 @@ test('server: the page face and the API face answer 200, and every other request
       assert.equal(res.body.length, 0, name);
     }
   } finally {
-    await stop(child);
+    await stopServer(server);
   }
 });
 
 test('server: binds 127.0.0.1 alone', async () => {
   const dir = scratch();
-  const { child, port } = await start(['--port', '0', ...writeSites(dir, [NEWS])]);
+  const server = await startServer(['--port', '0', ...writeSites(dir, [NEWS])]);
+  const { port } = server;
   try {
     const ok = await get(port, '/home', `acorn-news.test:${port}`);
     console.log(`bind 127.0.0.1: status=${ok.status}`);
@@ -285,7 +259,7 @@ test('server: binds 127.0.0.1 alone', async () => {
     }
     console.log(`bind addresses tried=${others.length}`);
   } finally {
-    await stop(child);
+    await stopServer(server);
   }
 });
 
@@ -293,12 +267,16 @@ test('server: ends on SIGTERM and on SIGINT, with status 0 where a process can h
   const dir = scratch();
   const files = writeSites(dir, [NEWS]);
   for (const signal of ['SIGTERM', 'SIGINT']) {
-    const { child, port } = await start(['--port', '0', ...files]);
-    await get(port, '/home', `acorn-news.test:${port}`, 'GET', '');
-    const ended = await stop(child, signal);
-    console.log(`signal ${signal}: code=${ended.code} ended=true`);
-    if (process.platform === 'win32') assert.ok(ended.code !== null || ended.signal !== null);
-    else assert.deepEqual(ended, { code: 0, signal: null });
+    const server = await startServer(['--port', '0', ...files]);
+    try {
+      await get(server.port, '/home', `acorn-news.test:${server.port}`, 'GET', '');
+      const ended = await stopServer(server, signal);
+      console.log(`signal ${signal}: code=${ended.code} killed=${ended.killed}`);
+      if (process.platform === 'win32') assert.equal(ended.killed, false);
+      else assert.deepEqual(ended, { code: 0, signal: null, killed: false });
+    } finally {
+      await stopServer(server);
+    }
   }
 });
 
@@ -329,7 +307,8 @@ test('server: refusals usage, site-data and port, each with nothing on standard 
   try {
     const port = held.address().port;
     const run = await new Promise((resolve) => {
-      const child = spawn(process.execPath, [SERVER, '--port', String(port), good], { stdio: ['ignore', 'pipe', 'pipe'] });
+      const child = spawn(process.execPath, [SERVER, '--port', String(port), good], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+      child.stdin.on('error', () => {});
       let stdout = '';
       let stderr = '';
       child.stdout.on('data', (chunk) => { stdout += chunk; });
@@ -367,4 +346,114 @@ test('server: imports nothing from node_modules', () => {
   }
   console.log(`imports files=${seen.size} node_modules=0`);
   assert.ok(seen.has('./sites.mjs'));
+});
+
+const MAIL = {
+  v: 1,
+  service: 'acorn-mail',
+  category: 'email',
+  kind: 'web',
+  host: 'acorn-mail.test',
+  app: null,
+  parameters: ['box', 'tag'],
+  values: { box: ['in', "a!b'c", '(x)*y'], tag: ['red'] },
+  pages: [
+    { page: 'sign-in', title: 'Sign in - Mail', text: 'Password.', password_input: true, card_title: false },
+    { page: 'list', title: 'List {tag} {box}', text: 'Messages.', password_input: false, card_title: false },
+    { page: 'read', title: 'Read {box}', text: 'One message.', password_input: false, card_title: false },
+    { page: 'write', title: 'Write', text: 'A new message.', password_input: false, card_title: false },
+    { page: 'sent', title: 'Sent', text: 'Gone.', password_input: false, card_title: false },
+    { page: 'prefs', title: 'Prefs', text: 'Settings.', password_input: false, card_title: false },
+  ],
+  flows: [
+    { flow: 'answer', role: 'task', pages: ['sign-in', 'list', 'read', 'write', 'sent'] },
+    { flow: 'tune', role: 'near_miss', pages: ['sign-in', 'prefs'] },
+  ],
+};
+
+const MAIL_API = '{"pages":[{"page":"sign-in","title":"Sign in - Mail","text":"Password.","password_input":true,"card_title":false},'
+  + '{"page":"list","title":"List {tag} {box}","text":"Messages.","password_input":false,"card_title":false},'
+  + '{"page":"read","title":"Read {box}","text":"One message.","password_input":false,"card_title":false},'
+  + '{"page":"write","title":"Write","text":"A new message.","password_input":false,"card_title":false},'
+  + '{"page":"sent","title":"Sent","text":"Gone.","password_input":false,"card_title":false},'
+  + '{"page":"prefs","title":"Prefs","text":"Settings.","password_input":false,"card_title":false}],'
+  + '"flows":[{"flow":"answer","role":"task","pages":["sign-in","list","read","write","sent"]},'
+  + '{"flow":"tune","role":"near_miss","pages":["sign-in","prefs"]}]}\n';
+
+const MAIL_PAGES = [
+  ['/sign-in', 'Sign in - Mail', 'Password.'],
+  ['/list?box=in&tag=red', 'List red in', 'Messages.'],
+  ['/list?box=a%21b%27c&tag=red', "List red a!b'c", 'Messages.'],
+  ['/list?box=%28x%29%2Ay&tag=red', 'List red (x)*y', 'Messages.'],
+  ['/read?box=in', 'Read in', 'One message.'],
+  ['/read?box=a%21b%27c', "Read a!b'c", 'One message.'],
+  ['/read?box=%28x%29%2Ay', 'Read (x)*y', 'One message.'],
+  ['/write', 'Write', 'A new message.'],
+  ['/sent', 'Sent', 'Gone.'],
+  ['/prefs', 'Prefs', 'Settings.'],
+];
+
+function rawBytes(port, text) {
+  return new Promise((resolve, reject) => {
+    const socket = connect({ host: '127.0.0.1', port });
+    const chunks = [];
+    socket.setTimeout(15000, () => socket.destroy());
+    socket.on('data', (chunk) => chunks.push(chunk));
+    socket.on('error', reject);
+    socket.on('close', () => resolve(Buffer.concat(chunks).toString('latin1')));
+    socket.write(text, 'latin1');
+  });
+}
+
+test('server: literal answers for the rules of Host, header case, parameter order, encoding, the API body and Expect', async () => {
+  const dir = scratch();
+  const server = await startServer(['--port', '0', ...writeSites(dir, [MAIL])]);
+  const { port } = server;
+  const host = `acorn-mail.test:${port}`;
+  try {
+    for (const [path, title, text] of MAIL_PAGES) {
+      const res = await get(port, path, host);
+      const body = res.body.toString('utf8');
+      console.log(`literal 200 ${path.split('?')[0]}: status=${res.status} bytes=${res.body.length}`);
+      assert.equal(res.status, 200, path);
+      assert.equal(body, '<!DOCTYPE html>\n<html><head><meta charset="utf-8"><title>' + title + '</title></head><body><p>' + text
+        + '</p>' + (path === '/sign-in' ? '<input type="password">' : '') + '</body></html>\n', path);
+    }
+    const api = await get(port, '/api/pages', host);
+    console.log(`literal API body: status=${api.status} bytes=${api.body.length}`);
+    assert.equal(api.body.toString('utf8'), MAIL_API);
+    assert.equal(api.body.length, 756);
+    const notFound = [
+      ['the reversed query', '/list?tag=red&box=in'],
+      ['a value outside the list', '/read?box=out'],
+      ['a value encoded with a raw unsafe byte', "/read?box=a!b'c"],
+    ];
+    for (const [name, path] of notFound) {
+      const res = await get(port, path, host);
+      console.log(`literal 404 ${name}: status=${res.status} bytes=${res.body.length}`);
+      assert.equal(res.status, 404, name);
+      assert.equal(res.body.length, 0, name);
+    }
+    const noHost = await rawBytes(port, 'GET /sign-in HTTP/1.1\r\nConnection: close\r\n\r\n');
+    console.log(`literal 404 HTTP/1.1 with no Host: bytes=${noHost.length}`);
+    assert.match(noHost, /^HTTP\/1\.1 404 Not Found\r\n/);
+    assert.ok(noHost.endsWith('\r\n\r\n'));
+    assert.doesNotMatch(noHost, /content-type/i);
+    const lower = await rawBytes(port, `GET /sign-in HTTP/1.1\r\nhost: ${host}\r\nconnection: close\r\n\r\n`);
+    console.log(`literal 200 a header name in lower case: ${lower.slice(0, 12)}`);
+    assert.match(lower, /^HTTP\/1\.1 200 OK\r\n/);
+    const twoCases = await rawBytes(port, `GET /sign-in HTTP/1.1\r\nHost: ${host}\r\nHOST: ${host}\r\nConnection: close\r\n\r\n`);
+    console.log(`literal 404 two Host headers of different case: ${twoCases.slice(0, 12)}`);
+    assert.match(twoCases, /^HTTP\/1\.1 404 Not Found\r\n/);
+    assert.ok(twoCases.endsWith('\r\n\r\n'));
+    for (const [path, status] of [['/sign-in', '200 OK'], ['/nothing', '404 Not Found']]) {
+      const answer = await rawBytes(port, `GET ${path} HTTP/1.1\r\nHost: ${host}\r\nExpect: 100-continue\r\nConnection: close\r\n\r\n`);
+      const lines = answer.match(/HTTP\/1\.1 \d{3} /g) ?? [];
+      console.log(`literal Expect 100-continue ${path}: status_lines=${lines.length}`);
+      assert.equal(lines.length, 1, path);
+      assert.ok(answer.startsWith(`HTTP/1.1 ${status}\r\n`), path);
+    }
+  } finally {
+    await stopServer(server);
+  }
 });

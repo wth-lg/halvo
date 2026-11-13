@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import test from 'node:test';
+import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { scratchDir } from './servers.mjs';
 import { encodeValue, fill, isPort, loadSites, parseSiteData, readArgs, requestsOf } from './sites.mjs';
 
 const CHECKER = fileURLToPath(new URL('./check-sites.mjs', import.meta.url));
@@ -232,6 +232,22 @@ test('site data: a value outside its form is refused (value)', () => {
   refused(changed(shop, (s) => { s.values.size = ['é'.repeat(32) + 'x']; }), 'value');
 });
 
+test('site data: a value written as the escape of a lone surrogate, and a value that holds U+0000, are refused (value)', () => {
+  const text = bytes(shop()).toString('utf8');
+  assert.ok(text.includes('"size":["small"]'));
+  refused(Buffer.from(text.replace('"size":["small"]', '"size":["\\ud800"]'), 'utf8'), 'value');
+  refused(Buffer.from(text.replace('"size":["small"]', '"size":["a\\u0000b"]'), 'utf8'), 'value');
+  refused(Buffer.from(text.replace('"size":["small"]', '"size":["\\udc00x"]'), 'utf8'), 'value');
+});
+
+test('site data: an app that is a number is refused (app)', () => {
+  refused(Buffer.from(bytes(native()).toString('utf8').replace('"app":"org.libreoffice.script"', '"app":5'), 'utf8'), 'app');
+});
+
+test('site data: a card page whose number stands in its text alone is refused (D7)', () => {
+  refused(changed(shop, (s) => { s.pages[2].title = 'Pay - Acorn'; s.pages[2].text = 'Card 4242 4242 4242 4242.'; }), 'D7');
+});
+
 test('site data: a file with no page, a page id twice and a flow id twice are refused (D3)', () => {
   refused(changed(other, (s) => { s.pages = []; s.flows = []; }), 'D3');
   refused(changed(shop, (s) => { s.pages[3].page = 'item'; }), 'D3');
@@ -374,8 +390,11 @@ test('requests: one path per choice of the values of the names a page uses, in t
   ]);
 });
 
+const ROOT = scratchDir('fixture-server-sites-');
+after(ROOT.remove);
+
 function scratch() {
-  return mkdtempSync(join(tmpdir(), 'fixture-server-sites-'));
+  return mkdtempSync(join(ROOT.dir, 'case-'));
 }
 
 function runChecker(args) {
@@ -444,7 +463,9 @@ test('checker: a file not of C11.1 is refused with site-data naming the file, an
   const { v, service, ...rest } = shop();
   const swapped = join(dir, 'swapped.json');
   writeFileSync(swapped, bytes({ service, v, ...rest }));
-  for (const bad of [spaced, swapped]) {
+  const numberApp = join(dir, 'number-app.json');
+  writeFileSync(numberApp, Buffer.from('{"v":1,"service":"acorn-sheet","category":"spreadsheet_fill","kind":"native","host":null,"app":5,"parameters":[],"values":{},"pages":[{"page":"book","title":"Book - Acorn","text":"Rows.","password_input":false,"card_title":false}],"flows":[{"flow":"fill","role":"task","pages":["book"]},{"flow":"read","role":"near_miss","pages":["book"]}]}\n', 'utf8'));
+  for (const bad of [spaced, swapped, numberApp]) {
     const run = runChecker([good, bad]);
     assert.equal(run.status, 2);
     assert.equal(run.stdout, '');

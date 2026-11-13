@@ -1,8 +1,18 @@
+/**
+ * The fixture server of contracts.md C11.3 and C11.7: `node server.mjs [--port N] SITE_DATA...`.
+ * It ends when a piped standard input ends or fails, so a caller that gives it a pipe holds the write end; a null
+ * device, a file or a terminal is not read, and the server then serves until SIGINT or SIGTERM.
+ * On SIGINT or SIGTERM it closes its listener and every open connection and exits 0.
+ * It closes a connection after a request that it cannot parse, a header block above 16 KiB among them, after its 404.
+ * A 404 has no Content-Type and no body. A request with an Expect header gets one answer and no interim 100.
+ * After the answer to an upgrade offer the connection closes, and a second request in the same write gets no answer.
+ */
 import { createServer } from 'node:http';
+import { Socket } from 'node:net';
 import { compactPagesAndFlows, encodeValue, fill, isPort, loadSites, namesOf, readArgs } from './sites.mjs';
 
 const DEFAULT_PORT = 18080;
-const USAGE = 'usage: node server.mjs [--port N] SITE_DATA...';
+const USAGE = 'usage: node server.mjs [--port N] SITE_DATA... (ends when a piped standard input ends)';
 const NOT_FOUND = 'HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n';
 
 function refuse(cause, detail) {
@@ -120,18 +130,31 @@ function respondWithoutUpgrade(req, socket) {
 }
 
 const server = createServer({ requireHostHeader: false }, respond);
+const sockets = new Set();
+server.on('connection', (socket) => {
+  sockets.add(socket);
+  socket.on('close', () => sockets.delete(socket));
+});
+server.on('checkContinue', respond);
 server.on('checkExpectation', respond);
 server.on('connect', (_req, socket) => endWithNotFound(socket));
 server.on('upgrade', respondWithoutUpgrade);
 server.on('clientError', (_error, socket) => endWithNotFound(socket));
 server.once('error', () => refuse('port', String(port)));
-server.listen({ host: '127.0.0.1', port, exclusive: true }, () => {
-  process.stdout.write(`listening 127.0.0.1:${server.address().port}\n`);
-});
-
+let ending = false;
 function end() {
+  if (ending) return;
+  ending = true;
   server.close(() => process.exit(0));
-  server.closeAllConnections();
+  for (const socket of sockets) socket.destroy();
 }
 process.on('SIGINT', end);
 process.on('SIGTERM', end);
+server.listen({ host: '127.0.0.1', port, exclusive: true }, () => {
+  process.stdout.write(`listening 127.0.0.1:${server.address().port}\n`);
+  if (process.stdin instanceof Socket && !process.stdin.isTTY) {
+    process.stdin.on('end', end);
+    process.stdin.on('error', end);
+    process.stdin.resume();
+  }
+});
