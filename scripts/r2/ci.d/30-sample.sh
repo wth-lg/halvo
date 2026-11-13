@@ -299,12 +299,13 @@ stand_in() {
   printf '{}\n' >"$work/scripts/one.jsonl" || self_fail "the scripts of the stand-in cannot be written"
 }
 
-# Calls r2_body_ensure on the tier gen-dev, with the build directory set for that call alone.
+# Calls r2_body_ensure, or the step given second, on the tier gen-dev, with the build directory set for that
+# call alone.
 ensure_call() {
   (
     CARGO_TARGET_DIR=$1
     export CARGO_TARGET_DIR
-    r2_body_ensure "$work" gen-dev "$work/stand-in" "$work/scripts" "$work/committed.toml" "$work/ensure.log"
+    "${2:-r2_body_ensure}" "$work" gen-dev "$work/stand-in" "$work/scripts" "$work/committed.toml" "$work/ensure.log"
   ) 2>&1
 }
 
@@ -328,6 +329,30 @@ ensure_case() {
   elif [ "$got" = built ]; then
     rejected=$((rejected + 1))
   fi
+}
+
+# A build leaves nothing beside the body in place: after a build over a body that checks same and after each
+# of five replacements in one shell, the directory of the bodies holds the one name gen-dev.
+placing_fixture() {
+  target=$work/target-placing
+  out=$(ensure_call "$target")
+  case $out in
+    'body gen-dev built '*' s') : ;;
+    *) wrong="$wrong placing-first" ;;
+  esac
+  ensure_call "$target" r2_body_build >/dev/null
+  [ "$(ls -A "$target/r2")" = gen-dev ] || wrong="$wrong placing-over-same"
+  i=1
+  while [ "$i" -le 5 ]; do
+    { printf 'four\n' >"$target/r2/gen-dev/streams/gen-dev-s001/day-001.jsonl"; } 2>/dev/null || :
+    out=$(ensure_call "$target")
+    case $out in
+      'body gen-dev built '*' s') : ;;
+      *) wrong="$wrong placing-replacement-$i" ;;
+    esac
+    [ "$(ls -A "$target/r2")" = gen-dev ] || wrong="$wrong placing-names-$i"
+    i=$((i + 1))
+  done
 }
 
 self_test() {
@@ -371,6 +396,7 @@ self_test() {
   stand_in
   ensure_case whole reused
   ensure_case stale built
+  placing_fixture
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
