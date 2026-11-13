@@ -432,9 +432,16 @@ pub(crate) struct PumpHandle {
     join: Option<std::thread::JoinHandle<()>>,
     signal: Arc<StopSignal>,
     stop_requested: bool,
+    post: fn(PumpThreadId),
 }
 
 impl PumpHandle {
+    #[cfg(test)]
+    fn with_post(mut self, post: fn(PumpThreadId)) -> Self {
+        self.post = post;
+        self
+    }
+
     pub(crate) fn stop(&mut self, deadline: Duration) -> Result<(), CaptureError> {
         let Some(join) = self.join.take() else {
             return Ok(());
@@ -444,7 +451,7 @@ impl PumpHandle {
         let began = Instant::now();
         self.signal.set();
         loop {
-            post_quit_to(self.id);
+            (self.post)(self.id);
             if join.is_finished() {
                 break;
             }
@@ -471,7 +478,7 @@ impl PumpHandle {
 
     fn let_go(&mut self) {
         self.signal.set();
-        post_quit_to(self.id);
+        (self.post)(self.id);
         self.join = None;
     }
 }
@@ -591,6 +598,7 @@ where
             join: Some(join),
             signal,
             stop_requested: false,
+            post: post_quit_to,
         }),
         Ok(Err(error)) => {
             let _ = join.join();
@@ -1298,6 +1306,61 @@ pub(crate) mod tests {
             "{outcome:?} after {waited:?}"
         );
         assert!(waited < INPUT_STOP_DEADLINE, "{waited:?}");
+    }
+
+    static POSTS: AtomicU64 = AtomicU64::new(0);
+
+    fn counted_post(id: PumpThreadId) {
+        POSTS.fetch_add(1, Ordering::SeqCst);
+        post_quit_to(id);
+    }
+
+    #[test]
+    fn a_handle_whose_thread_was_joined_posts_nothing_on_drop() {
+        let posts_by = |drop_handle: PumpHandle| {
+            let before = POSTS.load(Ordering::SeqCst);
+            drop(drop_handle);
+            POSTS.load(Ordering::SeqCst) - before
+        };
+        let mut joined = quiet_pump().expect("the pump").with_post(counted_post);
+        let joined_stop = joined.stop(INPUT_STOP_DEADLINE);
+        let after_ok = posts_by(joined);
+        let mut ended = spawn_pump("halvo-pump-ends".to_string(), |ready, _signal| {
+            ready.report(Ok(()));
+        })
+        .expect("the pump")
+        .with_post(counted_post);
+        wait_until("the body did not end", || ended.has_ended());
+        let ended_stop = ended.stop(INPUT_STOP_DEADLINE);
+        let after_thread_ended = posts_by(ended);
+        let (release, gate) = std::sync::mpsc::channel::<()>();
+        let mut stuck = spawn_pump("halvo-pump-stuck".to_string(), move |ready, _signal| {
+            ready.report(Ok(()));
+            let _ = gate.recv();
+        })
+        .expect("the pump")
+        .with_post(counted_post);
+        let stuck_stop = stuck.stop(Duration::from_millis(100));
+        let after_timeout = posts_by(stuck);
+        let _ = release.send(());
+        assert_eq!(joined_stop, Ok(()));
+        assert_eq!(ended_stop, Err(CaptureError::ThreadEnded));
+        assert!(
+            matches!(stuck_stop, Err(CaptureError::Timeout { .. })),
+            "{stuck_stop:?}"
+        );
+        assert_eq!(
+            after_ok, 0,
+            "the drop after a stop that answered Ok posted {after_ok} quit messages"
+        );
+        assert_eq!(
+            after_thread_ended, 0,
+            "the drop after a stop that answered ThreadEnded posted {after_thread_ended} quit messages"
+        );
+        assert_eq!(
+            after_timeout, 1,
+            "the drop after a stop that timed out posts its quit message once"
+        );
     }
 
     #[test]
