@@ -1,43 +1,6 @@
-use std::str::FromStr;
-
 use serde::{Deserialize, Serialize};
 
-use crate::model::{from_text, UnknownSpelling};
-
-macro_rules! one_spelling {
-    ($kind:ident, $what:literal, [$($variant:ident => $text:literal),+ $(,)?]) => {
-        impl $kind {
-            pub const fn as_str(self) -> &'static str {
-                match self {
-                    $($kind::$variant => $text),+
-                }
-            }
-        }
-
-        impl FromStr for $kind {
-            type Err = UnknownSpelling;
-
-            fn from_str(text: &str) -> Result<Self, Self::Err> {
-                [$($kind::$variant),+]
-                    .into_iter()
-                    .find(|value| value.as_str() == text)
-                    .ok_or(UnknownSpelling { what: $what })
-            }
-        }
-
-        impl Serialize for $kind {
-            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-                serializer.serialize_str(self.as_str())
-            }
-        }
-
-        impl<'de> Deserialize<'de> for $kind {
-            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                from_text(deserializer)
-            }
-        }
-    };
-}
+use crate::model::one_spelling;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Permission {
