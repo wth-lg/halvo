@@ -286,6 +286,20 @@ mod tests {
         (window, held)
     }
 
+    fn one_round_and_many<T>(
+        apart: &Apart,
+        rounds: impl Fn(u64) -> T,
+    ) -> ((Window, T), (Window, T)) {
+        black_box(rounds(1));
+        let one = allocations(apart, || rounds(1));
+        let many = allocations(apart, || rounds(CHECK_ROUNDS));
+        (one, many)
+    }
+
+    fn the_same_count(one: &Window, many: &Window) -> bool {
+        many.others == one.others
+    }
+
     fn print_windows(start: (u64, u64), windows: [(&str, &Window); 2]) {
         let end = first_thread();
         let on_first = this_thread() == FIRST_THREAD.load(Ordering::SeqCst);
@@ -367,9 +381,7 @@ mod tests {
         }
         let apart = apart_from_the_harness(start);
         let data = Data::release();
-        assert!(run(&data, 1).ok);
-        let one = allocations(&apart, || run(&data, 1));
-        let many = allocations(&apart, || run(&data, CHECK_ROUNDS));
+        let (one, many) = one_round_and_many(&apart, |rounds| run(&data, rounds));
         print_windows(start, [("rounds=1", &one.0), ("rounds=many", &many.0)]);
         assert_eq!(
             (one.1, many.1),
@@ -384,7 +396,62 @@ mod tests {
                 }
             )
         );
-        assert_eq!(many.0.others, one.0.others);
+        assert!(
+            the_same_count(&one.0, &many.0),
+            "1 round {:?}, many rounds {:?}",
+            one.0.others,
+            many.0.others
+        );
+    }
+
+    #[test]
+    fn the_measure_sees_a_round_that_allocates() {
+        let start = first_thread();
+        if !in_a_child_alone("probe::tests::the_measure_sees_a_round_that_allocates") {
+            return;
+        }
+        let apart = apart_from_the_harness(start);
+        let data = Data::release();
+        let late = |rounds: u64| rounds == CHECK_ROUNDS;
+        let measuring = one_round_and_many(&apart, |rounds| {
+            let probe = run(&data, rounds);
+            if late(rounds) {
+                black_box(Box::new(rounds));
+            }
+            probe
+        });
+        let started = one_round_and_many(&apart, |rounds| {
+            let probe = run(&data, rounds);
+            std::thread::scope(|scope| {
+                scope
+                    .spawn(|| {
+                        if late(rounds) {
+                            black_box(Box::new(rounds));
+                        }
+                    })
+                    .join()
+            })
+            .expect("the started thread ends");
+            probe
+        });
+        let sized = one_round_and_many(&apart, |rounds| {
+            black_box(Vec::<u8>::with_capacity(
+                usize::try_from(rounds).expect("a size"),
+            ));
+            run(&data, rounds)
+        });
+        for (name, (one, many)) in [
+            ("measuring", measuring),
+            ("started", started),
+            ("sized", sized),
+        ] {
+            assert!(
+                !the_same_count(&one.0, &many.0),
+                "{name}: 1 round {:?}, many rounds {:?}",
+                one.0.others,
+                many.0.others
+            );
+        }
     }
 
     #[test]
@@ -491,7 +558,21 @@ mod tests {
         let text = failed.downcast_ref::<String>().expect("a panic text");
         assert!(text.contains("left: (1, 2)"), "{text}");
         assert!(text.contains("right: (1, 3)"), "{text}");
-        assert!(text.contains("test result: FAILED. 0 passed; 1 failed"), "{text}");
+        assert!(
+            text.contains("test result: FAILED. 0 passed; 1 failed"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn a_window_is_refused_when_no_thread_called_before_the_test() {
+        let refused = std::panic::catch_unwind(|| apart_from_the_harness((0, 0)))
+            .err()
+            .expect("the guard refuses");
+        assert_eq!(
+            refused.downcast_ref::<String>().map(String::as_str),
+            Some(NO_FIRST_THREAD)
+        );
     }
 
     #[test]
