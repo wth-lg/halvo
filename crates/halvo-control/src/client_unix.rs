@@ -361,6 +361,107 @@ mod tests {
         ));
     }
 
+    const CHILD_DATA_DIR: &str = "HALVO_CONTROL_TEST_CHILD_DATA_DIR";
+
+    #[test]
+    #[ignore = "a child of the_pid_of_a_server_in_another_process_is_the_one_checked"]
+    fn serve_a_scripted_daemon_until_standard_input_closes() {
+        use std::io::Read;
+
+        let Some(dir) = std::env::var_os(CHILD_DATA_DIR) else {
+            return;
+        };
+        let dir = DataDir::from_flag(std::path::PathBuf::from(dir)).unwrap();
+        let _server =
+            ScriptedUnixServer::start(&dir, ScriptedDaemon::new(sample_status(Platform::Macos)))
+                .unwrap();
+        println!("server-ready");
+        let (closed, wait) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = std::io::stdin().read_to_end(&mut Vec::new());
+            let _ = closed.send(());
+        });
+        let _ = wait.recv_timeout(Duration::from_secs(120));
+    }
+
+    /// The server child: its standard input is closed and it is waited for, with a
+    /// bound, and killed when the bound passes, on every path out of the test.
+    struct ServerChild(Option<std::process::Child>);
+
+    impl Drop for ServerChild {
+        fn drop(&mut self) {
+            let Some(mut child) = self.0.take() else {
+                return;
+            };
+            drop(child.stdin.take());
+            let until = Instant::now() + Duration::from_secs(10);
+            while Instant::now() < until {
+                if !matches!(child.try_wait(), Ok(None)) {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            let _ = child.kill();
+            let until = Instant::now() + Duration::from_secs(10);
+            while Instant::now() < until && matches!(child.try_wait(), Ok(None)) {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+    }
+
+    #[test]
+    fn the_pid_of_a_server_in_another_process_is_the_one_checked() {
+        let (_base, dir) = short_data_dir();
+        let child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "client_unix::tests::serve_a_scripted_daemon_until_standard_input_closes",
+                "--ignored",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(CHILD_DATA_DIR, dir.path())
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let child_pid = child.id();
+        let mut child = ServerChild(Some(child));
+        let stdout = child.0.as_mut().unwrap().stdout.take().unwrap();
+        let (ready, wait) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            use std::io::BufRead;
+            for line in std::io::BufReader::new(stdout).lines() {
+                match line {
+                    Ok(line) if line.contains("server-ready") => {
+                        let _ = ready.send(true);
+                    }
+                    Ok(_) => {}
+                    Err(_) => break,
+                }
+            }
+            let _ = ready.send(false);
+        });
+        assert_eq!(
+            wait.recv_timeout(Duration::from_secs(60)),
+            Ok(true),
+            "the server child did not report its socket bound in 60 s"
+        );
+        assert_ne!(child_pid, std::process::id());
+
+        let theirs = Client::new(UnixConnector::at(dir.control_socket()).expecting_pid(child_pid));
+        assert_eq!(theirs.status().unwrap(), sample_status(Platform::Macos));
+        let mine =
+            Client::new(UnixConnector::at(dir.control_socket()).expecting_pid(std::process::id()));
+        assert!(matches!(
+            mine.status(),
+            Err(ClientError::PeerRejected(
+                PeerRejection::NotTheExpectedServer
+            ))
+        ));
+        drop(child);
+    }
+
     #[test]
     fn a_socket_directory_that_is_not_private_is_refused_before_a_connect() {
         use std::os::unix::fs::PermissionsExt;
