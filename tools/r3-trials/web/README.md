@@ -453,8 +453,14 @@ seconds later. The executor therefore starts a guard for each browser: the trial
 `--relay-guard <pid> <creation time>`, started with `posix_spawn` and close-on-exec by default
 (a handle list on Windows) with the relay's listener as its one descriptor beside its standard
 streams. It never accepts; it reads the process table every 20 ms and exits when no process of the
-browser's tree runs, the adopted ones among them and every process that a living member starts
-after the first process has ended. A table that could not be read is not an empty one: the guard
+browser's tree runs. The tree is what its reads found: the first process, the processes that
+`checks::tree_of` adds while the first process runs (the adopted ones that name the run's profile
+among them), and each process whose parent was a member that still ran at the read that found it,
+also after the first process has ended. Two limits are U2.1's to close (CP-161). A process that a
+member starts after the first process has ended and that loses its parent before the next read,
+20 ms later, is not followed, so the guard can free the port while it runs. When the guard cannot
+be started, the browser's start goes on without one and no line says so (`Relay::start_guard`
+gives nothing, and the start in `cdp.rs` goes on). A table that could not be read is not an empty one: the guard
 keeps the port and reads again every 2 ms, and when the table stays unread for 300 s it ends with
 exit 3 and the line `guard_end cause=table_unread` (`relay::guard_loop`). The executor's stop waits
 for it.
@@ -477,6 +483,13 @@ browser to itself; that is a named limit. On Windows the trial starts the browse
 and no job object, so there too the browser ends by itself when its pipe handles close, and the
 guard's rule ends only what still runs after its grace. A failed accept does not end
 the relay's accept loop (`ACCEPT_PAUSE`), so the listener stays open while the relay lives.
+
+One test (`the_guard_ends_a_real_stand_in_after_its_executor_is_killed`, macOS) drives the guard
+with the real process table and the real ask, and its end is fenced to the test's own stand-in
+browser by number and start time: any other call sends nothing and fails the test, and the test ends
+both of its stand-ins on every way out. A changed copy of the guard's loop, its member rule, the ask,
+the forced end or the fence runs by the exact names of the tests on stand-in tables alone, never
+with that test or with the whole suite (CP-161).
 
 ### The checks of a session (CP-89 (c))
 
@@ -565,7 +578,9 @@ the class. The counts themselves do not change.
   for the 0 of `RemoteDebuggingAllowed`, `direct` for `ProxyMode`), standing as the end of its word:
   pypdf gives Edge's Windows table as `Remot eDebuggingAllow e` and `dfalse Platform ...`. A longer
   name, the name inside another policy's value, another value and the text squashed to letters
-  alone name nothing. Run
+  alone name nothing. One limit stays: a wrapped line of another policy's value that begins with the
+  name and a value reads as named by the first form. No cell rests on it, because each job writes
+  its one key. Run
   43347520562's reader tested for the name as a part of the text; the fixed rule gives the same
   answers on that run's saved pages. A hosted Mac cell runs only when the page names the policy
   and shows one more `Platform` source than a read of the page before the write, else the workflow
@@ -578,11 +593,17 @@ the class. The counts themselves do not change.
   Mac the cell is a `notrun` line with `cause=no_policy_place`: Chrome on macOS takes a policy from
   the system's managed preferences, which this unit does not write here. On hosted-mac the four
   cells come from scratch run 43369346664 (CP-126, the fixed reader), all `ok=10 of=10` with each
-  page naming its setting; run 43347520562 gave the same four. On hosted-win Chrome's two cells and
-  Edge's `org_proxy` are `ok=10 of=10` with the control, the value and the page; Edge's
-  `org_debugging` page, printed with `edge://policy/` (the scratch job first printed Edge's new-tab
-  page through `chrome://policy/`), lists the setting, but pypdf joins the name's last letter to its
-  value, so that cell is `notrun cause=policy_not_seen` (runs 43368925419 and 43384012622). The runs
+  page naming its setting; run 43347520562 gave the same four. On hosted-win each of the four cells
+  is `ok=10 of=10` with the control, the value and the page: Chrome's `org_proxy` from run
+  43368925419, Chrome's `org_debugging` from run 43384012622, and Edge's `org_debugging` and
+  `org_proxy` from run 43389541875. Edge's `org_debugging` did not hold before that run. Run
+  43368925419 gave Edge `chrome://policy/` first, which printed Edge's new-tab page, so the page did
+  not name the setting (`page_named=no`, and the cell `ok=0 of=10`). Run 43384012622 printed
+  `edge://policy/`, which lists the setting, but pypdf gives its name as `Remot eDebuggingAllow e`
+  with the last letter joined to the value on the next line (`dfalse ...`), which neither of the
+  first two forms reads, so the cell was `notrun cause=policy_not_seen`. The reader's third form
+  (CP-145 (6)) names that page, and run 43389541875 ran Edge's two `org_` cells alone: both
+  controls replied, the key read back 0 and `direct`, and both pages named their settings. The runs
   before 43347520562 lost cells to the
   harness: in 43339621990 the workflow's own 300 s limit stopped Chrome's `org_debugging` at 9 of 9
   ok runs (ten runs of the 30 s first-reply deadline take about 303 s), the stopped call's fixture

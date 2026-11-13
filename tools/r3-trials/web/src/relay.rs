@@ -93,10 +93,14 @@ pub const GUARD_FLAG: &str = "--relay-guard";
 /// listener closes, also when the executor's process is killed): run as `--relay-guard PID US`
 /// in a process that holds the relay's listener and nothing else of the executor's process, it
 /// reads the process table until no process of the tree of the browser PID with creation time US
-/// runs, the processes that the stop reports as adopted among them and every process that a living
-/// member of the tree starts after the first process has ended, and returns; the system then
-/// closes its copy of the listener. While the executor lives it holds the listener too, and only
-/// the executor accepts.
+/// runs, and returns; the system then closes its copy of the listener. The tree is what its reads
+/// found: the first process, the processes that `checks::tree_of` adds while the first process runs
+/// (the adopted ones that name the run's profile among them), and each process whose parent was a
+/// member that still ran at the read that found it. A process that a member starts after the first
+/// process has ended and that loses its parent before the next read, 20 ms later, is not followed,
+/// so the guard can free the port while it runs; and when the guard cannot be started, the
+/// browser's start goes on without one and no line says so. Both limits are U2.1's to close
+/// (CP-161). While the executor lives it holds the listener too, and only the executor accepts.
 pub fn guard_main(argv: &[String]) -> i32 {
     let num = |i: usize| argv.get(i).and_then(|v| v.parse::<u64>().ok());
     let (Some(pid), Some(started_us), Some(epid), Some(estart)) = (num(0), num(1), num(2), num(3))

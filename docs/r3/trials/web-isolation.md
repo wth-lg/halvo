@@ -547,8 +547,10 @@ debugging channel and read as text, naming the setting (`r3_web::policy`): a who
 pieces, or letters from a line's start ended by the value that the job wrote (CP-145 (6)).
 
 The verdict line reads `product=yes relay=yes`. Run 43407107710's call of hosted-mac Edge's
-`start_probe` was cut short at its third run, whose start gave no reply within 30 s; the cell was
-run once more (run 43416830488, `ok=10 of=10`), whose lines replace it (A13.7, CP-158).
+`start_probe` was cut short at its third run, whose start gave no reply within 30 s; the failed
+start's own end found one Edge process left and ended it (`left_found n=1 programs=Microsoft_Edge`).
+The cell was run once more (run 43416830488, `ok=10 of=10`), whose lines replace it (A13.7,
+CP-158).
 
 CP-93's open facts. (1) On Windows the policy key grants `Authenticated Users` `ReadKey`. On macOS
 the property list is root:wheel with mode -rw-r--r--, and the page named the policy when the job's
@@ -566,12 +568,8 @@ hosted machine=hosted-win run=43374121394 sha=873749da0de0b0d1880702d13968a7f5ce
 hosted machine=hosted-win run=43384012622 sha=d684140639bb245bb34c4b6558dcf88fafcf1727 steps=chrome:org_debugging
 hosted machine=hosted-win run=43389541875 sha=7b8bc2d9ab71c84752a7a1228a856dad11a8ba45 steps=edge:org_debugging,edge:org_proxy
 hosted machine=hosted-win run=43398919479 sha=73a865b4f5aa22882763a47211c1f8f65c9d5753 steps=relay_port_free
-check machine=mac browser=chrome form=pipe_relay step=relay_foreign ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=relay_foreign ok=10 of=10 median_ms=16 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=pipe_inherit ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 cell candidate=cdp machine=mac browser=chrome major=153 step=pipe_inherit ok=10 of=10 median_ms=10 relay=pipe_relay
-check machine=mac browser=chrome form=pipe_relay step=relay_foreign ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
-cell candidate=cdp machine=mac browser=chrome major=153 step=relay_foreign ok=10 of=10 median_ms=26 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=start_probe ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 cell candidate=cdp machine=mac browser=chrome major=153 step=start_probe ok=10 of=10 median_ms=213 relay=pipe_relay
 check machine=mac browser=chrome form=pipe_relay step=same_site_pref ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
@@ -664,7 +662,6 @@ run candidate=cdp machine=mac browser=chrome step=relay_port_free i=8 result=ok 
 run candidate=cdp machine=mac browser=chrome step=relay_port_free i=9 result=ok cause=- watched=yes gone_ms=5104 free_ms=6110 max_gap_ms=171 version=Chrome/153.0.8010.48 left=no left_before=0 left_after=0 ended_by=guard ended_ms=5081
 run candidate=cdp machine=mac browser=chrome step=relay_port_free i=10 result=ok cause=- watched=yes gone_ms=5103 free_ms=6147 max_gap_ms=241 version=Chrome/153.0.8010.48 left=no left_before=0 left_after=0 ended_by=guard ended_ms=5085
 cell candidate=cdp machine=mac browser=chrome major=153 step=relay_port_free ok=10 of=10 median_ms=5108 relay=pipe_relay
-check machine=hosted-mac browser=chrome form=pipe_relay step=frame_doc ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 way row=frame_doc form=pipe_relay machine=hosted-mac browser=chrome closed=yes runs=10 told=10
 check machine=hosted-mac browser=chrome form=port_relay step=frame_doc ok=0 of=10 port_flag=90 tcp_listen=20 udp_wide=0 active_port_file=20 executor_listener=0 pipe_holder=0
 way row=frame_doc form=port_relay machine=hosted-mac browser=chrome closed=yes runs=10 told=10
@@ -680,7 +677,6 @@ cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=driver_kille
 control candidate=cdp machine=hosted-mac browser=chrome step=driver_killed_port_relay let_through=yes browser_after=alive connections=1 bytes=458 seen=yes
 kill machine=hosted-mac form=port_relay kills=20 arrived=0
 cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=driver_killed_port_relay ok=20 of=20 median_ms=0 relay=port_relay
-check machine=hosted-mac browser=edge form=pipe_relay step=frame_doc ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
 way row=frame_doc form=pipe_relay machine=hosted-mac browser=edge closed=yes runs=10 told=10
 check machine=hosted-mac browser=edge form=port_relay step=frame_doc ok=0 of=10 port_flag=73 tcp_listen=20 udp_wide=0 active_port_file=20 executor_listener=0 pipe_holder=0
 way row=frame_doc form=port_relay machine=hosted-mac browser=edge closed=yes runs=10 told=10
@@ -1054,8 +1050,10 @@ same_site pref=yes rule=yes start_writes_setting=yes
 verdict executor=cdp version=0.9.1 form=pipe product=yes relay=yes library=protocol_types
 ```
 
-Which code each set of lines ran at (CP-126 E8 (b)). The final code is that of 39165925: the
-commits after it change the README, CHANGELOG.md and this file alone. Each difference below is
+Which code each set of lines ran at (CP-126 E8 (b)). The final code that the runs measured is that
+of 39165925: the commits after it change the trial's tests and doc comments, its README,
+CHANGELOG.md and this file alone; each line of the trial's src and tests that they change is inside
+a test module or a doc comment (CP-161). Each difference below is
 between the code of the set and that code. CP-145 changed the row `relay_port_free` (its watch and
 its decision), the check (classes of the counted processes, four keys, `table_unread` and the naming
 line), the page reader (its third form) and the guard (an unread table); CP-148 lets the guard end
@@ -1063,8 +1061,8 @@ the run when its executor is gone.
 
 | set | code | differences | can a result rest on a difference |
 |---|---|---|---|
-| `mac`: `relay_foreign` (first call), `round3`, the nine rows | 5ad984ae (95d33beb and 269bac38 change tests alone) | the kill rows' end after the watch; the `org_` page rule and its third form; the row; the check's classes and keys; an unread table; the guard's rule (it acts only when its executor is gone); tests | no: none of these is a kill row or an `org_` cell, and each of their check lines counts 0 in `port_flag` and `pipe_holder`, so no class could change it |
-| `mac`: `isolation`, `relay`, `reach`, `ways`, the four `driver_killed_*` forms, `relay_foreign` again | bed6b1aa | the page rule and its third form; the row; the check's classes and keys; an unread table; the guard's rule (it acts only when its executor is gone); tests | no, for the same reasons; the four kill forms are not the row |
+| `mac`: `round3` but its `relay_foreign` step, the nine rows | 5ad984ae (95d33beb and 269bac38 change tests alone) | the kill rows' end after the watch; the `org_` page rule and its third form; the row; the check's classes and keys; an unread table; the guard's rule (it acts only when its executor is gone); tests | no: none of these is a kill row or an `org_` cell, and each of their check lines counts 0 in `port_flag` and `pipe_holder`, so no class could change it |
+| `mac`: `isolation`, `relay`, `reach`, `ways`, the four `driver_killed_*` forms, `relay_foreign` (its third call; the two earlier calls at 5ad984ae stand in the text below the table) | bed6b1aa | the page rule and its third form; the row; the check's classes and keys; an unread table; the guard's rule (it acts only when its executor is gone); tests | no, for the same reasons; the four kill forms are not the row |
 | `mac`: `relay_port_free` | 39165925 (the call at the guard's fix) | none | none |
 | hosted-win: every line but the kill rows and three `org_` cells | c49bd8ef (run 43368925419) | `procs=`; the kill rows' end; the page rule; the row; the check's classes and keys; an unread table; the guard's rule (it acts only when its executor is gone); tests | no: each check line counts 0 in the two rules, and Chrome's `org_proxy` page named its setting by the first form |
 | hosted-win: the four `driver_killed_*` forms | bed6b1aa (run 43374121394) | the page rule; the row; the check's classes; an unread table; the guard's rule (it acts only when its executor is gone); tests | no: the four forms are not the row |
@@ -1073,13 +1071,14 @@ the run when its executor is gone.
 | hosted-win: Edge's `org_debugging` and `org_proxy` | 2dc61025 (run 43389541875) | the row; the check's classes; an unread table; the guard's rule (it acts only when its executor is gone); tests | no: no check reads in an `org_` cell |
 | hosted-mac: every pipe-form cell and `relay_port_free` but Edge's `start_probe` | 39165925 (run 43407107710) | none | none |
 | hosted-mac: Edge's `start_probe` | 42f1526a (run 43416830488, the cell alone) | none: 42f1526a changes this file alone | none |
-| hosted-mac: the four `driver_killed_*` forms, frame_doc on the port, the four `org_` cells | 5ad984ae (run 43369346664) | the kill rows' end; the page rule's third form; the row; the check's classes and keys; an unread table; the guard; tests | no for the `org_` cells (each page named its setting) and the port-form control; the kill rows rest on the job's scan at its end, ruled before |
+| hosted-mac: the four `driver_killed_*` forms, frame_doc on the port, the two `way` lines of frame_doc on the pipe (run 43407107710 printed the same bytes), the four `org_` cells | 5ad984ae (run 43369346664) | the kill rows' end; the page rule's third form; the row; the check's classes and keys; an unread table; the guard; tests | no for the `org_` cells (each page named its setting) and the port-form control; the kill rows rest on the job's scan at its end, ruled before |
 | the hosted rows of runs 43313951706 and 43381911741, the `org_` cells of run 43347520562 | e72f0835, 590a306d, 037b242c | earlier code | no line of the block comes from them |
 
 The guard's rule of CP-148 acts in the relay forms of `driver_killed` too (`driver_killed_pipe_relay`,
-`driver_killed_port_relay`): after the driver's kill it ends what still runs after 3 s. It can only
-shorten the time in which a byte could reach the listener, so the kept lines of those forms (0 bytes
-in every kill) stand; no run of this round measured them again.
+`driver_killed_port_relay`): after the driver's kill it ends what still runs after 3 s. In those
+forms the relay runs in the executor's process and dies with it, so no tunnel can carry a byte after
+the kill, and the guard's rule then ends what still runs. The kept lines of those forms (0 bytes in
+every kill) stand either way; no run of this round measured them again.
 
 The 45 `cell` lines of web-executor.md are of run 43103175522: the first round's executor on the
 library's port connection. No run of this round measured them again.
@@ -1135,6 +1134,29 @@ cell of Chrome and Edge on the hosted Mac under the new check (each counted proc
 by a `check_named` line): 1,776 reads, 592 of them after a start, and none counted a process in
 `port_flag` or `pipe_holder`, so no `check_named` line was printed and the cell's line is replaced
 (E9, I4). The single read of run 43369346664 was not seen again.
+
+Lines that a later call replaced in the block (A13.7, CP-145 (5) and (9), CP-158, CP-161 F4). The
+block holds one call's lines for a cell, the newest call's; these six stand here. `mac`, Chrome,
+`relay_foreign`: the cell's lines in the block are those of its third call, at bed6b1aa
+(cp126/mac/relay_foreign.2.txt, 05:56:18Z, load 90.19 to 72.20). Its two earlier calls, ten runs
+each, at 5ad984ae: the showing for CP-126 E1 (cp126/mac/relay_foreign.txt, 05:18:41Z, load 85.43
+to 108.14) and the step inside the set `round3` (cp126/mac/round3.txt, 05:27:25Z, load 85.03 to
+74.26), in that order:
+
+- `check machine=mac browser=chrome form=pipe_relay step=relay_foreign ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0`
+- `cell candidate=cdp machine=mac browser=chrome major=153 step=relay_foreign ok=10 of=10 median_ms=16 relay=pipe_relay`
+- `check machine=mac browser=chrome form=pipe_relay step=relay_foreign ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0`
+- `cell candidate=cdp machine=mac browser=chrome major=153 step=relay_foreign ok=10 of=10 median_ms=26 relay=pipe_relay`
+
+hosted-mac, `frame_doc` on the pipe: the cell's check lines in the block are those of run
+43407107710. The two check lines of run 43369346664, Chrome's and then Edge's, were made under the
+earlier check, without the keys of CP-145 (2), and count 0 in every rule:
+
+- `check machine=hosted-mac browser=chrome form=pipe_relay step=frame_doc ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0`
+- `check machine=hosted-mac browser=edge form=pipe_relay step=frame_doc ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0`
+
+The two `way` lines of `frame_doc` on the pipe stand in the block at the place of run 43369346664;
+run 43407107710 printed the same bytes for both browsers.
 
 hosted-win Edge's `org_debugging` (CP-145 (6)). The page reader has a third form: the name's letters
 from the start of a line with only white space or line breaks between them, ended by the value that
