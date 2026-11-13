@@ -19,7 +19,8 @@
     '.hn-button:focus,.hn-radio:focus,.hn-typed:focus{outline-width:3px;outline-style:solid;outline-color:#0b57d0;outline-offset:2px}',
     '.hn-dialog{border-width:2px;border-style:solid;border-color:#1a1a1a;padding:16px;max-width:28rem;background-color:#ffffff;color:#1a1a1a}',
     '.hn-dialog:focus{outline-width:3px;outline-style:solid;outline-color:#0b57d0;outline-offset:2px}',
-    '.hn-dialog::backdrop{background-color:rgba(0,0,0,0.4)}'
+    '.hn-dialog::backdrop{background-color:rgba(0,0,0,0.4)}',
+    '.hn-say{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border-width:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}'
   ];
 
   let root = null;
@@ -463,7 +464,7 @@
       if (shown) return;
       shown = true;
       if (!region) {
-        region = el('div', null, '');
+        region = el('div', 'hn-say', '');
         region.setAttribute('role', 'status');
         region.setAttribute('aria-live', 'polite');
         root.insertBefore(region, list);
