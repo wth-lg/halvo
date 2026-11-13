@@ -102,7 +102,8 @@ pub enum LockError {
     },
     /// This system has no model lock: it is neither macOS nor Windows.
     Unsupported,
-    /// A call on the lock file or its directory failed.
+    /// A call on the lock file or its directory failed, or the lock path opened and is no
+    /// regular file, which gives the call `open`.
     Io {
         call: &'static str,
         path: PathBuf,
@@ -144,12 +145,16 @@ const ACCOUNT_CALL: &str = "getpwuid_r";
 
 #[cfg(target_os = "macos")]
 fn account_dir() -> Result<Option<OsString>, LockError> {
+    account_dir_of(unsafe { libc::geteuid() }, 1024)
+}
+
+#[cfg(target_os = "macos")]
+fn account_dir_of(uid: libc::uid_t, first_len: usize) -> Result<Option<OsString>, LockError> {
     use std::ffi::CStr;
     use std::os::unix::ffi::OsStringExt;
 
     const MAX_BUFFER: usize = 1 << 20;
-    let uid = unsafe { libc::geteuid() };
-    let mut buf = vec![0u8; 1024];
+    let mut buf = vec![0u8; first_len];
     loop {
         let mut pwd: libc::passwd = unsafe { std::mem::zeroed() };
         let mut found: *mut libc::passwd = std::ptr::null_mut();
@@ -405,7 +410,17 @@ fn take_lock_at(path: PathBuf) -> Result<ModelLock, LockError> {
         path: path.clone(),
         source,
     })?;
-    match file.try_lock() {
+    let answer = file.try_lock();
+    lock_answer(answer, file, path)
+}
+
+#[cfg(any(target_os = "macos", windows))]
+fn lock_answer(
+    answer: Result<(), TryLockError>,
+    file: File,
+    path: PathBuf,
+) -> Result<ModelLock, LockError> {
+    match answer {
         Ok(()) => Ok(ModelLock { _file: file, path }),
         Err(TryLockError::WouldBlock) => Err(LockError::Held(path)),
         Err(TryLockError::Error(source)) => Err(LockError::Io {
@@ -447,6 +462,24 @@ mod tests {
         let take = || take_lock_from(Ok(Some(dir.clone().into_os_string())));
         let mut out = io::stdout();
         let code = match role.as_str() {
+            #[cfg(target_os = "macos")]
+            "lookup-uid" => {
+                let uid: libc::uid_t = arg("halvo-uid").and_then(|u| u.parse().ok()).unwrap();
+                match account_dir_of(uid, 1024) {
+                    Ok(None) => {
+                        writeln!(out, "none").unwrap();
+                        0
+                    }
+                    Ok(Some(_)) => {
+                        writeln!(out, "some").unwrap();
+                        7
+                    }
+                    Err(e) => {
+                        writeln!(out, "error {e}").unwrap();
+                        4
+                    }
+                }
+            }
             "take-relative" | "take-empty" => {
                 let base = if role == "take-relative" {
                     "relative-home"
@@ -751,7 +784,7 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn a_child_of_the_holder_cannot_release_the_lock() {
+    fn a_child_that_the_holder_starts_inherits_no_descriptor_of_the_lock_and_cannot_unlock_it() {
         let dir = fresh_dir("unlock");
         let _holder = start_holder_as("hold-and-start-unlocker", &dir);
         let (code, line) = loader_line("try", &dir);
@@ -905,6 +938,43 @@ mod tests {
         }
     }
 
+    #[cfg(windows)]
+    struct OwnDeny(PathBuf, String);
+
+    #[cfg(windows)]
+    impl OwnDeny {
+        fn make(dir: &Path) -> Self {
+            let who = Command::new("whoami").output().unwrap();
+            let account = String::from_utf8(who.stdout).unwrap().trim().to_string();
+            assert!(
+                who.status.success() && !account.is_empty(),
+                "whoami gave no account"
+            );
+            let made = OwnDeny(dir.to_path_buf(), account);
+            let status = Command::new("icacls")
+                .arg(dir)
+                .args(["/deny", &format!("{}:(AD,GW)", made.1)])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .unwrap();
+            assert!(status.success(), "icacls exited {status}");
+            made
+        }
+    }
+
+    #[cfg(windows)]
+    impl Drop for OwnDeny {
+        fn drop(&mut self) {
+            let _ = Command::new("icacls")
+                .arg(&self.0)
+                .args(["/remove:d", &self.1])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+    }
+
     #[test]
     fn an_existing_lock_file_that_cannot_be_written_is_taken_and_held() {
         let dir = fresh_dir("read-only");
@@ -930,10 +1000,20 @@ mod tests {
             File::create(base.join("probe")).is_err(),
             "the test could not make the directory unwritable"
         );
-        if std::fs::create_dir(base.join("probe-dir")).is_ok() {
+        #[cfg_attr(not(windows), allow(unused_mut))]
+        let mut made = std::fs::create_dir(base.join("probe-dir")).is_ok();
+        #[cfg(windows)]
+        let _own_deny = if made {
+            let own = OwnDeny::make(&base);
+            made = std::fs::create_dir(base.join("probe-dir-own")).is_ok();
+            Some(own)
+        } else {
+            None
+        };
+        if made {
             let _ = writeln!(
                 io::stderr(),
-                "model-lock unwritable base: not tried here, because this system let the test make a directory in a directory that it may not write; the lock directory below is tried"
+                "model-lock unwritable base: not tried here, because this system let the test make a directory in a directory whose ACL denies it, under the deny entry for Everyone (WD,AD) and under the deny entry for the process's own account (AD,GW) on the directory itself; the lock directory below is tried"
             );
         } else {
             match take_lock_from(Ok(Some(base.clone().into_os_string()))) {
@@ -943,7 +1023,16 @@ mod tests {
                 }) => {}
                 other => panic!("a base that cannot be written: {other:?}"),
             }
-            assert_eq!(std::fs::read_dir(&base).unwrap().count(), 0);
+            let first = lock_path_in(&base)
+                .strip_prefix(&base)
+                .unwrap()
+                .components()
+                .next()
+                .unwrap()
+                .as_os_str()
+                .to_os_string();
+            assert!(!base.join(first).exists(), "the take made a directory");
+            let _ = writeln!(io::stderr(), "model-lock unwritable base: tried");
         }
 
         let dir = fresh_dir("unwritable-dir");
@@ -1030,6 +1119,115 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&lock).unwrap(),
             "made by another loader\n"
+        );
+    }
+
+    #[test]
+    fn each_answer_of_the_lock_call_gives_its_own_result_and_an_error_is_never_held() {
+        let dir = fresh_dir("answers");
+        let path = dir.join("model.lock");
+        std::fs::write(&path, "").unwrap();
+        let open = || File::open(&path).unwrap();
+        match lock_answer(
+            Err(TryLockError::Error(io::Error::other("refused"))),
+            open(),
+            path.clone(),
+        ) {
+            Err(LockError::Io {
+                call: "try_lock",
+                path: at,
+                ..
+            }) => assert_eq!(at, path),
+            other => panic!("an error of the lock call: {other:?}"),
+        }
+        match lock_answer(Err(TryLockError::WouldBlock), open(), path.clone()) {
+            Err(LockError::Held(at)) => assert_eq!(at, path),
+            other => panic!("a lock call that would block: {other:?}"),
+        }
+        match lock_answer(Ok(()), open(), path.clone()) {
+            Ok(lock) => assert_eq!(lock.path(), path),
+            other => panic!("a lock call that took the lock: {other:?}"),
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_lookup_of_a_user_id_with_no_account_gives_none_while_home_names_a_directory() {
+        let uid = [
+            4_000_000_001u32,
+            3_999_999_999,
+            2_147_483_000,
+            987_654_321,
+            77_777,
+        ]
+        .into_iter()
+        .find(|uid| {
+            !Command::new("/usr/bin/id")
+                .arg(uid.to_string())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .unwrap()
+                .success()
+        })
+        .expect("every user id of the list has an account");
+        let dir = fresh_dir("no-account");
+        let output = loader_command("lookup-uid", &dir)
+            .arg(format!("halvo-uid={uid}"))
+            .env("HOME", &dir)
+            .output()
+            .unwrap();
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert!(dir.is_dir());
+        assert_eq!(output.status.code(), Some(0), "user id {uid}: {text}");
+        assert!(text.lines().any(|l| l == "none"), "user id {uid}: {text}");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_lookup_with_a_first_buffer_of_8_bytes_grows_it_and_gives_the_same_directory() {
+        let uid = unsafe { libc::geteuid() };
+        let plain = account_dir_of(uid, 1024).unwrap();
+        assert!(plain.is_some(), "the lookup gave no directory");
+        let small = account_dir_of(uid, 8).unwrap();
+        assert!(
+            small == plain,
+            "the lookup with a first buffer of 8 bytes gave another answer"
+        );
+    }
+
+    #[test]
+    fn a_file_in_the_way_of_the_lock_directory_gives_io_and_no_lock() {
+        let base = fresh_dir("file-in-the-way");
+        let lock = lock_path_in(&base);
+        let in_the_way = lock.parent().unwrap().to_path_buf();
+        std::fs::create_dir_all(in_the_way.parent().unwrap()).unwrap();
+        std::fs::write(&in_the_way, "in the way\n").unwrap();
+        match create_lock_file(&lock) {
+            Err(LockError::Io {
+                call: "create_dir_all",
+                ..
+            }) => {}
+            other => panic!("a file where the lock directory would be made: {other:?}"),
+        }
+        match take_lock_from(Ok(Some(base.clone().into_os_string()))) {
+            Err(LockError::Io { call, .. }) if call == "open" || call == "create_dir_all" => {
+                let _ = writeln!(
+                    io::stderr(),
+                    "model-lock file in the way: the take answered Io with the call {call}"
+                );
+            }
+            other => panic!("a take with a file in the way: {other:?}"),
+        }
+        assert_eq!(
+            std::fs::read_to_string(&in_the_way).unwrap(),
+            "in the way\n"
+        );
+        assert_eq!(
+            std::fs::read_dir(in_the_way.parent().unwrap())
+                .unwrap()
+                .count(),
+            1
         );
     }
 
