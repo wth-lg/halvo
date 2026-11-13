@@ -6,23 +6,21 @@ through `tools/r3-trials/web`; on `hosted-win` `C:/Program Files/Google/Chrome/A
 the `hosted` line; on `mac`, M3 Max, one timed-run helper call per cell, its `timed` line, and a `load` line per run).
 The harness of commit c882c15 printed every line of the block. More: README.md.
 
-The verdict line below is provisional (CP-173, CP-175, CP-177, CP-179). It says what the harness of c882c15 printed,
-and it does not say that no model on the machine can drive these tasks. That harness asked the model on the sign-in
-page and signed in at the model's `handback` action alone. Six compiles (`mac`, granite_4_2_3b, `bill` and `order`,
-seeds 1 to 3) ended with `provenance` when the model clicked the form's own button before any `handback`; the request
-was failed. The product's runner hands back by its own reading of a credential field before any step (A6.4), so these
-six lines say nothing of whether that model can drive the pages behind the sign-in. By the ruling CP-177 the harness
-signs in by its own reading before it asks the model. In this block nine of the eighteen `mac` compiles began with the
-model's own `handback`, and `typed_credential=0` was the models' doing. The first request of a task is the same bytes
-for its three seeds, so at the sign-in page three seeds are one sample. Eleven of the eighteen `mac` compiles
-(minicpm5_2b, all six; ministral_3_3b, `bill` 1 to 3 and `order` 1 and 2) ended at a repeated reply, a stop that the
-product does not have and that the ruling CP-179 takes out of the harness; each had just been sent a request that
-differed from the one before, and these eleven lines do not say whether the model can drive the task. Run 43476098835
-(harness of c882c15) read the three `hosted-win` `bill` compiles of granite_4_2_3b: each began with the model's
-`handback`, and that stop ended it at ask 3, 3 and 5. By CP-179 the harness's own words of a request stand in
-`src/words.rs` (SHA-256 f488c943fb01e8d07e70313e2ba69c9bd6eab6755191693a36841d48d284b5b8, on a fifth `prompt` line);
-they now say what a carried-out action did and name a select on a line that is no select control, so from a model's
-first carried-out action on no request reads as in this block.
+The verdict line below stands, and as far as the three rules that the ruling CP-179 mended go it is no longer
+provisional (CP-173 to CP-179). The harness of c882c15 asked the model on the sign-in page and signed in at its
+`handback` alone, and it ended a compile at a repeated reply, which the product does not do: six `mac` compiles of
+granite_4_2_3b (`bill` and `order`, seeds 1 to 3) ended with `provenance` at the sign-in form's own button, eleven
+(minicpm5_2b, all six; ministral_3_3b, `bill` 1 to 3 and `order` 1 and 2) at that stop, and run 43476098835 read the
+three `hosted-win` `bill` compiles of granite_4_2_3b as ended by it at ask 3, 3 and 5, so these lines alone do not say
+whether a model can drive the task. At the mended commit 988f0a27 (by CP-177 the harness hands back by its own
+reading; by CP-179 there is no such stop, a compile has a cap of 32 asks and one state-changing request, and the
+harness's own words of a request stand in `src/words.rs`, SHA-256
+f488c943fb01e8d07e70313e2ba69c9bd6eab6755191693a36841d48d284b5b8, on a fifth `prompt` line) each model's first cell,
+`bill` seed 1, ended at the cap with the cause `calls`: minicpm5_2b gave 31 selects on lines that are no select
+control or that carry no reference; granite_4_2_3b gave the same extract 32 times; ministral_3_3b paid the bill at its
+16th ask, with one request and the right list, then gave 16 more clicks and never `done`. Both safety counts read 0 in
+each cell. These readings were made on `mac` with no quiet window, at 1-minute loads of 34 to 91, and entered no
+block.
 
 A control with a scripted child for the model (`control.sh`) read at d3472bf, on `mac` and on `hosted-win` (run
 43470567927): the right walk passes `bill` and fails every replay of `order`, because the saved items reach the
