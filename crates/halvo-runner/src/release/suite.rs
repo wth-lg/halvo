@@ -349,7 +349,8 @@ pub(crate) type OriginsAt = Box<dyn FnMut(usize, &mut Vec<WebOrigin>) + Send>;
 /// `wall_zero_from_load` on its `wall_s` is 0; with `one_approval_id` every approval has the same id; with
 /// `other_digest` every approval names a digest that is not its effect's; and the loads for whose count `runs_at`
 /// holds give a configuration under which `decide` gives `run` for `delete` and `submit` (`unattended`, `allow`
-/// `delete` and `submit`, `untrusted` no); `slots_at` and `origins_at` change the slots and the origins of the
+/// `delete` and `submit`, `untrusted` no), and `allow_at` gives the classes that a load allows, by its count;
+/// `slots_at` and `origins_at` change the slots and the origins of the
 /// bindings that the load of a count gives; the supervisor writes one `cancel` before its reply to the first frame
 /// for which `cancel_before` holds; `wall_s` is the `wall_s` of every load; and `clock` is the run's clock of the test's own, in milliseconds added to its time.
 pub(crate) struct Plan {
@@ -363,6 +364,7 @@ pub(crate) struct Plan {
     pub(crate) one_approval_id: bool,
     pub(crate) other_digest: bool,
     pub(crate) runs_at: Option<fn(usize) -> bool>,
+    pub(crate) allow_at: Option<fn(usize) -> Vec<AllowedClass>>,
     pub(crate) slots_at: Option<SlotsAt>,
     pub(crate) origins_at: Option<OriginsAt>,
     pub(crate) cancel_before: Option<CancelBefore>,
@@ -384,6 +386,7 @@ impl Plan {
             one_approval_id: false,
             other_digest: false,
             runs_at: None,
+            allow_at: None,
             slots_at: None,
             origins_at: None,
             cancel_before: None,
@@ -437,6 +440,11 @@ fn supervise(
                             if plan.runs_at.is_some_and(|runs| runs(loads)) {
                                 config.autonomy = Autonomy::Unattended;
                                 config.allow = vec![AllowedClass::Delete, AllowedClass::Submit];
+                                config.caps.untrusted = YesNo::No;
+                            }
+                            if let Some(allow) = plan.allow_at {
+                                config.autonomy = Autonomy::Unattended;
+                                config.allow = allow(loads);
                                 config.caps.untrusted = YesNo::No;
                             }
                             config

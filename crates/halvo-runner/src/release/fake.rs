@@ -4,7 +4,9 @@
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use halvo_schema::executable::names::{Answer, FieldName, HandbackReason, LogEvent, Source};
+use halvo_schema::executable::names::{
+    AllowedClass, Answer, FieldName, HandbackReason, LogEvent, Source,
+};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::OwnValue;
 use halvo_schema::executable::{
@@ -29,6 +31,7 @@ struct Fake {
     renew_fails: Option<Cause>,
     slots_seen: Arc<Mutex<Vec<Vec<String>>>>,
     fixed: Option<Bound>,
+    fixed_reads: Vec<Bound>,
 }
 
 struct Answers;
@@ -41,7 +44,7 @@ impl Left for Answers {
 
 impl Paused for Fake {
     fn class(&self) -> ActionClass {
-        if let Some(fixed) = &self.fixed {
+        if let Some(fixed) = self.fixed.as_ref().or(self.fixed_reads.first()) {
             return fixed.class();
         }
         if self.submit {
@@ -54,6 +57,12 @@ impl Paused for Fake {
     fn bound(&mut self, slots: &[Slot]) -> Result<Bound, Cause> {
         if let Some(fixed) = &self.fixed {
             return Ok(fixed.clone());
+        }
+        if !self.fixed_reads.is_empty() {
+            let read = self.fixed_reads[self.at.min(self.fixed_reads.len() - 1)].clone();
+            self.at += 1;
+            self.last = Some(read.clone());
+            return Ok(read);
         }
         self.slots_seen
             .lock()
@@ -86,7 +95,7 @@ impl Paused for Fake {
     }
 
     fn facts(&self) -> MakerFacts {
-        if self.submit || self.fixed.is_some() {
+        if self.submit || self.fixed.is_some() || !self.fixed_reads.is_empty() {
             return MakerFacts {
                 request_origin: Some(form_origin()),
                 ..MakerFacts::default()
@@ -1225,4 +1234,92 @@ fn a_cancel_with_the_load_before_the_begin_is_read_before_the_begin() {
     );
     assert!(record.handbacks().is_empty(), "no effect is releasing");
     assert_eq!(record.done(), Some(Outcome::Declined));
+}
+
+/// CP-166 E3 (the verifier's changes 7 and 57): a `delete` and a `submit`, both `cleared`, turn to `confirm` one class
+/// at a time. The delete's turn is the first time (the batch of both); the submit's value change is the second;
+/// the submit's own turn would be a third, so every open effect of the step is ended and the run ends `failed`
+/// with `changed`, after five effects in all and one request let through.
+#[test]
+fn a_further_time_after_a_batch_ends_every_open_effect_changed() {
+    let released = Arc::new(AtomicU32::new(0));
+    let requests: Vec<Box<dyn Paused>> = vec![
+        Box::new(Fake {
+            reads: vec![delete("d", Source::Extract)],
+            released: Arc::clone(&released),
+            ..Fake::default()
+        }),
+        Box::new(Fake {
+            fixed_reads: vec![submit("a"), submit("a"), submit("b")],
+            released: Arc::clone(&released),
+            ..Fake::default()
+        }),
+    ];
+    let plan = Plan {
+        allow_at: Some(|load| match load {
+            1 => vec![AllowedClass::Delete, AllowedClass::Submit],
+            2..=4 => vec![AllowedClass::Submit],
+            _ => Vec::new(),
+        }),
+        ..Plan::plain()
+    };
+    let record = run_many_path(
+        Category::CalendarCleanup,
+        (vec![form_origin()], Vec::new()),
+        requests,
+        plan,
+    );
+    let effects = record.effects();
+    let ids: std::collections::BTreeSet<_> = effects.iter().map(|e| e.effect.clone()).collect();
+    assert_eq!(
+        ids.len(),
+        5,
+        "the first two, the batch of two, and one new submit: {:?}",
+        record.states()
+    );
+    assert_eq!(
+        released.load(Ordering::SeqCst),
+        1,
+        "the allowed delete leaves"
+    );
+    assert_eq!(record.done(), Some(Outcome::Failed));
+    assert_eq!(
+        stopped(&record),
+        Some((LogEvent::Stopped, Some(Cause::Changed)))
+    );
+    let last = effects.last().expect("a row");
+    assert_eq!(
+        (last.state, last.cause),
+        (EffectState::Rejected, Some(Cause::Ended))
+    );
+}
+
+/// CP-166 E3 (the verifier's change 10): a `cleared` effect whose value changes at every read is proposed again
+/// twice and then ended, and the run ends `failed` with `changed`; nothing leaves.
+#[test]
+fn a_cleared_effect_whose_value_changes_at_every_read_ends_changed_after_two_times() {
+    let reads = ["a", "b", "c", "d", "e"]
+        .map(|id| delete(id, Source::Extract))
+        .to_vec();
+    let plan = Plan {
+        runs_at: Some(|_| true),
+        ..Plan::plain()
+    };
+    let (record, released) = run(reads, plan);
+    assert_eq!(released, 0);
+    assert_eq!(
+        record.states(),
+        [
+            EffectState::Cleared,
+            EffectState::Rejected,
+            EffectState::Cleared,
+            EffectState::Rejected,
+            EffectState::Cleared,
+            EffectState::Rejected
+        ]
+    );
+    assert_eq!(
+        stopped(&record),
+        Some((LogEvent::Stopped, Some(Cause::Changed)))
+    );
 }
