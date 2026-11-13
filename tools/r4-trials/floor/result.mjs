@@ -15,11 +15,14 @@ const CELL = new RegExp(`^cell trial=floor machine=(hosted-mac|hosted-win|guest-
 const READING = /^reading trial=floor machine=mac fact=[a-z0-9_]{1,32} value=\S+ date=[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 const VERDICT = /^verdict floor=(guest|rule-only) oldest_run=\S+ missing=0$/;
 
-/** A cell line as `{ machine, system, webkit, features, missing, names, aria }`, or `null`. */
+/** A cell line as `{ machine, system, webkit, features, missing, names, aria }`, or `null`,
+ * also where `missing` is not the count of `missing_names` (0 with `-`). */
 export function parseCell(line) {
   const m = CELL.exec(line);
   if (!m) return null;
-  return { machine: m[1], system: m[2], webkit: m[3], features: Number(m[4]), missing: Number(m[5]), names: m[6], aria: m[7] };
+  const missing = Number(m[5]);
+  if (missing !== (m[6] === '-' ? 0 : m[6].split(',').length)) return null;
+  return { machine: m[1], system: m[2], webkit: m[3], features: Number(m[4]), missing, names: m[6], aria: m[7] };
 }
 
 /** The verdict line by the rule of I11.4, or `null` where the rule does not hold: every allow
@@ -28,7 +31,7 @@ export function parseCell(line) {
 export function verdictOf(cells, features) {
   const allow = features.filter((f) => f.kind === 'allow');
   if (cells.length === 0 || allow.some((f) => compareVersions(f.version, '17.0') > 0)) return null;
-  if (cells.some((c) => c.missing !== 0 || c.names !== '-' || c.features !== allow.length)) return null;
+  if (cells.some((c) => c.missing !== 0 || c.features !== allow.length)) return null;
   const mac = cells.filter((c) => c.machine !== 'hosted-win').map((c) => c.system);
   if (mac.length === 0) return null;
   const oldest = mac.reduce((a, b) => (compareVersions(b, a) < 0 ? b : a));
@@ -60,6 +63,9 @@ export function checkResult(text, readings, features) {
     }
     if (kind === 'figure') problems.push(`line ${i + 1}: the floor trial has no figure line`);
   });
+  for (const machine of ['hosted-mac', 'hosted-win']) {
+    if (!cells.some((c) => c.machine === machine)) problems.push(`the file holds no cell of ${machine}`);
+  }
   const got = lines.filter((l) => l.startsWith('reading '));
   if (got.join('\n') !== readings.join('\n')) problems.push('the reading lines are not the lines that read.sh prints');
   const last = lines[lines.length - 1] ?? '';
@@ -70,21 +76,29 @@ export function checkResult(text, readings, features) {
   return problems;
 }
 
+function refuse(detail) {
+  process.stderr.write(`REFUSED usage: ${detail}\n`);
+  return 2;
+}
+
 function main(argv) {
+  const usage = 'node tools/r4-trials/floor/result.mjs check [--file FILE] [--list FILE]';
   const options = { file: RESULT, list: LIST };
-  if (argv[0] !== 'check') {
-    process.stderr.write('REFUSED usage: node tools/r4-trials/floor/result.mjs check [--file FILE] [--list FILE]\n');
-    return 2;
-  }
+  if (argv[0] !== 'check') return refuse(usage);
   for (let i = 1; i < argv.length; i += 2) {
     if ((argv[i] === '--file' || argv[i] === '--list') && argv[i + 1]) options[argv[i].slice(2)] = argv[i + 1];
-    else {
-      process.stderr.write('REFUSED usage: node tools/r4-trials/floor/result.mjs check [--file FILE] [--list FILE]\n');
-      return 2;
+    else return refuse(usage);
+  }
+  const texts = {};
+  for (const key of ['file', 'list']) {
+    try {
+      texts[key] = fs.readFileSync(options[key], 'utf8');
+    } catch {
+      return refuse(`the ${key} ${path.basename(options[key])} cannot be read`);
     }
   }
   const readings = execFileSync('sh', [path.join(HERE, 'read.sh')], { encoding: 'utf8' }).split('\n').filter((l) => l !== '');
-  const problems = checkResult(fs.readFileSync(options.file, 'utf8'), readings, parseList(fs.readFileSync(options.list, 'utf8')).features);
+  const problems = checkResult(texts.file, readings, parseList(texts.list).features);
   for (const p of problems) process.stdout.write(`miss ${p}\n`);
   process.stdout.write(`result problems=${problems.length}\n`);
   return problems.length === 0 ? 0 : 1;
