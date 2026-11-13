@@ -25,14 +25,14 @@ pub(crate) enum FocusRead {
         protected: bool,
         firefox: bool,
     },
-    /// The provider gave the property's default, so it did not answer.
-    NoAnswer { protected: bool },
-    /// No element could be read.
+    NoAnswer {
+        protected: bool,
+    },
     Unreadable,
 }
 
-pub(crate) fn state_of(read: FocusRead, same_password_element: bool) -> FieldState {
-    if same_password_element {
+pub(crate) fn state_of(read: FocusRead, still_the_last_password_element: bool) -> FieldState {
+    if still_the_last_password_element {
         return FieldState::Password;
     }
     match read {
@@ -53,18 +53,28 @@ pub(crate) fn state_of(read: FocusRead, same_password_element: bool) -> FieldSta
 
 pub const KEY_HOLD: Duration = Duration::from_millis(120);
 
+/// The largest delay from a key to its focus event that spike S3 measured.
+pub const S3_LARGEST_KEY_TO_FOCUS_EVENT: Duration = Duration::from_micros(75_300);
+
+const _: () = assert!(KEY_HOLD.as_micros() > S3_LARGEST_KEY_TO_FOCUS_EVENT.as_micros());
+
+/// Where a latch comes from: the input thread, in order with the keys, or
+/// another thread, whose mark may reach the gate after later keys.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LatchFrom {
+    TheInputThread,
+    AnotherThread,
+}
+
 pub const LATCH_SETTLE: Duration = Duration::from_millis(100);
 
 const MARKS_KEPT: usize = 256;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mark {
-    /// A read of the focused field that a focus event gave.
     Field(FieldState),
     Read(FieldState),
-    Latch {
-        ordered: bool,
-    },
+    Latch(LatchFrom),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -112,18 +122,18 @@ fn judge(marks: &VecDeque<Entry>, key: &HeldKey, now: u32) -> Judgment {
     let not_after_key = |tick: u32| key.tick.wrapping_sub(tick) <= i32::MAX as u32;
     let opens = |entry: &&Entry| {
         entry.seq < key.seen
-            || matches!(entry.mark, Mark::Latch { ordered: false }) && not_after_key(entry.tick)
+            || entry.mark == Mark::Latch(LatchFrom::AnotherThread) && not_after_key(entry.tick)
     };
     let opening = marks.iter().filter(opens).max_by_key(|entry| entry.seq);
     let (mut state, from) = match opening.map(|entry| (entry.seq, entry.mark)) {
         None => (FieldState::Unknown, key.seen),
         Some((_, Mark::Field(state) | Mark::Read(state))) => (state, key.seen),
-        Some((latch, Mark::Latch { .. })) => {
+        Some((latch, Mark::Latch(_))) => {
             let mut seen: Option<FieldState> = None;
             let mut decided = None;
             for entry in marks.iter().filter(|entry| entry.seq > latch) {
                 match entry.mark {
-                    Mark::Latch { .. } => {
+                    Mark::Latch(_) => {
                         return Judgment::Decided(SecureInputReading::Unknown);
                     }
                     Mark::Field(state) => {
@@ -144,9 +154,9 @@ fn judge(marks: &VecDeque<Entry>, key: &HeldKey, now: u32) -> Judgment {
     };
     for entry in marks.iter().filter(|entry| entry.seq >= from) {
         match entry.mark {
-            Mark::Latch { ordered: true } => break,
-            Mark::Latch { ordered: false } if !not_after_key(entry.tick) => break,
-            Mark::Latch { ordered: false } => {}
+            Mark::Latch(LatchFrom::TheInputThread) => break,
+            Mark::Latch(LatchFrom::AnotherThread) if !not_after_key(entry.tick) => break,
+            Mark::Latch(LatchFrom::AnotherThread) => {}
             Mark::Field(later) | Mark::Read(later) => state = most_restrictive(state, later),
         }
     }
@@ -222,11 +232,21 @@ impl Shared {
         marks.settle_due = None;
     }
 
-    fn latch(&self, tick: u32, ordered: bool) {
+    fn latch(&self, tick: u32, from: LatchFrom) {
         let mut marks = self.lock();
-        marks.push_at(tick, Mark::Latch { ordered });
+        marks.push_at(tick, Mark::Latch(from));
         marks.settle_due = Some(tick.wrapping_add(ms(LATCH_SETTLE)));
     }
+
+    fn desktop_switched(&self, tick: u32) {
+        self.field(FieldState::Unknown);
+        self.latch(tick, LatchFrom::AnotherThread);
+    }
+}
+
+/// The state of a focus read that ended in an error.
+pub(crate) fn unreadable_state() -> FieldState {
+    state_of(FocusRead::Unreadable, false)
 }
 
 /// The gate of the Windows keyboard source and its password-field detector.
@@ -235,6 +255,8 @@ pub struct PasswordGate {
     shared: Arc<Shared>,
     #[cfg(target_os = "windows")]
     detector: Mutex<Option<detector::Running>>,
+    #[cfg(target_os = "windows")]
+    removals: detector::Removals,
 }
 
 impl PasswordGate {
@@ -251,13 +273,16 @@ impl PasswordGate {
         }
     }
 
-    #[cfg(test)]
-    fn click(&self, tick: u32) {
-        self.shared.latch(tick, false);
+    pub(crate) fn latch_after(&self, tick: u32) {
+        self.latch_from(tick, LatchFrom::AnotherThread);
     }
 
     pub(crate) fn latch(&self, tick: u32) {
-        self.shared.latch(tick, true);
+        self.latch_from(tick, LatchFrom::TheInputThread);
+    }
+
+    fn latch_from(&self, tick: u32, from: LatchFrom) {
+        self.shared.latch(tick, from);
         #[cfg(target_os = "windows")]
         if let Some(detector) = self
             .detector
@@ -292,24 +317,20 @@ impl PasswordGate {
             .rev()
             .find_map(|entry| match entry.mark {
                 Mark::Field(state) | Mark::Read(state) => Some(state),
-                Mark::Latch { .. } => None,
+                Mark::Latch(_) => None,
             })
             .unwrap_or(FieldState::Unknown)
     }
 
     #[cfg(test)]
-    fn field(&self, state: FieldState) {
+    pub(crate) fn field(&self, state: FieldState) {
         self.shared.field(state);
     }
 
     #[cfg(test)]
-    fn read(&self, state: FieldState) {
+    pub(crate) fn read(&self, state: FieldState) {
         self.shared.read(state);
     }
-}
-
-pub(crate) fn moves_focus(vkey: u16) -> bool {
-    matches!(vkey, 0x09 | 0x0D | 0x1B | 0x5B | 0x5C)
 }
 
 #[cfg(target_os = "windows")]
@@ -323,9 +344,7 @@ mod detector {
     use std::sync::atomic::{AtomicU32, Ordering};
 
     use windows::core::{Interface, GUID, HRESULT};
-    use windows::Win32::Foundation::{
-        E_NOINTERFACE, E_POINTER, HANDLE, HINSTANCE, HWND, LPARAM, LRESULT, S_OK, WPARAM,
-    };
+    use windows::Win32::Foundation::{E_NOINTERFACE, E_POINTER, HANDLE, HWND, S_OK};
     use windows::Win32::System::Com::{
         CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
         COINIT_MULTITHREADED,
@@ -339,12 +358,10 @@ mod detector {
         HWINEVENTHOOK,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        CallNextHookEx, DispatchMessageW, GetClassNameW, GetForegroundWindow, GetGUIThreadInfo,
-        GetWindowLongW, GetWindowThreadProcessId, MsgWaitForMultipleObjectsEx, PeekMessageW,
-        SetWindowsHookExW, TranslateMessage, UnhookWindowsHookEx, ES_PASSWORD,
-        EVENT_SYSTEM_DESKTOPSWITCH, GUITHREADINFO, GWL_STYLE, HHOOK, MSG, MSLLHOOKSTRUCT,
-        MWMO_INPUTAVAILABLE, PM_REMOVE, QS_ALLINPUT, STATE_SYSTEM_PROTECTED, WH_MOUSE_LL,
-        WINEVENT_OUTOFCONTEXT, WM_LBUTTONDOWN, WM_MBUTTONDOWN, WM_RBUTTONDOWN, WM_XBUTTONDOWN,
+        DispatchMessageW, GetClassNameW, GetForegroundWindow, GetGUIThreadInfo, GetWindowLongW,
+        GetWindowThreadProcessId, MsgWaitForMultipleObjectsEx, PeekMessageW, TranslateMessage,
+        ES_PASSWORD, EVENT_SYSTEM_DESKTOPSWITCH, GUITHREADINFO, GWL_STYLE, MSG,
+        MWMO_INPUTAVAILABLE, PM_REMOVE, QS_ALLINPUT, STATE_SYSTEM_PROTECTED, WINEVENT_OUTOFCONTEXT,
     };
 
     use super::{FieldState, FocusRead, PasswordGate, Shared};
@@ -403,6 +420,47 @@ mod detector {
         }
     }
 
+    pub(super) type HandlerRemover =
+        fn(&IUIAutomation, &IUIAutomationFocusChangedEventHandler) -> windows::core::Result<()>;
+
+    pub(super) type DesktopHookRemover = fn(HWINEVENTHOOK) -> windows::core::Result<()>;
+
+    /// The detector's two removal calls, which its stop answers.
+    #[derive(Clone, Copy)]
+    pub(super) struct Removals {
+        pub(super) handler: HandlerRemover,
+        pub(super) desktop_hook: DesktopHookRemover,
+    }
+
+    fn remove_handler(
+        automation: &IUIAutomation,
+        handler: &IUIAutomationFocusChangedEventHandler,
+    ) -> windows::core::Result<()> {
+        // SAFETY: the handler is the one that `start` added on the calling
+        // thread, and both objects are live for the call.
+        unsafe { automation.RemoveFocusChangedEventHandler(handler) }
+    }
+
+    fn unhook_desktop(hook: HWINEVENTHOOK) -> windows::core::Result<()> {
+        // SAFETY: `hook` is the hook that the calling thread installed.
+        unsafe { UnhookWinEvent(hook) }.ok()
+    }
+
+    impl Default for Removals {
+        fn default() -> Self {
+            Removals {
+                handler: remove_handler,
+                desktop_hook: unhook_desktop,
+            }
+        }
+    }
+
+    impl std::fmt::Debug for Removals {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("Removals(..)")
+        }
+    }
+
     #[derive(Debug)]
     pub(super) struct Running {
         wake: Arc<Event>,
@@ -422,6 +480,13 @@ mod detector {
     }
 
     impl PasswordGate {
+        #[cfg(test)]
+        pub(super) fn with_removals(removals: Removals) -> PasswordGate {
+            let mut gate = PasswordGate::default();
+            gate.removals = removals;
+            gate
+        }
+
         pub(crate) fn attach(&self) -> Result<(), CaptureError> {
             let mut detector = self
                 .detector
@@ -439,9 +504,10 @@ mod detector {
             let (ready, started) = std::sync::mpsc::channel();
             let shared = Arc::clone(&self.shared);
             let thread_wake = Arc::clone(&wake);
+            let removals = self.removals;
             let join = std::thread::Builder::new()
                 .name("halvo-password-detector".to_string())
-                .spawn(move || run(&shared, &thread_wake, ready))
+                .spawn(move || run(&shared, &thread_wake, removals, ready))
                 .map_err(|e| CaptureError::Os {
                     stage: "spawn the password detector thread",
                     domain: "io",
@@ -546,6 +612,10 @@ mod detector {
         }
     }
 
+    /// The argument that makes a property that no provider answers read as
+    /// no answer, not as the property's default value.
+    const DEFAULT_IS_NO_ANSWER: bool = true;
+
     fn is_firefox(pid: i32) -> bool {
         u32::try_from(pid)
             .ok()
@@ -563,14 +633,17 @@ mod detector {
             // properties that the cache request names.
             let is_password = unsafe {
                 element
-                    .GetCachedPropertyValueEx(UIA_IsPasswordPropertyId, true)
+                    .GetCachedPropertyValueEx(UIA_IsPasswordPropertyId, DEFAULT_IS_NO_ANSWER)
                     .ok()
                     .and_then(|mut value| variant_bool(&mut value))
             };
             // SAFETY: as above.
             let protected = unsafe {
                 element
-                    .GetCachedPropertyValueEx(UIA_LegacyIAccessibleStatePropertyId, true)
+                    .GetCachedPropertyValueEx(
+                        UIA_LegacyIAccessibleStatePropertyId,
+                        DEFAULT_IS_NO_ANSWER,
+                    )
                     .ok()
                     .and_then(|mut value| variant_i32(&mut value))
             }
@@ -589,7 +662,7 @@ mod detector {
 
         fn state(&self, element: Option<&IUIAutomationElement>) -> FieldState {
             let Some(element) = element else {
-                return super::state_of(FocusRead::Unreadable, false);
+                return super::unreadable_state();
             };
             let mut last = self
                 .last_password
@@ -701,29 +774,8 @@ mod detector {
     }
 
     thread_local! {
-        static LATCHED: std::cell::RefCell<Option<Arc<Shared>>> =
+        static DESKTOP_GATE: std::cell::RefCell<Option<Arc<Shared>>> =
             const { std::cell::RefCell::new(None) };
-    }
-
-    unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        if code >= 0 {
-            let message = u32::try_from(wparam.0).unwrap_or(0);
-            if matches!(
-                message,
-                WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_XBUTTONDOWN
-            ) {
-                // SAFETY: for WH_MOUSE_LL with a code of 0 or more the system
-                // passes a live MSLLHOOKSTRUCT in `lparam`.
-                let time = unsafe { (*(lparam.0 as *const MSLLHOOKSTRUCT)).time };
-                LATCHED.with(|cell| {
-                    if let Some(shared) = cell.borrow().as_ref() {
-                        shared.latch(time, false);
-                    }
-                });
-            }
-        }
-        // SAFETY: the arguments are the ones that the system passed.
-        unsafe { CallNextHookEx(None, code, wparam, lparam) }
     }
 
     unsafe extern "system" fn desktop_proc(
@@ -735,10 +787,9 @@ mod detector {
         _thread: u32,
         time: u32,
     ) {
-        LATCHED.with(|cell| {
+        DESKTOP_GATE.with(|cell| {
             if let Some(shared) = cell.borrow().as_ref() {
-                shared.field(FieldState::Unknown);
-                shared.latch(time, false);
+                shared.desktop_switched(time);
             }
         });
     }
@@ -801,15 +852,10 @@ mod detector {
         Ok((reader, handler))
     }
 
-    fn module() -> Option<HINSTANCE> {
-        use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-        // SAFETY: GetModuleHandleW with no name reads this process's module.
-        unsafe { GetModuleHandleW(None) }.ok().map(Into::into)
-    }
-
     fn run(
         shared: &Arc<Shared>,
         wake: &Event,
+        removals: Removals,
         ready: std::sync::mpsc::Sender<Result<(), CaptureError>>,
     ) -> Result<(), CaptureError> {
         // SAFETY: CoInitializeEx joins this new thread to the process's MTA.
@@ -826,10 +872,7 @@ mod detector {
                 return Ok(());
             }
         };
-        LATCHED.with(|cell| *cell.borrow_mut() = Some(Arc::clone(shared)));
-        // SAFETY: the hook procedure has the HOOKPROC signature.
-        let mouse: Option<HHOOK> =
-            unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_proc), module(), 0) }.ok();
+        DESKTOP_GATE.with(|cell| *cell.borrow_mut() = Some(Arc::clone(shared)));
         // SAFETY: an out-of-context hook with no module and a callback with the
         // WINEVENTPROC signature, served by this thread's pump.
         let desktop = unsafe {
@@ -885,21 +928,13 @@ mod detector {
                 }
             }
         }
-        LATCHED.with(|cell| *cell.borrow_mut() = None);
+        DESKTOP_GATE.with(|cell| *cell.borrow_mut() = None);
         let mut removed = Ok(());
-        // SAFETY: the handler is the one that `start` added on this thread.
-        if let Err(error) = unsafe { reader.automation.RemoveFocusChangedEventHandler(&handler) } {
+        if let Err(error) = (removals.handler)(&reader.automation, &handler) {
             removed = removed.and(Err(os("RemoveFocusChangedEventHandler", &error)));
         }
-        if let Some(mouse) = mouse {
-            // SAFETY: `mouse` is the hook installed above.
-            if let Err(error) = unsafe { UnhookWindowsHookEx(mouse) } {
-                removed = removed.and(Err(os("UnhookWindowsHookEx", &error)));
-            }
-        }
         if !desktop.is_invalid() {
-            // SAFETY: `desktop` is the hook that this thread installed above.
-            if let Err(error) = unsafe { UnhookWinEvent(desktop) }.ok() {
+            if let Err(error) = (removals.desktop_hook)(desktop) {
                 removed = removed.and(Err(os("UnhookWinEvent", &error)));
             }
         }
@@ -935,6 +970,114 @@ mod detector {
         // SAFETY: GetWindowLongW reads a style value of a window handle.
         let style = unsafe { GetWindowLongW(focus, GWL_STYLE) };
         style as u32 & ES_PASSWORD as u32 != 0
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::{HeldKey, Judgment, Mark};
+        use super::*;
+        use crate::secure_input::SecureInputReading;
+        use std::time::Duration;
+
+        fn refused() -> windows::core::Error {
+            windows::core::Error::from_hresult(
+                windows::Win32::Foundation::ERROR_INVALID_HANDLE.to_hresult(),
+            )
+        }
+
+        fn handler_refused(
+            _automation: &IUIAutomation,
+            _handler: &IUIAutomationFocusChangedEventHandler,
+        ) -> windows::core::Result<()> {
+            Err(refused())
+        }
+
+        fn desktop_refused(_hook: HWINEVENTHOOK) -> windows::core::Result<()> {
+            Err(refused())
+        }
+
+        fn handler_slow(
+            automation: &IUIAutomation,
+            handler: &IUIAutomationFocusChangedEventHandler,
+        ) -> windows::core::Result<()> {
+            std::thread::sleep(Duration::from_millis(1_500));
+            remove_handler(automation, handler)
+        }
+
+        fn refused_at(stage: &'static str) -> CaptureError {
+            os(stage, &refused())
+        }
+
+        #[test]
+        fn after_attach_the_gate_reads_unknown_until_the_detectors_first_read() {
+            let gate = PasswordGate::new();
+            let before = HeldKey {
+                tick: 1,
+                seen: 0,
+                password_edit: false,
+            };
+            gate.attach().expect("the detector starts");
+            let first = gate.shared.lock().entries.front().map(|entry| entry.mark);
+            let judged = super::super::judge(&gate.shared.lock().entries, &before, 1_000);
+            let detached = gate.detach(crate::windows::INPUT_STOP_DEADLINE);
+            assert!(matches!(first, Some(Mark::Read(_))), "{first:?}");
+            assert_eq!(judged, Judgment::Decided(SecureInputReading::Unknown));
+            assert_eq!(detached, Ok(()));
+        }
+
+        #[test]
+        fn detach_ends_the_detectors_thread_and_a_new_attach_starts_one() {
+            let gate = PasswordGate::new();
+            gate.attach().expect("the detector starts");
+            let first = gate.detach(crate::windows::INPUT_STOP_DEADLINE);
+            let running = gate
+                .detector
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_some();
+            gate.attach().expect("the detector starts again");
+            let second = gate.detach(crate::windows::INPUT_STOP_DEADLINE);
+            assert_eq!(first, Ok(()));
+            assert!(!running, "a detached gate still holds its detector");
+            assert_eq!(second, Ok(()));
+        }
+
+        #[test]
+        fn detach_answers_the_first_of_its_removal_calls_that_failed() {
+            let both = PasswordGate::with_removals(Removals {
+                handler: handler_refused,
+                desktop_hook: desktop_refused,
+            });
+            both.attach().expect("the detector starts");
+            let both = both.detach(crate::windows::INPUT_STOP_DEADLINE);
+            let hook = PasswordGate::with_removals(Removals {
+                desktop_hook: desktop_refused,
+                ..Removals::default()
+            });
+            hook.attach().expect("the detector starts");
+            let hook = hook.detach(crate::windows::INPUT_STOP_DEADLINE);
+            assert_eq!(both, Err(refused_at("RemoveFocusChangedEventHandler")));
+            assert_eq!(hook, Err(refused_at("UnhookWinEvent")));
+        }
+
+        #[test]
+        fn detach_answers_timeout_when_the_detector_does_not_end_in_time() {
+            let gate = PasswordGate::with_removals(Removals {
+                handler: handler_slow,
+                ..Removals::default()
+            });
+            gate.attach().expect("the detector starts");
+            let deadline = Duration::from_millis(200);
+            let stopped = gate.detach(deadline);
+            assert_eq!(
+                stopped,
+                Err(CaptureError::Timeout {
+                    stage: "stop the password detector",
+                    ms: 200,
+                })
+            );
+            std::thread::sleep(Duration::from_millis(1_800));
+        }
     }
 }
 
@@ -1036,7 +1179,7 @@ mod tests {
     }
 
     #[test]
-    fn a_key_after_a_latch_waits_for_the_next_field_mark() {
+    fn a_key_after_a_latch_waits_for_the_detectors_own_read() {
         let gate = PasswordGate::new();
         gate.field(FieldState::Clear);
         let tab = gate.hold(2_000, false);
@@ -1086,7 +1229,7 @@ mod tests {
         let gate = PasswordGate::new();
         gate.field(FieldState::Clear);
         let key = gate.hold(1_000, false);
-        gate.click(990);
+        gate.latch_after(990);
         assert_eq!(reading(&gate, &key, 1_200), None);
         gate.read(FieldState::Password);
         assert_eq!(reading(&gate, &key, 1_200), Some(Err(Withheld::Active)));
@@ -1118,7 +1261,7 @@ mod tests {
         let gate = PasswordGate::new();
         gate.field(FieldState::Clear);
         let key = gate.hold(5, false);
-        gate.click(u32::MAX - 5);
+        gate.latch_after(u32::MAX - 5);
         gate.field(FieldState::Password);
         assert!(!cleared(&gate, &key, 200));
     }
@@ -1128,7 +1271,7 @@ mod tests {
         let gate = PasswordGate::new();
         gate.field(FieldState::Clear);
         let key = gate.hold(1_000, false);
-        gate.click(1_030);
+        gate.latch_after(1_030);
         gate.field(FieldState::Password);
         assert!(cleared(&gate, &key, 1_200));
     }
@@ -1145,12 +1288,27 @@ mod tests {
     }
 
     #[test]
-    fn keys_tab_enter_escape_and_the_windows_keys_move_the_focus() {
-        for vkey in [0x09, 0x0D, 0x1B, 0x5B, 0x5C] {
-            assert!(moves_focus(vkey), "{vkey:#x}");
-        }
-        for vkey in [0x41, 0x20, 0x10, 0x11, 0x12, 0x25, 0x7E] {
-            assert!(!moves_focus(vkey), "{vkey:#x}");
-        }
+    fn a_desktop_switch_reads_unknown_and_closes_the_gate() {
+        let gate = PasswordGate::new();
+        gate.read(FieldState::Clear);
+        let before = gate.hold(1_000, false);
+        gate.shared.desktop_switched(1_010);
+        let after = gate.hold(1_020, false);
+        assert_eq!(reading(&gate, &before, 1_200), Some(Err(Withheld::Unknown)));
+        assert_eq!(reading(&gate, &after, 1_200), None);
+        assert_eq!(gate.field_now(), FieldState::Unknown);
+        gate.read(FieldState::Clear);
+        assert_eq!(reading(&gate, &after, 1_200), Some(Ok(())));
+    }
+
+    #[test]
+    fn a_read_that_ends_in_an_error_reads_unknown() {
+        assert_eq!(unreadable_state(), FieldState::Unknown);
+    }
+
+    #[test]
+    fn key_hold_is_above_the_largest_delay_that_s3_measured() {
+        assert!(KEY_HOLD > S3_LARGEST_KEY_TO_FOCUS_EVENT);
+        assert_eq!(S3_LARGEST_KEY_TO_FOCUS_EVENT, Duration::from_micros(75_300));
     }
 }

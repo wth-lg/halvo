@@ -10,7 +10,7 @@ use crate::source::{
 };
 
 use super::{Lifecycle, Observed, Packet, Producer, PumpReady};
-use crate::secure_input::windows::{moves_focus, HeldKey, PasswordGate};
+use crate::secure_input::windows::{HeldKey, PasswordGate};
 use crate::secure_input::{KeystrokeClearance, Withheld};
 
 /// Which device a source listens to; also its modality.
@@ -86,10 +86,133 @@ impl Default for KeyState {
 
 pub(crate) const NO_KEY: u16 = 0xFF;
 
-const CHORD_KEYS: [u16; 8] = [0x11, 0xA2, 0xA3, 0x12, 0xA4, 0xA5, 0x5B, 0x5C];
+const CHORD_KEYS: [u16; 8] = [
+    VK_CONTROL.0,
+    VK_LCONTROL.0,
+    VK_RCONTROL.0,
+    VK_MENU.0,
+    VK_LMENU.0,
+    VK_RMENU.0,
+    VK_LWIN.0,
+    VK_RWIN.0,
+];
+
+const FOCUS_KEYS: [u16; 5] = [VK_TAB.0, VK_RETURN.0, VK_ESCAPE.0, VK_LWIN.0, VK_RWIN.0];
+
+pub(crate) fn moves_focus(vkey: u16) -> bool {
+    FOCUS_KEYS.contains(&vkey)
+}
+
+const BUTTON_DOWN_FLAGS: u16 = (RI_MOUSE_LEFT_BUTTON_DOWN
+    | RI_MOUSE_RIGHT_BUTTON_DOWN
+    | RI_MOUSE_MIDDLE_BUTTON_DOWN
+    | RI_MOUSE_BUTTON_4_DOWN
+    | RI_MOUSE_BUTTON_5_DOWN) as u16;
+
+pub(crate) fn button_went_down(button_flags: u16) -> bool {
+    button_flags & BUTTON_DOWN_FLAGS != 0
+}
+
+/// The button flags of a raw mouse record, the one field of it that the
+/// keyboard source reads.
+pub(crate) fn button_flags_of(bytes: &[u8]) -> Option<u16> {
+    let header = core::mem::size_of::<RAWINPUTHEADER>();
+    let kind = u32::from_ne_bytes(bytes.get(..4)?.try_into().ok()?);
+    if kind != RIM_TYPEMOUSE.0 || bytes.len() < header + core::mem::size_of::<RAWMOUSE>() {
+        return None;
+    }
+    let at = header + core::mem::offset_of!(RAWMOUSE, Anonymous);
+    Some(u16::from_ne_bytes(bytes.get(at..at + 2)?.try_into().ok()?))
+}
+
+/// The gate that a raw button-down closes while a keyboard source runs, and
+/// which source's window holds the process's one raw mouse registration.
+struct ClickRoute {
+    gate: Option<Arc<PasswordGate>>,
+    keyboard_window: Option<usize>,
+    owner: Option<RawDevice>,
+}
+
+static CLICKS: Mutex<ClickRoute> = Mutex::new(ClickRoute {
+    gate: None,
+    keyboard_window: None,
+    owner: None,
+});
+
+fn clicks() -> std::sync::MutexGuard<'static, ClickRoute> {
+    CLICKS.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+const WM_TAKE_MOUSE: u32 = WM_APP + 1;
+
+fn mouse_registration(hwnd: HWND) -> RAWINPUTDEVICE {
+    RAWINPUTDEVICE {
+        usUsagePage: HID_USAGE_PAGE_GENERIC,
+        usUsage: RawDevice::Pointer.hid_usage(),
+        dwFlags: RIDEV_INPUTSINK,
+        hwndTarget: hwnd,
+    }
+}
+
+fn keyboard_takes_mouse(hwnd: HWND, register: RegisterCall) -> windows::core::Result<()> {
+    let mut route = clicks();
+    if route.owner.is_some() {
+        return Ok(());
+    }
+    register(&mouse_registration(hwnd))?;
+    route.owner = Some(RawDevice::Keyboard);
+    Ok(())
+}
+
+fn keyboard_lets_mouse_go(remove: RemoveCall) -> windows::core::Result<()> {
+    let mut route = clicks();
+    route.gate = None;
+    route.keyboard_window = None;
+    if route.owner != Some(RawDevice::Keyboard) {
+        return Ok(());
+    }
+    route.owner = None;
+    remove(&removal_of(RawDevice::Pointer))
+}
+
+fn pointer_lets_mouse_go() {
+    let mut route = clicks();
+    route.owner = None;
+    if let Some(window) = route.keyboard_window {
+        // SAFETY: PostMessageW takes a window handle and plain values; a
+        // window that is gone makes the call fail and changes nothing.
+        unsafe {
+            let _ = PostMessageW(
+                Some(HWND(window as *mut core::ffi::c_void)),
+                WM_TAKE_MOUSE,
+                WPARAM(0),
+                LPARAM(0),
+            );
+        }
+    }
+}
+
+fn click_from_the_pointer_pump(button_flags: u16, tick: u32) {
+    if !button_went_down(button_flags) {
+        return;
+    }
+    if let Some(gate) = clicks().gate.as_ref() {
+        gate.latch_after(tick);
+    }
+}
+
+/// Closes `gate` at `tick` when `bytes` is a raw mouse record whose button
+/// flags say that a button went down; reads nothing else of the record.
+pub(crate) fn latch_on_button_down(gate: &PasswordGate, bytes: &[u8], tick: u32) -> bool {
+    let down = button_flags_of(bytes).is_some_and(button_went_down);
+    if down {
+        gate.latch(tick);
+    }
+    down
+}
 
 fn is_modifier(vkey: u16) -> bool {
-    matches!(vkey, 0x10..=0x12 | 0xA0..=0xA5 | 0x5B | 0x5C)
+    matches!(vkey, 0x10..=0x12 | 0xA0..=0xA5) || vkey == VK_LWIN.0 || vkey == VK_RWIN.0
 }
 
 pub(crate) fn class_of(vkey: u16) -> KeyClass {
@@ -131,15 +254,11 @@ pub(crate) fn map_keystroke(state: &mut KeyState, key: KeyStroke) -> Option<KeyC
 
 pub(crate) fn keystroke_packet(
     clearance: KeystrokeClearance,
+    key: KeyStroke,
     foreground_app: Option<String>,
     tick: u32,
 ) -> Packet {
-    Packet::keystroke(
-        clearance,
-        foreground_app,
-        core::mem::size_of::<u16>() as u64,
-        tick,
-    )
+    Packet::keystroke(clearance, foreground_app, key.payload_len(), tick)
 }
 
 pub(crate) fn pointer_packet(
@@ -165,6 +284,11 @@ enum RawInputPacket {
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 #[cfg(target_os = "windows")]
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    VK_CONTROL, VK_ESCAPE, VK_LCONTROL, VK_LMENU, VK_LWIN, VK_MENU, VK_RCONTROL, VK_RETURN,
+    VK_RMENU, VK_RWIN, VK_TAB,
+};
+#[cfg(target_os = "windows")]
 use windows::Win32::UI::Input::{
     GetRawInputData, RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER,
     RAWKEYBOARD, RAWMOUSE, RIDEV_INPUTSINK, RIDEV_REMOVE, RID_INPUT, RIM_TYPEKEYBOARD,
@@ -172,9 +296,10 @@ use windows::Win32::UI::Input::{
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, GetMessageTime, PostQuitMessage,
-    RegisterClassW, HWND_MESSAGE, RI_KEY_BREAK, WINDOW_EX_STYLE, WINDOW_STYLE, WM_DESTROY,
-    WM_INPUT, WNDCLASSW,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, GetMessageTime, PostMessageW, PostQuitMessage,
+    RegisterClassW, HWND_MESSAGE, RI_KEY_BREAK, RI_MOUSE_BUTTON_4_DOWN, RI_MOUSE_BUTTON_5_DOWN,
+    RI_MOUSE_LEFT_BUTTON_DOWN, RI_MOUSE_MIDDLE_BUTTON_DOWN, RI_MOUSE_RIGHT_BUTTON_DOWN,
+    WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_DESTROY, WM_INPUT, WNDCLASSW,
 };
 
 #[cfg(target_os = "windows")]
@@ -191,7 +316,7 @@ struct InputState {
 
 struct GateState {
     gate: Arc<PasswordGate>,
-    held: VecDeque<(HeldKey, Option<String>)>,
+    held: VecDeque<(HeldKey, KeyStroke, Option<String>)>,
     counts: Arc<GateCounts>,
 }
 
@@ -205,17 +330,19 @@ const GATE_POLL_MS: u32 = 15;
 
 fn release_held(gate: &mut GateState, producer: &Producer, at_stop: bool) {
     let now = super::now_tick();
-    while let Some((key, _)) = gate.held.front() {
+    while let Some((key, _, _)) = gate.held.front() {
         let answer = gate.gate.clearance(key, now);
         if answer.is_none() && !at_stop {
             break;
         }
-        let Some((key, app)) = gate.held.pop_front() else {
+        let Some((key, stroke, app)) = gate.held.pop_front() else {
             break;
         };
         match answer {
             None => producer.lose(1),
-            Some(Ok(clearance)) => producer.push(keystroke_packet(clearance, app, key.tick())),
+            Some(Ok(clearance)) => {
+                producer.push(keystroke_packet(clearance, stroke, app, key.tick()));
+            }
             Some(Err(Withheld::Late)) => {
                 gate.counts.late.fetch_add(1, Ordering::Relaxed);
             }
@@ -279,7 +406,7 @@ struct StartCalls {
     module: fn() -> windows::core::Result<HINSTANCE>,
     register_class: fn(&WNDCLASSW) -> u16,
     create_window: fn(RawDevice, HINSTANCE) -> windows::core::Result<HWND>,
-    register_device: fn(&RAWINPUTDEVICE) -> windows::core::Result<()>,
+    register_device: RegisterCall,
     remove_device: RemoveCall,
 }
 
@@ -317,6 +444,12 @@ fn remove_once(
 }
 
 type RemoveCall = fn(&RAWINPUTDEVICE) -> windows::core::Result<()>;
+
+type RegisterCall = fn(&RAWINPUTDEVICE) -> windows::core::Result<()>;
+
+/// The stage of the call that removes the keyboard source's raw mouse
+/// registration.
+pub(crate) const MOUSE_REMOVE_STAGE: &str = "RegisterRawInputDevices(RIDEV_REMOVE, mouse)";
 
 fn module_of_the_process() -> windows::core::Result<HINSTANCE> {
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -526,10 +659,11 @@ fn emit_from_raw(packet: RawInputPacket, tick: u32) {
                 if moves_focus(key.vkey) {
                     gate.gate.latch(tick);
                 }
-                gate.held.push_back((held, app));
+                gate.held.push_back((held, key, app));
                 release_held(gate, &state.producer, false);
             }
             (RawDevice::Pointer, RawInputPacket::Pointer(sample)) => {
+                click_from_the_pointer_pump(sample.button_flags, tick);
                 let packet = pointer_packet(sample, app, tick);
                 if sample.is_motion_only() {
                     state.producer.push_motion(packet);
@@ -558,6 +692,10 @@ unsafe extern "system" fn wnd_proc(
             // WM_INPUT docs: the application must call DefWindowProc so the system
             // can perform cleanup.
             DefWindowProcW(hwnd, msg, wparam, lparam)
+        }
+        WM_TAKE_MOUSE => {
+            let _ = keyboard_takes_mouse(hwnd, register_raw_input_device);
+            LRESULT(0)
         }
         WM_DESTROY => {
             PostQuitMessage(0);
@@ -598,9 +736,29 @@ fn read_raw_input(handle: HRAWINPUT, tick: u32) {
     if read != size {
         return;
     }
+    if keyboard_reads_a_click(&buf, tick) {
+        return;
+    }
     if let Some(packet) = decode_raw_input(&buf) {
         emit_from_raw(packet, tick);
     }
+}
+
+fn keyboard_reads_a_click(bytes: &[u8], tick: u32) -> bool {
+    INPUT_CTX.with(|cell| {
+        let borrow = cell.borrow();
+        let Some(state) = borrow.as_ref() else {
+            return false;
+        };
+        let (RawDevice::Keyboard, Some(gate)) = (state.device, state.gate.as_ref()) else {
+            return false;
+        };
+        if button_flags_of(bytes).is_none() {
+            return false;
+        }
+        latch_on_button_down(&gate.gate, bytes, tick);
+        true
+    })
 }
 
 impl CaptureSource for RawInputSource {
@@ -649,6 +807,9 @@ impl CaptureSource for RawInputSource {
         let stopped = self.life.shutdown();
         if let Err(CaptureError::Timeout { .. }) = stopped {
             let _ = remove_once(&self.removed, self.device, self.calls.remove_device);
+            if self.device == RawDevice::Keyboard {
+                let _ = keyboard_lets_mouse_go(self.calls.remove_device);
+            }
         }
         let Some(gate) = &self.gate else {
             return stopped;
@@ -724,6 +885,7 @@ fn run_raw_input(
     signal: &super::StopSignal,
 ) {
     let device = state.device;
+    let gate = state.gate.as_ref().map(|held| Arc::clone(&held.gate));
     let hinstance: HINSTANCE = match (calls.module)() {
         Ok(h) => h,
         Err(error) => {
@@ -765,6 +927,23 @@ fn run_raw_input(
         signal,
         _claim: claim,
     };
+    if device == RawDevice::Keyboard {
+        {
+            let mut route = clicks();
+            route.gate = gate;
+            route.keyboard_window = Some(hwnd.0 as usize);
+        }
+        if let Err(error) = keyboard_takes_mouse(hwnd, calls.register_device) {
+            let _ = keyboard_lets_mouse_go(calls.remove_device);
+            ready.report(Err(super::os_error(
+                "RegisterRawInputDevices(mouse)",
+                &error,
+            )));
+            return;
+        }
+    } else {
+        clicks().owner = Some(RawDevice::Pointer);
+    }
 
     super::ensure_message_queue();
     let poll = if device == RawDevice::Keyboard {
@@ -789,6 +968,14 @@ fn run_raw_input(
     ready.report(Ok(()));
     super::pump_messages(signal);
     drop(device_guard);
+    if device == RawDevice::Keyboard {
+        signal.report_removal(
+            MOUSE_REMOVE_STAGE,
+            keyboard_lets_mouse_go(calls.remove_device),
+        );
+    } else {
+        pointer_lets_mouse_go();
+    }
     INPUT_CTX.with(|cell| {
         if let Some(state) = cell.borrow_mut().as_mut() {
             if let Some(gate) = state.gate.as_mut() {
@@ -823,6 +1010,10 @@ mod tests {
     fn a_cleared_key_maps_to_a_keystroke_packet() {
         let packet = keystroke_packet(
             crate::windows::tests::cleared(),
+            KeyStroke {
+                vkey: 0x41,
+                released: false,
+            },
             Some("C:\\editor.exe".to_string()),
             7,
         );
@@ -839,6 +1030,224 @@ mod tests {
             released: true,
         };
         assert_eq!(map_keystroke(&mut KeyState::default(), key), None);
+    }
+
+    #[test]
+    fn keys_tab_enter_escape_and_the_windows_keys_move_the_focus() {
+        for vkey in [VK_TAB, VK_RETURN, VK_ESCAPE, VK_LWIN, VK_RWIN] {
+            assert!(moves_focus(vkey.0), "{:#x}", vkey.0);
+        }
+        for vkey in [0x41, 0x20, 0x10, 0x11, 0x12, 0x25, 0x7E] {
+            assert!(!moves_focus(vkey), "{vkey:#x}");
+        }
+    }
+
+    fn mouse_record(button_flags: u16, last_x: i32) -> Vec<u8> {
+        use windows::Win32::UI::Input::{RAWINPUT, RAWINPUT_0, RAWMOUSE, RAWMOUSE_0, RAWMOUSE_0_0};
+        let raw = RAWINPUT {
+            header: RAWINPUTHEADER {
+                dwType: RIM_TYPEMOUSE.0,
+                ..Default::default()
+            },
+            data: RAWINPUT_0 {
+                mouse: RAWMOUSE {
+                    lLastX: last_x,
+                    Anonymous: RAWMOUSE_0 {
+                        Anonymous: RAWMOUSE_0_0 {
+                            usButtonFlags: button_flags,
+                            usButtonData: 0,
+                        },
+                    },
+                    ..Default::default()
+                },
+            },
+        };
+        // SAFETY: `raw` is a live, initialized RAWINPUT, and the slice covers
+        // exactly its bytes while `raw` lives.
+        unsafe {
+            core::slice::from_raw_parts(
+                &raw as *const RAWINPUT as *const u8,
+                core::mem::size_of::<RAWINPUT>(),
+            )
+        }
+        .to_vec()
+    }
+
+    fn clear_gate() -> PasswordGate {
+        let gate = PasswordGate::new();
+        gate.read(crate::secure_input::windows::FieldState::Clear);
+        gate
+    }
+
+    #[test]
+    fn a_raw_button_down_latches_the_gate() {
+        for flags in [
+            RI_MOUSE_LEFT_BUTTON_DOWN,
+            RI_MOUSE_RIGHT_BUTTON_DOWN,
+            RI_MOUSE_MIDDLE_BUTTON_DOWN,
+            RI_MOUSE_BUTTON_4_DOWN,
+            RI_MOUSE_BUTTON_5_DOWN,
+        ] {
+            let gate = clear_gate();
+            assert!(latch_on_button_down(
+                &gate,
+                &mouse_record(flags as u16, 0),
+                1_000
+            ));
+            let key = gate.hold(1_010, false);
+            assert!(
+                gate.clearance(&key, 1_200).is_none(),
+                "a key after a button-down did not wait for the read: {flags:#x}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_raw_mouse_message_that_is_no_button_down_does_not_latch() {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            RI_MOUSE_LEFT_BUTTON_UP, RI_MOUSE_RIGHT_BUTTON_UP, RI_MOUSE_WHEEL,
+        };
+        for flags in [
+            0,
+            RI_MOUSE_LEFT_BUTTON_UP,
+            RI_MOUSE_RIGHT_BUTTON_UP,
+            RI_MOUSE_WHEEL,
+        ] {
+            let gate = clear_gate();
+            assert!(!latch_on_button_down(
+                &gate,
+                &mouse_record(flags as u16, 40),
+                1_000
+            ));
+            let key = gate.hold(1_010, false);
+            assert!(
+                matches!(gate.clearance(&key, 1_200), Some(Ok(_))),
+                "a raw message with flags {flags:#x} closed the gate"
+            );
+        }
+        let keyboard = keyboard_packet(0x41, 0);
+        // SAFETY: `keyboard` is a live, initialized RAWINPUT, and the slice
+        // covers exactly its bytes while `keyboard` lives.
+        let bytes = unsafe {
+            core::slice::from_raw_parts(
+                &keyboard as *const windows::Win32::UI::Input::RAWINPUT as *const u8,
+                core::mem::size_of::<windows::Win32::UI::Input::RAWINPUT>(),
+            )
+        };
+        assert_eq!(button_flags_of(bytes), None);
+        assert_eq!(button_flags_of(&mouse_record(1, 0)[..20]), None);
+    }
+
+    static REGISTERED: Mutex<Vec<(u16, bool)>> = Mutex::new(Vec::new());
+
+    fn register_counted(device: &RAWINPUTDEVICE) -> windows::core::Result<()> {
+        REGISTERED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((device.usUsage, device.dwFlags == RIDEV_REMOVE));
+        register_raw_input_device(device)
+    }
+
+    fn registrations() -> Vec<(u16, bool)> {
+        std::mem::take(&mut *REGISTERED.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+
+    #[test]
+    fn a_click_closes_the_gate_while_no_pointer_source_runs() {
+        let _serial = crate::windows::tests::serial();
+        let _ = registrations();
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut source = RawInputSource::with_calls(
+            RawDevice::Keyboard,
+            StartCalls {
+                register_device: register_counted,
+                remove_device: register_counted,
+                ..SYSTEM_CALLS
+            },
+        );
+        let started = source.begin(crate::source::SourceContext::new(sink));
+        let owner = clicks().owner;
+        let routed = clicks().gate.is_some();
+        let stopped = source.shutdown();
+        let calls = registrations();
+        let mouse = RawDevice::Pointer.hid_usage();
+        let keyboard = RawDevice::Keyboard.hid_usage();
+        assert!(started.is_ok(), "{started:?}");
+        assert_eq!(
+            owner,
+            Some(RawDevice::Keyboard),
+            "the keyboard source did not take the mouse"
+        );
+        assert!(
+            routed,
+            "the click route held no gate while the keyboard source ran"
+        );
+        assert_eq!(stopped, Ok(()));
+        assert_eq!(
+            calls,
+            vec![
+                (keyboard, false),
+                (mouse, false),
+                (keyboard, true),
+                (mouse, true)
+            ]
+        );
+        assert_eq!(clicks().owner, None);
+    }
+
+    #[test]
+    fn the_pump_and_the_stopping_thread_make_one_removal_call_between_them() {
+        let _serial = crate::windows::tests::serial();
+        let _ = registrations();
+        let removed = Removed::default();
+        let first = remove_once(&removed, RawDevice::Keyboard, register_counted);
+        let second = remove_once(&removed, RawDevice::Keyboard, register_counted);
+        let calls = registrations();
+        let _ = (first, second);
+        assert_eq!(calls, vec![(RawDevice::Keyboard.hid_usage(), true)]);
+    }
+
+    #[test]
+    fn decided_keys_go_out_in_input_order_and_a_key_that_waits_at_the_stop_is_lost() {
+        let (sink, writer) = crate::sink::channel(8);
+        let handoff = super::super::HandOff::start(sink, "halvo-test-forward", Arc::default())
+            .expect("hand-off");
+        let producer = handoff.producer();
+        let mut state = GateState {
+            gate: Arc::new(clear_gate()),
+            held: VecDeque::new(),
+            counts: Arc::default(),
+        };
+        let now = super::super::now_tick();
+        let stroke = KeyStroke {
+            vkey: 0x41,
+            released: false,
+        };
+        let early = now.wrapping_sub(160);
+        let later = now.wrapping_sub(150);
+        for (tick, app) in [(early, "first"), (later, "second")] {
+            let held = state.gate.hold(tick, false);
+            state.held.push_back((held, stroke, Some(app.to_string())));
+        }
+        state.gate.latch(now);
+        let waiting = state.gate.hold(now, false);
+        state
+            .held
+            .push_back((waiting, stroke, Some("third".to_string())));
+        release_held(&mut state, &producer, false);
+        let still_held = state.held.len();
+        release_held(&mut state, &producer, true);
+        let mut apps = Vec::new();
+        while let Ok(received) = writer.recv_timeout(std::time::Duration::from_secs(1)) {
+            apps.push(received.event().foreground_app.clone());
+            if apps.len() == 2 {
+                break;
+            }
+        }
+        assert_eq!(still_held, 1);
+        assert_eq!(apps, vec!["first".to_string(), "second".to_string()]);
+        assert!(state.held.is_empty());
+        assert_eq!(handoff.counts().lost, 1);
     }
 
     fn vkey_of(key: crate::floor::cases::Key) -> u16 {
