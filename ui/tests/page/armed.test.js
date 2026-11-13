@@ -72,3 +72,50 @@ test("a click with no press of its own, from the keyboard or a screen reader, se
   await page.click("confirm-delete", { detail: 0 });
   assert.equal(deletes(page), 1);
 });
+
+test("P5: a pressed click on the confirmation with a click count above 1 sends none", async () => {
+  const page = await armedPage();
+  await armAtPoint(page);
+  await page.clock.advance(600);
+  await page.press("confirm-delete", { ...BELOW, detail: 2 });
+  assert.equal(deletes(page), 0);
+});
+
+test("P10: a pressed click inside the kept box away from the arming point sends none", async () => {
+  const page = await armedPage();
+  await armAtPoint(page);
+  await page.clock.advance(600);
+  await page.press("confirm-delete", { clientX: 150, clientY: 630 });
+  assert.equal(deletes(page), 0);
+  await page.press("confirm-delete", BELOW);
+  assert.equal(deletes(page), 1);
+});
+
+test("P24: of two replies for one view that arrive while armed, the newest is drawn at the disarm", async () => {
+  let status = fixture("capture_status-running");
+  const page = await armedPage({ capture_status: () => status });
+  await armAtPoint(page);
+  status = { ...fixture("capture_status-paused"), store_bytes: 2048 };
+  await page.clock.fire(3000);
+  status = { ...fixture("capture_status-running"), store_bytes: 1024 };
+  await page.clock.fire(3000);
+  await page.click("cancel-delete");
+  assert.equal(page.text("state"), "capturing");
+  assert.equal(page.text("total"), "1.0 KB");
+});
+
+test("P30: the release draws the kept replies in the order of the views", async () => {
+  let onboarding = fixture("onboarding_state-none");
+  let inventory = fixture("inventory-empty");
+  const page = await armedPage({ onboarding_state: () => onboarding, inventory: () => inventory });
+  const order = [];
+  for (const name of ["inventory", "onboarding", "status"]) page.window.Halvo.feed(name).on(() => order.push(name));
+  await armAtPoint(page);
+  inventory = fixture("inventory-two-rows-one-day");
+  await page.clock.fire(15000);
+  onboarding = fixture("onboarding_state-missing");
+  await page.clock.fire(3000);
+  assert.deepEqual(order, []);
+  await page.click("cancel-delete");
+  assert.deepEqual(order, ["status", "onboarding", "inventory"]);
+});

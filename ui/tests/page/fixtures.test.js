@@ -17,6 +17,7 @@ test("the running status fixture renders the heading, the toggle, the totals and
   assert.equal(page.text("cap"), "25 GB");
   assert.match(page.text("window-text"), /the last 14 days/);
   assert.match(page.text("window-text"), /after day 7\./);
+  assert.equal(page.text("backend"), `(${fixture("capture_status-running").store_backend})`);
 });
 
 test("the paused status fixture renders paused and Resume", async () => {
@@ -64,6 +65,13 @@ test("a missing permission shows its row and the Ask now step", async () => {
   assert.equal(steps.length, 3);
   assert.equal(steps[0].querySelector("button").textContent, "Ask now");
   assert.equal(page.visible("lost-banner"), false);
+  const missing = fixture("onboarding_state-missing");
+  const reasons = page.byId("permissions").querySelectorAll("span.why").map((s) => s.textContent);
+  assert.deepEqual(reasons, missing.permissions.map((p) => p.why));
+  assert.deepEqual(
+    steps.map((li) => li.childNodes[0].textContent),
+    missing.walkback.map((s) => s.text + " "),
+  );
 });
 
 test("every permission granted shows every row as On and no steps", async () => {
