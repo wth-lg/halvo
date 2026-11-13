@@ -8,6 +8,9 @@ pub mod model;
 pub mod onboarding;
 pub mod paths;
 pub mod proto;
+#[cfg(feature = "r2")]
+#[rustfmt::skip]
+pub mod r2;
 pub mod service;
 #[cfg(any(test, feature = "test-support"))]
 pub mod testing;

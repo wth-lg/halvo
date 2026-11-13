@@ -25,9 +25,17 @@ pub const V1_OPS: [&str; 10] = [
     "acknowledge_lost_permission",
 ];
 
-/// Request names that a later version may use. Protocol version 1 answers each with
-/// `unsupported_op`, as it answers every op that [`V1_OPS`] does not hold.
-pub const RESERVED_OPS: [&str; 2] = ["run_start", "run_end"];
+/// The run marks, request names that a later version may use. Protocol version 1 answers
+/// each with `unsupported_op`, as it answers every op that [`V1_OPS`] does not hold.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ReservedOp {
+    RunStart,
+    RunEnd,
+}
+
+one_spelling!(ReservedOp, "reserved op", [RunStart => "run_start", RunEnd => "run_end"]);
+
+pub const RESERVED_OPS: [&str; 2] = [ReservedOp::RunStart.as_str(), ReservedOp::RunEnd.as_str()];
 
 fn required<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
@@ -1772,6 +1780,9 @@ mod tests {
     #[test]
     fn no_live_request_uses_a_reserved_name() {
         assert_eq!(RESERVED_OPS, ["run_start", "run_end"]);
+        assert_eq!(ReservedOp::ALL, [ReservedOp::RunStart, ReservedOp::RunEnd]);
+        let names: Vec<&str> = ReservedOp::ALL.iter().map(|r| r.as_str()).collect();
+        assert_eq!(names, RESERVED_OPS);
         for request in every_request() {
             assert!(V1_OPS.contains(&request.op()), "{}", request.op());
             assert!(!RESERVED_OPS.contains(&request.op()), "{}", request.op());
