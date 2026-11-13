@@ -91,22 +91,24 @@ fn read_one(input: &mut dyn Read) -> Read1 {
     }
 }
 
+/// What the reader calls to end the process later: once after an end of file, and once after a frame out of
+/// turn. The process gives `start_grace`; a test gives its own.
+pub(crate) type EndLater = Box<dyn FnMut() + Send>;
+
 /// Ends the process with the status 1 `LINK_GRACE` from now, on a thread of its own, so that no lock and no write
 /// of the run delays it.
-fn end_after(grace: bool) {
-    if grace {
-        std::thread::spawn(|| {
-            std::thread::sleep(LINK_GRACE);
-            std::process::exit(1);
-        });
-    }
+pub(crate) fn start_grace() {
+    std::thread::spawn(|| {
+        std::thread::sleep(LINK_GRACE);
+        std::process::exit(1);
+    });
 }
 
 /// The reader: it reads standard input apart from the run's steps and never waits for the run. It holds at most one
 /// frame that the run has not taken; any number of `cancel` frames leave one note; a second frame that is no
 /// `cancel` while one waits is a frame out of turn, after which, as after a close or a refused frame, it reads no
 /// further and the process ends `LINK_GRACE` later.
-fn read_all(shared: &Shared, input: &mut dyn Read, grace: bool) {
+fn read_all(shared: &Shared, input: &mut dyn Read, end_later: &mut dyn FnMut()) {
     loop {
         {
             let mut held = shared.lock();
@@ -115,7 +117,7 @@ fn read_all(shared: &Shared, input: &mut dyn Read, grace: bool) {
         }
         let read = read_one(input);
         if matches!(read, Read1::End(_)) {
-            end_after(grace);
+            end_later();
         }
         let mut held = shared.lock();
         held.reading = false;
@@ -141,7 +143,7 @@ fn read_all(shared: &Shared, input: &mut dyn Read, grace: bool) {
         shared.changed.notify_all();
         drop(held);
         if out_of_turn {
-            end_after(grace);
+            end_later();
         }
         if last {
             return;
@@ -159,18 +161,18 @@ fn read_all(shared: &Shared, input: &mut dyn Read, grace: bool) {
 /// returned; it is never followed by its effect, since no answer to its row can come through a closed input. The
 /// supervisor drops what it reads from a runner after its close.
 pub(crate) struct Link {
-    out: Box<dyn Write>,
+    out: Box<dyn Write + Send>,
     shared: Arc<Shared>,
     broken: Option<Broken>,
 }
 
 impl Link {
-    /// Starts the reader of `input`. With `end_after_grace`, the reader ends the process with the status 1 when
-    /// the run has not ended `LINK_GRACE` after the close.
+    /// Starts the reader of `input`, which calls `end_later` after the link's end; the process gives
+    /// `start_grace`, which ends it with the status 1 when the run has not ended `LINK_GRACE` after the close.
     pub(crate) fn start(
         input: Box<dyn Read + Send>,
-        out: Box<dyn Write>,
-        end_after_grace: bool,
+        out: Box<dyn Write + Send>,
+        end_later: EndLater,
     ) -> Link {
         let shared = Arc::new(Shared {
             held: Mutex::new(Held::default()),
@@ -179,7 +181,8 @@ impl Link {
         let reader = Arc::clone(&shared);
         std::thread::spawn(move || {
             let mut input = input;
-            read_all(&reader, &mut *input, end_after_grace);
+            let mut end_later = end_later;
+            read_all(&reader, &mut *input, &mut *end_later);
         });
         Link {
             out,
@@ -312,6 +315,7 @@ mod tests {
     use super::*;
     use halvo_schema::executable::frame::{Cancel, Done, SecretReply};
     use halvo_schema::executable::Outcome;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{mpsc, OnceLock};
     use std::time::Instant;
 
@@ -338,12 +342,41 @@ mod tests {
         })
     }
 
+    /// A later end that does nothing.
+    fn none() -> EndLater {
+        Box::new(|| {})
+    }
+
+    /// A later end that tells the test when the reader has got an end of file and holds the reader there, between
+    /// the return of its read and its note, until the test lets it go.
+    fn holding() -> (EndLater, mpsc::Receiver<()>, mpsc::Sender<()>) {
+        let (got, heard) = mpsc::channel();
+        let (go, gone) = mpsc::channel::<()>();
+        let end: EndLater = Box::new(move || {
+            let _ = got.send(());
+            let _ = gone.recv();
+        });
+        (end, heard, go)
+    }
+
+    /// Whether `seen` holds within `bound`, asked every 5 ms.
+    fn within(bound: Duration, seen: impl Fn() -> bool) -> bool {
+        let until = Instant::now() + bound;
+        while Instant::now() < until {
+            if seen() {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        seen()
+    }
+
     fn link_of(input: Vec<u8>) -> (Link, Arc<Mutex<Vec<u8>>>) {
         let out = Arc::new(Mutex::new(Vec::new()));
         let link = Link::start(
             Box::new(std::io::Cursor::new(input)),
             Box::new(Out(Arc::clone(&out))),
-            false,
+            none(),
         );
         (link, out)
     }
@@ -384,7 +417,7 @@ mod tests {
     fn piped() -> (Link, std::io::PipeWriter, Arc<Mutex<Vec<u8>>>) {
         let (input, writer) = std::io::pipe().expect("a pipe");
         let out = Arc::new(Mutex::new(Vec::new()));
-        let link = Link::start(Box::new(input), Box::new(Out(Arc::clone(&out))), false);
+        let link = Link::start(Box::new(input), Box::new(Out(Arc::clone(&out))), none());
         (link, writer, out)
     }
 
@@ -504,7 +537,7 @@ mod tests {
             shared: Arc::clone(&cell),
             noted: Arc::clone(&noted),
         };
-        let mut link = Link::start(Box::new(gate), Box::new(out), false);
+        let mut link = Link::start(Box::new(gate), Box::new(out), none());
         assert!(cell.set(Arc::clone(&link.shared)).is_ok(), "set once");
         heard.recv().expect("the reader stands in its read");
         assert_eq!(link.ask_effect(&done()), Err(Broken::Closed));
@@ -519,7 +552,7 @@ mod tests {
     fn an_end_of_file_taken_while_an_effect_acts_is_noted_after_the_effect() {
         let (gate, heard, release) = gated();
         let out = Arc::new(Mutex::new(Vec::new()));
-        let mut link = Link::start(Box::new(gate), Box::new(Out(out)), false);
+        let mut link = Link::start(Box::new(gate), Box::new(Out(out)), none());
         heard.recv().expect("the reader stands in its read");
         let shared = Arc::clone(&link.shared);
         assert_eq!(
@@ -528,6 +561,46 @@ mod tests {
             "the effect acts, and the end of file is noted after it"
         );
         assert_eq!(ended(&link), Broken::Closed);
+    }
+
+    #[test]
+    fn while_the_reader_holds_an_end_of_file_no_effect_row_leaves_and_no_effect_acts() {
+        let reply = framed(&ToRunner::SecretReply(SecretReply::None));
+        let (end, got, go) = holding();
+        let out = Arc::new(Mutex::new(Vec::new()));
+        let input = std::io::Cursor::new(reply.clone());
+        let mut link = Link::start(Box::new(input), Box::new(Out(Arc::clone(&out))), end);
+        assert!(link.reply().is_ok(), "the reply");
+        got.recv().expect("the reader got the end of file");
+        std::thread::scope(|s| {
+            let asked = s.spawn(|| link.ask_effect(&done()));
+            let written = within(Duration::from_millis(500), || {
+                !out.lock().expect("lock").is_empty()
+            });
+            go.send(()).expect("the reader goes on");
+            assert_eq!(asked.join().expect("the row's thread"), Err(Broken::Closed));
+            assert!(!written, "no row while the reader holds the end of file");
+        });
+        assert!(out.lock().expect("lock").is_empty(), "no row");
+
+        let (end, got, go) = holding();
+        let input = std::io::Cursor::new(reply);
+        let quiet = Box::new(Out(Arc::new(Mutex::new(Vec::new()))));
+        let mut link = Link::start(Box::new(input), quiet, end);
+        assert!(link.reply().is_ok(), "the reply");
+        got.recv().expect("the reader got the end of file");
+        let acted = AtomicBool::new(false);
+        std::thread::scope(|s| {
+            let settled = s.spawn(|| link.settle(|| acted.store(true, Ordering::SeqCst)));
+            let early = within(Duration::from_millis(500), || acted.load(Ordering::SeqCst));
+            go.send(()).expect("the reader goes on");
+            assert_eq!(
+                settled.join().expect("the effect's thread"),
+                Err(Broken::Closed)
+            );
+            assert!(!early, "no effect while the reader holds the end of file");
+        });
+        assert!(!acted.load(Ordering::SeqCst), "no effect");
     }
 
     #[test]

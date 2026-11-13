@@ -44,7 +44,7 @@ pub fn main(args: Vec<OsString>) -> i32 {
     let link = link::Link::start(
         Box::new(std::io::stdin()),
         Box::new(std::io::stdout()),
-        true,
+        Box::new(link::start_grace),
     );
     run::run(args, link)
 }
