@@ -143,6 +143,16 @@ struct Open {
     bound: Bound,
 }
 
+/// What `let_through` did with one effect, when the run goes on.
+enum Through {
+    /// The request left and its reply was read as made, so the effect is `committed`.
+    Left,
+    /// A `reject_once` on a later card for the effect ended it, and that effect alone.
+    Rejected,
+    /// A later load gives `confirm` for the `cleared` effect: the effect and that load, for the batch of case (iv).
+    Batch(Open, LoadReply),
+}
+
 impl Runner {
     /// The confirm path of A5.2 and A6.3 for the paused requests of one step: the adapter effects of a run
     /// together, or a browser effect alone. The load before the `propose` gives `decide`, the origins of `admit` and
@@ -191,8 +201,13 @@ impl Runner {
                 declined = true;
                 continue;
             }
-            let Some((first, again)) = self.let_through(one, &mut renewed)? else {
-                continue;
+            let (first, again) = match self.let_through(one, &mut renewed)? {
+                Through::Left => continue,
+                Through::Rejected => {
+                    declined = true;
+                    continue;
+                }
+                Through::Batch(first, again) => (first, again),
             };
             let (cleared, rest): (Vec<Open>, Vec<Open>) = open
                 .drain(..)
@@ -247,7 +262,7 @@ impl Runner {
             return Ok(());
         }
         let asked: Vec<(usize, &Bound)> = asked.iter().map(|(at, b)| (*at, b)).collect();
-        self.confirm(&asked)
+        self.confirm(&asked).map(|_| ())
     }
 
     /// Lets the request of one `cleared` or `approved` effect leave, or ends the effect, or gives the effect back
@@ -259,11 +274,7 @@ impl Runner {
     /// refusal ends the run `failed` with `provenance` (CP-159 G1). A `cleared` effect whose values
     /// changed is ended and a new effect is proposed from the load's values; `renewed` counts the times that the
     /// step proposes effects again (A5.2, CP-157 E4).
-    fn let_through(
-        &mut self,
-        mut one: Open,
-        renewed: &mut u32,
-    ) -> Result<Option<(Open, LoadReply)>, Stop> {
+    fn let_through(&mut self, mut one: Open, renewed: &mut u32) -> Result<Through, Stop> {
         loop {
             let again = self.load()?;
             self.check()?;
@@ -275,7 +286,7 @@ impl Runner {
                 return Err(refused(&again.config));
             }
             if decision == Decision::Confirm && self.effects[one.at].state == EffectState::Cleared {
-                return Ok(Some((one, again)));
+                return Ok(Through::Batch(one, again));
             }
             let now = match one.request.bound(&class_slots(&again, class)) {
                 Ok(now) => now,
@@ -309,7 +320,9 @@ impl Runner {
                     return Err(Stop::End(Outcome::Declined, Some(Cause::Declined)));
                 };
                 return match left.reply() {
-                    Replied::Made => self.advance(one.at, EffectMove::Commit).map(|_| None),
+                    Replied::Made => self
+                        .advance(one.at, EffectMove::Commit)
+                        .map(|_| Through::Left),
                     Replied::Answered | Replied::NoReply => {
                         Err(Stop::End(Outcome::EffectUnknown, Some(Cause::Unknown)))
                     }
@@ -339,9 +352,8 @@ impl Runner {
                 match self.effects[one.at].state {
                     EffectState::Cleared => continue,
                     EffectState::Held => {
-                        self.confirm(&[(one.at, &one.bound)])?;
-                        if self.effects[one.at].state == EffectState::Rejected {
-                            return Err(Stop::End(Outcome::Declined, Some(Cause::Declined)));
+                        if self.confirm(&[(one.at, &one.bound)])?.contains(&one.at) {
+                            return Ok(Through::Rejected);
                         }
                         continue;
                     }
@@ -358,9 +370,8 @@ impl Runner {
             };
             self.rebind(one.at, &now)?;
             one.bound = now;
-            self.confirm(&[(one.at, &one.bound)])?;
-            if self.effects[one.at].state == EffectState::Rejected {
-                return Err(Stop::End(Outcome::Declined, Some(Cause::Declined)));
+            if self.confirm(&[(one.at, &one.bound)])?.contains(&one.at) {
+                return Ok(Through::Rejected);
             }
         }
     }
@@ -368,7 +379,7 @@ impl Runner {
     /// Asks the person about the `held` effects of `asked`, each with the bound object of its last row, in one
     /// confirmation request (A6.3), and moves each by its answer: `approve` for `allow_once`, `reject` for
     /// `reject_once`. The wait is no time of the run's `wall_s`.
-    fn confirm(&mut self, asked: &[(usize, &Bound)]) -> Result<(), Stop> {
+    fn confirm(&mut self, asked: &[(usize, &Bound)]) -> Result<Vec<usize>, Stop> {
         let request = ConfirmRequest {
             v: V1,
             run: self.args.run.clone(),
@@ -402,6 +413,7 @@ impl Runner {
             return Err(Broken::Frame("not_the_decision").into());
         }
         self.check()?;
+        let mut rejected = Vec::new();
         for (at, _) in asked {
             let id = self.effects[*at].id().clone();
             let Some(approval) = decision.approvals.iter().find(|a| a.effect == id) else {
@@ -413,8 +425,11 @@ impl Runner {
                 .find(|e| e.effect == id)
                 .and_then(|e| e.new_origin.clone());
             self.answer(*at, approval, shown)?;
+            if approval.answer == Answer::RejectOnce {
+                rejected.push(*at);
+            }
         }
-        Ok(())
+        Ok(rejected)
     }
 
     /// The move that the person's answer for the effect at `at` makes; `shown` is the `new_origin` that the card

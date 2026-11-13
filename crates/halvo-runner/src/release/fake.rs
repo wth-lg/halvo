@@ -32,6 +32,7 @@ struct Fake {
     slots_seen: Arc<Mutex<Vec<Vec<String>>>>,
     fixed: Option<Bound>,
     fixed_reads: Vec<Bound>,
+    no_reply: bool,
 }
 
 struct Answers;
@@ -39,6 +40,15 @@ struct Answers;
 impl Left for Answers {
     fn reply(self: Box<Self>) -> Replied {
         Replied::Made
+    }
+}
+
+/// A request that left and got no reply that reads as made.
+struct Silent;
+
+impl Left for Silent {
+    fn reply(self: Box<Self>) -> Replied {
+        Replied::NoReply
     }
 }
 
@@ -114,6 +124,9 @@ impl Paused for Fake {
                 .lock()
                 .expect("the record of what left")
                 .push((self.generation, last.clone()));
+        }
+        if self.no_reply {
+            return Box::new(Silent);
         }
         Box::new(Answers)
     }
@@ -1116,8 +1129,8 @@ fn a_submit_to_an_origin_that_no_binding_holds_gets_no_card() {
     no_card_for_an_origin_that_no_binding_holds(ActionClass::Submit);
 }
 
-/// CP-166 E6: on one card for two effects the person rejects the first and allows the second. The rejected effect's
-/// request never leaves, and the allowed one's leaves once.
+/// CP-166 E6, CP-174 Part 1: on one card for two effects the person rejects the first and allows the second. The
+/// rejected effect's request never leaves, the allowed one's leaves once, and the run then ends `declined`.
 #[test]
 fn reject_once_for_one_effect_and_allow_once_for_the_other_lets_the_allowed_one_leave_once() {
     let left = Arc::new(Mutex::new(Vec::new()));
@@ -1157,8 +1170,289 @@ fn reject_once_for_one_effect_and_allow_once_for_the_other_lets_the_allowed_one_
     assert_eq!(
         record.done(),
         Some(Outcome::Declined),
-        "today's end of a run with a rejected effect; the end waits for a ruling (the review's D1)"
+        "a reject_once ends its effect alone, and with no effect open the run ends declined (CP-174 Part 1 (c))"
     );
+}
+
+/// Runs the confirm path on one fake request for each list of reads, in one call of `release`, all writing into one
+/// record of what left; the request of the index `no_reply_at` gets no reply that reads as made. The record and
+/// what left, each with the generation of its request and the values of its last read.
+fn run_each(
+    reads: Vec<Vec<Bound>>,
+    no_reply_at: Option<usize>,
+    plan: Plan,
+) -> (Record, Vec<(u32, Bound)>) {
+    let left = Arc::new(Mutex::new(Vec::new()));
+    let requests: Vec<Box<dyn Paused>> = reads
+        .into_iter()
+        .enumerate()
+        .map(|(i, reads)| {
+            Box::new(Fake {
+                reads,
+                left: Arc::clone(&left),
+                no_reply: no_reply_at == Some(i),
+                ..Fake::default()
+            }) as Box<dyn Paused>
+        })
+        .collect();
+    let record = run_many_path(
+        Category::CalendarCleanup,
+        (Vec::new(), Vec::new()),
+        requests,
+        plan,
+    );
+    let left = left.lock().expect("the record of what left").clone();
+    (record, left)
+}
+
+/// The count of `load` frames that the runner wrote.
+fn loads(record: &Record) -> usize {
+    record
+        .frames
+        .iter()
+        .filter(|f| matches!(f, FromRunner::Store(s) if matches!(s.request.body(), RunnerCall::Load(_))))
+        .count()
+}
+
+/// The ids of the effects in the order of their first rows.
+fn effect_ids(record: &Record) -> Vec<halvo_schema::executable::EffectId> {
+    let mut ids = Vec::new();
+    for e in record.effects() {
+        if !ids.contains(&e.effect) {
+            ids.push(e.effect);
+        }
+    }
+    ids
+}
+
+/// The state and the cause of the last row of each effect, in the order of the effects' first rows.
+fn last_rows(record: &Record) -> Vec<(EffectState, Option<Cause>)> {
+    let effects = record.effects();
+    effect_ids(record)
+        .iter()
+        .map(|id| {
+            let last = effects
+                .iter()
+                .rev()
+                .find(|e| &e.effect == id)
+                .expect("a row");
+            (last.state, last.cause)
+        })
+        .collect()
+}
+
+/// The first card allows both effects; every later card rejects.
+fn allow_then_reject(card: usize, _: usize) -> Answer {
+    if card == 1 {
+        Answer::AllowOnce
+    } else {
+        Answer::RejectOnce
+    }
+}
+
+fn a_then_c() -> Vec<Bound> {
+    vec![delete("a", Source::Extract), delete("c", Source::Extract)]
+}
+
+/// CP-174 Part 1 (a), F1 (a): [A, B] are allowed on the first card. A's values change at the load before its
+/// `begin`, so A takes a `rebind`, and its second card is answered `reject_once`. The reject ends A alone: B behind
+/// it goes to its `begin` after its own load, leaves once and is `committed`, and the run then ends `declined`.
+#[test]
+fn a_reject_on_the_card_after_a_rebind_ends_that_effect_alone_and_the_effect_behind_leaves() {
+    let plan = Plan {
+        answer_for: Some(allow_then_reject),
+        ..Plan::plain()
+    };
+    let (record, left) = run_each(
+        vec![a_then_c(), vec![delete("b", Source::Extract)]],
+        None,
+        plan,
+    );
+    assert_eq!(
+        left,
+        [(0, delete("b", Source::Extract))],
+        "B leaves once; A's request never leaves"
+    );
+    assert_eq!(record.confirms().len(), 2, "the first card and A's second");
+    assert_eq!(
+        last_rows(&record),
+        [
+            (EffectState::Rejected, None),
+            (EffectState::Committed, None)
+        ]
+    );
+    assert_eq!(
+        loads(&record),
+        3,
+        "the first load, the load before A's begin and the load before B's"
+    );
+    assert_eq!(record.done(), Some(Outcome::Declined));
+}
+
+/// CP-174 Part 1 (a), F1 (b) as Addition 1 of CP-174 rules it: A is a `cleared` `delete` and B a `held` `submit`
+/// that the first card allows. The load before A's `begin` gives `confirm` for A, so A is ended and proposed again
+/// as `held`, and the batch's card, which holds A's new effect alone, is answered `reject_once`. The reject ends A's
+/// new effect alone: B behind it leaves once and is `committed`, and the run then ends `declined`.
+#[test]
+fn a_reject_on_the_card_of_a_batch_ends_that_effect_alone_and_the_effect_behind_leaves() {
+    let left = Arc::new(Mutex::new(Vec::new()));
+    let requests: Vec<Box<dyn Paused>> = vec![
+        Box::new(Fake {
+            reads: vec![delete("a", Source::Extract)],
+            left: Arc::clone(&left),
+            ..Fake::default()
+        }),
+        Box::new(Fake {
+            submit: true,
+            left: Arc::clone(&left),
+            ..Fake::default()
+        }),
+    ];
+    let plan = Plan {
+        answer_for: Some(allow_then_reject),
+        allow_at: Some(|load| {
+            if load == 1 {
+                vec![AllowedClass::Delete]
+            } else {
+                Vec::new()
+            }
+        }),
+        ..Plan::plain()
+    };
+    let record = run_many_path(
+        Category::CalendarCleanup,
+        (vec![form_origin()], vec![super::suite::slot("fields", "x")]),
+        requests,
+        plan,
+    );
+    let left = left.lock().expect("the record of what left").clone();
+    assert_eq!(
+        left,
+        [(0, submit("x"))],
+        "B leaves once; A's request never leaves"
+    );
+    assert_eq!(
+        last_rows(&record),
+        [
+            (EffectState::Rejected, Some(Cause::Ended)),
+            (EffectState::Committed, None),
+            (EffectState::Rejected, None)
+        ],
+        "A ended for the batch, B committed, A's new effect rejected"
+    );
+    let confirms = record.confirms();
+    assert_eq!(confirms.len(), 2, "the first card and the batch's");
+    let new_effect = effect_ids(&record)[2].clone();
+    assert_eq!(
+        confirms[1]
+            .effects
+            .iter()
+            .map(|e| e.effect.clone())
+            .collect::<Vec<_>>(),
+        [new_effect],
+        "the batch's card holds A's new effect alone"
+    );
+    assert_eq!(
+        loads(&record),
+        3,
+        "the first load, the load before A's begin and the load before B's"
+    );
+    assert_eq!(record.done(), Some(Outcome::Declined));
+}
+
+/// CP-174 Part 1 (c), F1 (c): B, before A in the queue, has left once already when A's card after its `rebind` is
+/// answered `reject_once`; no effect is open then, and the run ends `declined`, although B is `committed`.
+#[test]
+fn a_reject_after_an_effect_has_left_ends_the_run_declined() {
+    let plan = Plan {
+        answer_for: Some(allow_then_reject),
+        ..Plan::plain()
+    };
+    let (record, left) = run_each(
+        vec![vec![delete("b", Source::Extract)], a_then_c()],
+        None,
+        plan,
+    );
+    assert_eq!(
+        left,
+        [(0, delete("b", Source::Extract))],
+        "B left once; A's request never leaves"
+    );
+    assert_eq!(
+        last_rows(&record),
+        [
+            (EffectState::Committed, None),
+            (EffectState::Rejected, None)
+        ]
+    );
+    assert_eq!(
+        loads(&record),
+        3,
+        "the first load, the load before B's begin and the load before A's"
+    );
+    assert_eq!(record.done(), Some(Outcome::Declined));
+}
+
+/// CP-174 Part 1 (c), F1 (d): A's card after its `rebind` is answered `reject_once`, and then B's request gets no
+/// reply that reads as made. The end that B's own path gives is the run's end: `effect_unknown`, not `declined`.
+#[test]
+fn after_a_reject_an_effect_whose_request_gets_no_reply_ends_the_run_effect_unknown() {
+    let plan = Plan {
+        answer_for: Some(allow_then_reject),
+        ..Plan::plain()
+    };
+    let (record, left) = run_each(
+        vec![a_then_c(), vec![delete("b", Source::Extract)]],
+        Some(1),
+        plan,
+    );
+    assert_eq!(
+        left,
+        [(0, delete("b", Source::Extract))],
+        "B leaves once; A's request never leaves"
+    );
+    assert_eq!(
+        last_rows(&record),
+        [
+            (EffectState::Rejected, None),
+            (EffectState::Releasing, None)
+        ]
+    );
+    assert_eq!(loads(&record), 3);
+    assert_eq!(record.done(), Some(Outcome::EffectUnknown));
+}
+
+/// CP-174 Part 1, F1 (e): a `cleared` effect whose value changed is ended by the runner, which leaves a `rejected`
+/// row with the cause `ended`, proposed again as `cleared` and `committed`. No `reject_once` came, so the run does
+/// not end `declined`: the flag of a reject is not read from the state `rejected`.
+#[test]
+fn an_effect_that_the_runner_ended_and_proposed_again_does_not_end_the_run_declined() {
+    let plan = Plan {
+        runs_at: Some(|_| true),
+        ..Plan::plain()
+    };
+    let (record, left) = run_each(
+        vec![vec![
+            delete("a", Source::Extract),
+            delete("b", Source::Extract),
+        ]],
+        None,
+        plan,
+    );
+    assert_eq!(
+        left,
+        [(1, delete("b", Source::Extract))],
+        "the request leaves once, made again for the new effect"
+    );
+    assert_eq!(
+        last_rows(&record),
+        [
+            (EffectState::Rejected, Some(Cause::Ended)),
+            (EffectState::Committed, None)
+        ]
+    );
+    assert_eq!(loads(&record), 3);
+    assert_eq!(record.done(), Some(Outcome::Completed));
 }
 
 fn is_confirm(frame: &FromRunner) -> bool {
