@@ -33,6 +33,23 @@
 //! which request it runs a typed commit and takes it from no argument: a record of a kind of origin own is stored for
 //! a `runner` request and a `coordinator_write`, and refused from a step and for a request of a further role.
 //!
+//! # What a read hands out
+//!
+//! Every read hands out exactly the rows that an expiry at that read's clock would leave (DS-4): a bounded row while
+//! its stored day of going lies after the clock's day, its day lies at most two days after the clock's day, and it
+//! has a day; a window row while its `expires` lies after the clock's instant; a kept row always; and an evidence or
+//! a support row only while the summary that it names is handed out. That holds for a step's summary read and row
+//! read, a handler's `rows`, `workflow` and `evidence`, and the interface read. The summary read leaves out, by a
+//! sentence of its own, a summary of a day after the clock's day as well. The four conditions are written once, in
+//! `sql`, and the expiry's statements and the reads are made from them. No read writes: a row that the reads leave out
+//! stays stored, counted and found by a delete or a purge until an expiry removes it, and the revision rises then.
+//!
+//! The clock is the host's. The store reads it once at the start of each call of the host, `commit_batch` for the
+//! reads of every step, `Store::interface_read` for one page, and `Store::handle` for every read of one request, the
+//! handlers behind included; no read takes a day or an instant from its caller. A call that starts before a deadline
+//! reads by its start, so a row that passes its bound while the call runs is handed out until the call ends. The
+//! typed commit and the state call keep their own reading at the commit.
+//!
 //! # What the store reports to its host
 //!
 //! `commit_batch` commits the batch and then the proposals of the recurrence step and the records of each step, each
