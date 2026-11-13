@@ -210,4 +210,15 @@ mod tests {
             "{started:?}"
         );
     }
+
+    #[test]
+    fn a_title_hook_that_the_system_refuses_reports_the_os_code() {
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(4);
+        let mut source =
+            WindowTitleSource::with_installer(crate::windows::tests::hook_without_callback);
+        let started = source.begin(crate::source::SourceContext::new(sink));
+        let _ = source.shutdown();
+        assert_eq!(started, Err(crate::windows::tests::refused_hook_error()));
+    }
 }

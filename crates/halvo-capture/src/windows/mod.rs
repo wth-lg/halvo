@@ -716,6 +716,37 @@ pub(crate) mod tests {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
+    pub(crate) fn hook_without_callback(
+        event: u32,
+        _callback: windows::Win32::UI::Accessibility::WINEVENTPROC,
+    ) -> windows::Win32::UI::Accessibility::HWINEVENTHOOK {
+        // SAFETY: SetWinEventHook takes the event range, no module and no
+        // callback, and passes no pointer of ours; the system refuses the hook.
+        unsafe {
+            windows::Win32::UI::Accessibility::SetWinEventHook(
+                event,
+                event,
+                None,
+                None,
+                0,
+                0,
+                super::foreground::HOOK_FLAGS,
+            )
+        }
+    }
+
+    pub(crate) fn refused_hook_error() -> CaptureError {
+        CaptureError::Os {
+            stage: "SetWinEventHook",
+            domain: "HRESULT",
+            code: i64::from(
+                windows::Win32::Foundation::ERROR_INVALID_FILTER_PROC
+                    .to_hresult()
+                    .0,
+            ),
+        }
+    }
+
     pub(crate) fn test_placement() -> EventPlacement {
         EventPlacement {
             segment_ref: SegmentRef {
