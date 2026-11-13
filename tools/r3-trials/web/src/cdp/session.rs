@@ -2,22 +2,22 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use chromiumoxide::cdp::browser_protocol::fetch::{
-    EnableParams as FetchEnableParams, EventRequestPaused, FulfillRequestParams, HeaderEntry,
-    RequestPattern, RequestStage,
+    EnableParams as FetchEnableParams, RequestPattern, RequestStage,
 };
 use chromiumoxide::cdp::browser_protocol::network::{Cookie, CookieParam, TimeSinceEpoch};
 use chromiumoxide::cdp::browser_protocol::page::NavigateParams;
 use chromiumoxide::cdp::browser_protocol::storage::{GetCookiesParams, SetCookiesParams};
+use chromiumoxide::cdp::browser_protocol::target::{
+    CloseTargetParams, CreateTargetParams, TargetId,
+};
 use chromiumoxide::cdp::js_protocol::runtime::EvaluateParams;
-use chromiumoxide::Page;
-use futures::StreamExt;
 use serde_json::{json, Value};
 
-use super::{cdp, Executor, Fault, Res, POLL, STEP_TIMEOUT};
+use super::{Executor, Fault, Res, POLL, STEP_TIMEOUT};
 use crate::procs;
 
 const STORAGE_PATH: &str = "/.halvo-storage";
-const STORAGE_PAGE: &str = "<!doctype html><title>storage</title>";
+pub(crate) const STORAGE_PAGE: &str = "<!doctype html><title>storage</title>";
 const READ_STORAGE_JS: &str = "(() => { const out = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); out.push([k, localStorage.getItem(k)]); } return out; })()";
 const STOP_WAIT: Duration = Duration::from_secs(15);
 const KILL_AFTER: Duration = Duration::from_secs(10);
@@ -69,6 +69,9 @@ pub struct Stopped {
     pub pids: Vec<u32>,
     pub adopted: Vec<u32>,
     pub left: Vec<u32>,
+    /// What the end of the run's own processes found before it ended anything and what its last
+    /// pass found (CP-126 E1 (d)), over the stop's end and the one after its wait.
+    pub ended: crate::checks::Ended,
     pub profile: Option<PathBuf>,
     pub temp: Option<PathBuf>,
     pub removed: bool,
@@ -165,17 +168,21 @@ pub fn cookie_param(cookie: &Cookie, origins: &[String]) -> CookieParam {
     p
 }
 
-async fn evaluate(page: &Page, script: &str) -> Res<Value> {
+async fn evaluate(ex: &Executor, session: &str, script: &str) -> Res<Value> {
     let params = EvaluateParams::builder()
         .expression(script)
         .return_by_value(true)
         .build()
         .map_err(|e| Fault::new("eval", e))?;
-    let r = page.execute(params).await.map_err(cdp("eval"))?;
-    if r.result.exception_details.is_some() {
+    let r = ex
+        .wire
+        .call(Some(session), params)
+        .await
+        .map_err(|f| Fault::new("eval", f.1))?;
+    if r.exception_details.is_some() {
         return Err(Fault::new("eval", "exception"));
     }
-    Ok(r.result.result.value.unwrap_or(Value::Null))
+    Ok(r.result.value.unwrap_or(Value::Null))
 }
 
 pub(crate) fn temp_of(profile: &Path) -> Option<PathBuf> {
@@ -295,12 +302,11 @@ impl Executor {
     /// request reaches the site.
     pub async fn export_state(&self, origins: &[String]) -> Res<SessionState> {
         let r = self
-            .browser
-            .execute(GetCookiesParams::default())
+            .wire
+            .call(None, GetCookiesParams::default())
             .await
-            .map_err(cdp("state"))?;
+            .map_err(|f| Fault::new("state", f.1))?;
         let cookies: Vec<Cookie> = r
-            .result
             .cookies
             .into_iter()
             .filter(|c| {
@@ -338,10 +344,10 @@ impl Executor {
             .map(|c| cookie_param(c, &state.origins))
             .collect();
         if !params.is_empty() {
-            self.browser
-                .execute(SetCookiesParams::new(params))
+            self.wire
+                .call(None, SetCookiesParams::new(params))
                 .await
-                .map_err(cdp("state"))?;
+                .map_err(|f| Fault::new("state", f.1))?;
         }
         for s in &state.storage {
             let items = serde_json::to_string(&s.items).map_err(state_fault)?;
@@ -356,15 +362,80 @@ impl Executor {
         Ok(())
     }
 
+    /// Runs `script` in a new page of `origin` whose one document the executor answers itself, so
+    /// no request reaches the site, and closes the page.
     pub(crate) async fn in_origin_page(&self, origin: &str, script: &str) -> Res<Value> {
-        let page = self
-            .browser
-            .new_page("about:blank")
+        let made = self
+            .wire
+            .call(None, CreateTargetParams::new("about:blank"))
             .await
-            .map_err(cdp("storage"))?;
-        let outcome = in_page(&page, origin, script).await;
-        let _ = page.close().await;
+            .map_err(|f| Fault::new("storage", f.1))?;
+        let target = made.target_id.inner().clone();
+        let url = format!("{origin}{STORAGE_PATH}");
+        self.wire.serve_storage_page(&url, true);
+        let outcome = self.in_page(&target, origin, &url, script).await;
+        self.wire.serve_storage_page(&url, false);
+        let _ = self
+            .wire
+            .call(None, CloseTargetParams::new(TargetId::from(target)))
+            .await;
         outcome
+    }
+
+    async fn in_page(&self, target: &str, origin: &str, url: &str, script: &str) -> Res<Value> {
+        let deadline = Instant::now() + STEP_TIMEOUT;
+        let session = loop {
+            if let Some((s, _)) = self.wire.session_of(target) {
+                break s;
+            }
+            if Instant::now() > deadline {
+                return Err(Fault::new("storage", "page_session"));
+            }
+            tokio::time::sleep(POLL).await;
+        };
+        if self
+            .wire
+            .book
+            .lock()
+            .map(|b| b.rule.is_none())
+            .unwrap_or(true)
+        {
+            let pattern = RequestPattern::builder()
+                .url_pattern(format!("{origin}/*"))
+                .request_stage(RequestStage::Request)
+                .build();
+            self.wire
+                .call(
+                    Some(&session),
+                    FetchEnableParams::builder().pattern(pattern).build(),
+                )
+                .await
+                .map_err(|f| Fault::new("storage", f.1))?;
+        }
+        let r = self
+            .wire
+            .call(Some(&session), NavigateParams::new(url.to_string()))
+            .await
+            .map_err(|f| Fault::new("storage", f.1))?;
+        if let Some(err) = r.error_text {
+            return Err(Fault::new("storage", err));
+        }
+        loop {
+            let here = evaluate(
+                self,
+                &session,
+                "location.origin + ' ' + document.readyState",
+            )
+            .await;
+            if matches!(&here, Ok(Value::String(s)) if *s == format!("{origin} complete")) {
+                break;
+            }
+            if Instant::now() > deadline {
+                return Err(Fault::new("timeout", "storage_page"));
+            }
+            tokio::time::sleep(POLL).await;
+        }
+        evaluate(self, &session, script).await
     }
 
     /// Stops the browser and removes the two directories that its start made, the profile and the
@@ -391,8 +462,9 @@ impl Executor {
             .into_iter()
             .collect();
         let mut adopted = procs::adopted(&before, &tree, since, &roots);
+        let mark = self.mark.clone();
         let stopped_at = Instant::now();
-        self.stop().await;
+        let (_, first) = self.stop().await;
         let left = loop {
             let now = procs::table().unwrap_or_default();
             let grown = procs::descendants(&now, &tree);
@@ -418,6 +490,8 @@ impl Executor {
             }
             tokio::time::sleep(POLL).await;
         };
+        // a process that the run left while the stop waited is ended too, before the dirs go
+        let ended = first.then(crate::checks::end_runs_own(&mark));
         let removed = match (&profile, &temp) {
             (Some(p), Some(t)) => remove_dirs(p, t).await,
             _ => false,
@@ -426,6 +500,7 @@ impl Executor {
             pids: pids(&tree),
             adopted: pids(&adopted),
             left: pids(&left),
+            ended,
             profile,
             temp,
             removed,
@@ -433,63 +508,10 @@ impl Executor {
     }
 }
 
-async fn in_page(page: &Page, origin: &str, script: &str) -> Res<Value> {
-    use base64::Engine;
-    let mut events = page
-        .event_listener::<EventRequestPaused>()
-        .await
-        .map_err(cdp("storage"))?;
-    let answering = page.clone();
-    let body = base64::engine::general_purpose::STANDARD.encode(STORAGE_PAGE);
-    let task = tokio::spawn(async move {
-        while let Some(ev) = events.next().await {
-            let params = FulfillRequestParams::builder()
-                .request_id(ev.request_id.clone())
-                .response_code(200)
-                .response_header(HeaderEntry::new("Content-Type", "text/html; charset=utf-8"))
-                .body(body.clone())
-                .build();
-            if let Ok(p) = params {
-                let _ = answering.execute(p).await;
-            }
-        }
-    });
-    let outcome = async {
-        let pattern = RequestPattern::builder()
-            .url_pattern(format!("{origin}/*"))
-            .request_stage(RequestStage::Request)
-            .build();
-        page.execute(FetchEnableParams::builder().pattern(pattern).build())
-            .await
-            .map_err(cdp("storage"))?;
-        let r = page
-            .execute(NavigateParams::new(format!("{origin}{STORAGE_PATH}")))
-            .await
-            .map_err(cdp("storage"))?;
-        if let Some(err) = r.result.error_text {
-            return Err(Fault::new("storage", err));
-        }
-        let deadline = Instant::now() + STEP_TIMEOUT;
-        loop {
-            let here = evaluate(page, "location.origin + ' ' + document.readyState").await;
-            if matches!(&here, Ok(Value::String(s)) if *s == format!("{origin} complete")) {
-                break;
-            }
-            if Instant::now() > deadline {
-                return Err(Fault::new("timeout", "storage_page"));
-            }
-            tokio::time::sleep(POLL).await;
-        }
-        evaluate(page, script).await
-    }
-    .await;
-    task.abort();
-    outcome
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cdp::Channel;
     use crate::cdp::StartOptions;
     use crate::procs;
 
@@ -617,7 +639,10 @@ mod tests {
             profile,
             headless: true,
             flags: Vec::new(),
-            debug_port: None,
+            channel: Channel::Pipe,
+            relay: None,
+            local_state: None,
+            program: None,
         }
     }
 
@@ -785,7 +810,10 @@ mod tests {
             profile,
             headless: true,
             flags,
-            debug_port: None,
+            channel: Channel::Pipe,
+            relay: None,
+            local_state: None,
+            program: None,
         }
     }
 
