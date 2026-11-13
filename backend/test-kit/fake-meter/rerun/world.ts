@@ -114,6 +114,7 @@ type Account = {
   writeOff: { amount: number; sealed: Set<number>; laterSeals: Set<number> } | null;
   lastSeen: { carry: number; writtenOff: number | null } | null;
   cancelsAfterAReactivation: number;
+  closedNotBillable: Set<string>;
 };
 
 function blocker(): Blocker {
@@ -296,6 +297,7 @@ class World {
       writeOff: null,
       lastSeen: null,
       cancelsAfterAReactivation: 0,
+      closedNotBillable: new Set(),
     } satisfies Omit<Account, "index" | "id">);
     this.meter.subscribe(id, at);
     this.accounts.push(account);
@@ -690,6 +692,7 @@ class World {
       account.test.host.step((sql) => (ownTables(sql).length === 0 ? [] : sql.exec("SELECT start, identifier, outcome FROM metering_interval WHERE outcome = ?", "not-billable")));
     const held = new Set(this.meter.recordedEvents(account.id).map((e) => e.identifier));
     for (const interval of intervals) {
+      if (interval.outcome === "not-billable") account.closedNotBillable.add(String(interval.identifier));
       if (interval.outcome !== "not-billable" || !held.has(String(interval.identifier))) continue;
       this.fail("the record disagrees with the provider", `${account.id} interval ${interval.start} is not billable while the meter holds ${interval.identifier}`);
     }
@@ -896,9 +899,11 @@ class World {
         const providerMinor = this.meter.exactTotal(account.id, period.start, period.end) + stampedAfterTheEnd;
         const provider = providerMinor * RULE_MICRO_PER_MINOR;
         let unsent = 0;
+        const countedUntil = period.index === lastPeriod ? Math.max(period.end, account.unstatedCutAt) : period.end;
         for (const [identifier, sent] of account.refused) {
           const atTheMeter = events.some((e) => e.identifier === identifier);
-          if (!atTheMeter && sent.timestamp >= period.start && sent.timestamp < period.end) unsent += sent.amountMinor * RULE_MICRO_PER_MINOR;
+          const closed = account.closedNotBillable.has(identifier);
+          if (!atTheMeter && closed && sent.timestamp >= period.start && sent.timestamp < countedUntil) unsent += sent.amountMinor * RULE_MICRO_PER_MINOR;
         }
         const carryOut = reported + carryIn - provider - unsent;
         this.rows.push({ account: account.id, period: period.index, reported, carryIn, provider, carryOut, invoicedMinor: this.meter.invoicedTotal(account.id, period) });

@@ -383,5 +383,10 @@ export function searchCases(): SearchCase[] {
       ...crashes([HALF_A_WINDOW, TWO_OF_THESE_PASS_A_WINDOW]),
     ],
   });
+  const node = globalThis as unknown as { process: { getBuiltinModule(id: string): unknown } };
+  const fs = node.process.getBuiltinModule("node:fs") as { readFileSync(path: URL, encoding: "utf8"): string };
+  const here = (import.meta as unknown as { url: string }).url;
+  const ordering = JSON.parse(fs.readFileSync(new URL("../../../gate/fixtures/metering/ordering-seed3-5701.json", here), "utf8")) as Scenario;
+  cases.push({ scenario: { ...ordering, faultsByProviderCall: [] }, faultsOfEarlierCalls: ordering.faultsByProviderCall, faults: [{ kind: "none" }] });
   return cases;
 }
