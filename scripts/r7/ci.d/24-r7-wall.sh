@@ -693,46 +693,60 @@ EOF
 }
 
 put() {
-  case $1 in
-    */*) mkdir -p "$dir/${1%/*}" || exit 2 ;;
-  esac
-  printf '%s\n' "$2" >"$dir/$1" || exit 2
+  if [ "$in_base" = 1 ]; then
+    put_tree "$1" "$2"
+    return
+  fi
+  printf '%s\n' "$2" >"$scratch/blob.txt" || exit 2
+  index_put "$1" 100644
 }
 
 put_raw() {
+  printf '%b' "$2" >"$scratch/blob.txt" || exit 2
+  index_put "$1" 100644
+}
+
+put_tree() {
   case $1 in
-    */*) mkdir -p "$dir/${1%/*}" || exit 2 ;;
+    */*) mkdir -p "$case_repo/${1%/*}" || exit 2 ;;
   esac
-  printf '%b' "$2" >"$dir/$1" || exit 2
+  printf '%s\n' "$2" >"$case_repo/$1" || exit 2
+}
+
+index_put() {
+  blob=$(git -C "$scratch/base" hash-object -w --no-filters "$scratch/blob.txt") || exit 2
+  GIT_INDEX_FILE=$case_index git -C "$case_repo" -c core.protectNTFS=false update-index --add --cacheinfo "$2,$blob,$1" || exit 2
 }
 
 fixture() {
-  dir=$scratch/$1
-  cp -R "$scratch/base" "$dir" || exit 2
+  case_repo=$scratch/base
+  case_index=$scratch/index.$1
+  cp "$scratch/base.index" "$case_index" || exit 2
 }
 
 stage() {
-  git -C "$dir" add -A . || exit 2
+  [ "$in_base" = 1 ] || return 0
+  git -C "$case_repo" add -A . || exit 2
 }
 
 index_file() {
   printf '%s\n' "$2" >"$scratch/blob.txt" || exit 2
-  blob=$(git -C "$dir" hash-object -w --no-filters "$scratch/blob.txt") || exit 2
-  git -C "$dir" -c core.protectNTFS=false update-index --add --cacheinfo "${3:-100644},$blob,$1" || exit 2
+  index_put "$1" "${3:-100644}"
 }
 
 link() {
   printf '%s' "$2" >"$scratch/blob.txt" || exit 2
-  blob=$(git -C "$dir" hash-object -w --no-filters "$scratch/blob.txt") || exit 2
-  git -C "$dir" update-index --add --cacheinfo "120000,$blob,$1" || exit 2
+  index_put "$1" 120000
 }
 
 base() {
-  dir=$scratch/base
-  mkdir -p "$dir" || exit 2
-  git -C "$dir" init -q || exit 2
-  git -C "$dir" config core.autocrlf false || exit 2
-  git -C "$dir" config core.safecrlf false || exit 2
+  in_base=1
+  case_repo=$scratch/base
+  case_index=$case_repo/.git/index
+  mkdir -p "$case_repo" || exit 2
+  git -C "$case_repo" init -q || exit 2
+  git -C "$case_repo" config core.autocrlf false || exit 2
+  git -C "$case_repo" config core.safecrlf false || exit 2
   put backend/package.json '{ "name": "halvo-backend", "devDependencies": { "wrangler": "4.0.0" } }'
   put backend/tsconfig.json '{ "compilerOptions": { "strict": true }, "include": ["src", "test", "../formal/r7-ledger/check.mjs"] }'
   put backend/src/types.ts 'export type Id = string;'
@@ -808,6 +822,8 @@ ensure_backend "$HOME/.local"'
   put docs/r7/gate/10-subscription.txt 'tree of backend/ at HEAD'
   put CHANGELOG.md '- Added: backend/ under the app repository.'
   stage
+  cp "$case_index" "$scratch/base.index" || exit 2
+  in_base=0
 }
 
 fake_git() {
@@ -855,7 +871,9 @@ expect() {
       PATH="$case_bin:$PATH"
       export PATH
     fi
-    check_in "$scratch/$2" "$work" "$work/problems" >/dev/null 2>"$work/stderr"
+    GIT_INDEX_FILE=$case_index
+    export GIT_INDEX_FILE
+    check_in "$case_repo" "$work" "$work/problems" >/dev/null 2>"$work/stderr"
     printf '%s\n' "$?" >"$work/code"
   ) &
   case_bin=
@@ -989,6 +1007,7 @@ self_test() {
   wrong=
   seen_limits=
   case_bin=
+  in_base=0
   base
 
   fixture good
@@ -998,19 +1017,19 @@ self_test() {
   expect PASS good
 
   fixture untracked-file-is-not-read
-  put scripts/loose.sh 'cat backend/src/types.ts'
+  put_tree scripts/loose.sh 'cat backend/src/types.ts'
   expect PASS untracked-file-is-not-read
 
   fixture the-index-decides-a-crossing-line
-  put scripts/peek.sh 'cat backend/src/types.ts'
+  put scripts/peek-a.sh 'cat backend/src/types.ts'
   stage
-  put scripts/peek.sh 'echo honest'
-  expect FAIL the-index-decides-a-crossing-line 'scripts/peek.sh:1: reads under backend/'
+  put_tree scripts/peek-a.sh 'echo honest'
+  expect FAIL the-index-decides-a-crossing-line 'scripts/peek-a.sh:1: reads under backend/'
 
   fixture the-index-decides-an-honest-line
-  put scripts/peek.sh 'echo honest'
+  put scripts/peek-b.sh 'echo honest'
   stage
-  put scripts/peek.sh 'cat backend/src/types.ts'
+  put_tree scripts/peek-b.sh 'cat backend/src/types.ts'
   expect PASS the-index-decides-an-honest-line
 
   case_with app-script-outside-r7-reads-backend scripts/check-anything.sh 'node backend/scripts/names-v0.mjs' 'scripts/check-anything.sh:1: reads under backend/'
@@ -1027,6 +1046,7 @@ wire = { path = "../scripts/r7/wire" }'
   case_with app-script-reads-backend-by-a-root-variable scripts/check-two.sh 'cat "$repo/backend/src/types.ts"' 'scripts/check-two.sh:1: reads under backend/'
   case_with app-climbs-after-a-variable scripts/check-routes.sh 'here=$(cd "$(dirname "$0")" && pwd)
 cat "$here/../backend/contract/routes/v1.json"' 'scripts/check-routes.sh:2: reads under backend/: backend/contract/routes/v1.json'
+  case_with app-climbs-above-the-top-after-a-variable scripts/x.sh 'cat "$here/../../../backend/src/types.ts"' 'scripts/x.sh:1: reads under backend/: backend/src/types.ts'
   case_with app-climbs-after-a-script-dir-variable scripts/x/check.sh 'cat "$SCRIPT_DIR/../../backend/src/types.ts"' 'scripts/x/check.sh:1: reads under backend/: backend/src/types.ts'
   case_with app-crate-climbs-from-the-manifest-directory crates/halvo-x/build.rs 'const S: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../backend/contract/schema/v1.json"));' 'crates/halvo-x/build.rs:1: reads under backend/: backend/contract/schema/v1.json'
   case_with app-powershell-climbs-from-its-root tools/peek.ps1 'Get-Content "$PSScriptRoot\..\backend\contract\schema\v1.json"' 'tools/peek.ps1:1: reads under backend/: backend/contract/schema/v1.json'
@@ -1196,6 +1216,9 @@ show_contract() {
   stage
   expect FAIL prerequisites-case-of-another-step-after-a-case-of-the-step 'scripts/prerequisites.sh:6: reads under backend/'
 
+  case_with backend-climbs-out-by-the-script-path backend/scripts/sp.sh 'cat "${0%/*}/../../x.txt"' 'backend/scripts/sp.sh:1: reads x.txt outside'
+  case_with backend-climbs-out-by-dirname-plus backend/src/dp.mjs 'const p = __dirname + "/../../x.txt";' 'backend/src/dp.mjs:1: reads x.txt outside'
+  case_with backend-climbs-out-by-import-meta-dirname-plus backend/src/dp.mjs 'const p = import.meta.dirname + "/../../x.txt";' 'backend/src/dp.mjs:1: reads x.txt outside'
   case_with backend-imports-a-crate backend/src/capture.ts 'import { read } from "../../crates/halvo-capture/src/lib.rs";' 'backend/src/capture.ts:1: reads crates/halvo-capture/src/lib.rs outside'
   case_with backend-script-climbs-from-its-directory backend/scripts/peek.sh 'cat "$(dirname "$0")/../../src-tauri/tauri.conf.json"' 'backend/scripts/peek.sh:1: reads src-tauri/tauri.conf.json outside'
   case_with backend-script-climbs-from-a-root-variable backend/gate/checks/99-peek.sh 'cat "$ROOT/../ui/index.html"' 'backend/gate/checks/99-peek.sh:1: reads ui/index.html, a tracked path of the app'
@@ -1320,13 +1343,13 @@ p=crates; cat "$top/$p/halvo-capture/Cargo.toml"' 'read:backend/src/computed.ts'
   pass_with known-limit-bare-module backend/scripts/tauri-info.mjs 'import { run } from "@tauri-apps/cli";' 'read:backend/scripts/tauri-info.mjs'
   pass_with known-limit-file-or-environment scripts/env.sh 'cat "$BACKEND_SRC/types.ts"' 'read:scripts/env.sh'
   fixture known-limit-nul-byte
-  put_raw scripts/nul.sh 'cat backend/src/types.ts\000\n'
+  put_raw scripts/zero-byte.sh 'cat backend/src/types.ts\000\n'
   stage
-  expect PASS known-limit-nul-byte 'unread:scripts/nul.sh'
+  expect PASS known-limit-nul-byte 'unread:scripts/zero-byte.sh'
   pass_with known-limit-model-side formal/r7-ledger/peek.mjs 'import a from "../../src-tauri/src/main.rs"; import b from "../../backend/src/types.ts";' 'unread:formal/r7-ledger/peek.mjs'
   fixture known-limit-absolute-path
   put scripts/abs.sh 'cat /srv/checkout/backend/src/types.ts'
-  put backend/scripts/abs.ps1 'Get-Content D:\checkout\crates\halvo-capture\src\lib.rs'
+  put backend/scripts/abs.ps1 'Get-Content D:\checkout\..\..\..\crates\halvo-capture\src\lib.rs'
   stage
   expect PASS known-limit-absolute-path 'read:backend/scripts/abs.ps1'
   pass_with known-limit-both-sides-path backend/scripts/both.sh 'cat "$X/scripts/prerequisites.sh"' 'read:backend/scripts/both.sh'
@@ -1336,10 +1359,11 @@ cat "$OUT/../started.jsonl"' 'read:backend/scripts/out.sh'
   pass_with known-limit-bare-operand scripts/stat.sh 'stat backend' 'read:scripts/stat.sh'
   pass_with known-limit-bracket-glob scripts/bracket.sh 'cat [b]ackend/contract/routes/v1.json' 'read:scripts/bracket.sh'
 
-  dir=$scratch/no-tracked-file
-  mkdir -p "$dir" || exit 2
-  git -C "$dir" init -q || exit 2
-  put backend/src/types.ts 'export type Id = string;'
+  case_repo=$scratch/no-tracked-file
+  case_index=$case_repo/.git/index
+  mkdir -p "$case_repo" || exit 2
+  git -C "$case_repo" init -q || exit 2
+  put_tree backend/src/types.ts 'export type Id = string;'
   expect FAIL no-tracked-file 'holds no tracked file'
 
   collect
