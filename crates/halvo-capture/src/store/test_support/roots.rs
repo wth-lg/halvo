@@ -52,6 +52,7 @@ impl RootGuard {
         self.dir.path().join("roots")
     }
 
+    #[cfg(unix)]
     pub(crate) fn custody(&self) -> DevFallbackCustody {
         DevFallbackCustody::new(self.id, self.roots())
     }

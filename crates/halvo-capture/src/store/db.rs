@@ -363,6 +363,10 @@ const PROBE_OPEN: OpenFlags = OpenFlags::SQLITE_OPEN_READ_ONLY
 /// `/.vol/<device>/<file number>/store.db` of the handle's directory, or the
 /// handle's kept name where the volume does not resolve such a name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    not(target_os = "macos"),
+    expect(dead_code, reason = "the volume form is compiled on macOS alone")
+)]
 pub(crate) enum NameForm {
     Volume,
     Kept,
@@ -444,12 +448,17 @@ fn open_connection(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection
 /// Whether the volume of a handle resolves `/.vol/<device>/<file number>`
 /// names, read by calls that look up no name of the store directory.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    not(target_os = "macos"),
+    expect(dead_code, reason = "the volume form is compiled on macOS alone")
+)]
 pub(crate) enum VolumeIds {
     Yes,
     No,
     Unknown,
 }
 
+#[cfg(target_os = "macos")]
 /// The three readings of a volume: its mount flag `MNT_DOVOLFS`, its
 /// capability `VOL_CAP_FMT_PATH_FROM_ID` as (valid, set), and the stat of
 /// its root under the root's own volume name. `None` is a reading that
@@ -461,6 +470,7 @@ pub(crate) struct VolumeReadings {
     pub(crate) root: Option<RootAnswer>,
 }
 
+#[cfg(target_os = "macos")]
 /// What the stat of a volume's root under its own volume name answered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RootAnswer {
@@ -469,6 +479,7 @@ pub(crate) enum RootAnswer {
     Other,
 }
 
+#[cfg(target_os = "macos")]
 impl VolumeReadings {
     pub(crate) fn ids(self) -> VolumeIds {
         let yes = self.capability == Some((true, true))
@@ -485,6 +496,7 @@ impl VolumeReadings {
     }
 }
 
+#[cfg(target_os = "macos")]
 /// What the stat of the directory's own volume name answered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DirectoryStat {
@@ -494,6 +506,7 @@ pub(crate) enum DirectoryStat {
     Failed,
 }
 
+#[cfg(target_os = "macos")]
 /// The step that one answer of the directory's stat decides.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NameChoice {
@@ -504,6 +517,7 @@ pub(crate) enum NameChoice {
     Failed,
 }
 
+#[cfg(target_os = "macos")]
 /// The choice of ruling ST-39 (1)(c): the volume name for the handle's own
 /// identity; the kept name only for a no-such-name answer on a volume that
 /// reads NO before and after it; for YES a look at the handle, then the stat
@@ -1243,12 +1257,12 @@ impl Db {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, target_os = "macos"))]
     pub(crate) fn name_form(&self) -> NameForm {
         self.named.0
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, target_os = "macos"))]
     pub(crate) fn volume_ids(&self) -> VolumeIds {
         self.named.1
     }

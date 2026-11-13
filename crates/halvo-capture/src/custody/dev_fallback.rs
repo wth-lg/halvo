@@ -6,7 +6,9 @@ use zeroize::Zeroizing;
 
 use std::path::{Path, PathBuf};
 
-use super::file_root::{FileRoots, Protector};
+use super::file_root::FileRoots;
+#[cfg(not(target_os = "windows"))]
+use super::file_root::Protector;
 use super::{CustodyError, CustodyKind, KeyCustody, KeyLabel, RootId, StoreKey, WrappedKey};
 
 const XNONCE_LEN: usize = size_of::<XNonce>();

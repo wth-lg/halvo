@@ -6244,6 +6244,7 @@ fn store_files_in(dir: &Path) -> Vec<String> {
         .collect()
 }
 
+#[cfg(unix)]
 fn a_directory_of_another_party(at: &Path) -> Vec<(String, Vec<u8>)> {
     std::fs::create_dir_all(at.join("segments").join("ab")).unwrap();
     std::fs::write(at.join("store.key"), b"a key file of another party").unwrap();
@@ -6611,6 +6612,7 @@ fn no_text_of_an_answer_holds_the_directory_marker_or_a_segment_id() {
     );
 }
 
+#[cfg(target_os = "macos")]
 fn database_list_name(store: &EncryptedStore) -> String {
     store
         .db()
@@ -8333,6 +8335,7 @@ fn the_kept_name(on: bool) {
     }
 }
 
+#[cfg(target_os = "macos")]
 #[test]
 fn a_no_such_name_answer_chooses_the_kept_name_only_on_a_volume_that_reads_no_both_times() {
     use super::db::{choose_the_name, DirectoryStat as S, NameChoice as C, VolumeIds as V};
@@ -8364,6 +8367,7 @@ fn a_no_such_name_answer_chooses_the_kept_name_only_on_a_volume_that_reads_no_bo
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
 
+#[cfg(target_os = "macos")]
 #[test]
 fn the_three_readings_of_a_volume_decide_yes_no_and_unknown() {
     use super::db::{RootAnswer as R, VolumeIds as V, VolumeReadings};
