@@ -57,6 +57,16 @@ struct Waited {
     raised_at: Option<u64>,
 }
 
+/// Who answers an item, and when: the step mark that the page showed, or none for the native
+/// dialog, whose item keeps its one step (I3.4); the presenter; and the clock as the answer read
+/// it before the coordinator's lock was taken (ruling RD-80 5.3).
+#[derive(Clone, Copy)]
+struct By {
+    step: Option<u32>,
+    from: Presenter,
+    now: Option<u64>,
+}
+
 struct State<C> {
     board: Option<Board<C>>,
     table: Table,
@@ -952,9 +962,15 @@ where
         pick: Option<(Param, u32)>,
         step: u32,
     ) -> Result<(), Cause> {
+        let now = self.ports.now().ok();
         let mut st = self.lock();
         let before = Self::offs(&st);
-        let out = self.answer_in(&mut st, item, choice, pick, Some(step), Presenter::Page);
+        let by = By {
+            step: Some(step),
+            from: Presenter::Page,
+            now,
+        };
+        let out = self.answer_in(&mut st, item, choice, pick, by);
         self.after_reads(&mut st, &before);
         self.publish(&mut st);
         out
@@ -966,9 +982,15 @@ where
             ConfirmAnswer::Allow => Choice::Allow,
             ConfirmAnswer::Reject => Choice::Reject,
         };
+        let now = self.ports.now().ok();
         let mut st = self.lock();
         let before = Self::offs(&st);
-        let out = self.answer_in(&mut st, item, choice, None, None, Presenter::Native);
+        let by = By {
+            step: None,
+            from: Presenter::Native,
+            now,
+        };
+        let out = self.answer_in(&mut st, item, choice, None, by);
         self.after_reads(&mut st, &before);
         self.publish(&mut st);
         out
@@ -999,11 +1021,10 @@ where
         item: &ItemId,
         choice: Choice,
         pick: Option<(Param, u32)>,
-        step: Option<u32>,
-        from: Presenter,
+        by: By,
     ) -> Result<(), Cause> {
         let (i, doing) = self.owner_of(st, item)?;
-        let step = step.unwrap_or_else(|| Self::step_of(st, item));
+        let step = by.step.unwrap_or_else(|| Self::step_of(st, item));
         if step != Self::step_of(st, item) {
             return Err(Cause::State);
         }
@@ -1018,7 +1039,7 @@ where
                     .map(|r| r.run.clone())
                     .ok_or(Cause::State)?;
                 if open.kind == RunItemKind::Confirm {
-                    self.confirm_answer(st, i, &run, item, choice, from)
+                    self.confirm_answer(st, i, &run, item, choice, by)
                 } else if st.binds.iter().any(|b| b.item() == item) {
                     self.bind_answer(st, i, &run, item, choice)
                 } else {
@@ -1109,7 +1130,7 @@ where
         run: &RunId,
         item: &ItemId,
         choice: Choice,
-        from: Presenter,
+        by: By,
     ) -> Result<(), Cause> {
         let answer = match choice {
             Choice::Allow => ConfirmAnswer::Allow,
@@ -1128,8 +1149,11 @@ where
             .iter_mut()
             .find(|h| h.item() == item)
             .ok_or(Cause::Stale)?;
+        if let (Some(now), true) = (by.now, h.confirmation().presenter() == by.from) {
+            items::arm_at(h, now, &self.limits);
+        }
         let l = ledger(ledgers, &board.members[i].facts);
-        let out = items::answer(&self.ports, l, table, h, answer, from, &self.limits);
+        let out = items::answer(&self.ports, l, table, h, answer, by.from, &self.limits);
         let closed = !h.confirmation().state().is_open();
         self.read_back(board, i);
         if closed {
@@ -1231,6 +1255,58 @@ where
         match h.confirmation().presenter() {
             Presenter::Native => Ok(()),
             Presenter::Page => Err(Cause::Presenter),
+        }
+    }
+
+    /// The page's report that it opened the page confirmation `item` at the step mark `step`
+    /// (I8.1 `agents_shown`, ruling RD-80 5.1, 5.2), from which an answer arms `arm_ms` later:
+    /// the clock is read first, before the lock, and a clock that cannot be read is its cause, so
+    /// that the page reports again; an id that is no item is `unknown_item`; an item of another
+    /// presenter, a native confirmation or an item of another kind, is `presenter`, with no time
+    /// noted; a confirmation that is answered or later is `stale`; a step that is not the item's
+    /// is `state`. The first report counts, and a later one answers ok and changes nothing.
+    pub fn shown_on_page(&self, item: &ItemId, step: u32) -> Result<(), Cause> {
+        let now = self.ports.now().map_err(|e| cause_of(&e));
+        let mut st = self.lock();
+        let held = st.held.iter().position(|h| h.item() == item);
+        let closed = st.board.as_ref().is_some_and(|b| {
+            b.members
+                .iter()
+                .any(|m| schedule::item_closed(&m.facts.events, item))
+        });
+        let open = self.owner_of(&st, item).is_ok();
+        let Some(k) = held else {
+            return Err(match (closed, open) {
+                (true, _) => Cause::Stale,
+                (false, true) => Cause::Presenter,
+                (false, false) => Cause::UnknownItem,
+            });
+        };
+        let h = &mut st.held[k];
+        if h.confirmation().presenter() != Presenter::Page {
+            return Err(Cause::Presenter);
+        }
+        if !h.confirmation().state().waits_for_person() {
+            return Err(Cause::Stale);
+        }
+        if step != 0 {
+            return Err(Cause::State);
+        }
+        items::on_screen(h, now?);
+        Ok(())
+    }
+
+    /// The page is hidden or its window is gone (RD-80 5.6): the report of each page
+    /// confirmation that is still `shown` is forgotten, so that its next show counts anew, and an
+    /// armed one stays armed.
+    pub fn page_hidden(&self) {
+        let mut st = self.lock();
+        for h in st
+            .held
+            .iter_mut()
+            .filter(|h| h.confirmation().presenter() == Presenter::Page)
+        {
+            items::forget_report(h);
         }
     }
 

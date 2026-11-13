@@ -37,6 +37,8 @@ pub struct Both {
     pub unread: Cell<bool>,
     /// Where set, `loss` waits for the first `log` with a row that this names.
     pub loss_at: Cell<Option<Names>>,
+    /// Whether `Clock::now` fails with `no_service`.
+    pub clock_fails: Cell<bool>,
     /// Each `Runs::answer_bind`: its run, its answer, whether it did its work, and how many
     /// events the owner held at the call.
     pub binds_at: std::cell::RefCell<Vec<(RunId, BindResult, bool, usize)>>,
@@ -226,6 +228,9 @@ impl Analysis for Both {
 
 impl Clock for Both {
     fn now(&self) -> Result<u64, PortError> {
+        if self.clock_fails.get() {
+            return Err(PortError::NoService);
+        }
         self.ports.now()
     }
 
@@ -297,6 +302,7 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
         lost: std::cell::RefCell::new(Vec::new()),
         unread: Cell::new(false),
         loss_at: Cell::new(None),
+        clock_fails: Cell::new(false),
         binds_at: std::cell::RefCell::new(Vec::new()),
         handbacks_at: std::cell::RefCell::new(Vec::new()),
     }

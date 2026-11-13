@@ -125,8 +125,9 @@ const OK: &[&str] = &["reply-ok"];
 
 /// The commands of I8.1 in their order, each with its arguments, the stems of its reply files
 /// and its error causes. The `choice` of `agents_answer` takes the ten choices of I3.1 and not
-/// `present`, which the page sends as `agents_present`.
-pub const LIST: [Command; 7] = [
+/// `present`, which the page sends as `agents_present`. `agents_shown` is the page's report that
+/// it opened a page confirmation at the step mark that it shows (ruling RD-80 5.1, 5.2).
+pub const LIST: [Command; 8] = [
     Command {
         name: "agents_snapshot",
         args: &[],
@@ -234,6 +235,19 @@ pub const LIST: [Command; 7] = [
             Cause::UnknownAgent,
             Cause::NoService,
             Cause::Busy,
+            Cause::Malformed,
+        ],
+    },
+    Command {
+        name: "agents_shown",
+        args: &[ITEM, STEP],
+        replies: OK,
+        errors: &[
+            Cause::UnknownItem,
+            Cause::Presenter,
+            Cause::Stale,
+            Cause::State,
+            Cause::NoService,
             Cause::Malformed,
         ],
     },

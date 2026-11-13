@@ -1,7 +1,7 @@
 #[path = "coordinator_support.rs"]
 mod support;
 
-use halvo_coord::items::choices;
+use halvo_coord::items::{choices, ConfirmAnswer};
 use halvo_coord::mem::{Call, Method};
 use halvo_coord::ports::PortError;
 use halvo_coord::sync::Next;
@@ -5736,4 +5736,162 @@ fn rd87_an_answer_of_a_step_that_is_no_longer_current_is_refused_with_state() {
     );
     assert!(handed_back(&c, m).is_empty());
     assert_eq!(c.answer(&item, Choice::Decline, None, 0), Ok(()));
+}
+
+/// A confirm request of agent `n`'s run for one signature, whose presenter is `native`.
+fn ask_native(run: &RunId, n: usize) -> RunEvent {
+    let RunEvent::Confirm(one) = ask_confirm(run, n) else {
+        unreachable!()
+    };
+    let slot = |name: &str| halvo_coord::types::BoundField {
+        name: Name::parse(name).unwrap(),
+        from: halvo_coord::types::BoundFrom::Slot,
+        value: vec![format!("value of {name}")],
+    };
+    let sign = halvo_coord::types::AskedEffect {
+        class: Class::Sign,
+        fields: vec![slot("document"), slot("party")],
+        ..one.effects()[0].clone()
+    };
+    RunEvent::Confirm(ConfirmAsk::new(run.clone(), agent(n), vec![sign]).unwrap())
+}
+
+/// A run of agent 0 that waits on a confirmation of the page (a send), or of the native dialog
+/// (a signature), shown at `T0`.
+fn confirming(native: bool) -> (Coordinator<Both>, RunId, ItemId) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let ask = if native {
+        ask_native(&run, 0)
+    } else {
+        ask_confirm(&run, 0)
+    };
+    c.on_run(&run, ask).unwrap();
+    let (item, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::Confirm);
+    (c, run, item)
+}
+
+/// RD-80 5.3 and 5.7: a page confirmation arms in the move of its answer, `arm_ms` after the
+/// page's report that it opened it, with no tick between: answers at 100, 499 and 500 ms after
+/// the report are `early`, `early`, and armed and taken.
+#[test]
+fn rd80_a_page_answer_arms_in_its_own_move_from_the_report() {
+    let arm = Limits::PRODUCT.arm_ms;
+    let (c, _run, item) = confirming(false);
+    assert_eq!(c.shown_on_page(&item, 0), Ok(()));
+    for (after, out) in [
+        (100, Err(Cause::Early)),
+        (arm - 1, Err(Cause::Early)),
+        (arm, Ok(())),
+    ] {
+        c.ports().ports.set_clock(T0 + after, DAY);
+        assert_eq!(c.answer(&item, Choice::Allow, None, 0), out, "{after} ms");
+    }
+    assert!(c.snapshot().items.is_empty(), "taken");
+}
+
+/// RD-80 5.3 and 5.7: an answer with no report is `early`, however late it comes; and an answer
+/// whose clock was read before the lock is not armed by a later read inside the move (the clock
+/// steps on at each read here, so a read after the lock would pass `arm_ms`).
+#[test]
+fn rd80_an_answer_with_no_report_or_read_before_arm_ms_is_early() {
+    let arm = Limits::PRODUCT.arm_ms;
+    let (c, _run, item) = confirming(false);
+    c.ports().ports.set_clock(T0 + 10 * arm, DAY);
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, 0),
+        Err(Cause::Early),
+        "no report"
+    );
+    let (c, _run, item) = confirming(false);
+    assert_eq!(c.shown_on_page(&item, 0), Ok(()));
+    c.ports().ports.set_clock(T0 + arm - 100, DAY);
+    c.ports().ports.step_reads(200);
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, 0),
+        Err(Cause::Early),
+        "the clock read before the lock"
+    );
+}
+
+/// RD-80 5.2 and 5.7: each cause of the report, and two reports keep the first. An id that is no
+/// item is `unknown_item`; a native item `presenter`, with no time noted, so that after `arm_ms`
+/// and a tick the native answer is still `early`; an item that is answered or later `stale`; a
+/// step that is not the item's `state`; a clock that cannot be read `no_service`.
+#[test]
+fn rd80_the_reports_causes_and_two_reports_keep_the_first() {
+    let arm = Limits::PRODUCT.arm_ms;
+    let (c, _run, item) = confirming(false);
+    let other = ItemId::parse(&format!("{:032x}", 0xbad)).unwrap();
+    assert_eq!(c.shown_on_page(&other, 0), Err(Cause::UnknownItem));
+    assert_eq!(c.shown_on_page(&item, 1), Err(Cause::State));
+    c.ports().clock_fails.set(true);
+    assert_eq!(c.shown_on_page(&item, 0), Err(Cause::NoService));
+    c.ports().clock_fails.set(false);
+    assert_eq!(c.shown_on_page(&item, 0), Ok(()), "the first report");
+    c.ports().ports.set_clock(T0 + arm - 100, DAY);
+    assert_eq!(c.shown_on_page(&item, 0), Ok(()), "a second report");
+    c.ports().ports.set_clock(T0 + arm, DAY);
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, 0),
+        Ok(()),
+        "armed from the first report"
+    );
+    assert_eq!(c.shown_on_page(&item, 0), Err(Cause::Stale), "answered");
+    let (c, _run, native) = confirming(true);
+    assert_eq!(c.shown_on_page(&native, 0), Err(Cause::Presenter));
+    c.ports().ports.set_clock(T0 + arm, DAY);
+    c.tick();
+    assert_eq!(
+        c.answer_native(&native, ConfirmAnswer::Allow),
+        Err(Cause::Early),
+        "no time noted"
+    );
+    let (c, _run, item) = confirming(false);
+    c.ports().drop_decision.set(true);
+    c.shown_on_page(&item, 0).unwrap();
+    c.ports().ports.set_clock(T0 + arm, DAY);
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, 0),
+        Err(Cause::NoService)
+    );
+    assert_eq!(c.shown_on_page(&item, 0), Err(Cause::Stale), "recorded");
+}
+
+/// RD-80 5.6 and 5.7: a hide forgets the report of a page confirmation that is still `shown`, so
+/// that a new show counts anew, and keeps one that was armed before the hide.
+#[test]
+fn rd80_a_hide_forgets_the_report_of_a_shown_item_and_keeps_an_armed_one() {
+    let arm = Limits::PRODUCT.arm_ms;
+    let (c, _run, item) = confirming(false);
+    c.shown_on_page(&item, 0).unwrap();
+    c.page_hidden();
+    c.ports().ports.set_clock(T0 + arm, DAY);
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, 0),
+        Err(Cause::Early),
+        "the report was forgotten"
+    );
+    c.shown_on_page(&item, 0).unwrap();
+    c.ports().ports.set_clock(T0 + 2 * arm, DAY);
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, 0),
+        Ok(()),
+        "the new show"
+    );
+    let (c, _run, item) = confirming(false);
+    c.shown_on_page(&item, 0).unwrap();
+    c.ports().ports.set_clock(T0 + arm, DAY);
+    c.tick();
+    assert_eq!(
+        c.snapshot().items[0].armed(),
+        halvo_coord::types::YesNo::Yes
+    );
+    c.page_hidden();
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None, 0),
+        Ok(()),
+        "an armed item stays armed"
+    );
 }

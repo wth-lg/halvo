@@ -88,7 +88,12 @@ fn i8_1() -> Value {
             arg("agent", "id", None, None),
             arg("action", "name", None, Some(vec!["run_now", "stop", "switch_off", "switch_on"]))],
          "replies": ["reply-ok"],
-         "errors": ["hold", "state", "budget", "queue_full", "unknown_agent", "no_service", "busy", "malformed"]}
+         "errors": ["hold", "state", "budget", "queue_full", "unknown_agent", "no_service", "busy", "malformed"]},
+        {"command": "agents_shown", "args": [
+            arg("item", "id", None, None),
+            arg("step", "count", None, None)],
+         "replies": ["reply-ok"],
+         "errors": ["unknown_item", "presenter", "stale", "state", "no_service", "malformed"]}
     ])
 }
 

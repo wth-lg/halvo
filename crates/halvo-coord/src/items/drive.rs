@@ -697,6 +697,25 @@ pub fn on_screen(held: &mut Held, now: u64) {
     }
 }
 
+/// Arms a `shown` item whose first report is `arm_ms` or more before `now`, the clock that its
+/// answer read before the coordinator's lock, so that the answer is taken in its own move
+/// (ruling RD-80 5.3); nothing for any other item.
+pub fn arm_at(held: &mut Held, now: u64, limits: &Limits) {
+    if let Some(ConfirmMove::Arm) = due(held, now, limits) {
+        if let Ok(armed) = confirm_step(Some(&held.confirmation), ConfirmMove::Arm) {
+            held.confirmation = armed;
+        }
+    }
+}
+
+/// Forgets the report of an item that is still `shown`, so that its next show counts anew; an
+/// armed item stays armed (ruling RD-80 5.6).
+pub fn forget_report(held: &mut Held) {
+    if *held.confirmation.state() == ConfirmState::Shown {
+        held.on_screen_at = None;
+    }
+}
+
 /// The move that time makes on a held confirmation at `now`: a lapse with `wait_limit` once
 /// `wait_limit_s` have passed since `issue` while it waits for the person, else `arm` once
 /// `arm_ms` have passed since its first report on screen while it is `shown`; none otherwise.
