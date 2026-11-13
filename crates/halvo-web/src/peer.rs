@@ -160,7 +160,7 @@ fn owners(peer_port: u16, relay_port: u16, root: &Proc) -> Vec<u32> {
         .map(|p| p.pid)
         .collect();
     let mut found = owners_of_connection(peer_port, relay_port, &tree);
-    if found.len() == 1 {
+    if found.len() <= 1 {
         let me = std::process::id();
         let others: Vec<u32> = all_pids()
             .into_iter()

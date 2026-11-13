@@ -11,6 +11,7 @@ pub mod peer;
 pub mod pipe;
 pub mod procs;
 pub mod relay;
+pub mod rows;
 #[cfg(all(test, target_os = "macos"))]
 mod standin;
 pub mod start;

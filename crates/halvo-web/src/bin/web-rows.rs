@@ -6,12 +6,18 @@
 //!   start's call to the browser's first reply and to the start's return (CP-158 (2)).
 //! - `killed_start --browser PATH --runs N --seed S --scratch DIR`: N children of this program
 //!   that each start the browser, each ended by the system's hard kill at a moment drawn from
-//!   0 to 3,000 ms after its start; a run is ok when every process that names its profile and the
-//!   guard are gone within `LEFT_WAIT` (A11.1, CP-133 (i)).
+//!   0 to 3,000 ms after its start; one read rule (`rows::read_left`) from the child's start to the
+//!   run's verdict: `seen` is the most of the run's own processes that one read found, a run with
+//!   `seen=0` is notrun, ok when every process of the run and its guard are gone within
+//!   `LEFT_WAIT` with nothing open, miss otherwise; it draws until N runs read ok or miss, at most
+//!   3 N draws, and is ok only with N ok and no miss (A11.1, CP-133 (i), CP-170 E8 (a), (b)).
 //! - `relay_foreign --browser PATH [--as USER --copy-dir DIR]`: a connection to the relay from a
 //!   process outside the browser's tree, of this account and, with `--as`, of another account
 //!   (macOS, `sudo -n -u USER`; Windows, with `--password-file FILE`, a start with the account's
-//!   credentials); ok when the relay refused it unread and recorded it apart.
+//!   credentials); after a control in which the row's own browser loads the listed echo port
+//!   through the relay (notrun when it does not); a cell is ok when the relay refused it unread
+//!   and recorded it apart with the cause that the cell is for, and a cell that cannot be prepared
+//!   prints its own miss.
 //!
 //! - `crash --browser PATH --kind chrome|edge --port N`: the crash row (CP-165 (2), CP-167): with
 //!   the fixture on port N, a start and stop with no crash, then the browser crashed by the
@@ -438,7 +444,9 @@ async fn start_only(argv: &[String]) -> ExitCode {
     let Some(opts) = options(Path::new(&browser), PathBuf::from(profile), &relay) else {
         return ExitCode::from(2);
     };
-    let started = Executor::start(&opts).await;
+    let Ok(started) = Executor::start(&opts).await else {
+        return ExitCode::from(1);
+    };
     tokio::time::sleep(Duration::from_secs(60)).await;
     drop(started);
     ExitCode::SUCCESS
@@ -466,27 +474,30 @@ fn same_path(a: &Path, b: &Path) -> bool {
     }
 }
 
-/// The processes that the run of `profile` left: those that name its profile as a whole path and
-/// run a program inside the browser's bundle or install directory (`checks::Mark`), and its guard,
-/// this program run with the guard's flag and the profile's temporary directory.
-fn left_of(mark: &halvo_web::checks::Mark, temp: &str, me: &Path) -> (Vec<procs::Proc>, usize) {
-    let table = procs::table().unwrap_or_default();
-    let own: Vec<procs::Proc> = table
-        .iter()
-        .filter(|p| mark.owns(p, &halvo_web::checks::command_args))
-        .cloned()
-        .collect();
-    let guards = table
-        .iter()
-        .filter(|p| p.exe.as_deref().is_some_and(|e| same_path(e, me)))
-        .filter(|p| {
-            halvo_web::checks::command_args(p.pid).is_some_and(|a| {
-                a.iter().any(|x| x == halvo_web::guard::GUARD_FLAG)
-                    && a.iter().any(|x| x.contains(temp))
-            })
-        })
-        .count();
-    (own, guards)
+/// One read of what the run of `mark` has running (`rows::read_left`): its own processes, and its
+/// guard, this program run with the guard's flag and the run's temporary path; the row's own child
+/// `child`, which names the profile in its arguments, is no process of the run.
+fn left_of(
+    mark: &halvo_web::checks::Mark,
+    temp: &str,
+    me: &Path,
+    child: u32,
+) -> halvo_web::rows::Left {
+    let table: Option<Vec<procs::Proc>> = procs::table()
+        .ok()
+        .map(|t| t.into_iter().filter(|p| p.pid != child).collect());
+    halvo_web::rows::read_left(
+        table.as_deref(),
+        mark,
+        &halvo_web::checks::command_args,
+        &|p| {
+            p.exe.as_deref().is_some_and(|e| same_path(e, me))
+                && halvo_web::checks::command_args(p.pid).is_some_and(|a| {
+                    a.iter().any(|x| x == halvo_web::guard::GUARD_FLAG)
+                        && a.iter().any(|x| x.contains(temp))
+                })
+        },
+    )
 }
 
 async fn killed_start(argv: &[String]) -> (usize, usize) {
@@ -504,8 +515,10 @@ async fn killed_start(argv: &[String]) -> (usize, usize) {
     };
     let me_real = std::fs::canonicalize(&me).unwrap_or(me.clone());
     let browser = std::path::absolute(&browser).unwrap_or(PathBuf::from(&browser));
-    let mut ok = 0;
-    for i in 1..=runs {
+    let (mut ok, mut miss, mut notrun, mut draws) = (0usize, 0usize, 0usize, 0usize);
+    while ok + miss < runs && draws < 3 * runs {
+        draws += 1;
+        let i = draws;
         let at_ms = draw(&mut state);
         let profile = dir.join(format!("p{i}"));
         let mut temp = profile.clone().into_os_string();
@@ -529,36 +542,57 @@ async fn killed_start(argv: &[String]) -> (usize, usize) {
         {
             Ok(c) => c,
             Err(_) => {
-                println!("row killed_start run={i} result=miss cause=child");
+                notrun += 1;
+                println!("row killed_start run={i} result=notrun cause=child");
                 continue;
             }
         };
-        tokio::time::sleep(Duration::from_millis(at_ms)).await;
+        let started = Instant::now();
+        let mut seen = 0usize;
+        while started.elapsed() < Duration::from_millis(at_ms) {
+            seen = seen.max(left_of(&mark, &temp, &me_real, child.id()).own);
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
         let _ = child.kill();
         let _ = child.wait();
         let killed = Instant::now();
-        let (gone_ms, left, guards) = loop {
-            let (own, guards) = left_of(&mark, &temp, &me_real);
-            if own.is_empty() && guards == 0 {
-                break (Some(killed.elapsed().as_millis()), 0, 0);
+        let (gone_ms, last) = loop {
+            let left = left_of(&mark, &temp, &me_real, child.id());
+            seen = seen.max(left.own);
+            if left.gone() {
+                break (Some(killed.elapsed().as_millis()), left);
             }
             if killed.elapsed() > LEFT_WAIT {
-                break (None, own.len(), guards);
+                break (None, left);
             }
             tokio::time::sleep(Duration::from_millis(20)).await;
         };
-        let ended = if left > 0 {
+        let ended = if last.own > 0 {
             halvo_web::checks::end_runs_own(&mark).ended
         } else {
             0
         };
-        let fine = gone_ms.is_some();
-        ok += usize::from(fine);
+        let result = match (seen, gone_ms) {
+            (0, _) => "notrun",
+            (_, Some(_)) => "ok",
+            (_, None) => "miss",
+        };
+        match result {
+            "ok" => ok += 1,
+            "miss" => miss += 1,
+            _ => notrun += 1,
+        }
         println!(
-            "row killed_start run={i} at_ms={at_ms} gone_ms={} left={left} guards_left={guards} ended_after={ended} result={}",
+            "row killed_start run={i} at_ms={at_ms} seen={seen} gone_ms={} left={} guards_left={} cause={} ended_after={ended} result={result}",
             gone_ms.map_or("-".to_string(), |m| m.to_string()),
-            if fine { "ok" } else { "miss" }
+            last.own,
+            last.guards,
+            last.open.unwrap_or("-"),
         );
+    }
+    println!("row killed_start ok={ok} miss={miss} notrun={notrun} draws={draws}");
+    if miss > 0 {
+        return (0, runs);
     }
     (ok, runs)
 }
@@ -647,6 +681,13 @@ fn as_other(
     Some(other)
 }
 
+/// Whether the relay's cause of refusal is the one that a cell of `relay_foreign` is for (CP-170
+/// E8 (c)): `outside_tree` for a process of this account, which the walk reads; for a process of
+/// another account also `no_owner`, because the walk cannot read its descriptors on macOS.
+fn cell_cause_fits(who: &str, cause: &str) -> bool {
+    cause == "outside_tree" || (who == "other" && cause == "no_owner")
+}
+
 async fn relay_foreign(argv: &[String]) -> (usize, usize) {
     let (Some(browser), Some(dir)) = (arg(argv, "--browser"), scratch_of(argv, "foreign")) else {
         return (0, 1);
@@ -663,37 +704,62 @@ async fn relay_foreign(argv: &[String]) -> (usize, usize) {
     let Some(opts) = options(Path::new(&browser), dir.join("p"), &relay) else {
         return (0, 1);
     };
-    let ex = match Executor::start(&opts).await {
+    let mut ex = match Executor::start(&opts).await {
         Ok(ex) => ex,
         Err(f) => {
             println!("row relay_foreign result=miss cause={}", f.cause);
             return (0, 1);
         }
     };
+    let tunnels = relay.tunnels();
+    let _ = ex
+        .open(&format!("http://utility.agent.test:{echo_port}/"))
+        .await;
+    let mut control = false;
+    for _ in 0..50 {
+        if echo.accept().is_ok() {
+            control = relay.tunnels() > tunnels;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    while echo.accept().is_ok() {}
+    println!(
+        "row relay_foreign control=browser_through_relay result={}",
+        if control { "ok" } else { "notrun" }
+    );
     let Ok(me) = std::env::current_exe() else {
         return (0, 1);
     };
-    let mut cells: Vec<(&str, std::process::Command)> = Vec::new();
+    let mut cells: Vec<(&str, Result<std::process::Command, &str>)> = Vec::new();
     let mut same = std::process::Command::new(&me);
     same.arg("foreign_connect")
         .arg(relay.port.to_string())
         .arg(echo_port.to_string());
-    cells.push(("same", same));
+    cells.push(("same", Ok(same)));
     if let (Some(user), Some(copy_dir)) = (arg(argv, "--as"), arg(argv, "--copy-dir")) {
         let copy = Path::new(&copy_dir).join(if cfg!(windows) {
             "web-rows.exe"
         } else {
             "web-rows"
         });
-        if std::fs::copy(&me, &copy).is_ok() {
-            if let Some(other) = as_other(&user, &copy, relay.port, echo_port, argv) {
-                cells.push(("other", other));
-            }
-        }
+        let other = if std::fs::copy(&me, &copy).is_err() {
+            Err("copy")
+        } else {
+            as_other(&user, &copy, relay.port, echo_port, argv).ok_or("password_file")
+        };
+        cells.push(("other", other));
     }
     let mut ok = 0;
     let runs = cells.len();
-    for (who, mut cmd) in cells {
+    for (who, cmd) in cells {
+        let mut cmd = match cmd {
+            Ok(c) => c,
+            Err(cause) => {
+                println!("row relay_foreign as={who} cause={cause} result=miss");
+                continue;
+            }
+        };
         let before = relay.handle().foreign_count();
         let out = cmd.stdin(std::process::Stdio::null()).start_output();
         let said = out
@@ -704,12 +770,16 @@ async fn relay_foreign(argv: &[String]) -> (usize, usize) {
         let cause = foreign.last().map_or("-", |f| f.cause);
         let recorded = relay.handle().foreign_count() == before + 1;
         let accepted = usize::from(echo.accept().is_ok());
-        let fine = recorded && said == "connect=refused" && accepted == 0;
+        let fine = control
+            && recorded
+            && cell_cause_fits(who, cause)
+            && said == "connect=refused"
+            && accepted == 0;
         ok += usize::from(fine);
         println!(
             "row relay_foreign as={who} cause={cause} recorded={} {said} accepted={accepted} result={}",
             if recorded { "yes" } else { "no" },
-            if fine { "ok" } else { "miss" }
+            if fine { "ok" } else if control { "miss" } else { "notrun" }
         );
     }
     let stopped = ex.stop_and_remove().await;
