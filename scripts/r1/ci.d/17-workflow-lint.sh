@@ -101,9 +101,9 @@ EOF
         if (c ~ /[ \t]/) { prev = " "; continue }
         if (c == "#" && prev == " ") break
         prev = c
-        if (start && c == "-" && nx ~ /[ \t]/) { dash = i; first = 0; continue }
+        if (start && c == "-" && nx ~ /[ \t]/) { dash = i; continue }
         if (start && (c == "|" || c == ">")) { block = first ? first : dash ? dash : i; continue }
-        if (start && !first) first = i
+        if (!first) first = i
         if (start && (c == "\"" || c == q)) {
           i = past(line, i + 1, c)
           if (!i) return "quote"
@@ -329,7 +329,7 @@ EOF
   tree explicit-job-permissions "7s/\$/\\${nl}    ? permissions\\${nl}    : write-all/"
   check explicit-job-permissions FAIL 'keys in the explicit form of YAML'
   tree timeout-in-a-double-quoted-name "8s/.*/    name: \"macos\\${nl}    timeout-minutes: 30\\${nl}    \"/"
-  check timeout-in-a-double-quoted-name FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
+  check timeout-in-a-double-quoted-name FAIL 'ci.yml line 8 ends inside a quoted scalar, which this lint does not read over several lines'
   tree timeout-in-a-single-quoted-name "8s/.*/    name: 'macos\\${nl}    timeout-minutes: 30\\${nl}    '/"
   check timeout-in-a-single-quoted-name FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree longer-timeout-beside-a-quoted-name "8s/30/600/;8s/\$/\\${nl}    name: \"macos\\${nl}    timeout-minutes: 30\\${nl}    \"/"
@@ -356,8 +356,8 @@ EOF
   check job-in-a-quoted-name FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
   tree tab-before-a-quote-in-a-flow-value "8s/.*/    env: {NAME:${tab}!!str${tab}\"macos\\${nl}    timeout-minutes: 30\\${nl}    \"}/"
   check tab-before-a-quote-in-a-flow-value FAIL 'ends inside a quoted scalar, which this lint does not read over several lines'
-  tree flow-list-over-lines-holds-the-limit "8s/30/600/;8s/\$/\\${nl}    strategy:\\${nl}      matrix:\\${nl}        os: [a,\\${nl}    timeout-minutes: 30\\${nl}    ]/"
-  check flow-list-over-lines-holds-the-limit FAIL 'ends inside a flow collection ([ or {), which this lint does not read over several lines'
+  tree flow-list-over-lines-holds-the-limit "8s/30/600/;8s/\$/\\${nl}    strategy:\\${nl}      matrix:\\${nl}        os: [a, {b: c},\\${nl}    timeout-minutes: 30\\${nl}    ]/"
+  check flow-list-over-lines-holds-the-limit FAIL 'ci.yml line 11 ends inside a flow collection ([ or {), which this lint does not read over several lines'
   tree quote-in-a-plain-continuation-hides-no-job "7s/\$/\\${nl}    env:\\${nl}      NOTE: a\\${nl}        \"b/;\$s/\$/\\${nl}  extra:\\${nl}    runs-on: ubuntu-24.04\\${nl}    timeout-minutes: 600\\${nl}    steps:\\${nl}      - run: echo \"hi\"/"
   check quote-in-a-plain-continuation-hides-no-job FAIL 'the jobs of ci.yml must be exactly macos and windows, and it holds: macos windows extra'
   tree closed-quotes-before-the-timeout "7s/\$/\\${nl}    name: \"macos \\\\\" # job\"/;12s/\$/\\${nl}    name: 'windows\\\\' # y/"
