@@ -157,7 +157,7 @@ impl Runner {
             return Err(Failure::Step(Cause::StepFailed));
         }
         self.check()?;
-        self.within_wall(&loaded.config.limits)?;
+        self.within_wall()?;
         let at = self.propose(decide(&config, step.class, Checkpoint::Yes), &bound)?;
         match self.effects[at].state {
             EffectState::Cleared => {}
@@ -172,7 +172,7 @@ impl Runner {
             _ => return Err(Stop::End(Outcome::Failed, Some(Cause::Effect)).into()),
         }
         self.check()?;
-        self.within_wall(&loaded.config.limits)?;
+        self.within_wall()?;
         let again = digest(&bound).map_err(|_| Failure::Step(Cause::StepFailed))?;
         self.advance(at, EffectMove::Begin { digest: again })?;
         self.check()?;

@@ -74,6 +74,8 @@ pub(crate) struct Runner {
     started: Clock,
     pub(crate) waited: Duration,
     log_seq: u32,
+    /// The `wall_s` of the newest load of the configuration; 0 before the first load.
+    wall_limit: u32,
     pub(crate) steps: u32,
     pub(crate) handbacks: u32,
     pub(crate) confirmations: u32,
@@ -100,6 +102,7 @@ impl Runner {
             started: Clock::now(),
             waited: Duration::ZERO,
             log_seq: START_ROW,
+            wall_limit: 0,
             steps: 0,
             handbacks: 0,
             confirmations: 0,
@@ -139,12 +142,12 @@ impl Runner {
         if self.steps >= limits.steps {
             return Err(Stop::End(Outcome::Limit, Some(Cause::Steps)));
         }
-        self.within_wall(limits)
+        self.within_wall()
     }
 
-    /// Ends the run when its `wall` limit has passed.
-    pub(crate) fn within_wall(&self, limits: &Limits) -> Result<(), Stop> {
-        if self.wall_s() > limits.wall_s {
+    /// Ends the run when its time is at or above the `wall_s` of the newest load (A6.5, CP-135 (3) (iv)).
+    pub(crate) fn within_wall(&self) -> Result<(), Stop> {
+        if self.wall_s() >= self.wall_limit {
             return Err(Stop::End(Outcome::Limit, Some(Cause::Wall)));
         }
         Ok(())
@@ -275,6 +278,7 @@ impl Runner {
                 {
                     return Err(Broken::Frame("load_of_another_agent").into());
                 }
+                self.wall_limit = reply.config.limits.wall_s;
                 Ok(reply)
             }
             Ok(_) => Err(Broken::Frame("not_the_answer").into()),
