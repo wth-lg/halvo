@@ -383,8 +383,9 @@ pub const SCREEN_STOP_DEADLINE: Duration = Duration::from_millis(6_000);
 
 const STOP_POLL: Duration = Duration::from_millis(5);
 
-#[allow(dead_code)]
-const STOP_READ_LIMIT: usize = 4_096;
+/// How many messages a pump reads at its stop, after its quit message or its
+/// stop event, before it returns; input that keeps coming cannot hold a stop.
+pub const STOP_READ_LIMIT: usize = 4_096;
 
 fn deadline_ms(deadline: Duration) -> u64 {
     u64::try_from(deadline.as_millis()).unwrap_or(u64::MAX)
@@ -638,13 +639,13 @@ pub(crate) fn pump_messages(signal: &StopSignal) {
         MWMO_INPUTAVAILABLE, PM_REMOVE, QS_ALLINPUT, WM_QUIT,
     };
     let mut msg = MSG::default();
-    loop {
+    'pump: loop {
         // SAFETY: `msg` is a live MSG that PeekMessageW fills, and the same
         // value goes to TranslateMessage and DispatchMessageW.
         unsafe {
             while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
                 if msg.message == WM_QUIT {
-                    return;
+                    break 'pump;
                 }
                 let _ = TranslateMessage(&msg);
                 DispatchMessageW(&msg);
@@ -661,7 +662,28 @@ pub(crate) fn pump_messages(signal: &StopSignal) {
             )
         };
         if woke.0 != WAIT_OBJECT_0.0 + 1 {
-            return;
+            break;
+        }
+    }
+    read_at_stop(STOP_READ_LIMIT);
+}
+
+fn read_at_stop(limit: usize) {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE, WM_QUIT,
+    };
+    let mut msg = MSG::default();
+    for _ in 0..limit {
+        // SAFETY: `msg` is a live MSG that PeekMessageW fills, and the same
+        // value goes to TranslateMessage and DispatchMessageW.
+        unsafe {
+            if !PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                return;
+            }
+            if msg.message != WM_QUIT {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
         }
     }
 }
