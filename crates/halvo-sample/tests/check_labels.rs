@@ -311,3 +311,28 @@ fn every_range_that_overlaps_an_earlier_one_is_named_once() {
         );
     }
 }
+
+#[test]
+fn under_the_recorded_rule_a_range_with_only_another_steps_title_fails() {
+    let dir = copy_golden("recorded-other-step");
+    edit_labels(
+        &dir,
+        r#""step":"g-budget-sheet","start":1770652800000000000,"end":1770652920000000000"#,
+        r#""step":"g-cart-basket","start":1770652800000000000,"end":1770652920000000000"#,
+    );
+    let o = run(&["check-labels", "--rule", "recorded", &s(&dir)]);
+    assert_eq!(o.code, 1);
+    let fails: Vec<&str> = o
+        .stdout
+        .lines()
+        .filter(|l| l.starts_with("FAIL "))
+        .collect();
+    assert_eq!(
+        fails,
+        vec!["FAIL range golden golden-e10 g-cart-basket 1770652800000000000 1770652920000000000 titles=1 own=0"],
+        "{}",
+        o.stdout
+    );
+    assert!(o.stdout.contains(" failures=1\n"), "{}", o.stdout);
+}
+
