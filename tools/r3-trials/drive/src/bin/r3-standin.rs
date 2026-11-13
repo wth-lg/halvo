@@ -158,6 +158,14 @@ fn repair(ask: &Ask) -> Option<String> {
     let (verb, rest) = said.split_once(' ')?;
     let (role, name) = rest.split_once(' ')?;
     let name = name.trim_matches('"');
+    if verb == "extract" {
+        let (line, kept) = match role {
+            "listitem" => (ask.first("listitem")?, "items"),
+            _ if ask.find("text", "Total").is_some() => (ask.after_text("Total")?, "total"),
+            _ => (ask.after_text("Amount due")?, "amount_due"),
+        };
+        return Some(action("extract", Some(&line.reference), None, Some(kept)));
+    }
     let wanted = RENAMED
         .iter()
         .find(|(from, _)| *from == name)
@@ -356,6 +364,20 @@ mod tests {
             "e3 heading \"Payment received\""
         )
         .contains("\"done\""));
+    }
+
+    #[test]
+    fn the_repair_of_an_extract_names_the_line_under_the_step_name() {
+        let order = "e4 listitem \"\"\ne5 listitem \"\"\ne7 text \"Total\"\ne8 text \"2.00\"";
+        assert_eq!(
+            ask("Step 3 of the saved steps found no control on this page: extract listitem \"\". Give the action that does this step on this page.", order),
+            "{\"action\":\"extract\",\"ref\":\"e4\",\"slot\":null,\"key\":null,\"name\":\"items\"}"
+        );
+        assert!(ask("Step 4 of the saved steps found no control on this page: extract text \"2.00\". Give the action that does this step on this page.", order)
+            .contains("\"ref\":\"e8\",\"slot\":null,\"key\":null,\"name\":\"total\""));
+        let bill = "e4 text \"Amount due\"\ne5 text \"1.00\"";
+        assert!(ask("Step 3 of the saved steps found no control on this page: extract text \"1.00\". Give the action that does this step on this page.", bill)
+            .contains("\"name\":\"amount_due\""));
     }
 
     #[test]
