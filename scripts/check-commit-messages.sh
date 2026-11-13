@@ -874,7 +874,8 @@ self_test_pre_push() {
   status=0
   (cd "$work/clone" && printf 'not a line that git writes\n' | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-line-that-git-does-not-write.txt" 2>&1 || status=$?
   judge a-line-that-git-does-not-write "$status" 2 'cannot read this line'
-  for bad_line in "refs/heads/x $clean refs/heads/x not-an-object-id" "refs/heads/x not-an-object-id refs/heads/x $no_commit"; do
+  upper=$(printf '%s' "$clean" | tr 'a-f' 'A-F')
+  for bad_line in "refs/heads/x $clean refs/heads/x $upper" "refs/heads/x $upper refs/heads/x $no_commit"; do
     status=0
     (cd "$work/clone" && printf '%s\n' "$bad_line" | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >>"$work/out/a-line-with-one-field-that-is-no-object-id.txt" 2>&1 || status=$?
     [ "$status" = 2 ] || one_field_status=$status
