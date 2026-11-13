@@ -283,3 +283,45 @@ fn a_development_body_that_holds_a_copy_of_a_stream_fails_and_without_it_passes(
     assert!(o.stdout.contains("shared streams=1 "), "{}", o.stdout);
     assert!(o.stdout.ends_with("leak FAIL\n"));
 }
+
+#[test]
+fn a_path_below_a_directory_named_target_is_read_and_a_target_inside_a_walk_is_not() {
+    let dir = scratch("target-paths");
+    assert!(dir.components().any(|c| c.as_os_str() == "target"));
+    let tier_lines = plain_stream("t1", "check", "teal-one.test", ("Teal page", "Teal form"));
+    let tier_script = script_file(&dir.join("tier.jsonl"), &tier_lines);
+    write(
+        &dir.join("layers.jsonl"),
+        "{\"step\":\"t1-a\",\"source\":\"render\",\"accessibility_text\":null,\"extracted_text\":null}\n{\"step\":\"t1-b\",\"source\":\"render\",\"accessibility_text\":null,\"extracted_text\":null}\n",
+    );
+    let t = dir.join("bodies/gen-check");
+    let o = run(&[
+        "build",
+        "--tier",
+        "gen-check",
+        "--layer-records",
+        &s(&dir.join("layers.jsonl")),
+        "--seed",
+        "5",
+        "--out",
+        &s(&t),
+        &tier_script,
+    ]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    let copy_lines = plain_stream("t1", "seen", "teal-one.test", ("Teal page", "Teal form"));
+    let copy_script = script_file(&dir.join("copy.jsonl"), &copy_lines);
+    let walk = dir.join("walk");
+    let dev = walk.join("target").join("dev");
+    assert_eq!(
+        run(&["build", "--seed", "8", "--out", &s(&dev), &copy_script]).code,
+        0
+    );
+    let o = run(&["leak", &s(&t), &s(&dev)]);
+    assert_eq!(o.code, 1, "{}", o.stdout);
+    assert!(o.stdout.contains(" bodies=1 "), "{}", o.stdout);
+    assert!(o.stdout.contains("shared streams=1 "), "{}", o.stdout);
+    let o = run(&["leak", &s(&t), &s(&walk)]);
+    assert_eq!(o.code, 0, "{}", o.stdout);
+    assert!(o.stdout.contains(" bodies=0 files=0 "), "{}", o.stdout);
+    assert!(o.stdout.ends_with("leak PASS\n"));
+}
