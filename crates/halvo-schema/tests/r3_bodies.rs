@@ -1,4 +1,7 @@
-use halvo_schema::executable::body::{CoordinatorCall, CoordinatorReply, RunnerCall, RunnerReply};
+use halvo_schema::executable::body::{
+    CoordinatorCall, CoordinatorReply, LoadReply, RunnerCall, RunnerReply, SessionReply,
+    StepsReply, Stored, CHECKPOINTS_REPLY_MAX,
+};
 use halvo_schema::executable::names::{ActionClass, Cause, FieldName, Way};
 use halvo_schema::executable::record::{
     AgentBindings, AgentEffect, AgentLog, AgentPlaybook, AgentRun, AgentSession,
@@ -1946,4 +1949,90 @@ fn a_load_reply_whose_bindings_name_an_origin_twice_is_refused() {
         "repeated_name",
         "origins",
     );
+}
+
+#[test]
+fn every_reply_of_a_runner_body_is_counted_on_the_bytes_given_by_its_own_parse_and_its_readers() {
+    type Parse = fn(&[u8]) -> Result<(), Refusal>;
+    let load = format!(r#"{{"config":{CONFIG},"playbook":null,"bindings":null,"sessions":[]}}"#);
+    let steps = format!(r#"{{"steps":[{}]}}"#, wait(3));
+    let session = format!(r#"{{"origin":"{U}","rev":1,"part":1,"of":1,"data":["QUJD"]}}"#);
+    let cases: [(&str, &str, Parse); 4] = [
+        (&load, "LoadReply", |b| LoadReply::parse(b).map(drop)),
+        (&steps, "StepsReply", |b| StepsReply::parse(b).map(drop)),
+        (&session, "SessionReply", |b| {
+            SessionReply::parse(b).map(drop)
+        }),
+        (r#"{"stored":1}"#, "Stored", |b| Stored::parse(b).map(drop)),
+    ];
+    for (text, type_name, parse) in cases {
+        let room = CHECKPOINTS_REPLY_MAX - text.len();
+        let inside = |n: usize| format!("{{{}{}", " ".repeat(n), &text[1..]);
+        let at = inside(room);
+        assert_eq!(at.len(), CHECKPOINTS_REPLY_MAX);
+        assert!(parse(at.as_bytes()).is_ok(), "{type_name}");
+        assert!(RunnerReply::parse(at.as_bytes()).is_ok(), "{type_name}");
+        assert!(
+            serde_json::from_str::<RunnerReply>(&at).is_ok(),
+            "{type_name}"
+        );
+        for over in [
+            format!("{}{text}", " ".repeat(room + 1)),
+            format!("{text}{}", "\n".repeat(room + 1)),
+            inside(room + 1),
+        ] {
+            for (refusal, name) in [
+                (parse(over.as_bytes()).expect_err(type_name), type_name),
+                (
+                    RunnerReply::parse(over.as_bytes()).expect_err(type_name),
+                    "RunnerReply",
+                ),
+            ] {
+                assert_eq!(
+                    (refusal.cause(), refusal.type_name(), refusal.rule()),
+                    (RefusalCause::Length, name, "reply_bytes"),
+                    "{type_name}"
+                );
+            }
+        }
+        let through_serde = serde_json::from_str::<RunnerReply>(&inside(room + 1))
+            .expect_err(type_name)
+            .to_string();
+        assert!(
+            through_serde.contains("length: RunnerReply: -: reply_bytes"),
+            "{type_name}: {through_serde}"
+        );
+    }
+}
+
+fn refused_with(
+    result: Result<impl std::fmt::Debug, Refusal>,
+    cause: RefusalCause,
+    type_name: &str,
+    rule: &str,
+) {
+    let refusal = result.expect_err(type_name);
+    assert_eq!(
+        (refusal.cause(), refusal.type_name(), refusal.rule()),
+        (cause, type_name, rule)
+    );
+}
+
+#[test]
+fn a_runner_reply_one_byte_over_its_bound_is_refused_before_any_byte_of_it_is_read() {
+    let text = r#"{"stored":1}"#;
+    let fill = |len: usize| " ".repeat(len - text.len() - 1);
+    for len in [CHECKPOINTS_REPLY_MAX, CHECKPOINTS_REPLY_MAX + 1] {
+        let not_json_at_first = format!("x{}{text}", fill(len));
+        let broken_at_last = format!("{text}{}x", fill(len));
+        for input in [not_json_at_first, broken_at_last] {
+            assert_eq!(input.len(), len);
+            let parsed = RunnerReply::parse(input.as_bytes());
+            if len > CHECKPOINTS_REPLY_MAX {
+                refused_with(parsed, RefusalCause::Length, "RunnerReply", "reply_bytes");
+            } else {
+                refused_with(parsed, RefusalCause::Malformed, "RunnerReply", "json");
+            }
+        }
+    }
 }

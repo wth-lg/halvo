@@ -1437,6 +1437,7 @@ version = "0.0.0"
 dependencies = [
  "halvo-capture",
  "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
 ]
@@ -1514,6 +1515,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-checkpoint"
+version = "0.0.0"
+dependencies = [
+ "sha2",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "halvo-connect"
 version = "0.0.0"
 dependencies = [
@@ -1542,6 +1551,19 @@ version = "0.0.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "halvo-derived"
+version = "0.0.0"
+dependencies = [
+ "halvo-derived",
+ "halvo-schema-core",
+ "halvo-sqlcipher",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -1592,6 +1614,7 @@ dependencies = [
 name = "halvo-runner"
 version = "0.0.0"
 dependencies = [
+ "halvo-control",
  "halvo-policy",
  "halvo-schema",
  "halvo-sheet",
@@ -1632,6 +1655,7 @@ name = "halvo-sheet"
 version = "0.0.0"
 dependencies = [
  "calamine",
+ "halvo-checkpoint",
  "quick-xml",
  "zip",
 ]

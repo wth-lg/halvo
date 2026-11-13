@@ -19,6 +19,36 @@ fn checkpoint_name(sup: &Supervisor) -> String {
     format!("formulas.halvo-checkpoint-{}.xlsx", sup.run.as_str())
 }
 
+/// CP-134: the harness gives the runner `--data-dir` with a directory of the test's own, and a
+/// file step locks under that directory: `agents/locks/` appears there with a lock file, and the
+/// runner's line held the argument. A runner that took this account's default directory would
+/// leave the test's directory without `agents/`.
+#[test]
+fn a_file_step_locks_under_the_data_directory_that_the_harness_gives() {
+    let files = FillFiles::new("data-dir", 1);
+    let sup = fill(61, &files);
+    let seen = sup.serve(|_, _| Act::Answer, LONG);
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    let given = seen.data_dir.to_string_lossy().into_owned();
+    assert!(
+        seen.line
+            .windows(2)
+            .any(|pair| pair[0] == "--data-dir" && pair[1] == given),
+        "the runner's line holds --data-dir and the test's directory"
+    );
+    let locks: Vec<String> = std::fs::read_dir(seen.data_dir.join("agents").join("locks"))
+        .expect("agents/locks/ under the test's directory")
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.ends_with(".lock"))
+        .collect();
+    println!("cp134 runner data_dir lock_files={}", locks.len());
+    assert!(
+        !locks.is_empty(),
+        "a lock file under the test's data directory"
+    );
+}
+
 #[test]
 fn the_fill_playbook_replays_on_seeds_1_to_3() {
     for seed in 1..=3u8 {

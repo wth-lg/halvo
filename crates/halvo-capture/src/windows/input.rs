@@ -1,12 +1,13 @@
 //! Keystroke and pointer capture via Raw Input (`WM_INPUT`).
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
-use crate::event::{CaptureStreamEvent, Modality};
-use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource, EventSink};
+use crate::event::Modality;
+use crate::source::{
+    CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
+};
 
-use super::{build_event, EventPlacement, PumpHandle, PumpReady};
+use super::{Lifecycle, Packet, Producer, PumpReady};
 
 /// Which device a source listens to; also its modality.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,14 +17,6 @@ pub enum RawDevice {
 }
 
 impl RawDevice {
-    fn modality(self) -> Modality {
-        match self {
-            RawDevice::Keyboard => Modality::Keystroke,
-            RawDevice::Pointer => Modality::Pointer,
-        }
-    }
-
-    #[cfg(target_os = "windows")]
     fn hid_usage(self) -> u16 {
         use windows::Win32::Devices::HumanInterfaceDevice::{
             HID_USAGE_GENERIC_KEYBOARD, HID_USAGE_GENERIC_MOUSE,
@@ -72,36 +65,38 @@ impl PointerSample {
     }
 }
 
-/// Map a decoded keystroke to a stream event, or `None` to skip it. Only key-down
-/// transitions are recorded, so one physical press is one event, not two.
-pub fn map_keystroke(
-    sink: &SinkHandle,
+impl PointerSample {
+    /// A sample that only moves the pointer: no button, wheel or other flag.
+    pub const fn is_motion_only(self) -> bool {
+        self.button_flags == 0
+    }
+}
+
+pub(crate) fn keystroke_packet(
     key: KeyStroke,
     foreground_app: String,
-    placement: EventPlacement,
-) -> Option<CaptureStreamEvent> {
+    tick: u32,
+) -> Option<Packet> {
     if key.released {
         return None;
     }
-    Some(build_event(
-        sink,
-        Modality::Keystroke,
-        foreground_app,
-        placement,
-    ))
+    Some(Packet {
+        kind: Modality::Keystroke,
+        app: foreground_app,
+        byte_len: key.payload_len(),
+        tick,
+    })
 }
 
-/// Map a pointer sample to a stream event; every sample is recorded. The decoded
-/// sample's measured size rides in `placement` (see [`PointerSample::payload_len`]).
-pub fn map_pointer(
-    sink: &SinkHandle,
-    foreground_app: String,
-    placement: EventPlacement,
-) -> CaptureStreamEvent {
-    build_event(sink, Modality::Pointer, foreground_app, placement)
+pub(crate) fn pointer_packet(sample: PointerSample, foreground_app: String, tick: u32) -> Packet {
+    Packet {
+        kind: Modality::Pointer,
+        app: foreground_app,
+        byte_len: sample.payload_len(),
+        tick,
+    }
 }
 
-/// A decoded raw input packet: either a keyboard or a mouse record.
 #[cfg(target_os = "windows")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RawInputPacket {
@@ -118,8 +113,8 @@ use windows::Win32::UI::Input::{
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, PostQuitMessage, RegisterClassW,
-    UnregisterClassW, HWND_MESSAGE, RI_KEY_BREAK, WINDOW_EX_STYLE, WINDOW_STYLE, WM_DESTROY,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, GetMessageTime, PostQuitMessage,
+    RegisterClassW, HWND_MESSAGE, RI_KEY_BREAK, WINDOW_EX_STYLE, WINDOW_STYLE, WM_DESTROY,
     WM_INPUT, WNDCLASSW,
 };
 
@@ -127,26 +122,152 @@ use windows::Win32::UI::WindowsAndMessaging::{
 const HID_USAGE_PAGE_GENERIC: u16 =
     windows::Win32::Devices::HumanInterfaceDevice::HID_USAGE_PAGE_GENERIC;
 
-#[cfg(target_os = "windows")]
 struct InputState {
     device: RawDevice,
-    sink: SinkHandle,
+    producer: Producer,
     last_app: Arc<Mutex<Option<String>>>,
 }
 
-#[cfg(target_os = "windows")]
 thread_local! {
     static INPUT_CTX: std::cell::RefCell<Option<InputState>> =
         const { std::cell::RefCell::new(None) };
 }
 
-/// Raw Input capture source for one device. `start` opens a message-only window on
-/// its own pump thread and registers the device; `stop` quits the pump and tears
-/// the window down.
+impl RawDevice {
+    fn index(self) -> usize {
+        match self {
+            RawDevice::Keyboard => 0,
+            RawDevice::Pointer => 1,
+        }
+    }
+
+    fn class_name(self) -> windows::core::PCWSTR {
+        match self {
+            RawDevice::Keyboard => windows::core::w!("HalvoRawKeyboard"),
+            RawDevice::Pointer => windows::core::w!("HalvoRawPointer"),
+        }
+    }
+}
+
+static DEVICES_IN_USE: Mutex<[bool; 2]> = Mutex::new([false; 2]);
+
+static CLASSES_REGISTERED: Mutex<[bool; 2]> = Mutex::new([false; 2]);
+
+struct DeviceClaim(RawDevice);
+
+impl DeviceClaim {
+    fn take(device: RawDevice) -> Result<Self, CaptureError> {
+        let mut in_use = DEVICES_IN_USE
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if in_use[device.index()] {
+            return Err(CaptureError::AlreadyStarted);
+        }
+        in_use[device.index()] = true;
+        Ok(Self(device))
+    }
+}
+
+impl Drop for DeviceClaim {
+    fn drop(&mut self) {
+        DEVICES_IN_USE
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)[self.0.index()] = false;
+    }
+}
+
+#[derive(Clone, Copy)]
+struct StartCalls {
+    module: fn() -> windows::core::Result<HINSTANCE>,
+    register_class: fn(&WNDCLASSW) -> u16,
+    create_window: fn(RawDevice, HINSTANCE) -> windows::core::Result<HWND>,
+    register_device: fn(&RAWINPUTDEVICE) -> windows::core::Result<()>,
+}
+
+const SYSTEM_CALLS: StartCalls = StartCalls {
+    module: module_of_the_process,
+    register_class: register_window_class,
+    create_window: create_message_window,
+    register_device: register_raw_input_device,
+};
+
+fn module_of_the_process() -> windows::core::Result<HINSTANCE> {
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+    // SAFETY: GetModuleHandleW with no name reads the handle of this process's
+    // executable and takes no pointer.
+    unsafe { GetModuleHandleW(None) }.map(Into::into)
+}
+
+fn register_window_class(class: &WNDCLASSW) -> u16 {
+    // SAFETY: `class` is a live WNDCLASSW whose name is a static wide string
+    // and whose procedure has the WNDPROC signature.
+    unsafe { RegisterClassW(class) }
+}
+
+fn create_message_window(device: RawDevice, hinstance: HINSTANCE) -> windows::core::Result<HWND> {
+    // SAFETY: the class name is a static wide string of a registered class,
+    // and HWND_MESSAGE makes a message-only window with no other pointer.
+    unsafe {
+        CreateWindowExW(
+            WINDOW_EX_STYLE(0),
+            device.class_name(),
+            device.class_name(),
+            WINDOW_STYLE(0),
+            0,
+            0,
+            0,
+            0,
+            Some(HWND_MESSAGE),
+            None,
+            Some(hinstance),
+            None,
+        )
+    }
+}
+
+fn register_raw_input_device(device: &RAWINPUTDEVICE) -> windows::core::Result<()> {
+    // SAFETY: the slice holds one initialized RAWINPUTDEVICE, and the size
+    // argument is the size of that struct.
+    unsafe {
+        RegisterRawInputDevices(
+            core::slice::from_ref(device),
+            core::mem::size_of::<RAWINPUTDEVICE>() as u32,
+        )
+    }
+}
+
+fn register_class(
+    device: RawDevice,
+    hinstance: HINSTANCE,
+    register: fn(&WNDCLASSW) -> u16,
+) -> Result<(), CaptureError> {
+    let mut registered = CLASSES_REGISTERED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if registered[device.index()] {
+        return Ok(());
+    }
+    let class = WNDCLASSW {
+        lpfnWndProc: Some(wnd_proc),
+        hInstance: hinstance,
+        lpszClassName: device.class_name(),
+        ..Default::default()
+    };
+    if register(&class) == 0 {
+        return Err(super::last_os_error("RegisterClassW"));
+    }
+    registered[device.index()] = true;
+    Ok(())
+}
+
+/// Raw Input capture source for one device. `begin` opens a message-only
+/// window on its own pump thread and registers the device. One source of each
+/// device runs in a process at a time.
 pub struct RawInputSource {
     device: RawDevice,
     last_app: Arc<Mutex<Option<String>>>,
-    pump: Option<PumpHandle>,
+    life: Lifecycle,
+    calls: StartCalls,
 }
 
 impl RawInputSource {
@@ -165,8 +286,22 @@ impl RawInputSource {
         Self {
             device,
             last_app,
-            pump: None,
+            life: Lifecycle::default(),
+            calls: SYSTEM_CALLS,
         }
+    }
+
+    #[cfg(test)]
+    fn with_calls(device: RawDevice, calls: StartCalls) -> Self {
+        Self {
+            calls,
+            ..Self::new(device, Arc::new(Mutex::new(None)))
+        }
+    }
+
+    /// The counts of this source's hand-off queues since it was made.
+    pub fn handoff_counts(&self) -> super::HandOffCounts {
+        self.life.handoff_counts()
     }
 }
 
@@ -179,10 +314,6 @@ fn attributed_app(last_app: &Mutex<Option<String>>) -> String {
         .unwrap_or_default()
 }
 
-/// Copy `bytes` into an 8-aligned, full-size `RAWINPUT` so no field is read
-/// through a misaligned or under-sized reference, then decode the keyboard or
-/// mouse record. Returns `None` for any other record or a buffer too short to
-/// hold the header.
 #[cfg(target_os = "windows")]
 fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
     #[repr(C, align(8))]
@@ -191,28 +322,41 @@ fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
     if bytes.len() < core::mem::size_of::<RAWINPUTHEADER>() {
         return None;
     }
-    // RAWINPUT is a repr(C) plain-data type (integers and unions, no niches), so
-    // any byte pattern is a valid value and zero-padding past `bytes` is sound.
     let mut aligned = Aligned([0u8; core::mem::size_of::<RAWINPUT>()]);
     let n = bytes.len().min(aligned.0.len());
     aligned.0[..n].copy_from_slice(&bytes[..n]);
     // SAFETY: `aligned` is align(8) >= align_of::<RAWINPUT>(), is exactly
-    // size_of::<RAWINPUT>() bytes, and is fully initialized.
+    // size_of::<RAWINPUT>() bytes, and is fully initialized; and every bit
+    // pattern is a valid RAWINPUT, because it is made of integers, a raw
+    // device handle and a union of integer records, with no reference, enum
+    // or bool in it.
     let raw: &RAWINPUT = unsafe { &*(aligned.0.as_ptr() as *const RAWINPUT) };
 
     if raw.header.dwType == RIM_TYPEKEYBOARD.0 {
+        // SAFETY: the header names a keyboard record, so `keyboard` is the
+        // member of the union that the bytes hold; every bit pattern is valid.
         let kb = unsafe { raw.data.keyboard };
         Some(RawInputPacket::Keyboard(KeyStroke {
             vkey: kb.VKey,
             released: kb.Flags & RI_KEY_BREAK as u16 != 0,
         }))
     } else if raw.header.dwType == RIM_TYPEMOUSE.0 {
+        // SAFETY: the header names a mouse record, so `mouse` is the member of
+        // the union that the bytes hold; every bit pattern is valid.
         let m = unsafe { raw.data.mouse };
+        // SAFETY: both members of the inner union are plain integers over the
+        // same bytes, so reading the flag and data words is valid.
+        let (button_flags, button_data) = unsafe {
+            (
+                m.Anonymous.Anonymous.usButtonFlags,
+                m.Anonymous.Anonymous.usButtonData,
+            )
+        };
         Some(RawInputPacket::Pointer(PointerSample {
             last_x: m.lLastX,
             last_y: m.lLastY,
-            button_flags: unsafe { m.Anonymous.Anonymous.usButtonFlags },
-            wheel_delta: unsafe { m.Anonymous.Anonymous.usButtonData } as i16,
+            button_flags,
+            wheel_delta: button_data as i16,
         }))
     } else {
         None
@@ -220,7 +364,7 @@ fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
 }
 
 #[cfg(target_os = "windows")]
-fn emit_from_raw(packet: RawInputPacket) {
+fn emit_from_raw(packet: RawInputPacket, tick: u32) {
     INPUT_CTX.with(|cell| {
         let borrow = cell.borrow();
         let Some(state) = borrow.as_ref() else {
@@ -229,15 +373,17 @@ fn emit_from_raw(packet: RawInputPacket) {
         let app = attributed_app(&state.last_app);
         match (state.device, packet) {
             (RawDevice::Keyboard, RawInputPacket::Keyboard(key)) => {
-                let placement = EventPlacement::unpersisted(key.payload_len());
-                if let Some(event) = map_keystroke(&state.sink, key, app, placement) {
-                    let _ = state.sink.emit(event);
+                if let Some(packet) = keystroke_packet(key, app, tick) {
+                    state.producer.push(packet);
                 }
             }
             (RawDevice::Pointer, RawInputPacket::Pointer(sample)) => {
-                let placement = EventPlacement::unpersisted(sample.payload_len());
-                let event = map_pointer(&state.sink, app, placement);
-                let _ = state.sink.emit(event);
+                let packet = pointer_packet(sample, app, tick);
+                if sample.is_motion_only() {
+                    state.producer.push_motion(packet);
+                } else {
+                    state.producer.push(packet);
+                }
             }
             _ => {}
         }
@@ -253,7 +399,10 @@ unsafe extern "system" fn wnd_proc(
 ) -> LRESULT {
     match msg {
         WM_INPUT => {
-            read_raw_input(HRAWINPUT(lparam.0 as *mut core::ffi::c_void));
+            read_raw_input(
+                HRAWINPUT(lparam.0 as *mut core::ffi::c_void),
+                message_tick(),
+            );
             // WM_INPUT docs: the application must call DefWindowProc so the system
             // can perform cleanup.
             DefWindowProcW(hwnd, msg, wparam, lparam)
@@ -267,16 +416,24 @@ unsafe extern "system" fn wnd_proc(
 }
 
 #[cfg(target_os = "windows")]
-fn read_raw_input(handle: HRAWINPUT) {
+fn message_tick() -> u32 {
+    // SAFETY: GetMessageTime takes no argument and reads the time of the
+    // message that this thread's pump took last.
+    unsafe { GetMessageTime() as u32 }
+}
+
+fn read_raw_input(handle: HRAWINPUT, tick: u32) {
     let header_size = core::mem::size_of::<RAWINPUTHEADER>() as u32;
     let mut size: u32 = 0;
-    // GetRawInputData with pData NULL writes the required size to pcbSize and
-    // returns 0: the only way to size the buffer for a variable-length packet.
+    // SAFETY: with no data pointer GetRawInputData writes the packet's size
+    // into `size`, a live local, and reads the handle that WM_INPUT gave.
     let probe = unsafe { GetRawInputData(handle, RID_INPUT, None, &mut size, header_size) };
     if probe != 0 || size == 0 {
         return;
     }
     let mut buf = vec![0u8; size as usize];
+    // SAFETY: `buf` holds `size` bytes, the size that the first call gave,
+    // and outlives the call that fills it.
     let read = unsafe {
         GetRawInputData(
             handle,
@@ -290,43 +447,55 @@ fn read_raw_input(handle: HRAWINPUT) {
         return;
     }
     if let Some(packet) = decode_raw_input(&buf) {
-        emit_from_raw(packet);
+        emit_from_raw(packet, tick);
     }
 }
 
 impl CaptureSource for RawInputSource {
-    fn modality(&self) -> Modality {
-        self.device.modality()
-    }
-
-    fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
-        let state = InputState {
-            device: self.device,
-            sink,
-            last_app: Arc::clone(&self.last_app),
-        };
-        let name = format!("halvo-rawinput-{:?}", self.device);
-        let pump = super::spawn_pump(name, move |ready| run_raw_input(state, ready))?;
-        self.pump = Some(pump);
-        Ok(())
-    }
-
-    fn stop(&mut self) {
-        if let Some(pump) = self.pump.take() {
-            pump.stop();
+    fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+        if self.life.is_running() {
+            return Err(CaptureError::AlreadyStarted);
         }
+        let claim = DeviceClaim::take(self.device)?;
+        let device = self.device;
+        let last_app = Arc::clone(&self.last_app);
+        let calls = self.calls;
+        self.life
+            .begin(&ctx, "halvo-rawinput-forward", move |producer| {
+                let state = InputState {
+                    device,
+                    producer,
+                    last_app,
+                };
+                let name = format!("halvo-rawinput-{device:?}");
+                super::spawn_pump(name, move |ready, signal| {
+                    run_raw_input(state, claim, calls, ready, &signal)
+                })
+            })
+    }
+
+    fn shutdown(&mut self) -> Result<(), CaptureError> {
+        self.life.shutdown()
+    }
+
+    fn health(&self) -> SourceHealth {
+        let counters = match self.device {
+            RawDevice::Keyboard => SourceCounters::default(),
+            RawDevice::Pointer => SourceCounters {
+                pointer_coalesced: self.life.handoff_counts().coalesced,
+                ..SourceCounters::default()
+            },
+        };
+        self.life.health(counters)
     }
 }
 
-/// Unregisters the raw input device on drop, so a scope exit or early return
-/// tears registration down in order rather than relying on prose.
-#[cfg(target_os = "windows")]
 struct DeviceGuard {
     usage_page: u16,
     usage: u16,
+    _claim: DeviceClaim,
 }
 
-#[cfg(target_os = "windows")]
 impl Drop for DeviceGuard {
     fn drop(&mut self) {
         let remove = RAWINPUTDEVICE {
@@ -335,6 +504,8 @@ impl Drop for DeviceGuard {
             dwFlags: RIDEV_REMOVE,
             hwndTarget: HWND(core::ptr::null_mut()),
         };
+        // SAFETY: the slice holds one initialized RAWINPUTDEVICE that removes
+        // the registration, and the size argument is the size of that struct.
         unsafe {
             let _ =
                 RegisterRawInputDevices(&[remove], core::mem::size_of::<RAWINPUTDEVICE>() as u32);
@@ -342,101 +513,53 @@ impl Drop for DeviceGuard {
     }
 }
 
-/// Clears the thread-local input context on drop, after the device is gone.
-#[cfg(target_os = "windows")]
 struct CtxGuard;
 
-#[cfg(target_os = "windows")]
 impl Drop for CtxGuard {
     fn drop(&mut self) {
         INPUT_CTX.with(|cell| *cell.borrow_mut() = None);
     }
 }
 
-/// Destroys the message-only window on drop.
-#[cfg(target_os = "windows")]
 struct WindowGuard {
     hwnd: HWND,
 }
 
-#[cfg(target_os = "windows")]
 impl Drop for WindowGuard {
     fn drop(&mut self) {
+        // SAFETY: `hwnd` is the window that this thread created; a window that
+        // is already gone makes the call fail and changes nothing.
         unsafe {
             let _ = DestroyWindow(self.hwnd);
         }
     }
 }
 
-/// Unregisters the window class on drop (last, after the window is destroyed).
-#[cfg(target_os = "windows")]
-struct ClassGuard {
-    class_name: windows::core::HSTRING,
-    hinstance: HINSTANCE,
-}
-
-#[cfg(target_os = "windows")]
-impl Drop for ClassGuard {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = UnregisterClassW(
-                windows::core::PCWSTR(self.class_name.as_ptr()),
-                Some(self.hinstance),
-            );
-        }
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn run_raw_input(state: InputState, ready: PumpReady) {
-    use windows::core::{HSTRING, PCWSTR};
-    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-
+fn run_raw_input(
+    state: InputState,
+    claim: DeviceClaim,
+    calls: StartCalls,
+    ready: PumpReady,
+    signal: &super::StopSignal,
+) {
     let device = state.device;
-    let class_name = HSTRING::from(match device {
-        RawDevice::Keyboard => "HalvoRawKeyboard",
-        RawDevice::Pointer => "HalvoRawPointer",
-    });
-
-    let hinstance: HINSTANCE = match unsafe { GetModuleHandleW(None) } {
-        Ok(h) => h.into(),
-        Err(_) => return,
+    let hinstance: HINSTANCE = match (calls.module)() {
+        Ok(h) => h,
+        Err(error) => {
+            ready.report(Err(super::os_error("GetModuleHandleW", &error)));
+            return;
+        }
     };
-
-    let class = WNDCLASSW {
-        lpfnWndProc: Some(wnd_proc),
-        hInstance: hinstance,
-        lpszClassName: PCWSTR(class_name.as_ptr()),
-        ..Default::default()
-    };
-    let atom = unsafe { RegisterClassW(&class) };
-    if atom == 0 {
+    if let Err(error) = register_class(device, hinstance, calls.register_class) {
+        ready.report(Err(error));
         return;
     }
-    // Teardown runs in reverse declaration order: device, context, window, class.
-    let _class_guard = ClassGuard {
-        class_name: class_name.clone(),
-        hinstance,
-    };
-
-    let hwnd = match unsafe {
-        CreateWindowExW(
-            WINDOW_EX_STYLE(0),
-            PCWSTR(class_name.as_ptr()),
-            PCWSTR(class_name.as_ptr()),
-            WINDOW_STYLE(0),
-            0,
-            0,
-            0,
-            0,
-            Some(HWND_MESSAGE),
-            None,
-            Some(hinstance),
-            None,
-        )
-    } {
+    let hwnd = match (calls.create_window)(device, hinstance) {
         Ok(h) => h,
-        Err(_) => return,
+        Err(error) => {
+            ready.report(Err(super::os_error("CreateWindowExW", &error)));
+            return;
+        }
     };
     let _window_guard = WindowGuard { hwnd };
 
@@ -449,64 +572,61 @@ fn run_raw_input(state: InputState, ready: PumpReady) {
         dwFlags: RIDEV_INPUTSINK,
         hwndTarget: hwnd,
     };
-    let registered = unsafe {
-        RegisterRawInputDevices(&[dev], core::mem::size_of::<RAWINPUTDEVICE>() as u32).is_ok()
-    };
-    if !registered {
+    let registered = (calls.register_device)(&dev);
+    if let Err(error) = registered {
+        ready.report(Err(super::os_error("RegisterRawInputDevices", &error)));
         return;
     }
     let _device_guard = DeviceGuard {
         usage_page: HID_USAGE_PAGE_GENERIC,
         usage: device.hid_usage(),
+        _claim: claim,
     };
 
-    // The window exists, so the thread has a message queue; force it in and report
-    // readiness, then a stop() that races in posts WM_QUIT to a queue that keeps it.
     super::ensure_message_queue();
-    ready.report();
-    super::pump_messages();
+    ready.report(Ok(()));
+    super::pump_messages(signal);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::windows::tests::test_placement;
 
     #[test]
-    fn a_key_down_maps_to_a_keystroke_event() {
-        let (sink, _w) = crate::sink::channel(4);
+    fn a_key_down_maps_to_a_keystroke_packet() {
         let key = KeyStroke {
             vkey: 0x41,
             released: false,
         };
-        let event =
-            map_keystroke(&sink, key, "C:\\editor.exe".to_string(), test_placement()).unwrap();
-        assert_eq!(event.modality, Modality::Keystroke);
-        assert_eq!(event.foreground_app, "C:\\editor.exe");
+        let packet = keystroke_packet(key, "C:\\editor.exe".to_string(), 7).unwrap();
+        assert_eq!(packet.kind, Modality::Keystroke);
+        assert_eq!(packet.app, "C:\\editor.exe");
+        assert_eq!(packet.byte_len, 2);
+        assert_eq!(packet.tick, 7);
     }
 
     #[test]
     fn a_key_up_is_not_recorded() {
-        let (sink, _w) = crate::sink::channel(4);
         let key = KeyStroke {
             vkey: 0x41,
             released: true,
         };
-        assert!(map_keystroke(&sink, key, String::new(), test_placement()).is_none());
+        assert!(keystroke_packet(key, String::new(), 7).is_none());
     }
 
     #[test]
-    fn a_pointer_sample_maps_to_a_pointer_event() {
-        let (sink, _w) = crate::sink::channel(4);
-        let event = map_pointer(&sink, "C:\\game.exe".to_string(), test_placement());
-        assert_eq!(event.modality, Modality::Pointer);
-        assert_eq!(event.foreground_app, "C:\\game.exe");
-    }
-
-    #[test]
-    fn keyboard_and_pointer_devices_carry_their_modality() {
-        assert_eq!(RawDevice::Keyboard.modality(), Modality::Keystroke);
-        assert_eq!(RawDevice::Pointer.modality(), Modality::Pointer);
+    fn a_pointer_sample_maps_to_a_pointer_packet_and_only_a_flagless_one_is_motion() {
+        let packet = pointer_packet(PointerSample::default(), "C:\\game.exe".to_string(), 9);
+        assert_eq!(packet.kind, Modality::Pointer);
+        assert_eq!(packet.app, "C:\\game.exe");
+        assert_eq!(packet.byte_len, 12);
+        assert_eq!(packet.tick, 9);
+        assert!(PointerSample::default().is_motion_only());
+        let wheel = PointerSample {
+            button_flags: 0x0400,
+            ..PointerSample::default()
+        };
+        assert!(!wheel.is_motion_only());
     }
 
     #[test]
@@ -545,14 +665,14 @@ mod tests {
     fn decode_reads_a_keyboard_packet_from_a_misaligned_buffer() {
         use windows::Win32::UI::Input::RAWINPUT;
         let raw = keyboard_packet(0x41, 0);
+        // SAFETY: `raw` is a live, initialized RAWINPUT, and the slice covers
+        // exactly its bytes for as long as `raw` lives.
         let bytes = unsafe {
             core::slice::from_raw_parts(
                 &raw as *const RAWINPUT as *const u8,
                 core::mem::size_of::<RAWINPUT>(),
             )
         };
-        // Lay the bytes down at an odd offset so the source slice is misaligned
-        // for RAWINPUT (align 8); the decoder must still read it soundly.
         let mut backing = vec![0u8; bytes.len() + 8];
         let off = 1usize;
         backing[off..off + bytes.len()].copy_from_slice(bytes);
@@ -576,6 +696,8 @@ mod tests {
     fn decode_reads_the_break_flag_as_a_key_up() {
         use windows::Win32::UI::Input::RAWINPUT;
         let raw = keyboard_packet(0x42, RI_KEY_BREAK as u16);
+        // SAFETY: `raw` is a live, initialized RAWINPUT, and the slice covers
+        // exactly its bytes for as long as `raw` lives.
         let bytes = unsafe {
             core::slice::from_raw_parts(
                 &raw as *const RAWINPUT as *const u8,
@@ -617,6 +739,8 @@ mod tests {
                 },
             },
         };
+        // SAFETY: `raw` is a live, initialized RAWINPUT, and the slice covers
+        // exactly its bytes for as long as `raw` lives.
         let bytes = unsafe {
             core::slice::from_raw_parts(
                 &raw as *const RAWINPUT as *const u8,
@@ -639,5 +763,184 @@ mod tests {
     #[test]
     fn decode_rejects_a_short_buffer() {
         assert!(decode_raw_input(&[0u8; 2]).is_none());
+    }
+
+    #[test]
+    fn a_keyboard_source_refuses_a_second_begin_and_starts_again_after_its_stop() {
+        use crate::source::{SourceContext, SourceState, Started};
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut source = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let first = source.begin(SourceContext::new(sink.clone()));
+        let second = source.begin(SourceContext::new(sink.clone()));
+        let running = source.health().state;
+        let stopped = source.shutdown();
+        let again = source.begin(SourceContext::new(sink));
+        let _ = source.shutdown();
+        assert!(matches!(first, Ok(Started::Running)), "{first:?}");
+        assert_eq!(second, Err(CaptureError::AlreadyStarted));
+        assert_eq!(running, SourceState::Running);
+        assert_eq!(stopped, Ok(()));
+        assert!(matches!(again, Ok(Started::Running)), "{again:?}");
+    }
+
+    #[test]
+    fn a_second_keyboard_source_in_the_process_waits_for_the_first_to_stop() {
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut first = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let mut second = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let first_started = first.begin(crate::source::SourceContext::new(sink.clone()));
+        let while_first_runs = second.begin(crate::source::SourceContext::new(sink.clone()));
+        let first_stopped = first.shutdown();
+        let after_first_stopped = second.begin(crate::source::SourceContext::new(sink));
+        let _ = second.shutdown();
+        assert!(first_started.is_ok(), "{first_started:?}");
+        assert_eq!(while_first_runs, Err(CaptureError::AlreadyStarted));
+        assert_eq!(first_stopped, Ok(()));
+        assert!(after_first_stopped.is_ok(), "{after_first_stopped:?}");
+    }
+
+    use windows::Win32::Foundation::{
+        ERROR_ACCESS_DENIED, ERROR_INVALID_PARAMETER, ERROR_MOD_NOT_FOUND, ERROR_NOT_ENOUGH_MEMORY,
+        WIN32_ERROR,
+    };
+
+    fn refusal(code: WIN32_ERROR) -> windows::core::Error {
+        windows::core::Error::from_hresult(code.to_hresult())
+    }
+
+    fn refused_at(stage: &'static str, code: WIN32_ERROR) -> CaptureError {
+        CaptureError::Os {
+            stage,
+            domain: "HRESULT",
+            code: i64::from(code.to_hresult().0),
+        }
+    }
+
+    fn no_module() -> windows::core::Result<HINSTANCE> {
+        Err(refusal(ERROR_MOD_NOT_FOUND))
+    }
+
+    fn class_refused(_class: &WNDCLASSW) -> u16 {
+        // SAFETY: SetLastError writes a plain value into this thread's last
+        // error.
+        unsafe { windows::Win32::Foundation::SetLastError(ERROR_ACCESS_DENIED) };
+        0
+    }
+
+    fn window_refused(_device: RawDevice, _hinstance: HINSTANCE) -> windows::core::Result<HWND> {
+        Err(refusal(ERROR_NOT_ENOUGH_MEMORY))
+    }
+
+    static LAST_WINDOW: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+    fn recorded_window(device: RawDevice, hinstance: HINSTANCE) -> windows::core::Result<HWND> {
+        let hwnd = create_message_window(device, hinstance)?;
+        LAST_WINDOW.store(hwnd.0 as usize, std::sync::atomic::Ordering::SeqCst);
+        Ok(hwnd)
+    }
+
+    fn registration_refused(_device: &RAWINPUTDEVICE) -> windows::core::Result<()> {
+        Err(refusal(ERROR_INVALID_PARAMETER))
+    }
+
+    fn start_with(calls: StartCalls) -> Result<crate::source::Started, CaptureError> {
+        let (sink, _writer) = crate::sink::channel(4);
+        let mut source = RawInputSource::with_calls(RawDevice::Keyboard, calls);
+        let started = source.begin(crate::source::SourceContext::new(sink));
+        let _ = source.shutdown();
+        started
+    }
+
+    fn a_later_start_is_taken() -> bool {
+        start_with(SYSTEM_CALLS).is_ok()
+    }
+
+    #[test]
+    fn a_raw_input_source_whose_module_handle_is_refused_reports_the_step_and_code() {
+        let _serial = crate::windows::tests::serial();
+        let started = start_with(StartCalls {
+            module: no_module,
+            ..SYSTEM_CALLS
+        });
+        let later = a_later_start_is_taken();
+        assert_eq!(
+            started,
+            Err(refused_at("GetModuleHandleW", ERROR_MOD_NOT_FOUND))
+        );
+        assert!(later, "a start after the refused one was not taken");
+    }
+
+    #[test]
+    fn a_raw_input_source_whose_class_is_refused_reports_the_step_and_code() {
+        let _serial = crate::windows::tests::serial();
+        let index = RawDevice::Keyboard.index();
+        let before = CLASSES_REGISTERED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)[index];
+        CLASSES_REGISTERED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)[index] = false;
+        let started = start_with(StartCalls {
+            register_class: class_refused,
+            ..SYSTEM_CALLS
+        });
+        let marked_after = CLASSES_REGISTERED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)[index];
+        CLASSES_REGISTERED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)[index] = before;
+        let later = a_later_start_is_taken();
+        assert_eq!(
+            started,
+            Err(refused_at("RegisterClassW", ERROR_ACCESS_DENIED))
+        );
+        assert!(!marked_after, "a refused class was marked as registered");
+        assert!(later, "a start after the refused one was not taken");
+    }
+
+    #[test]
+    fn a_raw_input_source_whose_window_is_refused_reports_the_step_and_code() {
+        let _serial = crate::windows::tests::serial();
+        let started = start_with(StartCalls {
+            create_window: window_refused,
+            ..SYSTEM_CALLS
+        });
+        let later = a_later_start_is_taken();
+        assert_eq!(
+            started,
+            Err(refused_at("CreateWindowExW", ERROR_NOT_ENOUGH_MEMORY))
+        );
+        assert!(later, "a start after the refused one was not taken");
+    }
+
+    #[test]
+    fn a_raw_input_source_whose_registration_is_refused_reports_the_step_and_code() {
+        use windows::Win32::UI::WindowsAndMessaging::IsWindow;
+        let _serial = crate::windows::tests::serial();
+        LAST_WINDOW.store(0, std::sync::atomic::Ordering::SeqCst);
+        let started = start_with(StartCalls {
+            create_window: recorded_window,
+            register_device: registration_refused,
+            ..SYSTEM_CALLS
+        });
+        let window = LAST_WINDOW.load(std::sync::atomic::Ordering::SeqCst);
+        // SAFETY: IsWindow reads a handle value and answers false for one
+        // that names no window; it reads no memory of ours.
+        let window_left =
+            unsafe { IsWindow(Some(HWND(window as *mut core::ffi::c_void))) }.as_bool();
+        let later = a_later_start_is_taken();
+        assert_eq!(
+            started,
+            Err(refused_at(
+                "RegisterRawInputDevices",
+                ERROR_INVALID_PARAMETER
+            ))
+        );
+        assert_ne!(window, 0, "INCONCLUSIVE: the window was not made");
+        assert!(!window_left, "the failed start left its window");
+        assert!(later, "a start after the refused one was not taken");
     }
 }

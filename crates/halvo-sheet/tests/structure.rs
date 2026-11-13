@@ -43,7 +43,7 @@ fn made(scratch: &Scratch, each: &Each) {
 }
 
 fn prepare(scratch: &Scratch, cells: &str) -> Result<halvo_sheet::Prepared, Error> {
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let run = RunId::parse(RUN).expect("a run id");
     let range = Range::parse(cells).expect("a range");
     let values = vec![vec![Value::Number(1.0); range.cols() as usize]; range.rows() as usize];
@@ -141,7 +141,7 @@ fn the_first_and_the_last_cell_of_a_sheet_are_refused_by_prepare_and_by_read() {
         "B5",
         Refusal::Size,
     );
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let b5 = Range::parse("B5").expect("a range");
     let read = folder.read(Path::new("book.xlsx"), "Values", b5);
     assert_eq!(
@@ -156,7 +156,7 @@ fn a_sheet_whose_used_cells_and_the_range_span_more_than_a_million_cells_is_refu
     let scratch = Scratch::new("structure-over");
     made(&scratch, &sheet_is(wide("A1", "ALL1001")));
     refused(&scratch, "used cells one row over", "B5", Refusal::Size);
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let a1 = Range::parse("A1").expect("a range");
     let read = folder.read(Path::new("book.xlsx"), "Values", a1);
     assert_eq!(
@@ -176,7 +176,7 @@ fn a_sheet_whose_used_cells_and_the_range_span_more_than_a_million_cells_is_refu
     made(&scratch, &sheet_is(wide("A1", "ALL1000")));
     let prepared = prepare(&scratch, "B5").expect("a rectangle of 1,000,000 cells is taken");
     drop(prepared);
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let read = folder.read(
         Path::new("book.xlsx"),
         "Values",
@@ -202,7 +202,7 @@ fn the_read_back_and_the_earlier_read_take_the_named_sheet_alone() {
         &broken,
         &[],
     );
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let run = RunId::parse(RUN).expect("a run id");
     let b3 = Range::parse("B3").expect("a range");
     let values = vec![vec![Value::Number(25.0)]];
@@ -361,7 +361,7 @@ fn a_prefixed_part_and_a_row_of_another_namespace_outside_the_sheet_data_are_car
             (r#"<c r="B5"><v>12</v></c>"#, r#"<c r="B5"><v>1</v></c>"#)
         };
         assert_eq!(written, source.replacen(old, new, 1), "{label}");
-        let folder = Folder::new(&scratch.dir).expect("the folder opens");
+        let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
         folder.replace(&prepared).expect("replaced");
         let read = folder.read(
             Path::new("book.xlsx"),
