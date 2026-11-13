@@ -176,3 +176,52 @@ fn split_refusals() {
     );
     assert!(!dir.join("o").exists());
 }
+
+const CANARY_HEADER: &str =
+    r#"{"line":"script","v":1,"day1":1767225600000000000,"canaries":["cn-one.test"]}"#;
+
+/// A script file of one stream: a planted routine on its own site, and one noise item on the canary site.
+fn canary_stream(dir: &Path, id: &str, own: &str, title: &str) -> String {
+    let mut lines = vec![
+        CANARY_HEADER.to_owned(),
+        format!(r#"{{"line":"stream","stream":"{id}","sites":"seen"}}"#),
+        step_line(&format!("{id}-a"), own, title, false),
+        step_line("cn-home", "cn-one.test", "Front page", false),
+    ];
+    for day in 1..=3 {
+        lines.push(episode(
+            id,
+            &format!("{id}-e{day}"),
+            &format!("{id}-t1"),
+            "email",
+            "planted",
+            day,
+            &[item(&format!("{id}-a"), 0, 30 * SEC, 0, 1, 0)],
+        ));
+    }
+    lines.push(format!(
+        r#"{{"line":"noise","stream":"{id}","day":9,"item":{}}}"#,
+        item("cn-home", 0, 30 * SEC, 0, 1, 0)
+    ));
+    let p = dir.join(format!("{id}.jsonl"));
+    write(
+        &p,
+        &lines.iter().map(|l| format!("{l}\n")).collect::<String>(),
+    );
+    s(&p)
+}
+
+#[test]
+fn a_canary_site_links_no_streams_and_counts_in_no_side() {
+    let dir = scratch("split-canary");
+    let files = vec![
+        canary_stream(&dir, "a1", "one-a.test", "Morning list"),
+        canary_stream(&dir, "b1", "one-b.test", "Evening chart"),
+    ];
+    let o = split(&dir, "3", "x", &files);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    assert_eq!(
+        o.stdout,
+        "groups 2\nside seen streams=1 sites=1 templates=1\nside unseen streams=1 sites=1 templates=1\n"
+    );
+}
