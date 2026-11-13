@@ -1,4 +1,5 @@
 #![cfg(target_os = "macos")]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 mod common;
 
@@ -17,10 +18,24 @@ const SIGCHLD: i32 = 20;
 const SIG_IGN: usize = 1;
 const SIG_DFL: usize = 0;
 const ECHILD: i32 = 10;
+const P_PID: i32 = 1;
+const WEXITED: i32 = 0x04;
+const WNOHANG: i32 = 0x01;
+const WNOWAIT: i32 = 0x20;
+const SIGINFO_BUFFER_WORDS: usize = 16;
 
 fn reaped(pid: u32) -> bool {
-    let mut info = [0u64; 16];
-    let r = unsafe { waitid(1, pid, info.as_mut_ptr().cast(), 0x04 | 0x01 | 0x20) };
+    let mut info = [0u64; SIGINFO_BUFFER_WORDS];
+    // SAFETY: info holds 128 bytes, more than the 104 bytes of siginfo_t that waitid writes; WNOWAIT leaves
+    // the runner unreaped and WNOHANG returns at once.
+    let r = unsafe {
+        waitid(
+            P_PID,
+            pid,
+            info.as_mut_ptr().cast(),
+            WEXITED | WNOHANG | WNOWAIT,
+        )
+    };
     r == -1 && std::io::Error::last_os_error().raw_os_error() == Some(ECHILD)
 }
 
@@ -31,6 +46,8 @@ const CONFIRM: &str = r#"send {"t":"confirm","request":{"v":1,"run":"{run}","age
 /// number, so the child that the runner left in its group lives on and is reported, not ended.
 #[test]
 fn a_kill_after_the_system_reaped_the_runner_signals_no_group() {
+    // SAFETY: signal sets SIGCHLD to SIG_IGN for this whole process, which is alone in its binary, so the system
+    // reaps every child of it; no handler is installed, so no code runs on the signal.
     unsafe {
         signal(SIGCHLD, SIG_IGN);
     }
@@ -62,6 +79,8 @@ fn a_kill_after_the_system_reaped_the_runner_signals_no_group() {
     let child_alive = child.is_some_and(|(p, c)| !gone(p, c));
     *rig.people.hold_answers.lock().unwrap() = false;
     let ended = rig.rec.wait_end(&run, Duration::from_secs(30)).is_some();
+    // SAFETY: signal sets SIGCHLD back to SIG_DFL for this whole process, which is alone in its binary; no handler
+    // is installed, so no code runs on the signal.
     unsafe {
         signal(SIGCHLD, SIG_DFL);
     }
