@@ -96,15 +96,17 @@ mod platform {
 
     fn navigation_address(args: &ICoreWebView2NavigationStartingEventArgs) -> Option<String> {
         let mut uri = PWSTR::null();
-        // SAFETY: Uri writes a string that the engine allocated into `uri`, which take_pwstr
-        // takes over and frees.
+        // SAFETY: `args` is the live COM object of an event that runs on the window's thread;
+        // on success Uri writes a string allocated with CoTaskMemAlloc that this caller owns, and
+        // take_pwstr frees it once with CoTaskMemFree; on an error `uri` stays null and is not read.
         unsafe { args.Uri(&mut uri) }.ok()?;
         Some(take_pwstr(uri))
     }
 
     fn install_every_means(webview: &PlatformWebview) -> windows_core::Result<()> {
-        // SAFETY: CoreWebView2 reads a property of the controller that the runtime created and
-        // still holds; the call runs on the thread of the window, where with_webview runs it.
+        // SAFETY: wry keeps the controller alive as long as the web view, and with_webview hands
+        // it to this closure on the thread that created it, the only thread WebView2 lets call it;
+        // the returned interface holds its own reference.
         let core: ICoreWebView2 = unsafe { webview.controller().CoreWebView2() }?;
         let navigations = NavigationStartingEventHandler::create(Box::new(|_, args| {
             let Some(args) = args else {
@@ -112,25 +114,27 @@ mod platform {
             };
             let allowed = navigation_address(&args).is_some_and(|text| super::engine_allows(&text));
             if !allowed {
-                // SAFETY: SetCancel sets a flag of the event's arguments during the event.
+                // SAFETY: WebView2 keeps `args` alive until this handler returns, on the window's
+                // thread, and reads the flag only after the return.
                 unsafe { args.SetCancel(true) }?;
             }
             Ok(())
         }));
         let mut token = 0i64;
-        // SAFETY: the handler is a COM object that the engine holds for as long as it is
-        // registered; the token is written once.
+        // SAFETY: on the window's thread; WebView2 takes its own reference to the handler and
+        // keeps it while the registration stands, and `token` is a local that outlives the call.
         unsafe { core.add_NavigationStarting(&navigations, &mut token) }?;
         let mut frame_token = 0i64;
-        // SAFETY: the same handler for the navigations of the window's frames, which raise
-        // FrameNavigationStarting and not NavigationStarting; the token is written once.
+        // SAFETY: as for add_NavigationStarting: the window's thread, a handler that WebView2
+        // references for itself, and a local token that outlives the call.
         unsafe { core.add_FrameNavigationStarting(&navigations, &mut frame_token) }?;
 
         let with_kinds: ICoreWebView2_22 = core.cast()?;
-        // SAFETY: Environment reads a property of the web view that the runtime created.
+        // SAFETY: on the window's thread, on an interface that holds its reference to the web
+        // view; the environment comes back with a reference of its own.
         let environment = unsafe { core.cast::<ICoreWebView2_2>()?.Environment() }?;
-        // SAFETY: a filter of every address for every context and every kind of source, added
-        // on the thread of the window.
+        // SAFETY: on the window's thread; the filter string is an HSTRING that lives through the
+        // call, and WebView2 copies it.
         unsafe {
             with_kinds.AddWebResourceRequestedFilterWithRequestSourceKinds(
                 &HSTRING::from("*"),
@@ -142,16 +146,19 @@ mod platform {
             let Some(args) = args else {
                 return Err(E_POINTER.into());
             };
-            // SAFETY: Request reads a property of the event's arguments during the event.
+            // SAFETY: WebView2 keeps `args` alive until this handler returns, on the window's
+            // thread; the request comes back with a reference of its own.
             let request = unsafe { args.Request() }?;
             let mut uri = PWSTR::null();
-            // SAFETY: Uri writes a string that the engine allocated into `uri`, which
-            // take_pwstr takes over and frees.
+            // SAFETY: `request` is a live COM object on the window's thread; on success Uri writes
+            // a CoTaskMemAlloc string that take_pwstr frees once; on an error `uri` is not read.
             let address = unsafe { request.Uri(&mut uri) }
                 .ok()
                 .map(|()| take_pwstr(uri));
             if !address.is_some_and(|text| super::request_allowed(&text)) {
-                // SAFETY: a response with no body, made by the environment of this web view.
+                // SAFETY: on the window's thread, the environment that created this web view as
+                // WebView2 requires of a response; no stream, and two HSTRINGs that live through
+                // the call.
                 let refusal = unsafe {
                     environment.CreateWebResourceResponse(
                         None,
@@ -160,14 +167,16 @@ mod platform {
                         &HSTRING::new(),
                     )
                 }?;
-                // SAFETY: SetResponse answers the request during the event.
+                // SAFETY: inside the handler, while WebView2 keeps `args` alive; it takes its own
+                // reference to `refusal`.
                 unsafe { args.SetResponse(&refusal) }?;
             }
             Ok(())
         }));
         let mut request_token = 0i64;
-        // SAFETY: the handler is a COM object that the engine holds for as long as it is
-        // registered; the token is written once.
+        // SAFETY: on the window's thread; WebView2 takes its own reference to the handler and
+        // keeps it while the registration stands, and `request_token` is a local that outlives
+        // the call.
         unsafe { core.add_WebResourceRequested(&requests, &mut request_token) }
     }
 }
@@ -218,8 +227,8 @@ mod platform {
                 action: &WKNavigationAction,
                 handler: &Block<dyn Fn(WKNavigationActionPolicy)>,
             ) {
-                // SAFETY: the action and its request are the engine's for the duration of
-                // this call.
+                // SAFETY: WebKit calls this method on the main thread and keeps `action` alive for
+                // the call; the request comes back retained.
                 let address = unsafe { action.request() }
                     .URL()
                     .and_then(|url| url.absoluteString())
@@ -228,8 +237,9 @@ mod platform {
                     handler.call((WKNavigationActionPolicy::Cancel,));
                     return;
                 }
-                // SAFETY: the inner delegate is the runtime's, which implements this method,
-                // and gets the engine's own arguments.
+                // SAFETY: `inner` is wry's navigation delegate, retained by the ivars, whose class
+                // implements this method; the arguments are WebKit's own, alive for this call on
+                // the main thread, and `handler` is called once, by wry.
                 unsafe {
                     self.ivars()
                         .inner
@@ -247,7 +257,8 @@ mod platform {
                     return Bool::YES;
                 }
                 let inner: &ProtocolObject<dyn WKNavigationDelegate> = &self.ivars().inner;
-                // SAFETY: respondsToSelector: takes a selector and answers a bool.
+                // SAFETY: `inner` is an NSObject retained by the ivars; respondsToSelector: of
+                // NSObject takes a SEL and returns BOOL, the types of this send.
                 unsafe { msg_send![inner, respondsToSelector: selector] }
             }
 
@@ -259,22 +270,26 @@ mod platform {
     );
 
     fn put_delegate_in_front(view: &WKWebView, mtm: MainThreadMarker) -> Result<(), String> {
-        // SAFETY: a property read of the web view on the main thread.
+        // SAFETY: `view` is retained and this runs on the main thread, which `mtm` proves and
+        // WebKit requires; the delegate comes back retained, so the ivars own it.
         let inner = unsafe { view.navigationDelegate() }.ok_or("no navigation delegate")?;
         let guard = Guard::alloc(mtm).set_ivars(Ivars { inner });
-        // SAFETY: init of NSObject on an allocated instance of a subclass with its ivars set.
+        // SAFETY: `guard` is an allocation of this class with its ivars set, and NSObject's init
+        // is the designated initializer of its superclass; the result is +1, which Retained owns.
         let guard: Retained<Guard> = unsafe { msg_send![super(guard), init] };
-        // SAFETY: a property write of the web view on the main thread; the delegate is weak,
-        // so the guard is kept for the life of the process below.
+        // SAFETY: on the main thread with `view` retained; WebKit holds the delegate weakly, so the
+        // mem::forget below keeps `guard`, and the inner delegate it retains, alive for the
+        // life of the process.
         unsafe { view.setNavigationDelegate(Some(ProtocolObject::from_ref(&*guard))) };
         std::mem::forget(guard);
         Ok(())
     }
 
     fn set_the_store_proxy(view: &WKWebView) -> Result<(), String> {
-        // SAFETY: property reads of the web view's configuration on the main thread.
+        // SAFETY: on the main thread with `view` retained; both reads come back retained.
         let store = unsafe { view.configuration().websiteDataStore() };
-        // SAFETY: respondsToSelector: takes a selector and answers a bool.
+        // SAFETY: `store` is a retained NSObject; respondsToSelector: takes a SEL and returns
+        // BOOL, the types of this send.
         let has_setting: bool =
             unsafe { msg_send![&*store, respondsToSelector: sel!(setProxyConfigurations:)] };
         if !has_setting {
@@ -282,20 +297,23 @@ mod platform {
         }
         let host = CString::new(super::PROXY_HOST).map_err(|e| e.to_string())?;
         let port = CString::new(super::PROXY_PORT).map_err(|e| e.to_string())?;
-        // SAFETY: nw_endpoint_create_host takes two C strings that live through the call and
-        // answers a retained endpoint or null.
+        // SAFETY: both arguments are NUL-terminated strings owned by `host` and `port`, alive
+        // through the call; Network copies them and returns a +1 object or null.
         let endpoint = unsafe { nw_endpoint_create_host(host.as_ptr(), port.as_ptr()) };
-        // SAFETY: the endpoint is a retained object of the Network framework or null.
+        // SAFETY: the pointer is the +1 result of nw_endpoint_create_host, an Objective-C object
+        // under OS_OBJECT_USE_OBJC, or null; Retained takes over that one reference.
         let endpoint = unsafe { Retained::from_raw(endpoint) }.ok_or("no proxy endpoint")?;
-        // SAFETY: nw_proxy_config_create_socksv5 takes a live endpoint and answers a retained
-        // configuration or null.
+        // SAFETY: `endpoint` is retained through the call, and Network retains what it keeps;
+        // the result is a +1 object or null.
         let config =
             unsafe { nw_proxy_config_create_socksv5(Retained::as_ptr(&endpoint).cast_mut()) };
-        // SAFETY: the configuration is a retained object of the Network framework or null.
+        // SAFETY: the pointer is the +1 result of nw_proxy_config_create_socksv5 or null;
+        // Retained takes over that one reference.
         let config = unsafe { Retained::from_raw(config) }.ok_or("no proxy configuration")?;
         let configs = NSArray::from_retained_slice(&[config]);
-        // SAFETY: the store answers setProxyConfigurations: (read above), which takes an array
-        // of proxy configurations.
+        // SAFETY: on the main thread; the store responds to setProxyConfigurations: (checked
+        // above), whose argument is an NSArray of nw_proxy_config_t and which returns void; the
+        // store copies the array.
         let _: () = unsafe { msg_send![&*store, setProxyConfigurations: &*configs] };
         Ok(())
     }
@@ -306,8 +324,9 @@ mod platform {
             return;
         };
         let pointer = webview.inner().cast::<WKWebView>();
-        // SAFETY: the runtime hands the pointer of its WKWebView, alive while the closure of
-        // with_webview runs on the main thread; retaining it keeps it for the list's answer.
+        // SAFETY: wry hands with_webview's closure the pointer of the WKWebView that it owns,
+        // alive while the closure runs on the main thread; retaining it here keeps the view alive
+        // until the rule list's completion has used it.
         let Some(view) = (unsafe { Retained::retain(pointer) }) else {
             let _ = answer.send(Err("no web view".to_string()));
             return;
@@ -327,7 +346,8 @@ mod platform {
             &NSString::from_str(&site.rules_dir.to_string_lossy()),
             true,
         );
-        // SAFETY: a store of compiled rule lists in a directory of the app, on the main thread.
+        // SAFETY: on the main thread, which `mtm` proves; `directory` is a file URL that lives
+        // through the call, and the store comes back retained.
         let Some(store) = (unsafe { WKContentRuleListStore::storeWithURL(Some(&directory), mtm) })
         else {
             let _ = answer.send(Err("no store of rule lists".to_string()));
@@ -338,17 +358,19 @@ mod platform {
             let Some((answer, view)) = pending.take() else {
                 return;
             };
-            // SAFETY: the engine hands a live rule list or null for the duration of the call.
+            // SAFETY: WebKit passes a rule list that it keeps alive for the call, or null; the
+            // reference does not leave the block.
             let Some(list) = (unsafe { list.as_ref() }) else {
-                // SAFETY: the engine hands a live error or null for the duration of the call.
+                // SAFETY: WebKit passes an error that it keeps alive for the call, or null; only a
+                // copy of its description leaves the block.
                 let reason = unsafe { error.as_ref() }
                     .map(|error| error.localizedDescription().to_string())
                     .unwrap_or_else(|| "no rule list".to_string());
                 let _ = answer.send(Err(format!("the rule list did not compile: {reason}")));
                 return;
             };
-            // SAFETY: the content controller of the live web view's configuration, on the main
-            // thread, where the store answers.
+            // SAFETY: WebKit runs the completion on the main thread; `view` is retained by the
+            // block, and addContentRuleList retains `list`.
             unsafe {
                 view.configuration()
                     .userContentController()
@@ -356,7 +378,9 @@ mod platform {
             };
             let _ = answer.send(Ok(GuardInstalled(())));
         });
-        // SAFETY: the store compiles the list and answers the block once, on the main thread.
+        // SAFETY: on the main thread; the two strings live through the call, and WebKit copies
+        // the completion block and calls it once on the main thread, which is the thread that
+        // the block's non-Send contents require.
         unsafe {
             store.compileContentRuleListForIdentifier_encodedContentRuleList_completionHandler(
                 Some(&NSString::from_str(super::RULE_LIST_ID)),
