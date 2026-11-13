@@ -1120,6 +1120,14 @@ cat "$server_dir/contract/routes/v1.json"' 'scripts/check-routes.sh:1: assigns t
   case_bin=$scratch/bogus-grep
   expect FAIL a-grep-line-of-no-tracked-path 'lines that name no tracked path'
 
+  for reserved in scripts/nul.sh scripts/con.sh scripts/aux.txt scripts/ends-in-a-dot.; do
+    case_name=a-windows-reserved-name-is-read-from-the-index-${reserved#scripts/}
+    case_name=${case_name%.}
+    fixture "$case_name"
+    index_file "$reserved" 'cat backend/src/types.ts'
+    expect FAIL "$case_name" "$reserved:1: reads under backend/"
+  done
+
   fixture a-path-that-git-quotes
   index_file 'say "hi".txt' 'cat backend/src/types.ts'
   expect FAIL a-path-that-git-quotes 'git quotes this tracked path'
