@@ -1765,6 +1765,7 @@ self_test_hook() {
   printf 'plain\n' >"$repo/clean.txt"
   commit_all 'clean' >/dev/null || die 'commit failed'
   push_case clean-branch pushed 'push of refs/heads/clean to refs/heads/clean: commits read 1, lines with a home path 0' proof clean
+  push_case push-of-one-ref-to-another-name pushed 'push of refs/heads/clean to refs/heads/elsewhere: commits read 1, lines with a home path 0' proof clean:refs/heads/elsewhere
 
   in_repo checkout -q -b clean2 trunk || die 'git checkout failed'
   printf 'plain\n' >"$repo/clean2.txt"
