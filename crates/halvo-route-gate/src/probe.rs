@@ -575,6 +575,28 @@ mod tests {
     }
 
     #[test]
+    fn a_child_that_prints_a_pass_and_fails() {
+        if std::env::var_os(CHILD).is_some() {
+            println!("test result: ok. 1 passed");
+            assert_eq!(std::hint::black_box((1, 2)), (1, 3));
+        }
+    }
+
+    #[test]
+    fn a_child_that_prints_a_pass_and_fails_is_refused() {
+        let failed = std::panic::catch_unwind(|| {
+            in_a_child_alone("probe::tests::a_child_that_prints_a_pass_and_fails")
+        })
+        .expect_err("the child fails");
+        let text = failed.downcast_ref::<String>().expect("a panic text");
+        assert!(text.contains("test result: ok. 1 passed\n"), "{text}");
+        assert!(
+            text.contains("test result: FAILED. 0 passed; 1 failed"),
+            "{text}"
+        );
+    }
+
+    #[test]
     fn a_child_that_runs_no_test_fails_the_parent() {
         let failed = std::panic::catch_unwind(|| in_a_child_alone("probe::tests::no_such_test"))
             .expect_err("a child that runs no test fails");
