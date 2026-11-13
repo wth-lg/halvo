@@ -1,5 +1,5 @@
 // Readers of the system for tests: they read the state file that fake-app.mjs writes and whether
-// its process lives, in the shape of the readers of system/system.mjs.
+// its process and a child that it names live, in the shape of the readers of system/system.mjs.
 import fs from 'node:fs';
 
 function alive(pid) {
@@ -20,7 +20,9 @@ export function fakeReaders(stateFile) {
     },
     tree(pid) {
       if (!alive(pid)) return { count: 0, webview: 0, procs: [] };
-      return { count: 2, webview: 1, procs: [{ pid, start: '1' }] };
+      const child = Number(fs.readFileSync(stateFile, 'utf8').trim().split(' ')[2]);
+      const procs = [{ pid, start: '1' }, ...(child ? [{ pid: child, start: '1' }] : [])];
+      return { count: procs.length + 1, webview: 1, procs };
     },
     alive(procs) {
       return procs.filter((p) => alive(p.pid)).length;

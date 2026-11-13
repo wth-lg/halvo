@@ -269,6 +269,7 @@ test('the channel way counts what came while hidden and a step back as a miss', 
   await settle();
   assert.deepEqual(page.reports(), [
     'window shown after_hide=1 hidden_ticks=0 hide_seen=yes',
+    'sync order_miss seq=2 last=2',
     'sync end last=4 order=miss after_hide=1 hidden_ticks=0'
   ]);
 });
@@ -361,6 +362,7 @@ test('a change after the end line is reported with the order', async () => {
   await settle();
   assert.deepEqual(page.reports(), [
     'sync end last=2 order=ok after_hide=0 hidden_ticks=0',
+    'sync order_miss seq=1 last=2',
     'sync after_end seq=1 last=2 order=miss'
   ]);
 });

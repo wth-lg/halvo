@@ -5,8 +5,11 @@
 // whose read differs from its answer, or a line with no answer inside its own limit (TA-16), prints
 // `miss trial=<t> machine=<m> arm=<arm> run=<i> step=<step>`. A cell that cannot be made for another
 // cause (an err answer, a sampler that found no process, a page line that never came) prints
-// `nocell trial=<t> machine=<m> arm=<arm> run=<i> step=<step> cause=<word>`. Exit: 0 when every cell
-// was printed, 1 when one was not, 2 on a refusal.
+// `nocell trial=<t> machine=<m> arm=<arm> run=<i> step=<step> cause=<word>`; one err answer makes a
+// cell: `err timeout` of the second show of a sync cell, when the window reads on screen. A sync
+// cell's `order` is a miss when any page of the run saw a step back (its `sync order_miss` or
+// `after_end ... order=miss` line). Exit: 0 when every cell was printed, 1 when one was not, 2 on a
+// refusal.
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +28,7 @@ export const SYNC = Object.freeze({ count: 200000, rate: 1000, hideAt: 100000, s
 /** The time limit of each control line (TA-16): show waits up to 30 s in the app. */
 export const LIMITS = Object.freeze({ show: 45000, hide: 20000, destroy: 20000, sample: 20000, send: 10000, quit: 15000 });
 
-const APP_LINE = /^(core send_done |core quiet |page sync (end|stalled|closed|after_end) |page sync mark=|page window shown |page policy )/;
+const APP_LINE = /^(core send_done |core quiet |page sync (end|stalled|closed|after_end|order_miss) |page sync mark=|page window shown |page policy )/;
 
 const READ_TRIES = 20;
 const READ_EVERY_MS = 500;
@@ -333,7 +336,7 @@ export async function syncCell({ machine, way, arm, timing = SYNC }, deps) {
       hiddenTicks = Number(shown[2]);
     }
     const last = await s.sample('onscreen');
-    const late = app.lines.some((l) => /^page sync after_end seq=\d+ last=\d+ order=miss$/.test(l));
+    const late = app.lines.some((l) => /^page sync (after_end seq=\d+ last=\d+ order=miss|order_miss seq=\d+ last=\d+)$/.test(l));
     await s.quit();
     const cell = {
       trial: 'sync', machine, way, arm, sent: Number(done.slice(done.indexOf('=') + 1)), last: Number(end[2]), order: late ? 'miss' : end[3],

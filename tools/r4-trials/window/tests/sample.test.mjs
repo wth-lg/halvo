@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -89,4 +91,24 @@ test('the sampler refuses a missing or a bad process id with usage', () => {
     assert.equal(r.err.length, 1);
     assert.match(r.err[0], /^REFUSED usage: /);
   }
+});
+
+test('E4 and E7: the processor time folds minutes into seconds, and the load is the 1-minute value', { skip: windows }, async () => {
+  const stub = fs.mkdtempSync(path.join(os.tmpdir(), 'r4-stub-'));
+  fs.writeFileSync(path.join(stub, 'ps'), '#!/bin/sh\nwhile [ "$#" -gt 0 ]; do\n  if [ "$1" = -p ]; then list=$2; fi\n  shift\ndone\nprintf "%s\\n" "$list" | tr , "\\n" | while read -r p; do printf "%s 4096 1:05.00\\n" "$p"; done\n');
+  fs.writeFileSync(path.join(stub, 'sysctl'), '#!/bin/sh\ncase "$2" in\n  vm.loadavg) printf "{ 1.11 2.22 3.33 }\\n" ;;\n  hw.ncpu) printf "8\\n" ;;\nesac\n');
+  fs.chmodSync(path.join(stub, 'ps'), 0o755);
+  fs.chmodSync(path.join(stub, 'sysctl'), 0o755);
+  await withChild((child) => {
+    const env = { ...process.env, PATH: `${stub}${path.delimiter}${path.dirname(process.execPath)}${path.delimiter}/usr/bin${path.delimiter}/bin` };
+    let r;
+    for (let i = 0; i < 5; i += 1) {
+      r = spawnSync('sh', [path.join(dir, 'sample.sh'), String(child.pid)], { encoding: 'utf8', timeout: 120000, env });
+      if (r.status === 0) break;
+    }
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    const out = r.stdout.split('\n').filter(Boolean);
+    assert.match(out[0], / load_x100=111 cpu_pct=- ncpu=8$/);
+    assert.ok(out.includes(`proc pid=${child.pid} start=${/^proc pid=\d+ start=(\d+)/.exec(out.find((l) => l.startsWith(`proc pid=${child.pid} `)))[1]} cpu_ms=65000`), out.join('\n'));
+  });
 });

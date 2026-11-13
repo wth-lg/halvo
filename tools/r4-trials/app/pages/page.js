@@ -56,6 +56,9 @@
   function accept(change) {
     quietTicks = 0;
     if (change.seq <= sync.last) {
+      if (sync.order === 'ok') {
+        app.report('sync order_miss seq=' + change.seq + ' last=' + sync.last);
+      }
       sync.order = 'miss';
     } else {
       sync.last = change.seq;

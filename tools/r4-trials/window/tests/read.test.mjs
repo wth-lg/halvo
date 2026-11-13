@@ -26,7 +26,7 @@ const WANTED = [
 ];
 
 function read(args = []) {
-  const r = spawnSync('sh', [path.join(trials, 'window', 'read.sh'), ...args], { encoding: 'utf8', timeout: 120000, env: { ...process.env, PATH: `${path.join(os.homedir(), '.cargo', 'bin')}${path.delimiter}${process.env.PATH}` } });
+  const r = spawnSync('sh', [path.join(trials, 'window', 'read.sh'), ...args], { encoding: 'utf8', timeout: 120000 });
   return { status: r.status, out: r.stdout.split('\n').filter((l) => l !== ''), err: r.stderr };
 }
 

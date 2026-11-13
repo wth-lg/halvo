@@ -242,3 +242,90 @@ test('a page that never saw the hide gives no sync cell', async () => {
   assert.equal(await syncCell({ machine: 'hosted-mac', way: 'channel', arm: 'a2', timing: FAST_SYNC }, d), null);
   assert.deepEqual(cells(d), ['nocell trial=sync machine=hosted-mac way=channel arm=a2 run=1 step=hide cause=hide_unseen']);
 });
+
+test('E3: in arm b a step back of the first page makes the order a miss, as it does in arm a2', async () => {
+  for (const [way, arm] of [['events', 'b'], ['channel', 'b'], ['events', 'a2']]) {
+    const d = deps('repeat_early');
+    const cell = await syncCell({ machine: 'hosted-mac', way, arm, timing: FAST_SYNC }, d);
+    assert.ok(cell, d.printed.join('\n'));
+    assert.equal(cell.order, 'miss', `${way} ${arm}`);
+    assert.ok(d.printed.some((l) => new RegExp(`^trace trial=sync way=${way} arm=${arm} page sync order_miss seq=4999 last=5000$`).test(l)), d.printed.join('\n'));
+  }
+});
+
+test('E4: show_ms is that of the second show', async () => {
+  const d = deps('shows_differ');
+  const cell = await windowCell({ machine: 'hosted-mac', arm: 'a', run: 1, timing: FAST }, d);
+  assert.ok(cell, d.printed.join('\n'));
+  assert.equal(cell.show_ms, 22);
+});
+
+test('E4: a quit is a miss while a process of the tree lives, and unless the app ends with 0', async () => {
+  for (const fault of ['child_alive', 'exit_one']) {
+    const d = deps(fault);
+    try {
+      assert.equal(await windowCell({ machine: 'hosted-mac', arm: 'main', run: 1, timing: FAST }, d), null, fault);
+      assert.deepEqual(cells(d), ['miss trial=window machine=hosted-mac arm=main run=1 step=quit'], fault);
+    } finally {
+      const child = Number(fs.readFileSync(process.env.FAKE_STATE, 'utf8').trim().split(' ')[2]);
+      if (child) process.kill(child, 'SIGKILL');
+    }
+  }
+});
+
+test('E5: a window arm whose run gave no cell prints its nocell line and exits 1, and run.sh ends with that exit', async () => {
+  const d = deps();
+  let calls = 0;
+  const sampler = (pid) => {
+    calls += 1;
+    return calls === 1 ? null : { pid, key_bytes: 1000, second_bytes: 500, helpers: 0, load_x100: 100, cpu_pct: '-', ncpu: 3, procs: [{ pid, start: '1', cpu_ms: calls }] };
+  };
+  const status = await main({ trial: 'window', arm: 'a', runs: 2 }, 'hosted-mac', { ...d, sampler }, FAST);
+  assert.equal(status, 1);
+  const out = cells(d);
+  assert.equal(out[0], 'nocell trial=window machine=hosted-mac arm=a run=1 step=sample cause=sampler');
+  assert.match(out[1], /^cell trial=window machine=hosted-mac arm=a run=2 /);
+  const runSh = fs.readFileSync(path.join(here, '..', 'run.sh'), 'utf8').trimEnd().split('\n');
+  assert.equal(runSh.at(-1), 'node "$here/cells.mjs" "$@"');
+});
+
+test('E6 (V34): helpers, key_bytes, second_bytes and the load of a cell are those of the second sample', async () => {
+  const d = deps();
+  let calls = 0;
+  const sampler = (pid) => {
+    calls += 1;
+    return calls === 1
+      ? { pid, key_bytes: 9000, second_bytes: 8000, helpers: 3, load_x100: 900, cpu_pct: '-', ncpu: 3, procs: [{ pid, start: '1', cpu_ms: 5 }] }
+      : { pid, key_bytes: 1000, second_bytes: 700, helpers: 0, load_x100: 100, cpu_pct: '-', ncpu: 3, procs: [{ pid, start: '1', cpu_ms: 9 }] };
+  };
+  const cell = await windowCell({ machine: 'hosted-mac', arm: 'b', run: 1, timing: FAST }, { ...d, sampler });
+  assert.ok(cell, d.printed.join('\n'));
+  assert.deepEqual([cell.helpers, cell.key_bytes, cell.second_bytes, cell.load_x100, cell.counted], [0, 1000, 700, 100, 'yes']);
+});
+
+test('E6 (V44): a sample whose window the readers show in another state than its step left is a miss of the sample', async () => {
+  const d = deps();
+  let hiddenSeen = false;
+  const readers = {
+    ...d.readers,
+    window(pid) {
+      const read = d.readers.window(pid);
+      if (hiddenSeen) return { ...read, state: 'onscreen' };
+      if (read.state === 'hidden') hiddenSeen = true;
+      return read;
+    },
+  };
+  assert.equal(await windowCell({ machine: 'hosted-mac', arm: 'a', run: 1, timing: FAST }, { ...d, readers }), null);
+  assert.deepEqual(cells(d), ['miss trial=window machine=hosted-mac arm=a run=1 step=sample']);
+});
+
+test('E7 (V28): counts of frames where the window is absent are a miss even with ticks -', () => {
+  assert.equal(sampleCheck('ok pid=5 ticks=- frames=3', 5, 'absent', 'absent', { count: 2 }), 'miss');
+  assert.equal(sampleCheck('ok pid=5 ticks=3 frames=-', 5, 'absent', 'absent', { count: 2 }), 'miss');
+});
+
+test('E8 (N1): a closed line before the hide does not stand for one after it', async () => {
+  const d = deps('closed_early,get_open');
+  assert.equal(await syncCell({ machine: 'hosted-mac', way: 'get', arm: 'a2', timing: FAST_SYNC }, d), null);
+  assert.deepEqual(cells(d), ['miss trial=sync machine=hosted-mac arm=a2 run=1 step=hide']);
+});

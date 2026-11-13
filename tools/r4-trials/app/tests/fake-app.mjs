@@ -3,7 +3,11 @@
 // state of its window (onscreen, hidden or absent) to the file FAKE_STATE, which the readers of
 // fake-readers.mjs read. FAKE_FAULT names faults, comma-separated: show_kept, show_kept_first,
 // show_kept_later, hide_kept, destroy_kept, quit_stays, wrong_pid, counts_frozen, hidden_unmarked,
-// get_open, lose_last, repeat_last, hide_unseen.
+// get_open, lose_last, repeat_last, hide_unseen, shows_differ (each show answers its own show_ms),
+// child_alive (a child that outlives the app, whose pid the state file holds third), exit_one (quit
+// ends with 1), repeat_early (change 4,999 again after 5,000) and closed_early (a closed line at the
+// first show, before any hide).
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 
@@ -16,6 +20,7 @@ const arm = flag('--arm', 'main');
 const way = flag('--sync', null);
 const faults = new Set((process.env.FAKE_FAULT ?? '').split(',').filter(Boolean));
 const stateFile = process.env.FAKE_STATE;
+const child = faults.has('child_alive') ? spawn(process.execPath, ['-e', 'setTimeout(() => {}, 120000)'], { stdio: 'ignore' }) : null;
 const system = process.platform === 'win32' ? 'windows' : 'macos';
 
 let windowState = 'hidden';
@@ -35,7 +40,7 @@ function print(line) {
 
 function setWindow(state) {
   windowState = state;
-  if (stateFile) fs.writeFileSync(stateFile, `${state} ${process.pid}\n`);
+  if (stateFile) fs.writeFileSync(stateFile, `${state} ${process.pid}${child ? ` ${child.pid}` : ''}\n`);
 }
 
 function newPage() {
@@ -67,7 +72,12 @@ function elapsed() {
 
 function accept(seq, of, hidden) {
   if (!page) return;
-  if (seq <= page.last) page.order = 'miss'; else page.last = seq;
+  if (seq <= page.last) {
+    if (page.order === 'ok') print(`page sync order_miss seq=${seq} last=${page.last}`);
+    page.order = 'miss';
+  } else {
+    page.last = seq;
+  }
   if (hidden) page.afterHide += 1;
   const mark = Math.floor(page.last / 10000) * 10000;
   if (mark > page.mark) {
@@ -91,6 +101,7 @@ function deliver(seq, of) {
     return;
   }
   accept(seq, of, hiddenMark && !faults.has('hidden_unmarked'));
+  if (faults.has('repeat_early') && seq === 5000) accept(4999, of, false);
   if (faults.has('repeat_last') && seq === of) accept(seq, of, false);
 }
 
@@ -139,7 +150,8 @@ function answer(line) {
     }
     if (seen && way === 'get' && latest > page.last) accept(latest, sendOf, false);
     startCount();
-    const ms = slowNext ? 1500 : 12;
+    if (faults.has('closed_early') && shows === 1 && way === 'get') print(`page sync closed last=${page.last}`);
+    const ms = slowNext ? 1500 : faults.has('shows_differ') ? 10 * shows + 2 : 12;
     slowNext = false;
     return `ok show_ms=${ms}`;
   }
@@ -191,7 +203,7 @@ const server = net.createServer((socket) => {
       buffer = buffer.slice(at + 1);
       if (line === 'quit') {
         socket.write('ok\n');
-        if (!faults.has('quit_stays')) setTimeout(() => process.exit(0), 50);
+        if (!faults.has('quit_stays')) setTimeout(() => process.exit(faults.has('exit_one') ? 1 : 0), 50);
         continue;
       }
       socket.write(`${answer(line)}\n`);

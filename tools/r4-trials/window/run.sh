@@ -24,7 +24,9 @@ show 60 s later.
 Each answer of the app is compared with what the readers of the system show.
 A difference, or a line without an answer inside its limit, prints a line
 "miss trial=..." and that run gives no cell; a run that cannot be made for
-another cause prints a line "nocell trial=...".
+another cause, such as an err answer, prints a line "nocell trial=...". One
+err answer makes a cell: "err timeout" of the second show of a sync cell,
+when the window reads on screen.
 
 Exit: 0 when every cell was printed, 1 when one was not or the build failed,
 2 on a refusal.
