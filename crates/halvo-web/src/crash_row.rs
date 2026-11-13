@@ -118,16 +118,35 @@ pub fn changed(before: &Listing, after: &Listing) -> Vec<File> {
 
 /// The listed place, other than the run's own profile and temporary directory, under which the
 /// row's scratch directory `scratch` lies, if any (CP-186 S6): the row's profiles would then be
-/// listed twice and their files read as left outside. Both paths are compared through their links
-/// where they exist.
+/// listed twice and their files read as left outside. Both paths are read alike (`real_path`).
 pub fn scratch_under_place(scratch: &Path, places: &[Place]) -> Option<&'static str> {
-    let real = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    let real = real_path;
     let scratch = real(scratch);
     places
         .iter()
         .filter(|p| !p.inside_profile)
         .find(|p| scratch.starts_with(real(&p.root)))
         .map(|p| p.name)
+}
+
+/// `p` read through its links: its deepest ancestor that exists, through `canonicalize`, with the
+/// rest of `p` joined to it, so that a path that exists and one that does not yet are read in one
+/// form (on Windows `canonicalize` gives the `\\?\` form; run 43503444269).
+fn real_path(p: &Path) -> PathBuf {
+    let mut rest: Vec<&std::ffi::OsStr> = Vec::new();
+    let mut at = p;
+    loop {
+        if let Ok(found) = std::fs::canonicalize(at) {
+            return rest.iter().rev().fold(found, |acc, part| acc.join(part));
+        }
+        match (at.parent(), at.file_name()) {
+            (Some(parent), Some(name)) => {
+                rest.push(name);
+                at = parent;
+            }
+            _ => return p.to_path_buf(),
+        }
+    }
 }
 
 /// The removals of a reading (CP-186 T3), in three counts. `deciding`: a file that stood in
