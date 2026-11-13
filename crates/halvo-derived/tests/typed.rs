@@ -1221,3 +1221,43 @@ fn a_window_record_whose_expiry_has_passed_is_dropped_and_counted_by_a_handler_a
         0
     );
 }
+
+/// Pins the store as built (DS-3, G4): a handler's row read reads no day, so a bounded row past its day of going is
+/// visited until an expiry runs, at an open or at the host's call of `Store::expire`. What such a read may still
+/// hand out is with the draft evidence/eng-manager/draft-ruling-u51-read-past-bound.md of this run; its ruling turns
+/// this test with its change.
+#[test]
+fn a_handler_s_row_read_visits_a_bounded_row_past_its_day_of_going_until_an_expiry_runs_as_built() {
+    let scratch = Scratch::new("row-read-past-bound");
+    let clock = TestClock::at_day(DAY);
+    let w = workflow(&scratch, &clock, &[&NOTE]);
+    let step: Records = Rc::new(RefCell::new(vec![note(&w, DAY, 1)]));
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let reading = {
+        let seen = Rc::clone(&seen);
+        Box::new(FnHandler(move |_: &RawRequest, cx: &mut HandlerCx<'_>| {
+            let mut visited = 0;
+            cx.rows().for_each("test_note", &mut |_| visited += 1);
+            seen.borrow_mut().push(visited);
+            Ok(reply("null"))
+        }))
+    };
+    let host = with_step(&clock, &step, vec![]).handler("test", Takes::Runner, reading);
+    let mut store = open_entries(&scratch, host, &[&NOTE]).unwrap();
+    store
+        .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(1))
+        .unwrap();
+    let read = |store: &mut Store| store.handle(&raw_request("runner", "{}")).unwrap();
+    read(&mut store);
+    clock.set_day(DAY + 93);
+    read(&mut store);
+    let removed = store.expire().unwrap();
+    read(&mut store);
+    drop(store);
+    assert_eq!(
+        (seen.borrow().clone(), removed > 0),
+        (vec![1, 1, 0], true),
+        "(rows visited on the row's day, on its day of going with no expiry run, after the expiry; the expiry removed \
+         rows)"
+    );
+}

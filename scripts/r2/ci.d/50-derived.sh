@@ -62,6 +62,7 @@ esac
 #= tests/typed.rs a_handler_s_typed_commit_refuses_the_list_for_a_bounded_day_after_the_clock_or_outside_its_bound
 #= tests/typed.rs a_request_of_a_further_role_that_a_handler_passes_on_stores_no_record_of_origin_own
 #= tests/typed.rs a_window_record_whose_expiry_has_passed_is_dropped_and_counted_by_a_handler_and_by_a_step
+#= tests/typed.rs a_handler_s_row_read_visits_a_bounded_row_past_its_day_of_going_until_an_expiry_runs_as_built
 #= tests/state.rs the_state_call_moves_an_approved_workflow_among_approved_active_and_paused
 #= tests/state.rs the_state_call_refuses_a_proposed_a_dismissed_and_a_missing_workflow_and_an_active_one_with_no_agent
 #= tests/state.rs the_state_call_answers_no_workflow_for_a_workflow_that_is_not_stored_before_the_rules_of_the_move
@@ -79,6 +80,7 @@ esac
 #= tests/read.rs a_page_of_261120_bytes_passes_and_a_page_one_byte_longer_is_refused
 #= tests/read.rs a_page_holds_whole_items_while_the_reply_stays_inside_its_bound
 #= tests/read.rs a_page_counts_the_id_under_next_against_the_bound
+#= tests/read.rs the_evidence_read_hands_out_a_window_row_past_its_expiry_until_an_expiry_runs_as_built
 #= tests/export.rs export_proposals_writes_the_header_and_one_line_per_proposed_workflow_in_order
 
 fail() {

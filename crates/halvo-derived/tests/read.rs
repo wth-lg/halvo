@@ -4,8 +4,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use common::{
-    domain, episode, open_host, position, raw_request, store_id, summary_id, token, Fixed, Scratch,
-    Seq, TestClock,
+    domain, episode, open_host, position, raw_request, store_id, summary_id, token, Fixed,
+    Grouping, Scratch, Seq, TestClock,
 };
 use halvo_derived::{Error, Handler, HandlerCx, Host, Store, Takes};
 use halvo_schema_core::category::SeedCategory;
@@ -431,4 +431,38 @@ fn a_handler_reads_one_stored_workflow_and_the_pages_of_its_evidence() {
     let mut store = open_host(&scratch, host).unwrap();
     store.handle(&raw_request("runner", "{}")).unwrap();
     assert_eq!(*found.borrow(), vec!["2 true 2".to_owned()]);
+}
+
+/// Pins the store as built (DS-3, G4): the interface read reads no expiry, so the evidence of a window row whose
+/// `expires` has passed is handed out until an expiry runs, at an open or at the host's call of `Store::expire`. What
+/// such a read may still hand out is with the draft evidence/eng-manager/draft-ruling-u51-read-past-bound.md of this
+/// run; its ruling turns this test with its change.
+#[test]
+fn the_evidence_read_hands_out_a_window_row_past_its_expiry_until_an_expiry_runs_as_built() {
+    let scratch = Scratch::new("evidence-past-expiry");
+    let clock = TestClock::at_day(DAY);
+    let host = Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 1 }));
+    let mut store = open_host(&scratch, host).unwrap();
+    let mut soon = episode(1, DAY, None);
+    soon.expires = Instant(clock.now() + 5_000);
+    store
+        .commit_batch(&store_id(1), &[soon], position(1, 0), &mut Seq(1))
+        .unwrap();
+    let id = page(workflows(&store, None)).0[0].workflow.id().clone();
+    let handed_out = |store: &Store| match evidence(store, id.clone(), None) {
+        Ok(ReplyResult::Evidence(page)) => page.evidence.len(),
+        other => panic!("the read answered {other:?}"),
+    };
+    let before = handed_out(&store);
+    clock.set(clock.now() + 5_000);
+    let past = handed_out(&store);
+    let removed = store.expire().unwrap();
+    let after = handed_out(&store);
+    drop(store);
+    assert_eq!(
+        (before, past, removed, after),
+        (1, 1, 1, 0),
+        "(evidence handed out before its expiry, at its expiry with no expiry run, rows that the expiry removes, \
+         evidence handed out after it)"
+    );
 }
