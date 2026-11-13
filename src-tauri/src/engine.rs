@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn on_windows_the_handler_cancels_alone_for_the_window_and_for_its_frames() {
-        let source = include_str!("engine.rs");
+        let source = include_str!("engine.rs").replace("\r\n", "\n");
         let windows = &source[source
             .find("#[cfg(windows)]\nmod platform")
             .expect("the Windows module")..];

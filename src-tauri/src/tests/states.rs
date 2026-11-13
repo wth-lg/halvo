@@ -88,27 +88,16 @@ fn timeout_record(f: &mut StatusFields) {
 pub fn states() -> Vec<(&'static str, StatusView)> {
     let mac = Platform::Macos;
     let of = |status: DaemonStatus| StatusView::of(&status);
+    let none = |service: Service| StatusView {
+        platform: mac,
+        ..StatusView::without_status(service)
+    };
     vec![
-        (
-            "connecting",
-            StatusView::without_status(Service::Connecting),
-        ),
-        (
-            "not-running",
-            StatusView::without_status(Service::NotRunning),
-        ),
-        (
-            "held-unreachable",
-            StatusView::without_status(Service::HeldUnreachable),
-        ),
-        (
-            "status-refused",
-            StatusView::without_status(Service::StatusRefused),
-        ),
-        (
-            "unsupported",
-            StatusView::without_status(Service::Unsupported),
-        ),
+        ("connecting", none(Service::Connecting)),
+        ("not-running", none(Service::NotRunning)),
+        ("held-unreachable", none(Service::HeldUnreachable)),
+        ("status-refused", none(Service::StatusRefused)),
+        ("unsupported", none(Service::Unsupported)),
         ("running", of(sample_status(mac))),
         ("running-windows", of(sample_status(Platform::Windows))),
         (
@@ -392,6 +381,19 @@ fn each_state_of_the_view_equals_its_fixture() {
         let expected = read_json(&fixtures_dir().join(fixture_name(name)));
         assert_eq!(got, expected, "the view {name} differs from its fixture");
     }
+}
+
+#[test]
+fn a_view_with_no_status_names_the_system_that_the_app_runs_on() {
+    let expected = if cfg!(windows) {
+        Platform::Windows
+    } else {
+        Platform::Macos
+    };
+    assert_eq!(
+        StatusView::without_status(Service::NotRunning).platform,
+        expected
+    );
 }
 
 #[test]
