@@ -1525,6 +1525,7 @@ name = "halvo-derived"
 version = "0.0.0"
 dependencies = [
  "halvo-derived",
+ "halvo-redact",
  "halvo-schema-core",
  "halvo-sqlcipher",
  "rusqlite",

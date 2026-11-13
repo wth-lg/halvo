@@ -573,3 +573,62 @@ fn privacy_kept() {
         1
     );
 }
+
+const CARD: &str = "4111 1111 1111 1111";
+const IBAN: &str = "GB82 WEST 1234 5698 7654 32";
+
+/// The test worker of privacy_redact: one episode per title, each title masked by halvo-redact before it enters the
+/// analysis write, as the worker of the product masks it.
+fn worker(titles: &[String]) -> Vec<Episode> {
+    titles
+        .iter()
+        .zip(1..)
+        .map(|(title, n)| titled(n, DAY, "com.example.browser", &halvo_redact::mask(title)))
+        .collect()
+}
+
+/// privacy_redact: titles that hold a Luhn-valid card number written with spaces and a valid IBAN go through one
+/// batch of the test worker, which masks them with halvo-redact; no stored row holds either number, written with its
+/// spaces or without them, and the stored titles hold the tokens of the two rules.
+#[test]
+fn privacy_redact() {
+    let scratch = Scratch::new("privacy-redact");
+    let clock = TestClock::at_day(DAY);
+    let mut store = open_host(
+        &scratch,
+        Host::new(Box::new(clock.clone()), Box::new(Grouping { min: 2 })),
+    )
+    .unwrap();
+    let titles = [
+        format!("Pay {CARD} - Northwind Power"),
+        format!("Transfer from {IBAN} - Bank"),
+        format!("Pay {CARD} from {IBAN}"),
+    ];
+    let outcome = store
+        .commit_batch(&store_id(1), &worker(&titles), position(1, 0), &mut Seq(100))
+        .unwrap();
+    assert_eq!(
+        (outcome.summaries, outcome.evidence, outcome.proposals.stored),
+        (3, 3, 1)
+    );
+    drop(store);
+    let conn = raw(&scratch);
+    let holding = |text: &str| -> i64 {
+        conn.query_row(
+            "SELECT count(*) FROM rows WHERE instr(body, ?1) > 0",
+            [text],
+            |r| r.get(0),
+        )
+        .unwrap()
+    };
+    for number in [CARD, IBAN] {
+        for form in [number.to_owned(), number.replace(' ', "")] {
+            assert_eq!(holding(&form), 0, "rows that hold a planted number");
+        }
+    }
+    assert_eq!(
+        (holding("[card]"), holding("[iban]")),
+        (2, 2),
+        "(rows that hold the card token, rows that hold the IBAN token)"
+    );
+}
